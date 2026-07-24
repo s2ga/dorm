@@ -430,7 +430,11 @@ function viewSettings() {
     ${grpOpen('gia')}
     <div class="panel"><div class="hd"><h2>${IC.home} Thông tin hiển thị trên phiếu báo</h2></div><div class="pad">
       <div class="field"><label>Tên ký túc xá</label><input id="set_dorm_name" value="${esc(s.dorm_name || '')}"></div>
-      <p class="muted" style="font-size:12px;margin:0">Địa chỉ lấy theo từng cơ sở (mục Cơ sở bên dưới). Hotline chỉnh ở mục <strong>Trang giới thiệu</strong> bên dưới.</p>
+      <div class="grid2">
+        <div class="field"><label>Hạn đóng tiền — từ ngày</label><input id="set_due_day_from" type="number" min="1" max="31" value="${esc(s.due_day_from ?? 1)}"></div>
+        <div class="field"><label>Hạn đóng tiền — đến ngày</label><input id="set_due_day_to" type="number" min="1" max="31" value="${esc(s.due_day_to ?? 5)}"></div>
+      </div>
+      <p class="muted" style="font-size:12px;margin:0">${IC.info} Tên KTX + hạn đóng hiện trên <strong>phiếu báo</strong>. Địa chỉ lấy theo từng cơ sở (mục Cơ sở); hotline ở mục <strong>Trang giới thiệu</strong>.</p>
     </div></div>
     <div class="panel"><div class="hd"><h2>${IC.banknote} Đơn giá & quy tắc tính tiền</h2></div><div class="pad">
       <div class="grid2">
@@ -541,7 +545,7 @@ function viewSettings() {
       <button class="btn pri" data-act="saveIntro">Lưu nội dung</button>
     </div></div>
 
-    <div class="panel"><div class="hd"><h2>${IC.building} Ảnh khu nội trú (trang giới thiệu)</h2><a class="btn sm" href="/dang-ky" target="_blank">Xem trang</a></div><div class="pad">
+    <div class="panel"><div class="hd"><h2>${IC.building} Ảnh khu nội trú (trang giới thiệu)</h2></div><div class="pad">
       <div class="hint">${IC.info} Ảnh hiển thị ở <strong>trang đăng ký công khai</strong> cho học viên xem. Chọn ảnh từ máy — lưu ngay, <strong>không cần sửa code</strong>. Nên dùng ảnh ngang, dung lượng < 1MB để tải nhanh.</div>
       <div class="media-grid">
         ${INTRO_MEDIA.map(([key, label]) => `<div class="media-slot">
@@ -962,7 +966,8 @@ async function saveSettings() {
   body.dorm_name = el('set_dorm_name').value.trim() || 'Ký túc xá';
   // Ngưỡng nhắc / nghiệp vụ (Đợt 3) — gửi RAW (chuỗi) để backend validate khoảng + giữ số thập phân (0.5).
   ['overdue_remind_days', 'shortterm_max_days', 'deposit_notice_min_days', 'partial_half_factor',
-    'room_cap_A', 'room_cap_B', 'room_cap_C', 'room_cap_D', 'checkout_max_future_days', 'max_cccd_mb']
+    'room_cap_A', 'room_cap_B', 'room_cap_C', 'room_cap_D', 'checkout_max_future_days', 'max_cccd_mb',
+    'due_day_from', 'due_day_to']
     .forEach(k => { const inp = el('set_' + k); if (inp) body[k] = inp.value; });
   // hotline giờ nằm ở mục "Trang giới thiệu" (lưu qua saveIntro)
   await guard(() => API.updateSettings(body));
