@@ -13,7 +13,7 @@ async function viewServices() {
   const totalVeh = veh.length;
   el('topActions').innerHTML = '';
   const svcCard = (ico, cls, headline, sub) => `<div class="kpi"><span class="ic ${cls}">${ico}</span><div><div class="v">${headline}</div><div class="l">${sub}</div></div></div>`;
-  const pill = (k, ico, label, n) => `<button class="btn sm ${svcTab === k ? 'pri' : ''}" data-act="svcGo" data-args='["${k}"]'>${ico} ${label} (${n})</button>`;
+  const pill = (k, ico, label) => `<button class="btn sm ${svcTab === k ? 'pri' : ''}" data-act="svcGo" data-args='["${k}"]'>${ico} ${label}</button>`;   // BL-69: bỏ (N) — số đã có ở thẻ KPI
   el('content').innerHTML = `
     <div class="kpis">
       ${svcCard(IC.washer, 'ic-blue', `${washUsers.length}<span class="muted" style="font-size:14px;font-weight:600"> HV</span>`, `Máy giặt · ${money(washUsers.length * washFee)}/tháng · đơn giá ${money(washFee)}`)}
