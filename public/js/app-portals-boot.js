@@ -66,7 +66,7 @@ async function loadStudentPortal() {
       <p><strong>Ngày vào:</strong> ${fmtDate(profile.check_in_date)} ${profile.check_out_date ? `&nbsp;•&nbsp; <strong>Ngày trả:</strong> ${fmtDate(profile.check_out_date)}` : ''}</p>
     </div></div>
 
-    <div class="panel"><div class="hd"><h2>${IC.users} Thành viên cùng phòng${profile.room_name ? ` — ${esc(profile.room_name)} (${mates.length})` : ''}</h2></div><div class="pad">
+    <div class="panel"><div class="hd"><h2>${IC.users} Thành viên cùng phòng${profile.room_name ? ` (${mates.length})` : ''}</h2></div><div class="pad">
       ${!profile.room_name ? '<p class="muted" style="margin:0">Bạn chưa được xếp phòng.</p>'
         : mates.length ? `<div style="display:flex;flex-wrap:wrap;gap:8px">${mates.map(m =>
             `<span class="badge ${m.is_leader ? 'amber' : 'blue'}" style="font-size:13px;padding:6px 12px">${m.is_leader ? IC.star : IC.user} ${esc(m.name)}${m.is_leader ? ' — Phòng trưởng' : ''}</span>`).join('')}</div>`
@@ -88,22 +88,22 @@ async function loadStudentPortal() {
             <button class="btn sm pri" data-act="toggleMyWashing" data-args='[true]'>${IC.plus} Đăng ký máy giặt</button></div>`}
     </div></div>
 
-    ${myVios.length ? `<div class="panel"><div class="hd"><h2>${IC.alert} Nhắc nhở / Vi phạm (${myVios.length})</h2></div><div class="table-wrap">
+    ${myVios.length ? `<div class="panel"><div class="hd"><h2>${IC.alert} Nhắc nhở / Vi phạm (${myVios.length})</h2></div><div class="table-wrap card-tbl">
       <table><thead><tr><th>Ngày</th><th>Nội dung</th><th>Mức độ</th><th class="num">Lần</th></tr></thead><tbody>
-        ${myVios.map(v => `<tr><td>${fmtDate(v.date)}</td><td><strong>${esc(v.type_name)}</strong>${v.note ? `<div class="muted" style="font-size:12px">${esc(v.note)}</div>` : ''}</td><td>${vioSevBadge(v.severity)}</td><td class="num">${v.level}</td></tr>`).join('')}
+        ${myVios.map(v => `<tr><td>${fmtDate(v.date)}</td><td data-label="Nội dung"><strong>${esc(v.type_name)}</strong>${v.note ? `<div class="muted" style="font-size:12px">${esc(v.note)}</div>` : ''}</td><td data-label="Mức độ">${vioSevBadge(v.severity)}</td><td class="num" data-label="Lần">${v.level}</td></tr>`).join('')}
       </tbody></table>
       <div class="pad muted" style="font-size:12.5px">${IC.info} Vui lòng tuân thủ nội quy ký túc xá. Vi phạm nhiều lần sẽ được thông báo về nhà trường.</div>
     </div></div>` : ''}
 
-    <div class="panel"><div class="hd"><h2>${IC.receipt} Phiếu báo tiền phòng</h2></div><div class="table-wrap">
+    <div class="panel"><div class="hd"><h2>${IC.receipt} Phiếu báo tiền phòng</h2></div><div class="table-wrap card-tbl">
       ${invs.length ? `<table><thead><tr><th>Kỳ</th><th class="num">Tiền phòng</th><th class="num">Điện</th><th class="num">Khác</th><th class="num">Giảm</th><th class="num">Tổng</th></tr></thead><tbody>
         ${invs.map(i => {
           // Cột "Giảm" phải hiện, nếu không thì 4 cột đầu cộng lại KHÔNG ra Tổng — học viên tưởng app tính sai
           const giam = (+i.leader_discount || 0) + (+i.room_discount || 0);
-          return `<tr style="cursor:pointer" data-act="myInvoiceDetail" data-args='[${i.id}]' title="Bấm để xem chi tiết khoản thu"><td>${monthLabel(i.month)}</td><td class="num">${money(i.room_charge)}</td><td class="num">${money(i.electric_charge)}</td>
-          <td class="num">${money((+i.water_charge) + (+i.service_charge) + (+i.washing_charge) + (+i.parking_charge) + (+i.other_charge || 0))}</td>
-          <td class="num">${giam ? `<span class="badge green">−${money(giam)}</span>` : '—'}</td>
-          <td class="num"><strong>${money(i.total)}</strong></td></tr>`;
+          return `<tr style="cursor:pointer" data-act="myInvoiceDetail" data-args='[${i.id}]' title="Bấm để xem chi tiết khoản thu"><td>${monthLabel(i.month)}</td><td class="num" data-label="Tiền phòng">${money(i.room_charge)}</td><td class="num" data-label="Điện">${money(i.electric_charge)}</td>
+          <td class="num" data-label="Khác">${money((+i.water_charge) + (+i.service_charge) + (+i.washing_charge) + (+i.parking_charge) + (+i.other_charge || 0))}</td>
+          <td class="num" data-label="Giảm">${giam ? `<span class="badge green">−${money(giam)}</span>` : '—'}</td>
+          <td class="num" data-label="Tổng"><strong>${money(i.total)}</strong></td></tr>`;
         }).join('')}
       </tbody></table>` : '<div class="empty">Chưa có phiếu báo.</div>'}
       <div class="pad muted" style="font-size:12.5px">${IC.info} Bấm vào từng kỳ để xem chi tiết khoản thu. &nbsp;·&nbsp; ${IC.creditCard} Đóng tiền qua mã QR quản lý gửi trên Zalo theo hạn hằng tháng.</div>
@@ -111,7 +111,7 @@ async function loadStudentPortal() {
 
     <div class="panel"><div class="hd"><h2>${IC.handCoins} Hỗ trợ học viên</h2><button class="btn sm pri" data-act="damageForm">${IC.plus} Gửi yêu cầu hỗ trợ</button></div><div class="table-wrap">
       ${damage.length ? `<table><thead><tr><th>Ngày</th><th>Loại</th><th>Nội dung</th><th>Trạng thái</th></tr></thead><tbody>
-        ${damage.map(d => `<tr><td>${fmtDate(String(d.created_at).slice(0, 10))}</td><td>${supCatBadge(d.category)}</td><td><strong>${esc(d.title)}</strong>${d.description ? `<div class="muted" style="font-size:12px">${esc(d.description)}</div>` : ''}</td><td>${d.status === 'done' ? '<span class="badge green">Đã xử lý</span>' : d.status === 'blocked' ? '<span class="badge red">Chưa xử lý được — liên hệ quản lý</span>' : d.status === 'processing' ? '<span class="badge blue">Đang xử lý</span>' : '<span class="badge amber">Mới</span>'}</td></tr>`).join('')}
+        ${damage.map(d => `<tr><td>${fmtDate(String(d.created_at).slice(0, 10))}</td><td data-label="Loại">${supCatBadge(d.category)}</td><td data-label="Nội dung"><strong>${esc(d.title)}</strong>${d.description ? `<div class="muted" style="font-size:12px">${esc(d.description)}</div>` : ''}</td><td data-label="Trạng thái">${d.status === 'done' ? '<span class="badge green">Đã xử lý</span>' : d.status === 'blocked' ? '<span class="badge red">Chưa xử lý được — liên hệ quản lý</span>' : d.status === 'processing' ? '<span class="badge blue">Đang xử lý</span>' : '<span class="badge amber">Mới</span>'}</td></tr>`).join('')}
       </tbody></table>` : '<div class="empty">Chưa có yêu cầu nào.</div>'}
     </div></div>
 
@@ -120,17 +120,17 @@ async function loadStudentPortal() {
       notMovedIn ? '<p class="muted" style="margin:0">Bạn chưa tới ngày nhận phòng nên chưa thể gửi đơn trả phòng.</p>' :
       profile.status !== 'in' ? '<p class="muted" style="margin:0">Bạn đã trả phòng.</p>' :
       `<p class="muted" style="margin:0">Cần báo trước 1 tháng để được hoàn cọc (trừ trường hợp xuất cảnh đột xuất).</p>`}
-      ${coutReqs.filter(c => c.status !== 'pending').length ? `<div class="table-wrap" style="margin-top:10px"><table><thead><tr><th>Ngày gửi</th><th>Ngày muốn trả</th><th>Trạng thái</th></tr></thead><tbody>
-        ${coutReqs.filter(c => c.status !== 'pending').map(c => `<tr><td>${fmtDate(String(c.created_at).slice(0, 10))}</td><td>${fmtDate(c.desired_date)}</td><td>${c.status === 'done' ? '<span class="badge green">Đã duyệt</span>' : '<span class="badge gray">Từ chối</span>'}</td></tr>`).join('')}
+      ${coutReqs.filter(c => c.status !== 'pending').length ? `<div class="table-wrap card-tbl" style="margin-top:10px"><table><thead><tr><th>Ngày gửi</th><th>Ngày muốn trả</th><th>Trạng thái</th></tr></thead><tbody>
+        ${coutReqs.filter(c => c.status !== 'pending').map(c => `<tr><td>${fmtDate(String(c.created_at).slice(0, 10))}</td><td data-label="Ngày muốn trả">${fmtDate(c.desired_date)}</td><td data-label="Trạng thái">${c.status === 'done' ? '<span class="badge green">Đã duyệt</span>' : '<span class="badge gray">Từ chối</span>'}</td></tr>`).join('')}
       </tbody></table></div>` : ''}
     </div></div>
 
-    <div class="panel"><div class="hd"><h2>${IC.history} Lịch sử ra / vào của tôi</h2></div><div class="table-wrap">
+    <div class="panel"><div class="hd"><h2>${IC.history} Lịch sử ra / vào của tôi</h2></div><div class="table-wrap card-tbl">
       ${myLogs.length ? `<table><thead><tr><th>Ngày</th><th>Hoạt động</th><th>Nguồn</th><th>Ghi chú</th></tr></thead><tbody>
         ${myLogs.map(l => `<tr><td>${fmtDate(l.date)}</td>
-          <td>${l.type === 'in' ? '<span class="badge green">Nhận phòng</span>' : '<span class="badge red">Trả phòng</span>'}</td>
-          <td>${l.source === 'self' ? '<span class="badge blue">Bạn tự thao tác</span>' : '<span class="badge gray">Quản lý</span>'}</td>
-          <td class="muted">${esc(l.note || '')}</td></tr>`).join('')}
+          <td data-label="Hoạt động">${l.type === 'in' ? '<span class="badge green">Nhận phòng</span>' : '<span class="badge red">Trả phòng</span>'}</td>
+          <td data-label="Nguồn">${l.source === 'self' ? '<span class="badge blue">Bạn tự thao tác</span>' : '<span class="badge gray">Quản lý</span>'}</td>
+          <td class="muted" data-label="Ghi chú">${esc(l.note || '')}</td></tr>`).join('')}
       </tbody></table>` : '<div class="empty">Chưa có lịch sử ra / vào.</div>'}
     </div></div>`;
 
@@ -206,7 +206,7 @@ function myChoresPanel(chores, profile) {
   if (!profile.room_name) return '';
   const DOW = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
   const dm = s => { const d = new Date(s); return `${DOW[d.getDay()]} ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`; };
-  return `<div class="panel"><div class="hd"><h2>${IC.calendar} Lịch trực nhật — ${esc(profile.room_name)}</h2></div><div class="pad">
+  return `<div class="panel"><div class="hd"><h2>${IC.calendar} Lịch trực nhật</h2></div><div class="pad">
     ${!chores.length ? '<p class="muted" style="margin:0">Chưa xếp được lịch — phòng chưa có ai ở.</p>' : `
     <div class="chore-list">${chores.map((w, i) => `
       <div class="chore-row${i === 0 ? ' now' : ''}${w.is_me ? ' mine' : ''}">
@@ -252,7 +252,7 @@ function myAssetsPanel(assets, profile) {
       ${showFee && +a.fee > 0 ? `<div class="asset-fee"><span class="asset-fee-tag">Đền nếu mất/hư</span><span class="asset-fee-amt">${money(a.fee)}<span class="u">/${esc(a.unit || 'cái')}</span></span></div>` : ''}
     </div>`).join('')}</div>`;
 
-  return `<div class="panel"><div class="hd"><h2>${IC.box} Cơ sở vật chất trong phòng${profile.room_name ? ` — ${esc(profile.room_name)}` : ''}</h2></div><div class="pad">
+  return `<div class="panel"><div class="hd"><h2>${IC.box} Cơ sở vật chất trong phòng</h2></div><div class="pad">
     ${room.length ? `<h4 class="asset-h">Trang bị chung của phòng <span class="muted" style="text-transform:none;font-weight:500">(dùng chung, hỏng do hao mòn không phải đền)</span></h4>${list(room, false)}` : ''}
     ${mine.length ? `<h4 class="asset-h" style="margin-top:18px">Bàn giao riêng cho bạn <span class="muted" style="text-transform:none;font-weight:500">— nếu làm mất / hư / không vệ sinh thì trừ tiền cọc theo mức bên phải</span></h4>${list(mine, true)}` : ''}
     <div class="hint" style="margin:18px 0 0">${IC.info}<span>Con số <strong>"Đền nếu mất/hư"</strong> bên phải sẽ bị

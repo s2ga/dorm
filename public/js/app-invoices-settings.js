@@ -1,10 +1,6 @@
 // === app-invoices-settings.js — tach tu app.js (CHANG 4 refactor). Classic script, GIU global scope cho onclick. ===
 // KHONG doi thu tu nap trong index.html; boot()/chong-bam/click-listener nam o app-portals-boot.js (cuoi).
-function invStatusBadge(st) {
-  if (st === 'paid') return '<span class="badge green">Đã đóng</span>';
-  if (st === 'sent') return '<span class="badge blue">Đã gửi QR</span>';
-  return '<span class="badge amber">Chưa gửi</span>';
-}
+// BL-67: đã BỎ invStatusBadge/invActions/setInvStatus — di sản pha QR/tài chính (GĐ2), không nơi gọi.
 // Biểu đồ cột mini (sparkline) tiêu thụ điện
 function sparkBars(series) {
   const max = Math.max(1, ...series.map(s => s.kwh));
@@ -54,7 +50,6 @@ async function viewInvoices() {
   // Tìm kiếm áp dụng bằng ẩn/hiện hàng (attachRowSearch)
 
   const total = all.reduce((a, i) => a + (+i.total || 0), 0);
-  const paid = all.filter(i => i.status === 'paid').reduce((a, i) => a + (+i.total || 0), 0);
 
   // Cơ cấu doanh thu: tách Tổng theo từng khoản (tiền phòng/điện/nước/DV/giặt/xe) + xu hướng so kỳ trước.
   const REV_COMP = [
@@ -68,7 +63,7 @@ async function viewInvoices() {
   const maxComp = Math.max(1, ...comp.map(c => c.amount));
   const discount = sumK(all, 'leader_discount') + sumK(all, 'room_discount');
   const trendPct = (cur, prev) => { if (!prev) return ''; const d = Math.round((cur - prev) / prev * 100); return `<span class="muted" style="font-size:11px;margin-left:5px">${d > 0 ? '▲' : d < 0 ? '▼' : '—'}${d ? ' ' + Math.abs(d) + '%' : ''}</span>`; };
-  const revPanel = all.length ? `<div class="panel"><div class="hd"><h2>${IC.coins} Cơ cấu doanh thu — ${monthLabel(invMonth)}</h2><span class="muted" style="font-size:12px">Tổng dự báo ${money(total)}${prevAll.length ? ` · ▲▼ so ${monthLabel(prevInvMonth)}` : ''}</span></div>
+  const revPanel = all.length ? `<div class="panel"><div class="hd"><h2>${IC.coins} Cơ cấu tiền phiếu — ${monthLabel(invMonth)}</h2><span class="muted" style="font-size:12px">${prevAll.length ? `▲▼ so ${monthLabel(prevInvMonth)}` : 'Tách theo từng khoản'}</span></div>
     <div class="pad rev-comp">
       ${comp.map(c => `<div class="rev-row">
         <div class="rev-lbl">${c.label}</div>
@@ -85,7 +80,7 @@ async function viewInvoices() {
   const rfRows = Object.entries(rfCur).map(([rid, v]) => ({ name: v.name, cur: v.amt, prev: rfPrev[rid] || 0 }))
     .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'vi', { numeric: true }));
   const moneyDelta = (cur, prev) => { const d = cur - prev; if (d === 0) return `<span class="muted">—</span>`; return `<span class="muted" style="font-weight:600">${d > 0 ? '▲' : '▼'} ${money(Math.abs(d))}</span>`; };
-  const roomFeePanel = rfRows.length ? `<div class="panel"><div class="hd"><h2>${IC.home} Tiền phòng theo phòng — so ${monthLabel(prevInvMonth)}</h2><span class="muted" style="font-size:12px">Tổng tiền phòng kỳ này ${money(sumK(all, 'room_charge'))}</span></div>
+  const roomFeePanel = rfRows.length ? `<div class="panel"><div class="hd"><h2>${IC.home} Tiền phòng theo phòng — so ${monthLabel(prevInvMonth)}</h2></div>
     <div class="table-wrap card-tbl"><table><thead><tr><th>Phòng</th><th class="num">Tháng này</th><th>Chênh lệch</th></tr></thead><tbody>
       ${rfRows.map(r => `<tr><td data-label="Phòng"><strong>${esc(r.name || '—')}</strong></td><td class="num" data-label="Tháng này">${money(r.cur)}</td><td data-label="Chênh lệch">${moneyDelta(r.cur, r.prev)}</td></tr>`).join('')}
     </tbody></table></div></div>` : '';
@@ -134,12 +129,6 @@ async function viewInvoices() {
   const iv = el('invs'); if (iv) { iv.addEventListener('input', () => { invSearch = iv.value; syncFilterUrl(); }); attachRowSearch(iv, 'invCount'); }
   syncFilterUrl(); // BL-17: kỳ (thang, đã nắn theo tháng có dữ liệu) + tìm kiếm lên URL
 }
-function invActions(i) {
-  if (i.status === 'pending') return `<button class="btn sm" data-act="setInvStatus" data-args='[${i.id},"sent"]'>Đã gửi QR</button><button class="btn sm green" data-act="setInvStatus" data-args='[${i.id},"paid"]'>${IC.check} Đóng</button>`;
-  if (i.status === 'sent') return `<button class="btn sm green" data-act="setInvStatus" data-args='[${i.id},"paid"]'>${IC.check} Đã đóng</button><button class="btn sm" data-act="setInvStatus" data-args='[${i.id},"pending"]'>${IC.undo}</button>`;
-  return `<button class="btn sm" data-act="setInvStatus" data-args='[${i.id},"pending"]'>Bỏ đóng</button>`;
-}
-async function setInvStatus(id, status) { await guard(() => API.setInvoiceStatus(id, status)); await refreshCache(); viewInvoices(); }
 async function recalcInv(id) { const r = await guard(() => API.recalcInvoice(id)); toast(`Đã tính lại: ${r.days_stayed} ngày ở → ${money(r.total)}`); viewInvoices(); }
 async function delInvoice(id) {
   const i = (_invAll || []).find(x => x.id === id) || {};   // BL-30: nêu tên/tổng để tránh xóa nhầm
@@ -430,7 +419,11 @@ function viewSettings() {
     ${grpOpen('gia')}
     <div class="panel"><div class="hd"><h2>${IC.home} Thông tin hiển thị trên phiếu báo</h2></div><div class="pad">
       <div class="field"><label>Tên ký túc xá</label><input id="set_dorm_name" value="${esc(s.dorm_name || '')}"></div>
-      <p class="muted" style="font-size:12px;margin:0">Địa chỉ lấy theo từng cơ sở (mục Cơ sở bên dưới). Hotline chỉnh ở mục <strong>Trang giới thiệu</strong> bên dưới.</p>
+      <div class="grid2">
+        <div class="field"><label>Hạn đóng tiền — từ ngày</label><input id="set_due_day_from" type="number" min="1" max="31" value="${esc(s.due_day_from ?? 1)}"></div>
+        <div class="field"><label>Hạn đóng tiền — đến ngày</label><input id="set_due_day_to" type="number" min="1" max="31" value="${esc(s.due_day_to ?? 5)}"></div>
+      </div>
+      <p class="muted" style="font-size:12px;margin:0">${IC.info} Tên KTX + hạn đóng hiện trên <strong>phiếu báo</strong>. Địa chỉ lấy theo từng cơ sở (mục Cơ sở); hotline ở mục <strong>Trang giới thiệu</strong>.</p>
     </div></div>
     <div class="panel"><div class="hd"><h2>${IC.banknote} Đơn giá & quy tắc tính tiền</h2></div><div class="pad">
       <div class="grid2">
@@ -541,7 +534,7 @@ function viewSettings() {
       <button class="btn pri" data-act="saveIntro">Lưu nội dung</button>
     </div></div>
 
-    <div class="panel"><div class="hd"><h2>${IC.building} Ảnh khu nội trú (trang giới thiệu)</h2><a class="btn sm" href="/dang-ky" target="_blank">Xem trang</a></div><div class="pad">
+    <div class="panel"><div class="hd"><h2>${IC.building} Ảnh khu nội trú (trang giới thiệu)</h2></div><div class="pad">
       <div class="hint">${IC.info} Ảnh hiển thị ở <strong>trang đăng ký công khai</strong> cho học viên xem. Chọn ảnh từ máy — lưu ngay, <strong>không cần sửa code</strong>. Nên dùng ảnh ngang, dung lượng < 1MB để tải nhanh.</div>
       <div class="media-grid">
         ${INTRO_MEDIA.map(([key, label]) => `<div class="media-slot">
@@ -962,7 +955,8 @@ async function saveSettings() {
   body.dorm_name = el('set_dorm_name').value.trim() || 'Ký túc xá';
   // Ngưỡng nhắc / nghiệp vụ (Đợt 3) — gửi RAW (chuỗi) để backend validate khoảng + giữ số thập phân (0.5).
   ['overdue_remind_days', 'shortterm_max_days', 'deposit_notice_min_days', 'partial_half_factor',
-    'room_cap_A', 'room_cap_B', 'room_cap_C', 'room_cap_D', 'checkout_max_future_days', 'max_cccd_mb']
+    'room_cap_A', 'room_cap_B', 'room_cap_C', 'room_cap_D', 'checkout_max_future_days', 'max_cccd_mb',
+    'due_day_from', 'due_day_to']
     .forEach(k => { const inp = el('set_' + k); if (inp) body[k] = inp.value; });
   // hotline giờ nằm ở mục "Trang giới thiệu" (lưu qua saveIntro)
   await guard(() => API.updateSettings(body));
