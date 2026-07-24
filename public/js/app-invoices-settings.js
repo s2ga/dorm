@@ -1,10 +1,6 @@
 // === app-invoices-settings.js — tach tu app.js (CHANG 4 refactor). Classic script, GIU global scope cho onclick. ===
 // KHONG doi thu tu nap trong index.html; boot()/chong-bam/click-listener nam o app-portals-boot.js (cuoi).
-function invStatusBadge(st) {
-  if (st === 'paid') return '<span class="badge green">Đã đóng</span>';
-  if (st === 'sent') return '<span class="badge blue">Đã gửi QR</span>';
-  return '<span class="badge amber">Chưa gửi</span>';
-}
+// BL-67: đã BỎ invStatusBadge/invActions/setInvStatus — di sản pha QR/tài chính (GĐ2), không nơi gọi.
 // Biểu đồ cột mini (sparkline) tiêu thụ điện
 function sparkBars(series) {
   const max = Math.max(1, ...series.map(s => s.kwh));
@@ -54,7 +50,6 @@ async function viewInvoices() {
   // Tìm kiếm áp dụng bằng ẩn/hiện hàng (attachRowSearch)
 
   const total = all.reduce((a, i) => a + (+i.total || 0), 0);
-  const paid = all.filter(i => i.status === 'paid').reduce((a, i) => a + (+i.total || 0), 0);
 
   // Cơ cấu doanh thu: tách Tổng theo từng khoản (tiền phòng/điện/nước/DV/giặt/xe) + xu hướng so kỳ trước.
   const REV_COMP = [
@@ -134,12 +129,6 @@ async function viewInvoices() {
   const iv = el('invs'); if (iv) { iv.addEventListener('input', () => { invSearch = iv.value; syncFilterUrl(); }); attachRowSearch(iv, 'invCount'); }
   syncFilterUrl(); // BL-17: kỳ (thang, đã nắn theo tháng có dữ liệu) + tìm kiếm lên URL
 }
-function invActions(i) {
-  if (i.status === 'pending') return `<button class="btn sm" data-act="setInvStatus" data-args='[${i.id},"sent"]'>Đã gửi QR</button><button class="btn sm green" data-act="setInvStatus" data-args='[${i.id},"paid"]'>${IC.check} Đóng</button>`;
-  if (i.status === 'sent') return `<button class="btn sm green" data-act="setInvStatus" data-args='[${i.id},"paid"]'>${IC.check} Đã đóng</button><button class="btn sm" data-act="setInvStatus" data-args='[${i.id},"pending"]'>${IC.undo}</button>`;
-  return `<button class="btn sm" data-act="setInvStatus" data-args='[${i.id},"pending"]'>Bỏ đóng</button>`;
-}
-async function setInvStatus(id, status) { await guard(() => API.setInvoiceStatus(id, status)); await refreshCache(); viewInvoices(); }
 async function recalcInv(id) { const r = await guard(() => API.recalcInvoice(id)); toast(`Đã tính lại: ${r.days_stayed} ngày ở → ${money(r.total)}`); viewInvoices(); }
 async function delInvoice(id) {
   const i = (_invAll || []).find(x => x.id === id) || {};   // BL-30: nêu tên/tổng để tránh xóa nhầm
