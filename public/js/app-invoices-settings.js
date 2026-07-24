@@ -68,7 +68,7 @@ async function viewInvoices() {
   const maxComp = Math.max(1, ...comp.map(c => c.amount));
   const discount = sumK(all, 'leader_discount') + sumK(all, 'room_discount');
   const trendPct = (cur, prev) => { if (!prev) return ''; const d = Math.round((cur - prev) / prev * 100); return `<span class="muted" style="font-size:11px;margin-left:5px">${d > 0 ? '▲' : d < 0 ? '▼' : '—'}${d ? ' ' + Math.abs(d) + '%' : ''}</span>`; };
-  const revPanel = all.length ? `<div class="panel"><div class="hd"><h2>${IC.coins} Cơ cấu doanh thu — ${monthLabel(invMonth)}</h2><span class="muted" style="font-size:12px">Tổng dự báo ${money(total)}${prevAll.length ? ` · ▲▼ so ${monthLabel(prevInvMonth)}` : ''}</span></div>
+  const revPanel = all.length ? `<div class="panel"><div class="hd"><h2>${IC.coins} Cơ cấu tiền phiếu — ${monthLabel(invMonth)}</h2><span class="muted" style="font-size:12px">${prevAll.length ? `▲▼ so ${monthLabel(prevInvMonth)}` : 'Tách theo từng khoản'}</span></div>
     <div class="pad rev-comp">
       ${comp.map(c => `<div class="rev-row">
         <div class="rev-lbl">${c.label}</div>
@@ -85,7 +85,7 @@ async function viewInvoices() {
   const rfRows = Object.entries(rfCur).map(([rid, v]) => ({ name: v.name, cur: v.amt, prev: rfPrev[rid] || 0 }))
     .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'vi', { numeric: true }));
   const moneyDelta = (cur, prev) => { const d = cur - prev; if (d === 0) return `<span class="muted">—</span>`; return `<span class="muted" style="font-weight:600">${d > 0 ? '▲' : '▼'} ${money(Math.abs(d))}</span>`; };
-  const roomFeePanel = rfRows.length ? `<div class="panel"><div class="hd"><h2>${IC.home} Tiền phòng theo phòng — so ${monthLabel(prevInvMonth)}</h2><span class="muted" style="font-size:12px">Tổng tiền phòng kỳ này ${money(sumK(all, 'room_charge'))}</span></div>
+  const roomFeePanel = rfRows.length ? `<div class="panel"><div class="hd"><h2>${IC.home} Tiền phòng theo phòng — so ${monthLabel(prevInvMonth)}</h2></div>
     <div class="table-wrap card-tbl"><table><thead><tr><th>Phòng</th><th class="num">Tháng này</th><th>Chênh lệch</th></tr></thead><tbody>
       ${rfRows.map(r => `<tr><td data-label="Phòng"><strong>${esc(r.name || '—')}</strong></td><td class="num" data-label="Tháng này">${money(r.cur)}</td><td data-label="Chênh lệch">${moneyDelta(r.cur, r.prev)}</td></tr>`).join('')}
     </tbody></table></div></div>` : '';
