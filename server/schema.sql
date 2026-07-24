@@ -264,6 +264,25 @@ CREATE TABLE IF NOT EXISTS checkout_requests (
   handled_at   TIMESTAMPTZ
 );
 ALTER TABLE checkout_requests ADD COLUMN IF NOT EXISTS admin_note TEXT DEFAULT '';  -- ghi chú của quản lý
+-- BL-62: workflow trả phòng 1 đơn — 5 trạng thái. Cột thêm (additive, idempotent).
+-- Trạng thái (giữ TEXT, KHÔNG ràng buộc enum để dữ liệu cũ còn hợp lệ):
+--   pending(chờ duyệt) → approved(chờ bàn giao) → handed_over(chờ lập phiếu)
+--   → billed(chờ hoàn tất) → done(hoàn tất)  |  rejected(từ chối)
+-- Đơn cũ 'pending'/'done'/'rejected' vẫn đúng nghĩa — KHÔNG viết lại.
+ALTER TABLE checkout_requests ADD COLUMN IF NOT EXISTS bank_account   TEXT DEFAULT '';         -- HV nhập lúc gửi đơn
+ALTER TABLE checkout_requests ADD COLUMN IF NOT EXISTS bank_name      TEXT DEFAULT '';
+ALTER TABLE checkout_requests ADD COLUMN IF NOT EXISTS approved_by    TEXT;                    -- BQL duyệt
+ALTER TABLE checkout_requests ADD COLUMN IF NOT EXISTS approved_at    TIMESTAMPTZ;
+ALTER TABLE checkout_requests ADD COLUMN IF NOT EXISTS key_returned   BOOLEAN DEFAULT false;   -- an ninh bàn giao
+ALTER TABLE checkout_requests ADD COLUMN IF NOT EXISTS damage_note    TEXT DEFAULT '';         -- hư hao (diễn giải từ danh mục)
+ALTER TABLE checkout_requests ADD COLUMN IF NOT EXISTS damage_amount  NUMERIC(12,0) DEFAULT 0; -- tiền hư hao (server tính từ assets)
+ALTER TABLE checkout_requests ADD COLUMN IF NOT EXISTS meter_reading  NUMERIC(10,1);           -- số điện chốt lúc bàn giao
+ALTER TABLE checkout_requests ADD COLUMN IF NOT EXISTS handover_by    TEXT;
+ALTER TABLE checkout_requests ADD COLUMN IF NOT EXISTS handover_at    TIMESTAMPTZ;
+ALTER TABLE checkout_requests ADD COLUMN IF NOT EXISTS invoice_id     INTEGER REFERENCES invoices(id);  -- phiếu thu đã tạo
+ALTER TABLE checkout_requests ADD COLUMN IF NOT EXISTS billed_at      TIMESTAMPTZ;
+ALTER TABLE checkout_requests ADD COLUMN IF NOT EXISTS deposit_refunded_at TIMESTAMPTZ;         -- dấu mốc "đã hoàn cọc" (chỉ lịch sử)
+ALTER TABLE checkout_requests ADD COLUMN IF NOT EXISTS refunded_by    TEXT;
 
 -- Danh mục loại vi phạm / nhắc nhở (sửa trong Cài đặt)
 CREATE TABLE IF NOT EXISTS violation_types (
