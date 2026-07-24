@@ -469,6 +469,49 @@ func (h *Handlers) ConfirmCheckout(c *gin.Context) {
 	})
 }
 
+// ApproveCheckout: POST /api/requests/checkout/:id/approve (admin,staff).
+// BL-62: BQL duyệt đơn -> 'approved' (chờ an ninh bàn giao). KHÁC ConfirmCheckout cũ:
+// KHÔNG trả phòng ở bước này; việc trả phòng thật để ở bước bàn giao.
+func (h *Handlers) ApproveCheckout(c *gin.Context) {
+	u := auth.CurrentUser(c)
+	ctx := c.Request.Context()
+	id, ok := paramInt(c, "id")
+	if !ok {
+		serverErr(c)
+		return
+	}
+	if h.requestsBlockByCheckoutReq(c, u, id) { // đa cơ sở
+		return
+	}
+	// Duyệt NGUYÊN TỬ: chỉ đổi khi VẪN 'pending' (hai người duyệt cùng lúc -> một thắng).
+	ctag, err := h.pool().Exec(ctx,
+		"UPDATE checkout_requests SET status='approved', approved_by=$1, approved_at=now() WHERE id=$2 AND status='pending'",
+		u.Username, id)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	if ctag.RowsAffected() == 0 {
+		var cur string
+		e2 := h.pool().QueryRow(ctx, "SELECT status FROM checkout_requests WHERE id=$1", id).Scan(&cur)
+		if e2 != nil {
+			if errors.Is(e2, pgx.ErrNoRows) {
+				notFound(c, "Không tìm thấy đơn")
+				return
+			}
+			serverErr(c)
+			return
+		}
+		msg := "Đơn không còn chờ duyệt (hiện: " + cur + ") — tải lại để xem trạng thái mới nhất."
+		if cur == "rejected" {
+			msg = "Đơn này đã bị từ chối — không thể duyệt."
+		}
+		conflict(c, gin.H{"error": msg})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
 type checkoutNoteBody struct {
 	Note string `json:"note"`
 }

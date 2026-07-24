@@ -167,6 +167,7 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	req.POST("/damage/:id/assign", h.AssignDamageReport)
 	req.GET("/checkout", h.ListCheckoutRequests)
 	req.POST("/checkout/:id/confirm", h.ConfirmCheckout)
+	req.POST("/checkout/:id/approve", h.ApproveCheckout) // BL-62: duyệt -> chờ bàn giao (không trả phòng ở bước này)
 	req.PUT("/checkout/:id/note", h.NoteCheckout)
 	req.POST("/checkout/:id/reject", h.RejectCheckout)
 
