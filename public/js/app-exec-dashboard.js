@@ -75,25 +75,16 @@ async function viewExec() {
         ${svcs.length ? svgDonut(svcs.map(s => ({ label: s[0], value: s[1], color: s[2] }))) : '<div class="empty">Chưa có dữ liệu.</div>'}
         <div style="flex:1;min-width:170px">${svcs.map(s => `<div class="flex" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)"><span class="flex" style="gap:8px"><span style="width:11px;height:11px;border-radius:3px;background:${s[2]};display:inline-block"></span>${s[0]}</span><strong>${Math.round(s[1] / svcTotal * 100)}%</strong></div>`).join('')}</div>
       </div></div>
-      <div class="panel" style="margin:0"><div class="hd"><h2>${IC.users} Lấp đầy &amp; cơ cấu học viên</h2></div><div class="pad">
-        <div style="font-size:40px;font-weight:800;font-variant-numeric:tabular-nums">${occRate}%<span class="muted" style="font-size:15px;font-weight:600"> lấp đầy</span></div>
-        <div style="height:12px;border-radius:99px;background:var(--bg2);overflow:hidden;margin:10px 0 18px"><div style="height:100%;width:${occRate}%;background:var(--brand)"></div></div>
+      <div class="panel" style="margin:0"><div class="hd"><h2>${IC.users} Cơ cấu học viên đang ở</h2></div><div class="pad">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-          <div><div class="muted" style="font-size:12.5px">Đang ở</div><div style="font-size:22px;font-weight:800">${occ}</div></div>
+          <div><div class="muted" style="font-size:12.5px">Nữ · ${legalEntity('female')}</div><div style="font-size:22px;font-weight:800">${female}</div></div>
+          <div><div class="muted" style="font-size:12.5px">Nam · ${legalEntity('male')}</div><div style="font-size:22px;font-weight:800">${male}</div></div>
           <div><div class="muted" style="font-size:12.5px">Giường trống</div><div style="font-size:22px;font-weight:800">${availBeds}</div></div>
-          <div><div class="muted" style="font-size:12.5px">Nữ · ${legalEntity('female')}</div><div style="font-size:19px;font-weight:700">${female}</div></div>
-          <div><div class="muted" style="font-size:12.5px">Nam · ${legalEntity('male')}</div><div style="font-size:19px;font-weight:700">${male}</div></div>
         </div>
       </div></div>
     </div>
-    <div class="panel"><div class="hd"><h2>${IC.shield} Vận hành &amp; Tuân thủ</h2></div><div class="pad">
-      <div class="exec-stats">
-        ${es(IC.flag, 'ic-amber', 'Tạm trú', `${resiReg}<span> đã đăng ký</span>`, `${resiUnreg} chưa đăng ký${resiOverdueE ? ` · <strong style="color:var(--red-ink)">${resiOverdueE} quá ${overdueDays()} ngày</strong>` : ''}`, resiPct, actAttr('residencyModal'))}
-        ${es(IC.fileText, 'ic-brand', 'Hợp đồng', `${cSigned}<span> đã ký</span>`, `${cUnsigned} chưa ký · ${legalEntity('female')} ${cSignedF} / ${legalEntity('male')} ${cSignedM}${handoverNeed ? ` · Phiếu bàn giao: ${handoverNeed}${handoverPend ? ` (<strong style="color:var(--amber-ink)">${handoverPend} chưa ký</strong>)` : ''}` : ''}`, cPct, actAttr('contractIssuesModal'))}
-        ${es(IC.wrench, 'ic-gray', 'Bảo trì', `${dmg.length}<span> lượt báo</span>`, `Đã xử lý ${dmgDone} · đang xử lý ${dmgOpen} · chưa xử lý được ${dmgBlocked}`, dmgPct, actAttr('adminGo', 'repair'))}
-        ${es(IC.alert, 'ic-red', 'Vi phạm', `${vioTotal}<span> lượt</span>`, `${vioNeedMail} HV cần báo trường${vioSev ? ' · ' + vioSev : ''}`, null, actAttr('adminGo', 'violations'))}
-      </div>
-    </div></div>
+    <!-- BL-64: bỏ khối "Vận hành & Tuân thủ" — trùng y hệt "Cần xử lý" ở Tổng quan (4 mảng, cùng số, cùng modal).
+         Điều hành nay = chiến lược (lấp đầy/doanh thu/donut/cơ cấu HV); việc cần xử lý xem ở Tổng quan. -->
   </div>`;
 }
 
@@ -280,7 +271,6 @@ async function viewDashboard() {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
           <div style="cursor:pointer" role="button" tabindex="0" data-act="stuGoAdmin" data-args='["checkin_today"]'><div class="muted" style="font-size:12.5px"><span class="dot-svg dot-green">${IC.dot}</span> Nhận phòng hôm nay ›</div><div style="font-size:22px;font-weight:800">${checkinToday}</div></div>
           <div style="cursor:pointer" role="button" tabindex="0" data-act="stuGoAdmin" data-args='["checkout_today"]'><div class="muted" style="font-size:12.5px"><span class="dot-svg dot-gray">${IC.dot}</span> Trả phòng hôm nay ›</div><div style="font-size:22px;font-weight:800">${checkoutToday}</div></div>
-          <div style="cursor:pointer" role="button" tabindex="0" data-act="adminGo" data-args='["vehicles"]'><div class="muted" style="font-size:12.5px">${IC.bike} Xe đang gửi ›</div><div style="font-size:22px;font-weight:800">${totalVehicles}</div></div>
         </div>
       </div></div>
 
