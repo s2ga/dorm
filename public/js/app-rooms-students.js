@@ -137,6 +137,17 @@ function stuSortVal(s) {
     default: return 0;
   }
 }
+// Nhãn cho dải "Đang lọc" ở màn Học viên (khi vào kèm bộ lọc từ drill-down Tổng quan/Dịch vụ).
+// Đã bỏ hàng chip lọc nhanh vì TRÙNG: mọi lọc đã có ở phễu cột, hoặc ở Tổng quan (tạm trú/bàn giao)
+// và màn Dịch vụ (máy giặt). Giữ logic stuFilter (drill-down vẫn dùng) + dải này để thấy & bỏ bộ lọc đang áp.
+const STU_FILTER_LABELS = {
+  in: 'Đang ở', upcoming: 'Sắp vào', leaving: 'Sắp trả', out: 'Đã trả',
+  departure: 'Xuất cảnh', departure_expected: 'Dự kiến xuất cảnh',
+  noresi: 'Chưa tạm trú', resi_overdue: 'Chưa tạm trú (quá hạn)', resi_processing: 'Tạm trú: đang xử lý', resi_registered: 'Đã có tạm trú',
+  nocontract: 'HĐ chưa ký', nocontract_ghep: 'Thuê ghép chưa ký HĐ', nocontract_phong: 'Thuê nguyên phòng chưa ký HĐ',
+  handover_pending: 'Chưa ký phiếu bàn giao', washing: 'Dùng máy giặt', nodeposit: 'Chưa đóng cọc',
+  checkin_today: 'Nhận phòng hôm nay', checkout_today: 'Trả phòng hôm nay',
+};
 function viewStudents() {
   el('topActions').innerHTML = `<button class="btn" data-act="showDeletedStudents">${IC.trash} Đã xóa</button><button class="btn pri" data-act="adminGo" data-args='["reg"]'>${IC.filePen} Đăng ký / duyệt đơn</button>`;
   let list = ST.students.slice();
@@ -162,27 +173,17 @@ function viewStudents() {
   // refreshCache, nên ST.students ở đây đã đúng phạm vi. Badge cơ sở hiện dưới tên khi xem "Tất cả cơ sở".
   // Tìm kiếm áp dụng bằng ẩn/hiện hàng (attachRowSearch) — không lọc dựng lại ở đây
   const vthr = (ST.settings && +ST.settings.violation_mail_threshold) || 3;
-  const cnt = f => ST.students.filter(f).length;
   if (stuSort.key) list = list.slice().sort((a, b) => { const x = stuSortVal(a), y = stuSortVal(b); return (x < y ? -1 : x > y ? 1 : 0) * stuSort.dir; });
   const sTh = (key, label, cls) => `<th class="sortable${cls ? ' ' + cls : ''}${stuSort.key === key ? (stuSort.dir === 1 ? ' asc' : ' desc') : ''}" data-sort="${key}">${label}<span class="sort-ar">${stuSort.key === key ? (stuSort.dir === 1 ? '▲' : '▼') : ''}</span></th>`;
   const xcOf = s => s.expected_departure || (DEPARTURE_REASONS.includes(s.checkout_reason) && s.check_out_date ? s.check_out_date : '');
   const hasXC = list.some(xcOf); // không ai có ngày dự kiến xuất cảnh -> ẩn cột cho đỡ rỗng
   const nCols = hasXC ? 7 : 6;
   el('content').innerHTML = `
-    <div class="pill-row">
-      <button class="btn sm ${stuFilter === 'all' ? 'pri' : ''}" data-act="stuGo" data-args='["all"]'>Tất cả (${ST.students.length})</button>
-      <button class="btn sm ${stuFilter === 'in' ? 'pri' : ''}" data-act="stuGo" data-args='["in"]'><span class="dot-svg dot-green">${IC.dot}</span> Đang ở (${cnt(isOccupying)})</button>
-      <button class="btn sm ${stuFilter === 'upcoming' ? 'pri' : ''}" data-act="stuGo" data-args='["upcoming"]'><span class="dot-svg dot-blue">${IC.dot}</span> Sắp vào (${cnt(s => liveStatus(s) === 'upcoming')})</button>
-      <button class="btn sm ${stuFilter === 'leaving' ? 'pri' : ''}" data-act="stuGo" data-args='["leaving"]'><span class="dot-svg dot-amber">${IC.dot}</span> Sắp trả (${cnt(s => liveStatus(s) === 'leaving')})</button>
-      <button class="btn sm ${stuFilter === 'out' ? 'pri' : ''}" data-act="stuGo" data-args='["out"]'><span class="dot-svg dot-gray">${IC.dot}</span> Đã trả (${cnt(s => liveStatus(s) === 'left')})</button>
-      <button class="btn sm ${stuFilter === 'departure' ? 'pri' : ''}" data-act="stuGo" data-args='["departure"]'>${IC.planeTakeoff} Xuất cảnh (${cnt(s => s.check_out_date && DEPARTURE_REASONS.includes(s.checkout_reason))})</button>
-      <button class="btn sm ${stuFilter === 'departure_expected' ? 'pri' : ''}" data-act="stuGo" data-args='["departure_expected"]'>${IC.planeTakeoff} Dự kiến XC (${cnt(willDepartSoon)})</button>
-      <button class="btn sm ${stuFilter === 'noresi' ? 'pri' : ''}" data-act="stuGo" data-args='["noresi"]'>${IC.flag} Chưa tạm trú (${cnt(s => isOccupying(s) && s.residency_status !== 'registered')})</button>
-      <button class="btn sm ${stuFilter === 'nocontract' ? 'pri' : ''}" data-act="stuGo" data-args='["nocontract"]'>${IC.filePen} HĐ chưa ký (${cnt(contractPending)})</button>
-      <button class="btn sm ${stuFilter === 'washing' ? 'pri' : ''}" data-act="stuGo" data-args='["washing"]'>${IC.washer} Máy giặt (${cnt(s => isOccupying(s) && s.uses_washing)})</button>
-      <button class="btn sm ${stuFilter === 'nodeposit' ? 'pri' : ''}" data-act="stuGo" data-args='["nodeposit"]'>${IC.lock} Chưa đóng cọc (${cnt(s => isOccupying(s) && s.deposit_status === 'none')})</button>
-      <button class="btn sm ${stuFilter === 'handover_pending' ? 'pri' : ''}" data-act="stuGo" data-args='["handover_pending"]'>${IC.fileText} Chưa ký phiếu bàn giao (${cnt(handoverPending)})</button>
-    </div>
+    ${stuFilter !== 'all' ? `<div class="pill-row" style="align-items:center">
+      <span class="muted" style="font-size:13px">Đang lọc:</span>
+      <span class="badge gray" style="font-size:13px">${esc(STU_FILTER_LABELS[stuFilter] || stuFilter)} · ${list.length} HV</span>
+      <button class="btn sm ghost" data-act="stuGo" data-args='["all"]' title="Bỏ lọc, xem tất cả học viên">✕ Bỏ lọc</button>
+    </div>` : ''}
     <div class="panel"><div class="hd"><h2>Học viên (<span id="stuCount">${list.length}</span>)</h2>
       <div class="search"><span class="i">${IC.search}</span><input id="ss" placeholder="Tìm tên, mã, lớp, SĐT, số phòng..." value="${esc(stuSearch)}"></div>
     </div><div class="table-wrap card-tbl">
