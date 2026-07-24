@@ -181,7 +181,7 @@ function viewStudents() {
   el('content').innerHTML = `
     ${stuFilter !== 'all' ? `<div class="pill-row" style="align-items:center">
       <span class="muted" style="font-size:13px">Đang lọc:</span>
-      <span class="badge gray" style="font-size:13px">${esc(STU_FILTER_LABELS[stuFilter] || stuFilter)} · ${list.length} HV</span>
+      <span class="badge gray" style="font-size:13px">${esc(STU_FILTER_LABELS[stuFilter] || stuFilter)}</span>
       <button class="btn sm ghost" data-act="stuGo" data-args='["all"]' title="Bỏ lọc, xem tất cả học viên">✕ Bỏ lọc</button>
     </div>` : ''}
     <div class="panel"><div class="hd"><h2>Học viên (<span id="stuCount">${list.length}</span>)</h2>
@@ -189,14 +189,14 @@ function viewStudents() {
     </div><div class="table-wrap card-tbl">
       ${list.length ? `<table><thead><tr>${sTh('name', 'Học viên')}${sTh('room', 'Phòng')}${sTh('contract', 'Hợp đồng')}${sTh('deposit', 'Cọc')}${hasXC ? '<th>Dự kiến XC</th>' : ''}${sTh('status', 'Trạng thái')}<th></th></tr></thead><tbody>
       ${list.map(s => {
-        const flags = `${isOccupying(s) && s.residency_status !== 'registered' ? `<span title="Chưa đăng ký tạm trú"> ${IC.flag}</span>` : ''}${contractPending(s) ? `<span title="Chưa ký hợp đồng thuê phòng" style="color:var(--amber-ink)"> ${IC.fileText}</span>` : ''}${s.uses_washing ? `<span title="Máy giặt"> ${IC.washer}</span>` : ''}${s.vehicle_count ? `<span title="Xe gửi"> ${IC.bike}${s.vehicle_count}</span>` : ''}${s.violation_count ? `<span title="Vi phạm ${s.violation_count} lần" style="color:${s.violation_count >= vthr ? 'var(--red-ink)' : 'var(--amber-ink)'}"> ${IC.alert}${s.violation_count}</span>` : ''}`;
+        const flags = `${isOccupying(s) && s.residency_status !== 'registered' ? `<span title="Chưa đăng ký tạm trú"> ${IC.flag}</span>` : ''}${s.uses_washing ? `<span title="Máy giặt"> ${IC.washer}</span>` : ''}${s.vehicle_count ? `<span title="Xe gửi"> ${IC.bike}${s.vehicle_count}</span>` : ''}${s.violation_count ? `<span title="Vi phạm ${s.violation_count} lần" style="color:${s.violation_count >= vthr ? 'var(--red-ink)' : 'var(--amber-ink)'}"> ${IC.alert}${s.violation_count}</span>` : ''}`;
         const ds = esc((s.name + ' ' + (s.code || '') + ' ' + (s.phone || '') + ' ' + (s.class_name || '') + ' ' + (s.room_name || '')).toLowerCase());
         return `<tr data-s="${ds}">
         <td><div class="flex stu-name" data-act="studentDetail" data-args='[${s.id}]' role="button" tabindex="0" title="Xem chi tiết học viên"><span class="avatar">${esc(initials(s.name))}</span><div>
           <strong>${esc(s.name)}</strong> <span class="badge ${s.gender === 'female' ? 'sage' : 'blue'}">${genderLabel(s.gender)}</span>${s.login_username ? ` <span title="Có tài khoản">${IC.key}</span>` : ''}
           <div class="sub2">${esc(s.code || '—')}${s.class_name ? ' · ' + esc(s.class_name) : ''}${showFacilityUI() && s.facility_id ? ` · <span class="badge gray" style="font-size:10px">${esc(facilityName(s.facility_id))}</span>` : ''}${flags}</div>
         </div><span class="row-chev" aria-hidden="true">${IC.chevronRight}</span></div></td>
-        <td data-label="Phòng">${s.room_name ? `<strong>${esc(s.room_name)}</strong>` : '<span class="muted">Chưa xếp</span>'}<div class="sub2">${RENTAL_LABEL[s.rental_type] || 'Thuê ghép'}</div></td>
+        <td data-label="Phòng">${s.room_name ? `<strong>${esc(s.room_name)}</strong>` : '<span class="muted">Chưa xếp</span>'}${s.rental_type === 'phong' ? '<div class="sub2">Thuê nguyên phòng</div>' : ''}</td>
         <td data-label="Hợp đồng"><span class="badge ${CONTRACT_BADGE[s.contract_status] || 'gray'}">${CONTRACT_LABEL[s.contract_status] || '—'}</span>${s.contract_no ? `<div class="sub2">${esc(s.contract_no)}</div>` : ''}</td>
         <td data-label="Cọc">${depositBadge(s)}${s.deposit_status === 'none' && isOccupying(s) ? ` <button class="btn sm ghost" style="white-space:nowrap" title="Ghi nhận đóng cọc" data-act="depositForm" data-args='[${s.id}]'>＋ Thu cọc</button>` : ''}</td>
         ${hasXC ? `<td class="muted" data-label="Dự kiến XC" style="font-size:12px;white-space:nowrap">${xcOf(s) ? fmtDate(xcOf(s)) : '—'}</td>` : ''}
@@ -386,7 +386,7 @@ async function studentDetail(id) {
         <div class="stat"><div class="l">Tạm trú</div><div class="v sm">${resiBadge(s.residency_status)}</div></div>
       </div>
       <p><strong>Mã HV:</strong> ${esc(s.code || '—')} &nbsp;•&nbsp; <strong>Lớp:</strong> ${esc(s.class_name || '—')} &nbsp;•&nbsp; <strong>Ngày sinh:</strong> ${fmtDate(s.birth_date)}</p>
-      <p><strong>SĐT:</strong> ${esc(s.phone || '—')} &nbsp;•&nbsp; <strong>SĐT phụ huynh:</strong> ${esc(s.parent_phone || '—')} &nbsp;•&nbsp; <strong>Tạm trú:</strong> ${resiBadge(s.residency_status)}</p>
+      <p><strong>SĐT:</strong> ${esc(s.phone || '—')} &nbsp;•&nbsp; <strong>SĐT phụ huynh:</strong> ${esc(s.parent_phone || '—')}</p>
       <p><strong>Khai giảng:</strong> ${fmtDate(s.class_start_date)} &nbsp;•&nbsp; <strong>Dự kiến xuất cảnh:</strong> ${fmtDate(s.expected_departure)}</p>
       <p><strong>Ngày vào:</strong> ${fmtDate(s.check_in_date)} ${s.check_out_date ? ` &nbsp;•&nbsp; <strong>Ngày trả:</strong> ${fmtDate(s.check_out_date)}` : ''}</p>
       <p><strong>Tài khoản:</strong> ${s.login_username ? `<span class="badge blue">${IC.key} ${esc(s.login_username)}</span>` : '<span class="muted">Chưa có</span>'}
