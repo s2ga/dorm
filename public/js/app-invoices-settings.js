@@ -401,10 +401,15 @@ function viewSettings() {
     ['gia', 'Đơn giá & tính tiền', IC.banknote],
     ['coso', 'Cơ sở & tài sản', IC.building],
     ['gioithieu', 'Trang giới thiệu', IC.filePen],
-    ['vipham', 'Vi phạm & Email', IC.inbox],
-    ['baomat', 'Bảo mật & người dùng', IC.shield],
+    ['vipham', 'Vi phạm & nội quy', IC.alert],
+    ['email', 'Email (SMTP)', IC.mail],
+    ['dangnhap', 'Đăng nhập', IC.shield],
+    ['nguoidung', 'Người dùng', IC.users],
     ['hethong', 'Hệ thống & dữ liệu', IC.clipboard],
   ];
+  // Link/bookmark cũ (hồi 2 nhóm gộp) vẫn vào đúng chỗ thay vì rơi về nhóm đầu.
+  const SET_TAB_ALIAS = { baomat: 'dangnhap' };
+  if (SET_TAB_ALIAS[settingsTab]) settingsTab = SET_TAB_ALIAS[settingsTab];
   if (!SET_TABS.some(t => t[0] === settingsTab)) settingsTab = 'gia';
   const setNav = `<div class="pill-row set-nav">${SET_TABS.map(([id, label, ic]) =>
     `<button class="btn sm ${settingsTab === id ? 'pri' : ''}" data-tab="${id}" data-act="settingsGo" data-args='["${id}"]'>${ic} ${label}</button>`).join('')}</div>`;
@@ -547,9 +552,13 @@ function viewSettings() {
           <td class="num"><div class="rowbtns" style="justify-content:flex-end"><button class="btn sm" data-act="vtypeForm" data-args='[${t.id}]'>Sửa</button><button class="btn sm ghost" data-act="delVtype" data-args='[${t.id}]'>${IC.trash}</button></div></td>
         </tr>`).join('')}
       </tbody></table></div>
-      <div class="pad muted" style="font-size:12.5px">${IC.bulb} Dùng khi ghi nhận vi phạm cho học viên. Đến ngưỡng cấu hình bên dưới, hệ thống gửi email nhà trường.</div>
+      <div class="pad muted" style="font-size:12.5px">${IC.bulb} Dùng khi ghi nhận vi phạm cho học viên. Đủ số lần quy định (đặt ở nhóm <strong>Email (SMTP)</strong>), hệ thống gửi email nhà trường.</div>
     </div>
 
+    ${rulesDocBlock()}
+    </div>
+
+    ${grpOpen('email')}
     <div class="panel"><div class="hd"><h2>${IC.inbox} Nhà trường & Email (SMTP)</h2></div><div class="pad">
       <div class="grid2">
         <div class="field"><label>Tên nhà trường</label><input id="set_school_name" value="${esc(s.school_name || '')}" placeholder="VD: Trường Nhật ngữ ..."></div>
@@ -578,7 +587,7 @@ function viewSettings() {
     </div></div>
     </div>
 
-    ${grpOpen('baomat')}
+    ${grpOpen('dangnhap')}
     <div class="panel"><div class="hd"><h2>${IC.shield} Đăng nhập bằng tài khoản Microsoft (SSO)</h2>
       <span class="muted" style="font-size:12px">${s.sso_enabled === 'true' && s.sso_tenant_id && s.sso_client_id ? '<span class="badge green">Đang bật</span>' : '<span class="badge gray">Đang tắt</span>'}</span></div><div class="pad">
       <div class="hint">${IC.info} Lấy 3 thông số ở <strong>Azure Portal → Microsoft Entra ID → App registrations</strong>.
@@ -605,7 +614,9 @@ function viewSettings() {
         <br>${IC.info} <strong>Có thể bỏ trống hẳn</strong> — chỉ cần Tenant ID + Client ID — nếu app trên Azure bật <strong>"Allow public client flows"</strong>. Khi đó đăng nhập dựa trên <strong>PKCE</strong> thay cho secret (app server nên dùng secret; chỉ bỏ khi bạn hiểu đánh đổi bảo mật).</div>
       <div class="rowbtns" style="margin-top:6px"><button class="btn pri" data-act="saveSsoSettings">Lưu cấu hình Microsoft</button></div>
     </div></div>
+    </div>
 
+    ${grpOpen('nguoidung')}
     <div class="panel" id="usersPanel"><div class="hd"><h2>${IC.shield} Người dùng & phân quyền</h2><button class="btn sm" data-act="userForm">${IC.plus} Thêm nhân viên</button></div>
       <div class="table-wrap"><table><thead><tr><th>Tên đăng nhập</th><th>Họ tên</th><th>Vai trò</th><th>Cơ sở</th><th></th></tr></thead>
         <tbody id="usrRows"><tr><td colspan="5"><div class="spinner"></div></td></tr></tbody></table></div>
@@ -619,7 +630,6 @@ function viewSettings() {
 
     ${grpOpen('hethong')}
     ${dataHealthBlock()}
-    ${rulesDocBlock()}
     </div>`;
   loadAdminUsers();
   refreshRulesDocStatus();
@@ -637,7 +647,7 @@ function settingsGo(t) {
 // Bấm thông báo "N tài khoản Microsoft chờ duyệt" -> vào Cài đặt và CUỘN THẲNG tới mục Người dùng
 // (không phải scroll tay). viewSettings dựng #usersPanel đồng bộ nên chỉ cần đợi 1-2 frame cho vẽ xong.
 function gotoUsers() {
-  settingsTab = 'baomat'; // mục Người dùng nằm trong nhóm "Bảo mật & người dùng"
+  settingsTab = 'nguoidung'; // mục Người dùng nay là nhóm riêng
   adminGo('settings');
   requestAnimationFrame(() => requestAnimationFrame(() => {
     const p = el('usersPanel'); if (!p) return;
@@ -799,6 +809,7 @@ function rulesDocBlock() {
           <input type="file" accept="application/pdf" style="display:none" data-change="onRulesDoc"></label>
       </div>
     </div>
+    <div id="rulesDocPreview" style="margin-top:14px"></div>
     <div class="hint" style="margin:14px 0 0">${IC.info}<span>File PDF, tối đa 15MB. Học viên xem ở trang
       <strong>Phòng của tôi</strong>; người đang tìm hiểu cũng đọc được trước khi đăng ký.</span></div>
   </div></div>`;
@@ -814,10 +825,18 @@ async function refreshRulesDocStatus() {
   st.innerHTML = up ? `${IC.checkCircle} Đã tải lên${m.updated_at ? ` <span class="muted">— cập nhật ${fmtDate(String(m.updated_at).slice(0, 10))}</span>` : ''} — học viên xem được ở trang <strong>Phòng của tôi</strong>.`
     : 'Chưa có file. Học viên sẽ không thấy mục Nội quy.';
   st.className = up ? '' : 'muted';
-  bt.innerHTML = `${up ? `<a class="btn sm" href="/api/public/doc/noi-quy" target="_blank" rel="noopener">Xem</a>
+  bt.innerHTML = `${up ? `<a class="btn sm" href="/api/public/doc/noi-quy" target="_blank" rel="noopener">Mở tab mới</a>
       <button class="btn sm ghost" title="Xóa file nội quy" data-act="removeRulesDoc">${IC.trash}</button>` : ''}
     <label class="btn sm pri" style="cursor:pointer;margin:0">${IC.plus} ${up ? 'Thay file' : 'Tải file PDF'}
       <input type="file" accept="application/pdf" style="display:none" data-change="onRulesDoc"></label>`;
+  // XEM NGAY file đang dùng — trước đây chỉ upload một chiều, muốn kiểm nội dung phải mở tab khác.
+  // Kèm ?t= theo lần cập nhật để sau khi thay file không bị trình duyệt hiện lại bản cũ (server cache 5 phút).
+  const pv = el('rulesDocPreview'); if (!pv) return;
+  pv.innerHTML = up
+    ? `<iframe src="/api/public/doc/noi-quy?t=${encodeURIComponent(String(m.updated_at || ''))}#view=FitH"
+         title="Nội quy ký túc xá (bản đang dùng)" loading="lazy"
+         style="width:100%;height:520px;border:1px solid var(--line);border-radius:12px;background:var(--bg2)"></iframe>`
+    : '';
 }
 async function saveIntro() {
   const body = {};

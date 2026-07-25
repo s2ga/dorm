@@ -12,7 +12,8 @@ const csp = "default-src 'self'; " +
 	"img-src 'self' data: blob: https:; " +
 	"connect-src 'self' https://login.microsoftonline.com; " + // SSO SPA: trình duyệt đổi mã ở token endpoint MS
 
-	"frame-src https://www.google.com; " +
+	"frame-src 'self' https://www.google.com; " + // 'self': xem trước PDF nội quy ngay trong Cài đặt
+
 	"object-src 'none'; " +
 	"base-uri 'self'; " +
 	"frame-ancestors 'none'; " +
