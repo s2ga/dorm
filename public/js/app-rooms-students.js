@@ -1,9 +1,13 @@
 // === app-rooms-students.js — tach tu app.js (CHANG 4 refactor). Classic script, GIU global scope cho onclick. ===
 // KHONG doi thu tu nap trong index.html; boot()/chong-bam/click-listener nam o app-portals-boot.js (cuoi).
 async function viewRooms() {
+  // Nút chuyển qua/lại "phòng đã xoá" nay ở HÀNG NÚT TRÊN, cạnh "Thêm phòng" (trước nó nằm trong
+  // thanh công cụ của panel, lẫn với ô tìm kiếm). Cùng MỘT VỊ TRÍ đổi nhãn theo chế độ đang xem:
+  // bấm đi và bấm về là cùng chỗ, không phải đi tìm nút quay lại ở nơi khác.
   el('topActions').innerHTML = roomShowDeleted
     ? `<button class="btn" data-act="roomDel" data-args='[false]'>← Danh sách phòng</button>`
-    : `<button class="btn pri" data-act="roomForm">${IC.plus} Thêm phòng</button>`;
+    : `<button class="btn pri" data-act="roomForm">${IC.plus} Thêm phòng</button>
+       <button class="btn" data-act="roomDel" data-args='[true]'>${IC.trash} Đã xóa</button>`;
   const list = roomShowDeleted ? await guard(() => API.rooms(true)) : ST.rooms;
   const del = roomShowDeleted;
   el('content').innerHTML = `
@@ -11,28 +15,37 @@ async function viewRooms() {
       <h2>${del ? 'Phòng đã xóa' : 'Danh sách phòng'} (<span id="roomCount">${list.length}</span>)</h2>
       <div class="toolbar">
         <div class="search"><span class="i">${IC.search}</span><input id="rs" placeholder="Tìm phòng, tầng, giới tính..." value="${esc(roomSearch)}"></div>
-        ${del ? '' : `<button class="btn sm" data-act="roomDel" data-args='[true]'>${IC.trash} Đã xóa</button>`}
       </div>
-    </div><div class="table-wrap">
+    </div>
+      ${del || !list.length ? '' : `<div class="hint only-touch" style="margin:16px 16px 0">${IC.info}<span>Bấm một hàng để xem chi tiết phòng (sửa phòng và cử phòng trưởng nằm trong đó).
+        Muốn xoá: <strong>giữ</strong> hàng đó khoảng 1 giây, hoặc <strong>kéo ngang</strong> hàng sang trái/phải.</span></div>`}
+    <div class="table-wrap card-tbl">
       ${list.length ? `<table><thead><tr><th>Phòng</th><th>Loại</th><th class="num">Đang ở</th><th>${IC.star} Phòng trưởng</th><th class="num">Giá thuê</th><th></th></tr></thead><tbody>
-      ${list.map(r => { const full = r.occupancy >= r.capacity && r.capacity > 0; return `<tr data-s="${esc((r.name + ' ' + genderLabel(r.gender) + ' tầng' + r.floor + ' hạng' + (r.hang || 'b')).toLowerCase())}">
-        <td>${(() => {
-          // Bấm vào phòng -> chi tiết phòng + DANH SÁCH NGƯỜI ĐANG Ở (cùng lối bấm như tên học viên:
-          // .stu-name + chevron để thấy ngay là bấm được). Phòng ĐÃ XOÁ thì không: bản ghi đó không
-          // nằm trong ST.rooms nên roomDetail sẽ không tìm ra.
-          const noiDung = `<div><strong>${esc(r.name)}</strong>${r.upcoming ? ` <span class="badge blue" title="Sắp vào">+${r.upcoming}</span>` : ''}
-            <div class="sub2">Tầng ${r.floor || '—'}</div>${r.note ? `<div class="sub2" style="white-space:pre-wrap;margin-top:3px">${esc(r.note)}</div>` : ''}</div>`;
-          return del ? noiDung
-            : `<div class="flex stu-name" data-act="roomDetail" data-args='[${r.id}]' role="button" tabindex="0" title="Xem chi tiết phòng — ai đang ở">
-                 ${noiDung}<span class="row-chev" aria-hidden="true">${IC.chevronRight}</span></div>`;
-        })()}</td>
-        <td>${r.gender === 'female' ? '<span class="badge sage">Nữ</span>' : '<span class="badge blue">Nam</span>'} <span class="badge gray">Hạng ${esc(r.hang || 'B')}</span>${!roomIsShared(r) ? ' ' + roomTypeBadge(r) : ''}</td>
-        <td class="num"${del ? '' : ` data-act="roomDetail" data-args='[${r.id}]' role="button" tabindex="0" title="Xem ai đang ở phòng này" style="cursor:pointer"`}>${roomIsShared(r) ? `<span class="badge ${full ? 'amber' : r.occupancy ? 'green' : 'gray'}">${r.occupancy}/${r.capacity || 0}</span>` : `<span class="badge gray">${r.occupancy} người</span>`}</td>
-        <td>${leaderCell(r)}</td>
-        <td class="num">${money(+r.monthly_fee > 0 ? r.monthly_fee : ST.settings.room_fee)}${roomIsShared(r) ? '<span class="muted">/người</span>' : ''}${roomType(r) === 'whole' ? `<div class="sub2">Nguyên phòng: ${money(ST.settings['room_price_' + (r.hang || 'B')])}</div>` : ''}</td>
+      ${list.map(r => { const full = r.occupancy >= r.capacity && r.capacity > 0; return `<tr data-s="${esc((r.name + ' ' + genderLabel(r.gender) + ' tầng' + r.floor + ' hạng' + (r.hang || 'b')).toLowerCase())}"${del ? ''
+        // CẢ HÀNG bấm được (trước chỉ bấm được ô "Phòng" và ô "Đang ở"). Nút bên trong hàng vẫn thắng:
+        // app-actions.js dùng e.target.closest('[data-act]') nên nút gần hơn hàng — không cần stopPropagation.
+        // CỐ Ý KHÔNG đặt role="button" lên <tr>: role đó là "children presentational", trình đọc màn hình
+        // sẽ lược hết <td> con -> mất luôn cấu trúc bảng (không còn row/cell để điều hướng). Bàn phím đi
+        // bằng ô tên phòng bên dưới (.stu-name có role+tabindex) — đúng khuôn màn Học viên đang dùng.
+        // data-del/data-delid: cử chỉ GIỮ hoặc KÉO NGANG để xoá trên điện thoại (xem app-actions.js) —
+        // trên đó nút thùng rác bị ẩn, hàng là thứ duy nhất chạm được.
+        : ` data-act="roomDetail" data-args='[${r.id}]' title="Xem chi tiết phòng — ai đang ở" data-del="delRoom" data-delid="${r.id}"`}>
+        ${/* Phòng ĐÃ XOÁ: để trần, không khoác .stu-name — class đó có cursor:pointer + gạch chân khi rê,
+              trông bấm được mà bấm không ra gì (hàng đã xoá không có data-act). */''}
+        <td><div class="flex${del ? '' : ' stu-name'}"${del ? '' : ` data-act="roomDetail" data-args='[${r.id}]' role="button" tabindex="0" title="Xem chi tiết phòng — ai đang ở"`}><div><strong>${esc(r.name)}</strong>${r.upcoming ? ` <span class="badge blue" title="Sắp vào">+${r.upcoming}</span>` : ''}
+          <div class="sub2">Tầng ${r.floor || '—'}</div>${r.note ? `<div class="sub2" style="white-space:pre-wrap;margin-top:3px">${esc(r.note)}</div>` : ''}</div>
+          ${del ? '' : `<span class="row-chev" aria-hidden="true">${IC.chevronRight}</span>`}</div></td>
+        <td data-label="Loại"><span>${r.gender === 'female' ? '<span class="badge sage">Nữ</span>' : '<span class="badge blue">Nam</span>'} <span class="badge gray">Hạng ${esc(r.hang || 'B')}</span>${!roomIsShared(r) ? ' ' + roomTypeBadge(r) : ''}</span></td>
+        <td class="num" data-label="Đang ở">${roomIsShared(r) ? `<span class="badge ${full ? 'amber' : r.occupancy ? 'green' : 'gray'}">${r.occupancy}/${r.capacity || 0}</span>` : `<span class="badge gray">${r.occupancy} người</span>`}</td>
+        <td data-label="Phòng trưởng">${leaderCell(r)}</td>
+        ${/* bọc giá trị trong MỘT thẻ: ở chế độ thẻ, td[data-label] là flex space-between nên nhiều
+             con sẽ bị xé ra hai đầu ("1.200.000" một bên, "/người" bên kia) */''}
+        <td class="num" data-label="Giá thuê"><span>${money(+r.monthly_fee > 0 ? r.monthly_fee : ST.settings.room_fee)}${roomIsShared(r) ? '<span class="muted">/người</span>' : ''}${roomType(r) === 'whole' ? `<div class="sub2">Nguyên phòng: ${money(ST.settings['room_price_' + (r.hang || 'B')])}</div>` : ''}</span></td>
         <td class="num"><div class="rowbtns" style="justify-content:flex-end">
           ${del ? `<button class="btn sm green" data-act="restoreRoom" data-args='[${r.id}]'>${IC.undo} Khôi phục</button>`
-                : `<button class="btn sm ghost" title="Cử phòng trưởng" data-act="leaderForm" data-args='[${r.id}]'>${IC.star}</button><button class="btn sm" data-act="roomForm" data-args='[${r.id}]'>Sửa</button><button class="btn sm ghost" data-act="delRoom" data-args='[${r.id}]'>${IC.trash}</button>`}
+                // Sửa phòng + cử phòng trưởng đã có trong card Chi tiết phòng -> bỏ 2 nút khỏi hàng.
+                // Nút xoá còn lại chỉ hiện trên máy tính (.row-del ẩn ở ≤620px); điện thoại dùng cử chỉ.
+                : `<button class="btn sm ghost row-del" title="Xoá phòng" data-act="delRoom" data-args='[${r.id}]'>${IC.trash}</button>`}
         </div></td></tr>`; }).join('')}
       <tr class="no-result" style="display:none"><td colspan="6"><div class="empty">Không tìm thấy phòng phù hợp.</div></td></tr>
       </tbody></table>` : `<div class="empty">${del ? 'Không có phòng đã xóa.' : `Chưa có phòng nào. Bấm <strong>${IC.plus} Thêm phòng</strong>.`}</div>`}
@@ -96,6 +109,9 @@ function roomDetail(id) {
       </div>` : ''}
     </div>
     <div class="mf">
+      ${/* Xoá phòng CÓ MẶT ở đây để trên điện thoại còn một đường THẤY ĐƯỢC: ngoài kia nút thùng rác
+           bị ẩn, chỉ còn cử chỉ giữ/kéo — ai không đọc dòng gợi ý thì coi như hết đường. */''}
+      <button class="btn danger" data-act="delRoom" data-args='[${id}]'>${IC.trash} Xoá phòng</button>
       <button class="btn" data-act="leaderForm" data-args='[${id}]'>${IC.star} Phòng trưởng</button>
       <button class="btn" data-act="roomForm" data-args='[${id}]'>${IC.pencil} Sửa phòng</button>
       <button class="btn pri" data-act="closeModal">Đóng</button>
@@ -208,7 +224,15 @@ async function saveRoom(id) {
   await guard(() => id ? API.updateRoom(id, body) : API.createRoom(body));
   await refreshCache(); closeModal(); toast('Đã lưu phòng'); viewRooms();
 }
-async function delRoom(id) { if (!confirm('Xóa phòng này? (Có thể khôi phục lại trong mục "Đã xóa")')) return; await guard(() => API.deleteRoom(id)); await refreshCache(); toast('Đã xóa phòng'); viewRooms(); }
+// GỌI TÊN phòng trong câu hỏi: trên điện thoại việc này phát từ CỬ CHỈ (giữ / kéo ngang) nên người
+// ta cần thấy mình đang xoá đúng phòng nào, chứ "phòng này" thì không đối chiếu được với cái gì.
+async function delRoom(id) {
+  const r = roomById(id);
+  if (!confirm(`Xoá phòng ${r ? r.name : ''}?\n\n(Có thể khôi phục lại trong mục "Đã xóa")`)) return;
+  await guard(() => API.deleteRoom(id)); await refreshCache();
+  closeModal();   // khi xoá từ card Chi tiết phòng: đóng card lại, không để nó đứng đó tả phòng vừa xoá
+  toast('Đã xóa phòng'); viewRooms();
+}
 async function restoreRoom(id) { await guard(() => API.restoreRoom(id)); await refreshCache(); toast('Đã khôi phục phòng'); viewRooms(); }
 const roomFloorOf = n => { const m = String(n || '').match(/\d/); return m ? m[0] : '—'; };
 

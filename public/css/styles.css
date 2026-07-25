@@ -669,4 +669,35 @@ body.drawer-open{overflow:hidden}
   .card-tbl .rowbtns{justify-content:stretch;flex-wrap:wrap;gap:6px;margin-top:2px}
   .card-tbl .rowbtns .btn{flex:1 1 44%;justify-content:center;min-height:40px}
   .card-tbl .col-filt,.card-tbl .rz-handle{display:none} /* thẻ không cần phễu/kéo cột */
+  /* Hàng ở chế độ thẻ nhường CUỘN DỌC cho trình duyệt, giữ lại trục ngang cho cử chỉ kéo xoá.
+     PHẢI kèm pinch-zoom: chỉ ghi "pan-y" là tắt luôn phóng to 2 ngón và chạm-đúp-phóng-to ngay trên
+     bảng — người mắt kém hết đường đọc, mà cử chỉ xoá thì chẳng cần tới trục đó. */
+  /* user-select/touch-callout: KHÔNG có thì long-press của HỆ ĐIỀU HÀNH (~500ms) nhảy vào trước —
+     iOS/Android bật bôi đen chữ + bong bóng Copy rồi phát touchcancel, cử chỉ GIỮ (1s) không bao giờ
+     tới đích. Đổi lại là mất bôi đen chữ trong thẻ; trên điện thoại đó là cái giá rẻ hơn nhiều so với
+     mất luôn đường xoá. Máy tính không dính vì khối này chỉ áp ở chế độ thẻ. */
+  .card-tbl tr[data-del]{touch-action:pan-y pinch-zoom;position:relative;transition:transform .18s,border-color .15s,background .15s;
+    user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+  /* Đủ mạnh để thắng `.card-tbl tbody tr:hover` ở trên (cùng (0,2,2) nhưng đứng sau) — nếu không,
+     máy cảm ứng nào còn giữ trạng thái :hover sau khi chạm sẽ nuốt mất phản hồi màu của cử chỉ. */
+  .card-tbl tbody tr.row-holding{background:var(--bg2);border-color:var(--brand)}       /* đang GIỮ */
+  .card-tbl tbody tr.row-swiping{transition:border-color .15s,background .15s}          /* đang KÉO: theo tay */
+  .card-tbl tbody tr.row-armed{border-color:var(--red-ink);background:var(--red-bg)}    /* đủ ngưỡng -> nhả là xoá */
+  /* Nhãn đặt GIỮA mép trên, không phải mép phải: thẻ đang trượt ngang mà .panel thì overflow:hidden
+     -> nhãn ở mép sẽ bị cắt đúng lúc cần thấy nhất. Giữa thẻ là chỗ trống (tên ở trái, chevron ở phải). */
+  .card-tbl tr.row-armed::after{content:"Xoá";position:absolute;top:9px;left:50%;transform:translateX(-50%);
+    font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--red-ink)}
 }
+/* Ẩn nút Xoá + hiện gợi ý cử chỉ: chặn theo LOẠI CON TRỎ, KHÔNG chặn theo bề rộng.
+   Bề rộng ≤620px không có nghĩa là cảm ứng: thu hẹp cửa sổ Chrome, hay chỉ cần phóng chữ 200% trên
+   màn 1366px, là viewport tụt xuống dưới 620px trong khi người dùng vẫn cầm CHUỘT — mà cử chỉ thì chỉ
+   nghe touchstart/touchmove/touchend. Chặn theo bề rộng = họ mất sạch đường xoá phòng.
+   (hover:none)+(pointer:coarse) = ngón tay thật; máy tính luôn giữ nút. */
+.only-touch{display:none}
+@media(max-width:620px) and (hover:none) and (pointer:coarse){
+  .only-touch{display:block}
+  .row-del{display:none}
+}
+/* Cả hàng bấm được -> phải thấy được viền focus khi đi bằng bàn phím (trước chỉ .stu-name có) */
+tbody tr[data-act]:focus-visible{outline:2px solid var(--brand);outline-offset:-2px;border-radius:10px}
+@media(prefers-reduced-motion:reduce){.card-tbl tr[data-del]{transition:none}}
