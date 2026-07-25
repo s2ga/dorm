@@ -6,18 +6,19 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5"
-	"golang.org/x/crypto/bcrypt"
 	"ktx/internal/auth"
 	"ktx/internal/loginguard"
 	"ktx/internal/valid"
+
+	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // msgTaiKhoanBiKhoa: câu trả lời DUY NHẤT cho tài khoản đã bị khoá (đăng nhập thường và SSO dùng
 // chung). Khoá là "đóng cửa", không phải "chờ duyệt" — nói đúng để người dùng biết đường liên hệ,
 // và tuyệt đối KHÔNG cấp vé phiên.
-const msgTaiKhoanBiKhoa = "Tài khoản đã bị khoá. Vui lòng liên hệ ban quản lý khu nội trú."
+const msgTaiKhoanBiKhoa = "Tài khoản đang không đăng nhập được. Vui lòng liên hệ ban quản lý khu nội trú."
 
 type loginUser struct {
 	ID           int
@@ -170,12 +171,12 @@ func (h *Handlers) Logout(c *gin.Context) {
 func (h *Handlers) Me(c *gin.Context) {
 	u := auth.CurrentUser(c)
 	var (
-		id                  int
-		username, role      string
-		fullName            string
-		studentID, facID    *int
+		id                   int
+		username, role       string
+		fullName             string
+		studentID, facID     *int
 		mustChange, approved bool
-		email, authProvider *string
+		email, authProvider  *string
 	)
 	err := h.pool().QueryRow(c.Request.Context(),
 		`SELECT id, username, role, full_name, student_id, facility_id, must_change_password, email, auth_provider, approved
