@@ -456,7 +456,6 @@ const REASON_LABEL = { departure: 'Xuất cảnh', personal: 'Cá nhân', facili
 const DEPARTURE_REASONS = ['departure', 'urgent_visa'];
 const VIO_SEV = { minor: ['Nhẹ', 'gray'], major: ['Nặng', 'amber'], severe: ['Nghiêm trọng', 'red'] };
 const INTRO_FIELDS = [
-  ['hotline', '📞 Hotline (hiện ở mục "Liên hệ & đường đến")', 'in'],
   ['intro_hero_title', 'Tiêu đề lớn (hero) — Enter để xuống dòng', 'ta'],
   ['intro_hero_desc', 'Mô tả dưới tiêu đề (địa chỉ tự thêm phía trước)', 'ta'],
   ['intro_about_eyebrow', 'Mục "Về khu nội trú" — nhãn nhỏ', 'in'],
