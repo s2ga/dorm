@@ -45,8 +45,11 @@ module.exports = {
       const sau = await t.api('POST', '/api/auth/login', null, { username: P + '_nv', password: pw });
       t.eq('TC-L5 · đã khoá + mật khẩu ĐÚNG → 403 (cửa đóng), không phải 401 "sai mật khẩu"',
         sau.status, 403, `HTTP ${sau.status} — ${sau.json && sau.json.error}`);
-      t.ok('TC-L5a · … câu trả lời nói rõ "bị khoá" (không phải "chờ duyệt")',
-        /bị khoá/i.test((sau.json && sau.json.error) || '') && !/chờ duyệt/i.test((sau.json && sau.json.error) || ''),
+      // KHÔNG khoá theo câu chữ (câu này còn được sửa lời) — khoá theo NGHĨA: không được nói "chờ duyệt"
+      // (trạng thái khác hẳn), không được gợi là gõ sai mật khẩu, và phải chỉ đường liên hệ.
+      const cauKhoa = (sau.json && sau.json.error) || '';
+      t.ok('TC-L5a · … câu trả lời KHÔNG nói "chờ duyệt", KHÔNG nói "sai mật khẩu", có chỉ đường liên hệ',
+        !!cauKhoa && !/chờ duyệt/i.test(cauKhoa) && !/sai/i.test(cauKhoa) && /liên hệ/i.test(cauKhoa),
         JSON.stringify(sau.json));
       const saiMk = await t.api('POST', '/api/auth/login', null, { username: P + '_nv', password: 'sai-be-bet' });
       t.eq('TC-L5b · đã khoá + mật khẩu SAI → vẫn 401 chung (403 không được thành máy dò tài khoản)',
@@ -89,7 +92,8 @@ module.exports = {
       const hvSau = await t.api('POST', '/api/auth/login', null, { username: P + '_hv', password: pw });
       t.eq('TC-L15 · hồ sơ học viên bị KHOÁ → 403 (cùng nghĩa với khoá tài khoản, không phải 401)',
         hvSau.status, 403, `HTTP ${hvSau.status} — ${hvSau.json && hvSau.json.error}`);
-      t.ok('TC-L16 · … kèm câu "bị khoá"', /bị khoá/i.test((hvSau.json && hvSau.json.error) || ''), JSON.stringify(hvSau.json));
+      t.eq('TC-L16 · … CÙNG một câu với khoá tài khoản (hai kiểu khoá, một cách nói)',
+        (hvSau.json && hvSau.json.error) || '', cauKhoa, JSON.stringify(hvSau.json));
       await t.db.query(`UPDATE students SET deleted_at=NULL WHERE id=$1`, [sid]);
       const hvMo = await t.api('POST', '/api/auth/login', null, { username: P + '_hv', password: pw });
       t.eq('TC-L17 · mở khoá hồ sơ → học viên đăng nhập lại được', hvMo.status, 200, `HTTP ${hvMo.status}`);

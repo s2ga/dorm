@@ -16,9 +16,18 @@ async function viewRooms() {
     </div><div class="table-wrap">
       ${list.length ? `<table><thead><tr><th>Phòng</th><th>Loại</th><th class="num">Đang ở</th><th>${IC.star} Phòng trưởng</th><th class="num">Giá thuê</th><th></th></tr></thead><tbody>
       ${list.map(r => { const full = r.occupancy >= r.capacity && r.capacity > 0; return `<tr data-s="${esc((r.name + ' ' + genderLabel(r.gender) + ' tầng' + r.floor + ' hạng' + (r.hang || 'b')).toLowerCase())}">
-        <td><strong>${esc(r.name)}</strong>${r.upcoming ? ` <span class="badge blue" title="Sắp vào">+${r.upcoming}</span>` : ''}<div class="sub2">Tầng ${r.floor || '—'}</div>${r.note ? `<div class="sub2" style="white-space:pre-wrap;margin-top:3px">${esc(r.note)}</div>` : ''}</td>
+        <td>${(() => {
+          // Bấm vào phòng -> chi tiết phòng + DANH SÁCH NGƯỜI ĐANG Ở (cùng lối bấm như tên học viên:
+          // .stu-name + chevron để thấy ngay là bấm được). Phòng ĐÃ XOÁ thì không: bản ghi đó không
+          // nằm trong ST.rooms nên roomDetail sẽ không tìm ra.
+          const noiDung = `<div><strong>${esc(r.name)}</strong>${r.upcoming ? ` <span class="badge blue" title="Sắp vào">+${r.upcoming}</span>` : ''}
+            <div class="sub2">Tầng ${r.floor || '—'}</div>${r.note ? `<div class="sub2" style="white-space:pre-wrap;margin-top:3px">${esc(r.note)}</div>` : ''}</div>`;
+          return del ? noiDung
+            : `<div class="flex stu-name" data-act="roomDetail" data-args='[${r.id}]' role="button" tabindex="0" title="Xem chi tiết phòng — ai đang ở">
+                 ${noiDung}<span class="row-chev" aria-hidden="true">${IC.chevronRight}</span></div>`;
+        })()}</td>
         <td>${r.gender === 'female' ? '<span class="badge sage">Nữ</span>' : '<span class="badge blue">Nam</span>'} <span class="badge gray">Hạng ${esc(r.hang || 'B')}</span>${!roomIsShared(r) ? ' ' + roomTypeBadge(r) : ''}</td>
-        <td class="num">${roomIsShared(r) ? `<span class="badge ${full ? 'amber' : r.occupancy ? 'green' : 'gray'}">${r.occupancy}/${r.capacity || 0}</span>` : `<span class="badge gray">${r.occupancy} người</span>`}</td>
+        <td class="num"${del ? '' : ` data-act="roomDetail" data-args='[${r.id}]' role="button" tabindex="0" title="Xem ai đang ở phòng này" style="cursor:pointer"`}>${roomIsShared(r) ? `<span class="badge ${full ? 'amber' : r.occupancy ? 'green' : 'gray'}">${r.occupancy}/${r.capacity || 0}</span>` : `<span class="badge gray">${r.occupancy} người</span>`}</td>
         <td>${leaderCell(r)}</td>
         <td class="num">${money(+r.monthly_fee > 0 ? r.monthly_fee : ST.settings.room_fee)}${roomIsShared(r) ? '<span class="muted">/người</span>' : ''}${roomType(r) === 'whole' ? `<div class="sub2">Nguyên phòng: ${money(ST.settings['room_price_' + (r.hang || 'B')])}</div>` : ''}</td>
         <td class="num"><div class="rowbtns" style="justify-content:flex-end">
@@ -30,6 +39,69 @@ async function viewRooms() {
     </div></div>`;
   const rs = el('rs'); if (rs) { rs.addEventListener('input', () => roomSearch = rs.value); attachRowSearch(rs, 'roomCount'); }
 }
+/* ---------- CHI TIẾT PHÒNG ----------
+   Bấm vào phòng ở danh sách -> xem phòng đó ĐANG CÓ NHỮNG AI. Trước đây bấm vào phòng không ra gì:
+   muốn biết phòng 104 có ai thì phải sang màn Học viên rồi lọc theo phòng, dù "phòng này" và "ai
+   trong phòng này" là MỘT câu hỏi.
+   Số liệu lấy từ ST.students (đã nạp sẵn, không gọi thêm API) và dùng ĐÚNG công thức của cột "Đang ở"
+   ở danh sách phòng — isOccupying = staying|leaving, khớp câu SQL occupancy trong rooms.go — nên con
+   số ở danh sách và số dòng trong đây không bao giờ lệch nhau. */
+function roomDetail(id) {
+  const r = roomById(id);
+  if (!r) return toast('Không tìm thấy phòng này', 'err');
+  const dsDangO = ST.students.filter(s => s.room_id === id && isOccupying(s));
+  const dsSapVao = ST.students.filter(s => s.room_id === id && liveStatus(s) === 'upcoming');
+  const cap = +r.capacity || 0, shared = roomIsShared(r);
+  const conTrong = Math.max(0, cap - dsDangO.length);
+  const vuot = shared && cap > 0 && dsDangO.length > cap;
+  const L = leaderOf(id);
+  const giaGhep = +r.monthly_fee > 0 ? r.monthly_fee : ST.settings.room_fee;
+
+  // Dòng người ở: bấm vào đi thẳng sang chi tiết học viên (không phải quay ra màn Học viên tìm lại)
+  const dong = s => `<tr data-act="studentDetail" data-args='[${s.id}]' role="button" tabindex="0" title="Xem chi tiết học viên">
+    <td><div class="flex" style="gap:8px;align-items:center"><span class="avatar">${esc(initials(s.name))}</span>
+      <div><strong>${esc(s.name)}</strong>${s.is_leader && isOccupying(s) ? ` <span class="badge amber">${IC.star} Phòng trưởng</span>` : ''}
+        <div class="sub2">${esc(s.code || 'chưa có mã')}${s.class_name ? ' · ' + esc(s.class_name) : ''}${s.phone ? ' · ' + esc(s.phone) : ''}</div></div></div></td>
+    <td>${fmtDate(s.check_in_date)}</td>
+    <td>${s.check_out_date ? fmtDate(s.check_out_date) : '<span class="muted">—</span>'}</td>
+    <td>${statusBadge(s)}</td></tr>`;
+  const bang = ds => `<div class="table-wrap"><table><thead><tr><th>Học viên</th><th>Ngày vào</th><th>Ngày trả</th><th>Trạng thái</th></tr></thead><tbody>
+    ${ds.map(dong).join('')}</tbody></table></div>`;
+
+  openModal(`
+    <div class="mh"><h3>${IC.home} Phòng ${esc(r.name)}
+      <span class="badge ${r.gender === 'female' ? 'sage' : 'blue'}">${genderLabel(r.gender)}</span>
+      <span class="badge gray">Hạng ${esc(r.hang || 'B')}</span>${shared ? '' : ' ' + roomTypeBadge(r)}</h3>
+      <button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mb">
+      <div class="cards" style="margin-bottom:16px">
+        <div class="stat"><div class="l">Đang ở</div><div class="v sm">${shared
+          ? `<span class="badge ${vuot ? 'amber' : dsDangO.length ? 'green' : 'gray'}">${dsDangO.length}/${cap}</span>${conTrong ? `<div class="sub2">còn ${conTrong} giường trống</div>` : ''}`
+          : `<span class="badge gray">${dsDangO.length} người</span>`}</div></div>
+        <div class="stat"><div class="l">Giá thuê${shared ? ' / người' : ''}</div><div class="v sm">${money(giaGhep)}${roomType(r) === 'whole' ? `<div class="sub2">Nguyên phòng: ${money(ST.settings['room_price_' + (r.hang || 'B')])}</div>` : ''}</div></div>
+        <div class="stat"><div class="l">Phòng trưởng</div><div class="v sm">${L ? `${IC.star} ${esc(L.name)}` : '<span class="muted">Chưa cử</span>'}</div></div>
+      </div>
+      <p><strong>Tầng:</strong> ${r.floor || roomFloorOf(r.name)} &nbsp;•&nbsp; <strong>Sức chứa:</strong> ${cap || '—'} giường &nbsp;•&nbsp; <strong>Pháp nhân:</strong> ${esc(legalEntity(r.gender))}${showFacilityUI() ? ` &nbsp;•&nbsp; <strong>Cơ sở:</strong> ${esc(facilityName(r.facility_id))}` : ''}</p>
+      ${r.note ? `<p style="white-space:pre-wrap"><strong>Ghi chú:</strong> ${esc(r.note)}</p>` : ''}
+      ${vuot ? `<div class="hint" style="background:var(--amber-bg);border-color:var(--amber-ink);color:var(--amber-ink)">${IC.alert}
+        <span><strong>Đang vượt sức chứa</strong> (${dsDangO.length} người / ${cap} giường). Nghiệp vụ CHO PHÉP việc này —
+        thường là xếp người vào chờ bạn cũ xuất cảnh — nên đây chỉ là nhắc để bạn biết, không phải lỗi.</span></div>` : ''}
+
+      <div class="panel" style="margin-top:12px"><div class="hd"><h2 style="font-size:14px">${IC.users} Người đang ở (${dsDangO.length})</h2></div>
+        ${dsDangO.length ? bang(dsDangO) : '<div class="pad"><p class="muted" style="margin:0">Phòng đang trống — chưa có ai ở.</p></div>'}
+      </div>
+
+      ${dsSapVao.length ? `<div class="panel"><div class="hd"><h2 style="font-size:14px">${IC.calendar} Sắp vào (${dsSapVao.length})</h2></div>
+        ${bang(dsSapVao)}
+      </div>` : ''}
+    </div>
+    <div class="mf">
+      <button class="btn" data-act="leaderForm" data-args='[${id}]'>${IC.star} Phòng trưởng</button>
+      <button class="btn" data-act="roomForm" data-args='[${id}]'>${IC.pencil} Sửa phòng</button>
+      <button class="btn pri" data-act="closeModal">Đóng</button>
+    </div>`, true);
+}
+
 /* ---- Phòng trưởng ----
    Mỗi phòng 1 phòng trưởng giúp BQL quản lý trong phòng, đổi lại được miễn tiền nước + phí dịch vụ
    (tính theo số ngày làm — xem billing.leaderDiscount). */
