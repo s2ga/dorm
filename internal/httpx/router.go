@@ -170,7 +170,9 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	req.POST("/checkout/:id/approve", h.ApproveCheckout) // BL-62: duyệt -> chờ bàn giao (không trả phòng ở bước này)
 	req.PUT("/checkout/:id/note", h.NoteCheckout)
 	req.POST("/checkout/:id/reject", h.RejectCheckout)
-	req.POST("/checkout/:id/bill", h.BillCheckout) // BL-62 GĐ2d: lập phiếu thu (handed_over -> billed)
+	req.POST("/checkout/:id/bill", h.BillCheckout)               // BL-62 GĐ2d: lập phiếu thu (handed_over -> billed)
+	req.POST("/checkout/:id/refund-done", h.RefundDoneCheckout)  // BL-62 GĐ2e: đánh dấu đã hoàn cọc (billed -> done)
+	req.POST("/checkout/create", h.AdminCreateCheckout)          // BL-62 GĐ2f: BQL tạo đơn hộ + duyệt luôn
 	// BL-62 GĐ2c: an ninh bàn giao — role maintenance CŨNG được, nên đăng ký riêng ngoài group admin/staff.
 	api.POST("/requests/checkout/:id/handover", a.RequireAuth(), a.RequireRole("admin", "staff", "maintenance"), h.HandoverCheckout)
 

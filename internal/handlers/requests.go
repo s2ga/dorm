@@ -974,6 +974,120 @@ func (h *Handlers) BillCheckout(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true, "invoice_id": invID, "total": total})
 }
 
+// RefundDoneCheckout: POST /api/requests/checkout/:id/refund-done (admin,staff).
+// BL-62 GĐ2e — BQL đã chuyển cọc (ngoài app) xong -> bấm đánh dấu, đơn 'billed' -> 'done'.
+// Chỉ là DẤU MỐC lịch sử (không chuyển tiền trên app; hoàn cọc thật để Giai đoạn 2).
+func (h *Handlers) RefundDoneCheckout(c *gin.Context) {
+	u := auth.CurrentUser(c)
+	ctx := c.Request.Context()
+	id, ok := paramInt(c, "id")
+	if !ok {
+		serverErr(c)
+		return
+	}
+	if h.requestsBlockByCheckoutReq(c, u, id) { // đa cơ sở
+		return
+	}
+	ct, err := h.pool().Exec(ctx,
+		`UPDATE checkout_requests SET status='done', deposit_refunded_at=now(), refunded_by=$1,
+		   handled_at=COALESCE(handled_at, now()) WHERE id=$2 AND status='billed'`,
+		u.Username, id)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	if ct.RowsAffected() == 0 {
+		var cur string
+		e2 := h.pool().QueryRow(ctx, "SELECT status FROM checkout_requests WHERE id=$1", id).Scan(&cur)
+		if e2 != nil {
+			if errors.Is(e2, pgx.ErrNoRows) {
+				notFound(c, "Không tìm thấy đơn")
+				return
+			}
+			serverErr(c)
+			return
+		}
+		msg := "Đơn phải ĐÃ LẬP PHIẾU mới đánh dấu hoàn cọc được (hiện: " + cur + ")."
+		if cur == "done" {
+			msg = "Đơn này đã hoàn tất rồi."
+		}
+		conflict(c, gin.H{"error": msg})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// AdminCreateCheckout: POST /api/requests/checkout/create (admin,staff).
+// BL-62 GĐ2f — BQL tạo đơn trả phòng HỘ học viên (rời đột xuất, không tự nộp) + DUYỆT luôn
+// (tạo thẳng ở trạng thái 'approved', sẵn sàng cho an ninh bàn giao).
+func (h *Handlers) AdminCreateCheckout(c *gin.Context) {
+	u := auth.CurrentUser(c)
+	ctx := c.Request.Context()
+	var b struct {
+		StudentID   int    `json:"student_id"`
+		DesiredDate string `json:"desired_date"`
+		Reason      string `json:"reason"`
+		Note        string `json:"note"`
+		BankAccount string `json:"bank_account"`
+		BankName    string `json:"bank_name"`
+	}
+	_ = c.ShouldBindJSON(&b)
+	if b.StudentID <= 0 {
+		badRequest(c, "Thiếu học viên")
+		return
+	}
+	if b.DesiredDate != "" && !valid.IsValidYmd(b.DesiredDate) {
+		badRequest(c, "Ngày trả phòng không hợp lệ")
+		return
+	}
+	// Học viên + đa cơ sở.
+	var (
+		facID    *int
+		stStatus string
+	)
+	if err := h.pool().QueryRow(ctx, "SELECT facility_id, status FROM students WHERE id=$1 AND deleted_at IS NULL", b.StudentID).
+		Scan(&facID, &stStatus); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			notFound(c, "Không tìm thấy học viên")
+			return
+		}
+		serverErr(c)
+		return
+	}
+	if fe := scope.AssertFacility(u, facID); fe != nil {
+		c.JSON(fe.Status, gin.H{"error": fe.Error})
+		return
+	}
+	// Không tạo nếu HV đã có đơn đang xử lý (chưa done/rejected).
+	var one int
+	if h.pool().QueryRow(ctx, "SELECT 1 FROM checkout_requests WHERE student_id=$1 AND status NOT IN ('done','rejected') LIMIT 1", b.StudentID).Scan(&one) == nil {
+		badRequest(c, "Học viên đã có đơn trả phòng đang xử lý.")
+		return
+	}
+	reason := "other"
+	if meCheckoutReasons[b.Reason] {
+		reason = b.Reason
+	}
+	var desired interface{}
+	if b.DesiredDate != "" {
+		desired = b.DesiredDate
+	}
+	rows, err := h.pool().Query(ctx,
+		`INSERT INTO checkout_requests (student_id, desired_date, reason, note, bank_account, bank_name, status, approved_by, approved_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,'approved',$7,now()) RETURNING *`,
+		b.StudentID, desired, reason, strings.TrimSpace(b.Note), strings.TrimSpace(b.BankAccount), strings.TrimSpace(b.BankName), u.Username)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	row, err := db.RowToMap(rows)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	c.JSON(http.StatusCreated, row)
+}
+
 type checkoutNoteBody struct {
 	Note string `json:"note"`
 }
