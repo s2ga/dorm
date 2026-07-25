@@ -434,6 +434,8 @@ type meCheckoutBody struct {
 	DesiredDate string `json:"desired_date"`
 	Reason      string `json:"reason"`
 	Note        string `json:"note"`
+	BankAccount string `json:"bank_account"` // BL-62: STK HV nhận hoàn cọc (in trên phiếu; chuyển cọc làm ngoài app)
+	BankName    string `json:"bank_name"`
 }
 
 // MeCheckoutRequestCreate: POST /api/me/checkout-request — HV tự xin trả phòng. server/routes/me.routes.js:173-201
@@ -447,6 +449,14 @@ func (h *Handlers) MeCheckoutRequestCreate(c *gin.Context) {
 	today := timeutil.Today()
 	if b.Note != "" && meRuneLen(b.Note) > 2000 {
 		badRequest(c, "Ghi chú quá dài (tối đa 2000 ký tự)")
+		return
+	}
+	if meRuneLen(b.BankAccount) > 50 {
+		badRequest(c, "Số tài khoản quá dài (tối đa 50 ký tự)")
+		return
+	}
+	if meRuneLen(b.BankName) > 100 {
+		badRequest(c, "Tên ngân hàng quá dài (tối đa 100 ký tự)")
 		return
 	}
 	if b.DesiredDate != "" && !valid.IsValidYmd(b.DesiredDate) {
@@ -496,8 +506,9 @@ func (h *Handlers) MeCheckoutRequestCreate(c *gin.Context) {
 		desired = b.DesiredDate
 	}
 	rows, err := h.pool().Query(ctx,
-		`INSERT INTO checkout_requests (student_id, desired_date, reason, note) VALUES ($1,$2,$3,$4) RETURNING *`,
-		sid, desired, reason, b.Note)
+		`INSERT INTO checkout_requests (student_id, desired_date, reason, note, bank_account, bank_name)
+		 VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+		sid, desired, reason, b.Note, strings.TrimSpace(b.BankAccount), strings.TrimSpace(b.BankName))
 	if err != nil {
 		serverErr(c)
 		return

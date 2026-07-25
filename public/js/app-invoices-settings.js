@@ -52,26 +52,8 @@ async function viewInvoices() {
   const total = all.reduce((a, i) => a + (+i.total || 0), 0);
 
   // Cơ cấu doanh thu: tách Tổng theo từng khoản (tiền phòng/điện/nước/DV/giặt/xe) + xu hướng so kỳ trước.
-  const REV_COMP = [
-    ['Tiền phòng', 'room_charge', 'var(--brand)'], ['Điện', 'electric_charge', '#5f7ea3'],
-    ['Nước', 'water_charge', '#4f8f63'], ['Dịch vụ', 'service_charge', '#b5822f'],
-    ['Máy giặt', 'washing_charge', '#9a7bb0'], ['Gửi xe', 'parking_charge', '#c25545'],
-  ];
-  const sumK = (arr, k) => arr.reduce((a, i) => a + (+i[k] || 0), 0);
-  const comp = REV_COMP.map(([label, k, color]) => ({ label, color, amount: sumK(all, k), prev: sumK(prevAll, k) }));
-  const gross = comp.reduce((a, c) => a + c.amount, 0) || 1;
-  const maxComp = Math.max(1, ...comp.map(c => c.amount));
-  const discount = sumK(all, 'leader_discount') + sumK(all, 'room_discount');
-  const trendPct = (cur, prev) => { if (!prev) return ''; const d = Math.round((cur - prev) / prev * 100); return `<span class="muted" style="font-size:11px;margin-left:5px">${d > 0 ? '▲' : d < 0 ? '▼' : '—'}${d ? ' ' + Math.abs(d) + '%' : ''}</span>`; };
-  const revPanel = all.length ? `<div class="panel"><div class="hd"><h2>${IC.coins} Cơ cấu tiền phiếu — ${monthLabel(invMonth)}</h2><span class="muted" style="font-size:12px">${prevAll.length ? `▲▼ so ${monthLabel(prevInvMonth)}` : 'Tách theo từng khoản'}</span></div>
-    <div class="pad rev-comp">
-      ${comp.map(c => `<div class="rev-row">
-        <div class="rev-lbl">${c.label}</div>
-        <div class="rev-track"><div class="rev-fill" style="width:${Math.round(c.amount / maxComp * 100)}%;background:${c.color}"></div></div>
-        <div class="rev-amt"><strong>${money(c.amount)}</strong> <span class="muted">${Math.round(c.amount / gross * 100)}%</span>${trendPct(c.amount, c.prev)}</div>
-      </div>`).join('')}
-      ${discount ? `<div class="rev-row"><div class="rev-lbl muted">Giảm trừ</div><div class="rev-track"></div><div class="rev-amt muted">−${money(discount)}</div></div>` : ''}
-    </div></div>` : '';
+  const sumK = (arr, k) => arr.reduce((a, i) => a + (+i[k] || 0), 0); // dùng cho dòng TỔNG cuối bảng
+  // Cơ cấu tiền phiếu đã chuyển sang màn Doanh thu (BL-65).
 
   // #2: Tiền phòng theo phòng — tháng này so kỳ trước (dùng lại all + prevAll, không cần backend).
   const rfCur = {}, rfPrev = {};
@@ -91,7 +73,6 @@ async function viewInvoices() {
       <div class="stat"><div class="l">${IC.receipt} Số phiếu</div><div class="v sm">${all.length}</div></div>
       <div class="stat"><div class="l">Tổng tiền phiếu (dự báo)</div><div class="v sm">${money(total)}</div></div>
     </div>
-    ${revPanel}
     <div class="panel"><div class="hd"><h2>Phiếu báo tiền phòng ${monthLabel(invMonth)} (<span id="invCount">${list.length}</span>)</h2>
       <span class="muted" style="font-size:12px">Đơn vị: đồng</span>
       <div class="toolbar">
@@ -121,7 +102,20 @@ async function viewInvoices() {
             <button class="btn sm ghost" data-act="delInvoice" data-args='[${i.id}]'>${IC.trash}</button>
           </div></td></tr>`).join('')}
         <tr class="no-result" style="display:none"><td colspan="12"><div class="empty">Không tìm thấy hóa đơn phù hợp.</div></td></tr>
-      </tbody></table>` : `<div class="empty">Không có hóa đơn ${invFilter === 'paid' ? 'đã đóng' : 'chưa đóng'} trong kỳ này.</div>`}
+      </tbody><tfoot><tr class="tot-row">
+        <td><strong>TỔNG</strong></td>
+        <td data-label="Phòng" class="muted">${list.length} phiếu</td>
+        <td class="num"></td>
+        <td class="num" data-label="Tiền phòng"><strong>${moneyN(sumK(list, 'room_charge'))}</strong></td>
+        <td class="num" data-label="Điện"><strong>${moneyN(sumK(list, 'electric_charge'))}</strong></td>
+        <td class="num" data-label="Nước"><strong>${moneyN(sumK(list, 'water_charge'))}</strong></td>
+        <td class="num" data-label="DV"><strong>${moneyN(sumK(list, 'service_charge'))}</strong></td>
+        <td class="num" data-label="Giặt"><strong>${moneyN(sumK(list, 'washing_charge'))}</strong></td>
+        <td class="num" data-label="Xe"><strong>${moneyN(sumK(list, 'parking_charge'))}</strong></td>
+        <td class="num" data-label="Giảm"><strong>${sumK(list, 'leader_discount') + sumK(list, 'room_discount') ? '−' + moneyN(sumK(list, 'leader_discount') + sumK(list, 'room_discount')) : '—'}</strong></td>
+        <td class="num" data-label="Tổng"><strong>${moneyN(sumK(list, 'total'))}</strong></td>
+        <td class="num"></td>
+      </tr></tfoot></table>` : `<div class="empty">Không có hóa đơn ${invFilter === 'paid' ? 'đã đóng' : 'chưa đóng'} trong kỳ này.</div>`}
     </div></div>
     ${roomFeePanel}
     ${elecPanel}`;
@@ -418,12 +412,15 @@ function viewSettings() {
   el('content').innerHTML = setNav + `
     ${grpOpen('gia')}
     <div class="panel"><div class="hd"><h2>${IC.home} Thông tin hiển thị trên phiếu báo</h2></div><div class="pad">
-      <div class="field"><label>Tên ký túc xá</label><input id="set_dorm_name" value="${esc(s.dorm_name || '')}"></div>
+      <div class="grid2">
+        <div class="field"><label>Tên ký túc xá</label><input id="set_dorm_name" value="${esc(s.dorm_name || '')}"></div>
+        <div class="field"><label>Hotline <span class="opt">(hiện trên phiếu báo & trang giới thiệu)</span></label><input id="set_hotline" value="${esc(s.hotline || '')}" placeholder="VD: 028 1234 5678"></div>
+      </div>
       <div class="grid2">
         <div class="field"><label>Hạn đóng tiền — từ ngày</label><input id="set_due_day_from" type="number" min="1" max="31" value="${esc(s.due_day_from ?? 1)}"></div>
         <div class="field"><label>Hạn đóng tiền — đến ngày</label><input id="set_due_day_to" type="number" min="1" max="31" value="${esc(s.due_day_to ?? 5)}"></div>
       </div>
-      <p class="muted" style="font-size:12px;margin:0">${IC.info} Tên KTX + hạn đóng hiện trên <strong>phiếu báo</strong>. Địa chỉ lấy theo từng cơ sở (mục Cơ sở); hotline ở mục <strong>Trang giới thiệu</strong>.</p>
+      <p class="muted" style="font-size:12px;margin:0">${IC.info} Tên KTX, hotline & hạn đóng hiện trên <strong>phiếu báo</strong>. Địa chỉ lấy theo từng cơ sở (mục <strong>Cơ sở</strong>).</p>
     </div></div>
     <div class="panel"><div class="hd"><h2>${IC.banknote} Đơn giá & quy tắc tính tiền</h2></div><div class="pad">
       <div class="grid2">
@@ -442,15 +439,14 @@ function viewSettings() {
         ${fee('Gửi xe', 'parking_fee', '/xe/tháng')}
         <div></div>
       </div>
-      <div style="font-weight:600;font-size:13px;margin:6px 0 10px">${IC.home} Giá thuê nguyên phòng theo hạng</div>
-      <div class="grid2">
-        ${fee('Hạng A', 'room_price_A', '/phòng/tháng')}
-        ${fee('Hạng B', 'room_price_B', '/phòng/tháng')}
-      </div>
-      <div class="grid2">
-        ${fee('Hạng C', 'room_price_C', '/phòng/tháng')}
-        ${fee('Hạng D', 'room_price_D', '/phòng/tháng')}
-      </div>
+      <div style="font-weight:600;font-size:13px;margin:10px 0 8px">${IC.home} Cấu hình theo hạng phòng <span class="opt" style="font-weight:400">(giá thuê nguyên phòng · trần giường)</span></div>
+      <div class="table-wrap"><table><thead><tr><th>Hạng</th><th>Giá thuê nguyên phòng <span class="opt">/phòng/tháng</span></th><th>Trần giường <span class="opt">(sức chứa tối đa)</span></th></tr></thead><tbody>
+        ${HANGS.map(h => `<tr>
+          <td><strong>Hạng ${h}</strong></td>
+          <td><input id="set_room_price_${h}" type="number" min="0" value="${esc(s['room_price_' + h] || 0)}" data-input="feeHint" data-args='["room_price_${h}"]'><div class="sub2" id="hint_room_price_${h}" style="margin-top:2px">${money(s['room_price_' + h] || 0)}</div></td>
+          <td><input id="set_room_cap_${h}" type="number" min="1" max="20" value="${esc(s['room_cap_' + h] ?? 8)}"></td>
+        </tr>`).join('')}
+      </tbody></table></div>
       <div class="grid2">
         <div class="field"><label>Tháng lẻ: ở trên (ngày) → tính 50%</label><input id="set_partial_half_min" type="number" min="0" value="${esc(s.partial_half_min)}"></div>
         <div class="field"><label>Tháng lẻ: ở trên (ngày) → tính 100%</label><input id="set_partial_full_min" type="number" min="0" value="${esc(s.partial_full_min)}"></div>
@@ -476,15 +472,7 @@ function viewSettings() {
         <div class="field"><label>HV tự xin trả phòng: xa nhất <span class="opt">(ngày tới)</span></label><input id="set_checkout_max_future_days" type="number" min="1" value="${esc(s.checkout_max_future_days ?? 365)}"></div>
         <div class="field"><label>Trần ảnh CCCD <span class="opt">(MB, ≤ 15)</span></label><input id="set_max_cccd_mb" type="number" min="1" max="15" value="${esc(s.max_cccd_mb ?? 12)}"></div>
       </div>
-      <div style="font-weight:600;font-size:13px;margin:6px 0 8px">${IC.bed} Trần giường theo hạng phòng <span class="opt" style="font-weight:400">(sức chứa tối đa cho phép nhập)</span></div>
-      <div class="grid2">
-        <div class="field"><label>Hạng A</label><input id="set_room_cap_A" type="number" min="1" max="20" value="${esc(s.room_cap_A ?? 8)}"></div>
-        <div class="field"><label>Hạng B</label><input id="set_room_cap_B" type="number" min="1" max="20" value="${esc(s.room_cap_B ?? 8)}"></div>
-      </div>
-      <div class="grid2">
-        <div class="field"><label>Hạng C</label><input id="set_room_cap_C" type="number" min="1" max="20" value="${esc(s.room_cap_C ?? 8)}"></div>
-        <div class="field"><label>Hạng D</label><input id="set_room_cap_D" type="number" min="1" max="20" value="${esc(s.room_cap_D ?? 8)}"></div>
-      </div>
+      <p class="muted" style="font-size:12px;margin:2px 0 0">${IC.info} Trần giường theo hạng gộp chung ở mục <strong>Đơn giá & quy tắc</strong> (bảng "Cấu hình theo hạng phòng").</p>
       <button class="btn pri" data-act="saveSettings">Lưu cài đặt</button>
     </div></div>
 
@@ -636,6 +624,7 @@ function viewSettings() {
   loadAdminUsers();
   refreshRulesDocStatus();
   loadDataHealth();
+  syncFilterUrl(); // nhóm đang mở lên URL (?tab=) — deep-link/F5 vào đúng nhóm
 }
 // Menu Cài đặt: đổi nhóm đang hiện, KHÔNG vẽ lại (giữ ảnh đã tải, không chạy lại loadAdminUsers/loadDataHealth).
 function settingsGo(t) {
@@ -643,6 +632,7 @@ function settingsGo(t) {
   document.querySelectorAll('#content .set-group').forEach(g => { g.hidden = g.dataset.setgroup !== t; });
   document.querySelectorAll('#content .set-nav button').forEach(b => b.classList.toggle('pri', b.dataset.tab === t));
   window.scrollTo({ top: 0 });
+  syncFilterUrl(); // KHÔNG vẽ lại viewSettings -> phải tự đồng bộ URL ở đây
 }
 // Bấm thông báo "N tài khoản Microsoft chờ duyệt" -> vào Cài đặt và CUỘN THẲNG tới mục Người dùng
 // (không phải scroll tay). viewSettings dựng #usersPanel đồng bộ nên chỉ cần đợi 1-2 frame cho vẽ xong.
@@ -953,12 +943,12 @@ async function saveSettings() {
   body.legal_female = el('set_legal_female').value.trim() || 'E2';
   body.legal_male = el('set_legal_male').value.trim() || 'S2';
   body.dorm_name = el('set_dorm_name').value.trim() || 'Ký túc xá';
+  body.hotline = el('set_hotline').value.trim(); // BL-66: hotline gom về panel "Thông tin trên phiếu báo"
   // Ngưỡng nhắc / nghiệp vụ (Đợt 3) — gửi RAW (chuỗi) để backend validate khoảng + giữ số thập phân (0.5).
   ['overdue_remind_days', 'shortterm_max_days', 'deposit_notice_min_days', 'partial_half_factor',
     'room_cap_A', 'room_cap_B', 'room_cap_C', 'room_cap_D', 'checkout_max_future_days', 'max_cccd_mb',
     'due_day_from', 'due_day_to']
     .forEach(k => { const inp = el('set_' + k); if (inp) body[k] = inp.value; });
-  // hotline giờ nằm ở mục "Trang giới thiệu" (lưu qua saveIntro)
   await guard(() => API.updateSettings(body));
   // BL-24: KHÔNG re-render toàn trang sau khi lưu — giữ input đang gõ ở các panel khác (mọi panel
   // đều nằm trong DOM). Giá trị hiển thị đã là giá trị vừa gõ = giá trị đã lưu, không cần vẽ lại.

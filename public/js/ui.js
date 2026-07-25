@@ -100,17 +100,17 @@ function _cellText(cell) {
   c.querySelectorAll(_stripSel).forEach(n => n.remove());
   return (c.textContent || '').replace(/\s+/g, ' ').trim();
 }
-function _tableState(t) { return t._flt || (t._flt = { q: '', cols: new Map(), countId: null }); }
+function _tableState(t) { return t._flt || (t._flt = { q: '', cols: new Map(), countId: null, page: 0, pageSize: 0, pagerId: null }); }
 
 // Nguồn sự thật hiển thị hàng: qua ô tìm kiếm (data-s) VÀ mọi bộ lọc cột đang bật.
 function applyRowFilters(table) {
   const st = table._flt; if (!st) return;
   const head = table.tHead && table.tHead.rows[0]; const nCol = head ? head.cells.length : 0;
   const body = table.tBodies && table.tBodies[0]; if (!body) return;
-  let n = 0;
   // BL-56: bảng bật numWord + query SỐ thuần -> khớp nguyên token (gõ "301" ra đúng phòng 301, không lẫn
   // mã/SĐT chứa "301"). Query có chữ (tên/mã) -> vẫn khớp chứa-chuỗi như cũ.
   let qre = null; if (st.q && st.numWord && /^\d+$/.test(st.q)) qre = new RegExp('(?:^|\\D)' + st.q + '(?:\\D|$)');
+  const passing = [];
   for (const tr of body.rows) {
     if (tr.classList.contains('no-result')) continue;
     if (nCol && tr.cells.length !== nCol) continue; // hàng tổng/đặc biệt (colspan) -> để yên
@@ -121,8 +121,17 @@ function applyRowFilters(table) {
       if (f.type === 'set') { if (f.set.size && !f.set.has(v)) { show = false; break; } }
       else if (f.text && v.toLowerCase().indexOf(f.text) === -1) { show = false; break; }
     }
-    tr.style.display = show ? '' : 'none'; if (show) n++;
+    if (show) passing.push(tr); else tr.style.display = 'none';
   }
+  const n = passing.length, size = st.pageSize || 0;
+  // BL-12: phân trang tại LỚP DOM — mọi hàng vẫn nằm trong DOM (phễu cột/tìm kiếm đọc được), chỉ ẩn hàng
+  // ngoài trang hiện tại trong SỐ HÀNG ĐÃ QUA LỌC. Bảng không bật pageSize -> hiện hết như cũ.
+  if (size > 0 && n > size) {
+    const pages = Math.ceil(n / size);
+    let page = st.page || 0; if (page >= pages) page = pages - 1; if (page < 0) page = 0; st.page = page;
+    passing.forEach((tr, i) => { tr.style.display = (i >= page * size && i < (page + 1) * size) ? '' : 'none'; });
+    _renderPager(table, st, n, page, pages);
+  } else { passing.forEach(tr => { tr.style.display = ''; }); st.page = 0; _renderPager(table, st, n, 0, 1); }
   if (st.countId) { const c = el(st.countId); if (c) c.textContent = n; }
   const er = table.querySelector('.no-result'); if (er) er.style.display = n === 0 ? '' : 'none';
   if (head) for (const th of head.cells) {
@@ -130,6 +139,28 @@ function applyRowFilters(table) {
     const f = st.cols.get(th.cellIndex);
     fn.classList.toggle('on', !!(f && (f.type === 'set' ? f.set.size : f.text)));
   }
+}
+// BL-12: khung phân trang (chỉ hiện khi >1 trang). Nút ‹ › đổi trang rồi áp lại bộ lọc.
+function _renderPager(table, st, total, page, pages) {
+  if (!st.pagerId) return;
+  const box = el(st.pagerId); if (!box) return;
+  if (!st.pageSize || pages <= 1) { box.innerHTML = ''; return; }
+  const from = page * st.pageSize + 1, to = Math.min(total, (page + 1) * st.pageSize);
+  box.innerHTML = `<button class="btn sm" ${page <= 0 ? 'disabled' : ''} data-pg="prev">‹ Trước</button>
+    <span class="muted" style="font-size:13px">${from}–${to} / ${total} · trang ${page + 1}/${pages}</span>
+    <button class="btn sm" ${page >= pages - 1 ? 'disabled' : ''} data-pg="next">Sau ›</button>`;
+  box.querySelectorAll('[data-pg]').forEach(b => b.onclick = () => {
+    st.page = (b.dataset.pg === 'next') ? page + 1 : page - 1;
+    applyRowFilters(table);
+    const p = table.closest('.panel'); if (p) window.scrollTo({ top: p.offsetTop - 60, behavior: 'smooth' });
+  });
+}
+// Bật phân trang cho bảng trong cùng panel với `input` (thường là ô tìm kiếm). Gọi SAU attachRowSearch.
+function enablePaging(input, pagerId, pageSize) {
+  const panel = input && input.closest ? (input.closest('.panel') || document) : document;
+  const table = panel.querySelector('table'); if (!table) return;
+  const st = _tableState(table); st.pageSize = pageSize; st.pagerId = pagerId; st.page = 0;
+  applyRowFilters(table);
 }
 
 // Tìm kiếm tức thì (ô search) — nay đi qua applyRowFilters để HỢP với lọc cột.
@@ -139,7 +170,7 @@ function attachRowSearch(input, countId, opts) {
   const table = panel.querySelector('table'); if (!table) return;
   const st = _tableState(table); st.countId = countId;
   if (opts && opts.numWord) st.numWord = true; else delete st.numWord;   // BL-56: query thuần số -> khớp nguyên token
-  const run = () => { st.q = input.value.trim().toLowerCase(); applyRowFilters(table); };
+  const run = () => { st.q = input.value.trim().toLowerCase(); st.page = 0; applyRowFilters(table); }; // BL-12: đổi tìm kiếm -> về trang 1
   input.addEventListener('input', run);
   if (input.value) run(); else applyRowFilters(table);
 }

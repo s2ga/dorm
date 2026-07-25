@@ -17,9 +17,11 @@ import (
 	"ktx/internal/db"
 	"ktx/internal/invoicecalc"
 	"ktx/internal/meter"
+	"ktx/internal/roomleaders"
 	"ktx/internal/scope"
 	"ktx/internal/timeutil"
 	"ktx/internal/valid"
+	"ktx/internal/vehiclecount"
 )
 
 // Handler đơn từ (requests): báo cáo hư hỏng + đơn đăng ký trả phòng.
@@ -467,6 +469,623 @@ func (h *Handlers) ConfirmCheckout(c *gin.Context) {
 		"refund":                  gin.H{"eligible": elig.Eligible, "reason": elig.Reason},
 		"recalced":                recalced,
 	})
+}
+
+// ApproveCheckout: POST /api/requests/checkout/:id/approve (admin,staff).
+// BL-62: BQL duyệt đơn -> 'approved' (chờ an ninh bàn giao). KHÁC ConfirmCheckout cũ:
+// KHÔNG trả phòng ở bước này; việc trả phòng thật để ở bước bàn giao.
+func (h *Handlers) ApproveCheckout(c *gin.Context) {
+	u := auth.CurrentUser(c)
+	ctx := c.Request.Context()
+	id, ok := paramInt(c, "id")
+	if !ok {
+		serverErr(c)
+		return
+	}
+	if h.requestsBlockByCheckoutReq(c, u, id) { // đa cơ sở
+		return
+	}
+	// Duyệt NGUYÊN TỬ: chỉ đổi khi VẪN 'pending' (hai người duyệt cùng lúc -> một thắng).
+	ctag, err := h.pool().Exec(ctx,
+		"UPDATE checkout_requests SET status='approved', approved_by=$1, approved_at=now() WHERE id=$2 AND status='pending'",
+		u.Username, id)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	if ctag.RowsAffected() == 0 {
+		var cur string
+		e2 := h.pool().QueryRow(ctx, "SELECT status FROM checkout_requests WHERE id=$1", id).Scan(&cur)
+		if e2 != nil {
+			if errors.Is(e2, pgx.ErrNoRows) {
+				notFound(c, "Không tìm thấy đơn")
+				return
+			}
+			serverErr(c)
+			return
+		}
+		msg := "Đơn không còn chờ duyệt (hiện: " + cur + ") — tải lại để xem trạng thái mới nhất."
+		if cur == "rejected" {
+			msg = "Đơn này đã bị từ chối — không thể duyệt."
+		}
+		conflict(c, gin.H{"error": msg})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+type checkoutHandoverBody struct {
+	Date         string          `json:"date"`
+	KeyReturned  bool            `json:"key_returned"`
+	MeterReading json.RawMessage `json:"meter_reading"`
+	Damages      []struct {
+		AssetID  int `json:"asset_id"`
+		Quantity int `json:"quantity"`
+	} `json:"damages"`
+}
+
+// HandoverCheckout: POST /api/requests/checkout/:id/handover (admin,staff,maintenance).
+// BL-62 GĐ2c — an ninh nhận bàn giao: đơn 'approved' -> 'handed_over'. Đây là chỗ THẬT SỰ trả phòng.
+// Nhập: đã nhận chìa khóa, hư hao (tick theo danh mục — server tự tính từ assets.fee), số điện chốt.
+// App: HV -> đã trả phòng, chốt công-tơ, đóng lượt ở/phòng trưởng/dọn phiếu kỳ sau, lưu bàn giao vào đơn.
+// (Tính điện đúng "phương án A" để ở GĐ3; bước này chỉ LƯU số điện.)
+func (h *Handlers) HandoverCheckout(c *gin.Context) {
+	u := auth.CurrentUser(c)
+	ctx := c.Request.Context()
+	id, ok := paramInt(c, "id")
+	if !ok {
+		serverErr(c)
+		return
+	}
+	if h.requestsBlockByCheckoutReq(c, u, id) { // đa cơ sở
+		return
+	}
+	var body checkoutHandoverBody
+	_ = c.ShouldBindJSON(&body)
+
+	// Đơn phải đang 'approved' (đã duyệt, chờ bàn giao).
+	var (
+		crStatus  string
+		crReason  *string
+		createdAt time.Time
+		crSID     *int
+	)
+	if err := h.pool().QueryRow(ctx,
+		"SELECT status, reason, created_at, student_id FROM checkout_requests WHERE id=$1", id).
+		Scan(&crStatus, &crReason, &createdAt, &crSID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			notFound(c, "Không tìm thấy đơn")
+			return
+		}
+		serverErr(c)
+		return
+	}
+	if crStatus != "approved" {
+		msg := "Đơn phải được DUYỆT trước khi bàn giao (hiện: " + crStatus + ")."
+		switch crStatus {
+		case "handed_over", "billed", "done":
+			msg = "Đơn này đã bàn giao rồi — không bàn giao lại."
+		case "rejected":
+			msg = "Đơn đã bị từ chối."
+		}
+		conflict(c, gin.H{"error": msg})
+		return
+	}
+	if crSID == nil {
+		notFound(c, "Không tìm thấy học viên của đơn này")
+		return
+	}
+	studentID := *crSID
+
+	// Học viên (phòng + ngày nhận).
+	var (
+		roomID  *int
+		checkIn pgtype.Date
+	)
+	if err := h.pool().QueryRow(ctx,
+		"SELECT room_id, check_in_date FROM students WHERE id=$1 AND deleted_at IS NULL", studentID).
+		Scan(&roomID, &checkIn); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			notFound(c, "Không tìm thấy học viên của đơn này")
+			return
+		}
+		serverErr(c)
+		return
+	}
+
+	// Ngày rời thực tế: body.date || hôm nay; không tương lai; không trước ngày nhận/lượt ở (BLK-3).
+	date := body.Date
+	if date == "" {
+		date = timeutil.Today()
+	}
+	if !valid.IsValidYmd(date) {
+		badRequest(c, `Ngày trả phòng không hợp lệ: "`+date+`"`)
+		return
+	}
+	if date > timeutil.Today() {
+		badRequest(c, "Ngày trả phòng thực tế không thể ở tương lai.")
+		return
+	}
+	checkInStr := ""
+	if checkIn.Valid {
+		checkInStr = checkIn.Time.Format("2006-01-02")
+	}
+	badDate, err := checkout.BadCheckoutDate(ctx, h.pool(), studentID, date, checkInStr)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	if badDate != "" {
+		badRequest(c, badDate)
+		return
+	}
+
+	// Số điện chốt: BẮT BUỘC nếu HV còn ở phòng (để lập phiếu điện kỳ cuối).
+	hasMeter, reading, finite := requestsMeterVal(body.MeterReading)
+	if roomID != nil {
+		if !hasMeter {
+			badRequest(c, "Cần ghi số điện chốt lúc bàn giao.")
+			return
+		}
+		if !finite {
+			badRequest(c, "Chỉ số công-tơ phải là số không âm")
+			return
+		}
+		errMsg, e := meter.CheckRead(ctx, h.pool(), *roomID, date, reading)
+		if e != nil {
+			serverErr(c)
+			return
+		}
+		if errMsg != "" {
+			badRequest(c, errMsg)
+			return
+		}
+	}
+
+	// Hư hao theo danh mục — server tự tính từ assets.fee (client chỉ gửi asset_id + số lượng).
+	var damageAmount float64
+	var damageParts []string
+	for _, line := range body.Damages {
+		if line.Quantity < 0 {
+			badRequest(c, "Số lượng hư hao không hợp lệ")
+			return
+		}
+		if line.Quantity == 0 {
+			continue
+		}
+		var name string
+		var fee float64
+		if e := h.pool().QueryRow(ctx, "SELECT name, fee FROM assets WHERE id=$1 AND deleted_at IS NULL", line.AssetID).
+			Scan(&name, &fee); e != nil {
+			if errors.Is(e, pgx.ErrNoRows) {
+				badRequest(c, "Tài sản không tồn tại (id="+itoa(line.AssetID)+")")
+				return
+			}
+			serverErr(c)
+			return
+		}
+		lineTotal := float64(line.Quantity) * fee
+		damageAmount += lineTotal
+		damageParts = append(damageParts, name+" x"+itoa(line.Quantity)+" = "+studentsLocaleVN(lineTotal))
+	}
+	damageNote := strings.Join(damageParts, "; ")
+
+	var meterArg interface{}
+	if hasMeter {
+		meterArg = reading
+	}
+
+	// CLAIM nguyên tử: chỉ MỘT lần bàn giao thắng WHERE status='approved'.
+	ct, err := h.pool().Exec(ctx,
+		`UPDATE checkout_requests
+		   SET status='handed_over', key_returned=$1, damage_note=$2, damage_amount=$3,
+		       meter_reading=$4, handover_by=$5, handover_at=now()
+		 WHERE id=$6 AND status='approved'`,
+		body.KeyReturned, damageNote, damageAmount, meterArg, u.Username, id)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	if ct.RowsAffected() == 0 {
+		conflict(c, gin.H{"error": "Đơn vừa được xử lý bởi thao tác khác — tải lại để xem trạng thái mới nhất."})
+		return
+	}
+
+	// HV -> đã trả phòng (ngày rời thực tế = ngày bàn giao).
+	noticeDate := createdAt.UTC().Format("2006-01-02")
+	var reasonArg interface{}
+	if crReason != nil {
+		reasonArg = *crReason
+	}
+	if _, err := h.pool().Exec(ctx,
+		"UPDATE students SET status='out', check_out_date=$1, checkout_notice_date=$2, checkout_reason=$3 WHERE id=$4",
+		date, noticeDate, reasonArg, studentID); err != nil {
+		serverErr(c)
+		return
+	}
+
+	// Ghi chỉ số công-tơ (nếu có).
+	if hasMeter {
+		if _, err := meter.RecordRead(ctx, h.pool(), *roomID, date, reading, "checkout", &studentID,
+			"Chốt chỉ số lúc an ninh nhận bàn giao (BL-62)", u.Username); err != nil {
+			serverErr(c)
+			return
+		}
+	}
+
+	// Nhật ký ra — source theo VAI người thực hiện (an ninh = maintenance).
+	src := "admin"
+	if u != nil && u.Role == "maintenance" {
+		src = "maintenance"
+	}
+	byName := u.Username
+	if byName == "" {
+		byName = "cán bộ"
+	}
+	_, _ = h.pool().Exec(ctx,
+		"INSERT INTO logs (student_id, type, date, room_id, note, source) VALUES ($1,'out',$2,$3,$4,$5)",
+		studentID, date, roomID, "An ninh nhận bàn giao phòng (BL-62, bởi "+byName+")", src)
+
+	// BLK-1: đóng lượt ở + phòng trưởng + dọn phiếu kỳ sau + tính lại.
+	dropped, err := checkout.FinalizeCheckout(ctx, h.pool(), h.DB, studentID, date)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	// Chốt giữa kỳ đổi phần chia của cả phòng -> tính lại cho bạn cùng phòng.
+	if hasMeter {
+		if aff, e := meter.AffectedStudents(ctx, h.pool(), *roomID, date); e == nil {
+			for _, sid := range aff {
+				if sid == studentID {
+					continue
+				}
+				_, _ = invoicecalc.RecalcInvoice(ctx, h.DB, sid, date[:7])
+			}
+		}
+	}
+	if dropped == nil {
+		dropped = []string{}
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"ok":                      true,
+		"dropped_future_invoices": dropped,
+		"damage_amount":           damageAmount,
+		"damage_note":             damageNote,
+	})
+}
+
+// BillCheckout: POST /api/requests/checkout/:id/bill (admin,staff).
+// BL-62 GĐ2d — BQL lập phiếu thu: đơn 'handed_over' -> 'billed'. Tạo/cập nhật hóa đơn kỳ trả phòng
+// (tiền phòng/nước/dịch vụ/xe/máy giặt theo ngày ở + điện + hư hao vào "khoản khác"). Điện: đường thường,
+// nếu phòng CHƯA chốt chỉ số cuối tháng -> phương án A (StudentElectricProvisional). Gắn invoice_id vào đơn.
+func (h *Handlers) BillCheckout(c *gin.Context) {
+	u := auth.CurrentUser(c)
+	ctx := c.Request.Context()
+	id, ok := paramInt(c, "id")
+	if !ok {
+		serverErr(c)
+		return
+	}
+	if h.requestsBlockByCheckoutReq(c, u, id) { // đa cơ sở
+		return
+	}
+
+	// Đơn phải đang 'handed_over' (đã bàn giao, chờ lập phiếu).
+	var (
+		crStatus     string
+		crSID        *int
+		damageAmount float64
+		damageNote   string
+	)
+	if err := h.pool().QueryRow(ctx,
+		"SELECT status, student_id, COALESCE(damage_amount,0), COALESCE(damage_note,'') FROM checkout_requests WHERE id=$1", id).
+		Scan(&crStatus, &crSID, &damageAmount, &damageNote); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			notFound(c, "Không tìm thấy đơn")
+			return
+		}
+		serverErr(c)
+		return
+	}
+	if crStatus != "handed_over" {
+		msg := "Đơn phải ở bước ĐÃ BÀN GIAO mới lập phiếu được (hiện: " + crStatus + ")."
+		if crStatus == "billed" || crStatus == "done" {
+			msg = "Đơn này đã lập phiếu rồi."
+		}
+		conflict(c, gin.H{"error": msg})
+		return
+	}
+	if crSID == nil {
+		notFound(c, "Không tìm thấy học viên của đơn này")
+		return
+	}
+	sid := *crSID
+
+	// Học viên (field billing + ngày trả -> kỳ).
+	var (
+		facID     *int
+		roomID    *int
+		rentalTyp *string
+		ci, co    pgtype.Date
+		uw, up    bool
+		pct       *float64
+	)
+	if err := h.pool().QueryRow(ctx,
+		"SELECT facility_id, room_id, rental_type, check_in_date, check_out_date, uses_washing, uses_parking, room_fee_discount_pct FROM students WHERE id=$1 AND deleted_at IS NULL", sid).
+		Scan(&facID, &roomID, &rentalTyp, &ci, &co, &uw, &up, &pct); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			notFound(c, "Không tìm thấy học viên của đơn này")
+			return
+		}
+		serverErr(c)
+		return
+	}
+	if fe := scope.AssertFacility(u, facID); fe != nil { // đa cơ sở
+		c.JSON(fe.Status, gin.H{"error": fe.Error})
+		return
+	}
+	if !co.Valid {
+		badRequest(c, "Học viên chưa có ngày trả phòng — cần bàn giao trước khi lập phiếu.")
+		return
+	}
+	month := co.Time.Format("2006-01") // kỳ = tháng trả phòng (YYYY-MM)
+
+	fees, err := h.DB.GetSettings(ctx)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+
+	// Phiếu kỳ này đã tồn tại? Đã thu (paid) thì không sửa.
+	var dID int
+	var dStatus string
+	var dOther float64
+	dupErr := h.pool().QueryRow(ctx, "SELECT id, status, other_charge FROM invoices WHERE student_id=$1 AND month=$2", sid, month).
+		Scan(&dID, &dStatus, &dOther)
+	hasDup := dupErr == nil
+	if dupErr != nil && !errors.Is(dupErr, pgx.ErrNoRows) {
+		serverErr(c)
+		return
+	}
+	if hasDup && dStatus == "paid" {
+		badRequest(c, "Hóa đơn kỳ này đã đóng — không sửa.")
+		return
+	}
+
+	// Phòng + roster + kwh (như generate-one).
+	var room *billing.Room
+	if roomID != nil {
+		var hang *string
+		var mf *float64
+		if e := h.pool().QueryRow(ctx, "SELECT hang, monthly_fee FROM rooms WHERE id=$1", *roomID).Scan(&hang, &mf); e == nil {
+			r := billing.Room{}
+			if hang != nil {
+				r.Hang = *hang
+			}
+			if mf != nil {
+				r.MonthlyFee = *mf
+			}
+			room = &r
+		}
+	}
+	var roster []billing.RosterEntry
+	if roomID != nil {
+		roster, err = invoicecalc.RoomRoster(ctx, h.DB, *roomID, month)
+		if err != nil {
+			serverErr(c)
+			return
+		}
+	}
+	kwh := 0.0
+	if roomID != nil {
+		var k *float64
+		if e := h.pool().QueryRow(ctx, "SELECT kwh FROM electric_readings WHERE room_id=$1 AND month=$2", *roomID, month).Scan(&k); e == nil && k != nil {
+			kwh = *k
+		}
+	}
+	veh, err := vehiclecount.CountForMonth(ctx, h.pool(), sid, month)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	unit := billing.Fees(fees).Num("electric_unit")
+	electricCharge, err := invoicecalc.StudentElectric(ctx, h.DB, sid, month, unit)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	// Phương án A: phòng CHƯA chốt chỉ số cuối tháng -> tính điện tới ngày bàn giao từ số bàn giao.
+	if electricCharge == nil {
+		electricCharge, err = invoicecalc.StudentElectricProvisional(ctx, h.DB, sid, month, unit)
+		if err != nil {
+			serverErr(c)
+			return
+		}
+	}
+	leaderDays, err := roomleaders.LeaderDaysInMonth(ctx, h.pool(), sid, month)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+
+	rt := ""
+	if rentalTyp != nil {
+		rt = *rentalTyp
+	}
+	pctVal := 0.0
+	if pct != nil {
+		pctVal = *pct
+	}
+	comp := billing.ComputeInvoice(billing.ComputeInput{
+		Student: billing.Student{
+			ID: sid, RentalType: rt, CheckInDate: invDateStr(ci), CheckOutDate: invDateStr(co),
+			RoomFeeDiscountPct: pctVal, UsesWashing: uw, UsesParking: up,
+		},
+		Room: room, Month: month, Fees: billing.Fees(fees),
+		Roster: roster, ElectricCharge: electricCharge, LeaderDays: leaderDays, Kwh: kwh, VehicleCount: &veh,
+	})
+
+	// Hư hao -> "khoản khác"; tổng gồm cả khoản khác.
+	total := billing.InvoiceTotal(map[string]float64{
+		"room_charge": float64(comp.RoomCharge), "electric_charge": float64(comp.ElectricCharge),
+		"water_charge": float64(comp.WaterCharge), "service_charge": float64(comp.ServiceCharge),
+		"washing_charge": float64(comp.WashingCharge), "parking_charge": float64(comp.ParkingCharge),
+		"other_charge": damageAmount, "leader_discount": float64(comp.LeaderDiscount), "room_discount": float64(comp.RoomDiscount),
+	})
+
+	var invID int
+	if hasDup {
+		if err := h.pool().QueryRow(ctx,
+			`UPDATE invoices SET days_stayed=$1, room_charge=$2, electric_kwh=$3, electric_charge=$4, water_charge=$5,
+			   service_charge=$6, washing_charge=$7, parking_charge=$8, leader_discount=$9, room_discount=$10,
+			   other_charge=$11, other_note=$12, total=$13, status='pending', paid_date=NULL, deleted_at=NULL
+			 WHERE id=$14 RETURNING id`,
+			comp.DaysStayed, comp.RoomCharge, comp.ElectricKwh, comp.ElectricCharge, comp.WaterCharge,
+			comp.ServiceCharge, comp.WashingCharge, comp.ParkingCharge, comp.LeaderDiscount, comp.RoomDiscount,
+			damageAmount, damageNote, total, dID).Scan(&invID); err != nil {
+			serverErr(c)
+			return
+		}
+	} else {
+		if err := h.pool().QueryRow(ctx,
+			`INSERT INTO invoices (student_id, room_id, month, days_stayed, room_charge, electric_kwh, electric_charge,
+			   water_charge, service_charge, washing_charge, parking_charge, leader_discount, room_discount, other_charge, other_note, total, status)
+			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'pending') RETURNING id`,
+			sid, roomID, month, comp.DaysStayed, comp.RoomCharge, comp.ElectricKwh, comp.ElectricCharge,
+			comp.WaterCharge, comp.ServiceCharge, comp.WashingCharge, comp.ParkingCharge,
+			comp.LeaderDiscount, comp.RoomDiscount, damageAmount, damageNote, total).Scan(&invID); err != nil {
+			serverErr(c)
+			return
+		}
+	}
+
+	// Đơn -> 'billed' + gắn invoice_id. CLAIM: chỉ khi vẫn 'handed_over'.
+	ct, err := h.pool().Exec(ctx,
+		"UPDATE checkout_requests SET status='billed', invoice_id=$1, billed_at=now() WHERE id=$2 AND status='handed_over'",
+		invID, id)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	if ct.RowsAffected() == 0 {
+		conflict(c, gin.H{"error": "Đơn vừa được xử lý bởi thao tác khác — tải lại để xem trạng thái mới nhất."})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "invoice_id": invID, "total": total})
+}
+
+// RefundDoneCheckout: POST /api/requests/checkout/:id/refund-done (admin,staff).
+// BL-62 GĐ2e — BQL đã chuyển cọc (ngoài app) xong -> bấm đánh dấu, đơn 'billed' -> 'done'.
+// Chỉ là DẤU MỐC lịch sử (không chuyển tiền trên app; hoàn cọc thật để Giai đoạn 2).
+func (h *Handlers) RefundDoneCheckout(c *gin.Context) {
+	u := auth.CurrentUser(c)
+	ctx := c.Request.Context()
+	id, ok := paramInt(c, "id")
+	if !ok {
+		serverErr(c)
+		return
+	}
+	if h.requestsBlockByCheckoutReq(c, u, id) { // đa cơ sở
+		return
+	}
+	ct, err := h.pool().Exec(ctx,
+		`UPDATE checkout_requests SET status='done', deposit_refunded_at=now(), refunded_by=$1,
+		   handled_at=COALESCE(handled_at, now()) WHERE id=$2 AND status='billed'`,
+		u.Username, id)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	if ct.RowsAffected() == 0 {
+		var cur string
+		e2 := h.pool().QueryRow(ctx, "SELECT status FROM checkout_requests WHERE id=$1", id).Scan(&cur)
+		if e2 != nil {
+			if errors.Is(e2, pgx.ErrNoRows) {
+				notFound(c, "Không tìm thấy đơn")
+				return
+			}
+			serverErr(c)
+			return
+		}
+		msg := "Đơn phải ĐÃ LẬP PHIẾU mới đánh dấu hoàn cọc được (hiện: " + cur + ")."
+		if cur == "done" {
+			msg = "Đơn này đã hoàn tất rồi."
+		}
+		conflict(c, gin.H{"error": msg})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// AdminCreateCheckout: POST /api/requests/checkout/create (admin,staff).
+// BL-62 GĐ2f — BQL tạo đơn trả phòng HỘ học viên (rời đột xuất, không tự nộp) + DUYỆT luôn
+// (tạo thẳng ở trạng thái 'approved', sẵn sàng cho an ninh bàn giao).
+func (h *Handlers) AdminCreateCheckout(c *gin.Context) {
+	u := auth.CurrentUser(c)
+	ctx := c.Request.Context()
+	var b struct {
+		StudentID   int    `json:"student_id"`
+		DesiredDate string `json:"desired_date"`
+		Reason      string `json:"reason"`
+		Note        string `json:"note"`
+		BankAccount string `json:"bank_account"`
+		BankName    string `json:"bank_name"`
+	}
+	_ = c.ShouldBindJSON(&b)
+	if b.StudentID <= 0 {
+		badRequest(c, "Thiếu học viên")
+		return
+	}
+	if b.DesiredDate != "" && !valid.IsValidYmd(b.DesiredDate) {
+		badRequest(c, "Ngày trả phòng không hợp lệ")
+		return
+	}
+	// Học viên + đa cơ sở.
+	var (
+		facID    *int
+		stStatus string
+	)
+	if err := h.pool().QueryRow(ctx, "SELECT facility_id, status FROM students WHERE id=$1 AND deleted_at IS NULL", b.StudentID).
+		Scan(&facID, &stStatus); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			notFound(c, "Không tìm thấy học viên")
+			return
+		}
+		serverErr(c)
+		return
+	}
+	if fe := scope.AssertFacility(u, facID); fe != nil {
+		c.JSON(fe.Status, gin.H{"error": fe.Error})
+		return
+	}
+	// Không tạo nếu HV đã có đơn đang xử lý (chưa done/rejected).
+	var one int
+	if h.pool().QueryRow(ctx, "SELECT 1 FROM checkout_requests WHERE student_id=$1 AND status NOT IN ('done','rejected') LIMIT 1", b.StudentID).Scan(&one) == nil {
+		badRequest(c, "Học viên đã có đơn trả phòng đang xử lý.")
+		return
+	}
+	reason := "other"
+	if meCheckoutReasons[b.Reason] {
+		reason = b.Reason
+	}
+	var desired interface{}
+	if b.DesiredDate != "" {
+		desired = b.DesiredDate
+	}
+	rows, err := h.pool().Query(ctx,
+		`INSERT INTO checkout_requests (student_id, desired_date, reason, note, bank_account, bank_name, status, approved_by, approved_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,'approved',$7,now()) RETURNING *`,
+		b.StudentID, desired, reason, strings.TrimSpace(b.Note), strings.TrimSpace(b.BankAccount), strings.TrimSpace(b.BankName), u.Username)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	row, err := db.RowToMap(rows)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	c.JSON(http.StatusCreated, row)
 }
 
 type checkoutNoteBody struct {

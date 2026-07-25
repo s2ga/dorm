@@ -373,6 +373,16 @@ const FILTERS = {
       return p;
     },
   },
+  // Cài đặt: nhóm (tab) đang mở lên URL -> /cai-dat?tab=gioithieu mở THẲNG nhóm đó, F5 giữ nguyên
+  // nhóm, gửi link cho đồng nghiệp là họ vào đúng chỗ. Giá trị lạ -> viewSettings tự nắn về 'gia'.
+  settings: {
+    read: q => { settingsTab = q.get('tab') || 'gia'; },
+    write: () => {
+      const p = new URLSearchParams();
+      if (settingsTab && settingsTab !== 'gia') p.set('tab', settingsTab);
+      return p;
+    },
+  },
 };
 // URL hiện tại (đường dẫn đã chuẩn hoá + query) — để so sánh idempotent trước khi ghi history.
 function curUrl() {

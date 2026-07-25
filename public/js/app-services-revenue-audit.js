@@ -93,12 +93,26 @@ async function viewRevenue() {
     <td class="num"><strong>${money(m.total)}</strong></td>
   </tr>`).join('');
 
+  // Cơ cấu doanh thu (BL-65: chuyển từ màn Tiền phòng sang đây — đúng nơi phân tích doanh thu)
+  const REV_COLOR = { room: 'var(--brand)', electric: '#5f7ea3', water: '#4f8f63', service: '#b5822f', washing: '#9a7bb0', parking: '#c25545', other: '#8a8a8a' };
+  const revMax = Math.max(1, ...REV_SERVICES.map(([k]) => sum(k)));
+  const shortSvc = l => l.replace('Phí ', '').replace(' sinh hoạt', '').replace(' (tiền phòng)', '');
+  const revComp = data.length ? `<div class="panel"><div class="hd"><h2>${IC.coins} Cơ cấu doanh thu — năm ${revYear}</h2><span class="muted" style="font-size:12px">Tỉ trọng theo khoản</span></div>
+    <div class="pad rev-comp">
+      ${REV_SERVICES.filter(x => x[0] !== 'other' || sum('other')).map(([k, l]) => { const amt = sum(k); return `<div class="rev-row">
+        <div class="rev-lbl">${shortSvc(l)}</div>
+        <div class="rev-track"><div class="rev-fill" style="width:${Math.round(amt / revMax * 100)}%;background:${REV_COLOR[k] || 'var(--brand)'}"></div></div>
+        <div class="rev-amt"><strong>${money(amt)}</strong> <span class="muted">${Math.round(amt / (grand || 1) * 100)}%</span></div>
+      </div>`; }).join('')}
+    </div></div>` : '';
+
   el('content').innerHTML = `
     <div class="cards">
       <div class="stat"><div class="l">${IC.calendar} Năm</div><div class="v sm"><select id="ry" style="font-size:15px;font-weight:600;padding:6px 8px">${(years.length ? years : [revYear]).map(y => `<option value="${y}" ${y === revYear ? 'selected' : ''}>${y}</option>`).join('')}</select></div></div>
       <div class="stat"><div class="l">${IC.trendingUp} Tổng dự báo doanh thu năm</div><div class="v sm">${money(grand)}</div></div>
     </div>
 
+    ${revComp}
     <div class="panel"><div class="hd"><h2>${IC.trendingUp} Dự báo doanh thu theo tháng — năm ${revYear}</h2>
       <button class="btn sm" data-act="exportRevenue">${IC.download} Xuất Excel (CSV)</button></div>
       <div class="table-wrap">
@@ -210,9 +224,6 @@ async function viewAudit() {
   const rows = Array.isArray(res) ? res : (res.rows || []);
   const total = Array.isArray(res) ? rows.length : (res.total || 0);
   const offset = auditFilter.offset || 0;
-  const todayStr = today();
-  const todayCnt = rows.filter(r => String(r.at || '').slice(0, 10) === todayStr).length;
-  const users = new Set(rows.map(r => r.username)).size;
 
   const body = rows.map(r => {
     const label = auditLabel(r.method, r.path);
@@ -230,8 +241,6 @@ async function viewAudit() {
   el('content').innerHTML = `
     <div class="cards">
       <div class="stat"><div class="l">${IC.history} Tổng bản ghi ${dangLoc ? '(theo bộ lọc)' : ''}</div><div class="v sm">${total.toLocaleString('vi-VN')}</div></div>
-      <div class="stat"><div class="l">${IC.calendar} Thao tác hôm nay (trang này)</div><div class="v sm">${todayCnt}</div></div>
-      <div class="stat"><div class="l">${IC.users} Người thao tác (trang này)</div><div class="v sm">${users}</div></div>
     </div>
     <div class="panel"><div class="hd"><h2>${IC.history} Nhật ký thao tác</h2>
       <div class="flex" style="gap:8px;flex-wrap:wrap">

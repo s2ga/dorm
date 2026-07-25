@@ -158,6 +158,122 @@ func StudentElectric(ctx context.Context, database *db.DB, studentID int, month 
 	return &sum, nil
 }
 
+// StudentElectricProvisional: điện của HV ĐÃ TRẢ PHÒNG khi phòng CHƯA chốt chỉ số cuối tháng
+// (electric_readings tháng này chưa có). Dùng chỉ số bàn giao (meter_reads mới nhất trong tháng)
+// làm mốc CUỐI tạm, chỉ số ĐẦU = reading_end tháng trước; chỉ tính phần tới ngày bàn giao.
+// Khớp tuyệt đối: khi phòng chốt cuối tháng, đường thường (StudentElectric) ra ĐÚNG cùng số cho HV
+// này (cùng các chặng trước ngày rời). nil nếu thiếu dữ liệu -> bên gọi giữ 0/đường cũ. — BL-62 GĐ3 (phương án A).
+func StudentElectricProvisional(ctx context.Context, database *db.DB, studentID int, month string, unit float64) (*float64, error) {
+	rows, err := database.Pool.Query(ctx,
+		`SELECT DISTINCT room_id FROM room_stays
+		  WHERE student_id=$1 AND from_date <= $2 AND (to_date IS NULL OR to_date >= $3)`,
+		studentID, billing.LastDay(month), billing.FirstDay(month))
+	if err != nil {
+		return nil, err
+	}
+	var roomIDs []int
+	for rows.Next() {
+		var rid *int
+		if err := rows.Scan(&rid); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		if rid != nil {
+			roomIDs = append(roomIDs, *rid)
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Tháng trước = ngày trước ngày đầu tháng này, cắt 7 ký tự (YYYY-MM).
+	prevM := billing.AddDays(billing.FirstDay(month), -1)
+	if len(prevM) >= 7 {
+		prevM = prevM[:7]
+	}
+
+	sum := 0.0
+	found := false
+	for _, rid := range roomIDs {
+		// Phòng ĐÃ có chỉ số cuối tháng -> đường thường (RoomSegments) lo, KHÔNG tạm tính.
+		var one int
+		if e := database.Pool.QueryRow(ctx, "SELECT 1 FROM electric_readings WHERE room_id=$1 AND month=$2", rid, month).Scan(&one); e == nil {
+			continue
+		}
+		// Chỉ số ĐẦU tháng = reading_end tháng trước.
+		var opening *float64
+		if e := database.Pool.QueryRow(ctx, "SELECT reading_end FROM electric_readings WHERE room_id=$1 AND month=$2", rid, prevM).Scan(&opening); e != nil || opening == nil {
+			continue // không biết mốc đầu -> bỏ (giữ 0)
+		}
+		// meter_reads trong tháng (gồm chốt bàn giao). read mới nhất = mốc cuối tạm.
+		readRows, err := database.Pool.Query(ctx,
+			"SELECT read_date, reading FROM meter_reads WHERE room_id=$1 AND read_date >= $2 AND read_date <= $3 ORDER BY read_date",
+			rid, billing.FirstDay(month), billing.LastDay(month))
+		if err != nil {
+			return nil, err
+		}
+		var reads []billing.MeterRead
+		var lastReading float64
+		for readRows.Next() {
+			var rd pgtype.Date
+			var reading float64
+			if err := readRows.Scan(&rd, &reading); err != nil {
+				readRows.Close()
+				return nil, err
+			}
+			reads = append(reads, billing.MeterRead{Date: dateStr(rd), Reading: reading})
+			lastReading = reading
+		}
+		readRows.Close()
+		if err := readRows.Err(); err != nil {
+			return nil, err
+		}
+		if len(reads) == 0 {
+			continue // chưa có chốt bàn giao -> bỏ
+		}
+		// stays trong tháng.
+		stayRows, err := database.Pool.Query(ctx,
+			`SELECT rs.student_id, rs.from_date, rs.to_date
+			   FROM room_stays rs JOIN students s ON s.id = rs.student_id
+			  WHERE rs.room_id=$1 AND s.deleted_at IS NULL
+			    AND rs.from_date <= $2 AND (rs.to_date IS NULL OR rs.to_date >= $3)`,
+			rid, billing.LastDay(month), billing.FirstDay(month))
+		if err != nil {
+			return nil, err
+		}
+		var stays []billing.Stay
+		for stayRows.Next() {
+			var sid int
+			var from, to pgtype.Date
+			if err := stayRows.Scan(&sid, &from, &to); err != nil {
+				stayRows.Close()
+				return nil, err
+			}
+			stays = append(stays, billing.Stay{StudentID: sid, From: dateStr(from), To: dateStr(to)})
+		}
+		stayRows.Close()
+		if err := stayRows.Err(); err != nil {
+			return nil, err
+		}
+		if len(stays) == 0 {
+			continue
+		}
+		segs := billing.BuildSegments(month, *opening, lastReading, reads, stays)
+		found = true
+		bs := make([]billing.Segment, len(segs))
+		for i, s := range segs {
+			bs[i] = billing.Segment{Electric: s.Kwh * unit, Roster: s.Roster}
+		}
+		share := billing.SplitElectricExact(bs)
+		sum += float64(share[studentID])
+	}
+	if !found {
+		return nil, nil
+	}
+	return &sum, nil
+}
+
 func icInt(v interface{}) int {
 	switch n := v.(type) {
 	case int:
