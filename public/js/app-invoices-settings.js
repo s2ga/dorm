@@ -624,6 +624,7 @@ function viewSettings() {
   loadAdminUsers();
   refreshRulesDocStatus();
   loadDataHealth();
+  syncFilterUrl(); // nhóm đang mở lên URL (?tab=) — deep-link/F5 vào đúng nhóm
 }
 // Menu Cài đặt: đổi nhóm đang hiện, KHÔNG vẽ lại (giữ ảnh đã tải, không chạy lại loadAdminUsers/loadDataHealth).
 function settingsGo(t) {
@@ -631,6 +632,7 @@ function settingsGo(t) {
   document.querySelectorAll('#content .set-group').forEach(g => { g.hidden = g.dataset.setgroup !== t; });
   document.querySelectorAll('#content .set-nav button').forEach(b => b.classList.toggle('pri', b.dataset.tab === t));
   window.scrollTo({ top: 0 });
+  syncFilterUrl(); // KHÔNG vẽ lại viewSettings -> phải tự đồng bộ URL ở đây
 }
 // Bấm thông báo "N tài khoản Microsoft chờ duyệt" -> vào Cài đặt và CUỘN THẲNG tới mục Người dùng
 // (không phải scroll tay). viewSettings dựng #usersPanel đồng bộ nên chỉ cần đợi 1-2 frame cho vẽ xong.
