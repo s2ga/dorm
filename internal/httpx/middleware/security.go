@@ -16,7 +16,11 @@ const csp = "default-src 'self'; " +
 
 	"object-src 'none'; " +
 	"base-uri 'self'; " +
-	"frame-ancestors 'none'; " +
+	// 'self' (KHÔNG phải 'none'): trang của chính app được nhúng tài nguyên cùng nguồn — cần cho khung
+	// xem trước PDF nội quy trong Cài đặt (header CSP này áp cho MỌI response, kể cả file PDF, nên
+	// 'none' làm trình duyệt chặn render nội dung dù iframe đã tải). Web ngoài vẫn KHÔNG nhúng được
+	// (khớp X-Frame-Options: SAMEORIGIN) -> chống clickjacking vẫn còn.
+	"frame-ancestors 'self'; " +
 	"form-action 'self'"
 
 // Security đặt CSP + các header helmet mặc định quan trọng.

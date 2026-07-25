@@ -30,7 +30,7 @@ function renderAdmin() {
         <div class="foot">
           <div class="u">${esc(Auth.user.full_name || Auth.user.username)}</div>
           <div class="r muted" style="font-size:11px">${isAdmin ? 'Quản trị viên' : 'Nhân viên'}</div>
-          <button data-act="changePwd">${IC.key} Đổi mật khẩu</button>
+          ${dungMatKhau() ? `<button data-act="changePwd">${IC.key} Đổi mật khẩu</button>` : ''}
           <button data-act="logout">${IC.logOut} Đăng xuất</button>
         </div>
       </aside>

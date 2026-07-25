@@ -186,6 +186,9 @@ const API = {
   dataHealth: () => api('/admin/data-health'),
   pendingCount: () => api('/admin/pending-count'),
   adminUsers: () => api('/admin/users'),
+  // Tài khoản đăng nhập của HỌC VIÊN (tab Người dùng). Chỉ đọc + thu hồi phiên; đổi vai/xoá không có.
+  studentAccounts: () => api('/admin/student-accounts'),
+  revokeStudentSession: id => api('/admin/student-accounts/' + id + '/revoke', { method: 'POST' }),
   createUser: b => api('/admin/users', { method: 'POST', body: b }),
   updateUser: (id, b) => api('/admin/users/' + id, { method: 'PUT', body: b }),
   resetUserPw: (id, password) => api('/admin/users/' + id + '/password', { method: 'POST', body: { password } }),

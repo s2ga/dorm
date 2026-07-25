@@ -617,14 +617,33 @@ function viewSettings() {
     </div>
 
     ${grpOpen('nguoidung')}
-    <div class="panel" id="usersPanel"><div class="hd"><h2>${IC.shield} Người dùng & phân quyền</h2><button class="btn sm" data-act="userForm">${IC.plus} Thêm nhân viên</button></div>
+    <div class="panel" id="usersPanel"><div class="hd"><h2>${IC.shield} Nhân viên & phân quyền</h2>
+      <span class="muted" style="font-size:12px">Đăng nhập bằng Microsoft — không tạo tay</span></div>
+      <div class="pad hint" style="margin:0 14px 10px">${IC.info} <strong>Nhân viên không cần tạo tài khoản.</strong> Người mới cứ bấm
+        <em>“Đăng nhập bằng tài khoản Microsoft”</em> ở màn đăng nhập — hệ thống tự tạo tài khoản ở trạng thái
+        <span class="badge amber" style="font-size:10px">⏳ Chờ duyệt</span>, chưa vào được gì. Quản trị viên bấm <strong>Sửa</strong> ở dòng đó để
+        <strong>gán vai + cơ sở</strong>; gán xong là tài khoản được duyệt.
+        <br>${IC.lock} Riêng tài khoản <strong>quản trị khởi tạo</strong> (bootstrap) vẫn dùng mật khẩu — đường vào dự phòng khi SSO trục trặc.</div>
       <div class="table-wrap"><table><thead><tr><th>Tên đăng nhập</th><th>Họ tên</th><th>Vai trò</th><th>Cơ sở</th><th></th></tr></thead>
         <tbody id="usrRows"><tr><td colspan="5"><div class="spinner"></div></td></tr></tbody></table></div>
-      <div class="pad muted" style="font-size:12.5px">${IC.bulb} <strong>Quản trị viên</strong> có toàn quyền (kể cả Điều hành, Doanh thu, Nhật ký, Cài đặt). <strong>Nhân viên</strong> chỉ thao tác nghiệp vụ (Học viên, Phòng, Xe, Check-in/out, Tiền phòng, Tiếp nhận & Hỗ trợ) và đều được ghi vào Nhật ký.</div>
+      <div class="pad muted" style="font-size:12.5px">${IC.bulb} <strong>Quản trị viên</strong> có toàn quyền (kể cả Điều hành, Doanh thu, Nhật ký, Cài đặt). <strong>Nhân viên</strong> chỉ thao tác nghiệp vụ (Học viên, Phòng, Xe, Check-in/out, Tiền phòng, Tiếp nhận & Hỗ trợ) và đều được ghi vào Nhật ký.
+        Muốn chặn một người, đổi vai hoặc xoá tài khoản ở đây — mọi phiên đang mở của họ bị đá ra ngay.</div>
+    </div>
+
+    <div class="panel" id="stuAccPanel"><div class="hd"><h2>${IC.users} Tài khoản học viên (<span id="stuAccCount">…</span>)</h2>
+      <div class="search"><span class="i">${IC.search}</span><input id="stuAccSearch" placeholder="Tìm tên, mã HV, tên đăng nhập, phòng..."></div>
+    </div>
+      <div class="table-wrap"><table><thead><tr><th>Tên đăng nhập</th><th>Học viên</th><th>Phòng</th><th>Trạng thái</th><th></th></tr></thead>
+        <tbody id="stuAccRows"><tr><td colspan="5"><div class="spinner"></div></td></tr></tbody></table></div>
+      <div class="pad muted" style="font-size:12.5px">${IC.bulb} Học viên cũng là người dùng đăng nhập được. Ở đây chỉ <strong>đặt lại mật khẩu</strong> và
+        <strong>thu hồi phiên</strong> (đá mọi thiết bị đang đăng nhập). <strong>Tạo</strong> tài khoản làm ở
+        <a href="#" data-act="adminGo" data-args='["students"]'>hồ sơ học viên</a>; đổi vai / xoá không cho phép từ đây để không nâng nhầm quyền.</div>
     </div>
 
     <div class="panel"><div class="hd"><h2>${IC.key} Tài khoản của bạn</h2></div><div class="pad">
-      <button class="btn" data-act="changePwd">${IC.key} Đổi mật khẩu</button>
+      ${dungMatKhau()
+        ? `<button class="btn" data-act="changePwd">${IC.key} Đổi mật khẩu</button>`
+        : `<div class="muted">${IC.shield} Bạn đăng nhập bằng <strong>tài khoản Microsoft</strong> — mật khẩu do Microsoft quản lý, đổi ở trang tài khoản Microsoft của bạn.</div>`}
     </div></div>
     </div>
 
@@ -632,6 +651,7 @@ function viewSettings() {
     ${dataHealthBlock()}
     </div>`;
   loadAdminUsers();
+  loadStudentAccounts();
   refreshRulesDocStatus();
   loadDataHealth();
   syncFilterUrl(); // nhóm đang mở lên URL (?tab=) — deep-link/F5 vào đúng nhóm
@@ -675,8 +695,8 @@ async function loadAdminUsers() {
       <td>${cho ? '<span class="badge amber" title="Tự tạo qua Microsoft — bấm Sửa để gán vai + cơ sở, gán xong là duyệt">⏳ Chờ duyệt</span>' : `<span class="badge ${rc}">${rl}</span>`}</td>
       <td>${u.facility_id ? esc(u.facility_name || facilityName(u.facility_id)) : '<span class="badge gray" title="Điều hành — thấy tất cả cơ sở">Tất cả</span>'}</td>
       <td class="num"><div class="rowbtns" style="justify-content:flex-end">
-        <button class="btn sm" data-act="userForm" data-args='[${u.id}]'>Sửa</button>
-        <button class="btn sm" data-act="resetUserPwForm" data-args='[${u.id}]'>${IC.key} MK</button>
+        <button class="btn sm" data-act="userForm" data-args='[${u.id}]'>${cho ? 'Duyệt / gán vai' : 'Sửa'}</button>
+        ${u.auth_provider === 'sso' ? '' : `<button class="btn sm" title="Chỉ áp dụng cho tài khoản còn dùng mật khẩu" data-act="resetUserPwForm" data-args='[${u.id}]'>${IC.key} MK</button>`}
         ${u.id === me ? '' : `<button class="btn sm ghost" title="Xóa" data-act="delUserRow" data-args='[${u.id}]' data-uname="${esc(u.username)}">${IC.trash}</button>`}
       </div></td>
     </tr>`;
@@ -707,6 +727,64 @@ async function saveUser(id) {
   if (!id) { body.username = el('u_username').value.trim(); body.password = el('u_pass').value.trim(); if (body.password.length < 6) return toast('Mật khẩu tối thiểu 6 ký tự', 'err'); }
   await guard(() => id ? API.updateUser(id, body) : API.createUser(body));
   closeModal(); toast(id ? 'Đã cập nhật tài khoản' : 'Đã tạo tài khoản'); loadAdminUsers();
+}
+/* ---------- Tài khoản đăng nhập của HỌC VIÊN (chỉ quản trị) ----------
+   Học viên cũng là user (bảng users, role='student', gắn student_id) nhưng /admin/users cố tình
+   không trả về, nên trước đây admin không có chỗ nào nhìn thấy. Ở đây CHỈ đọc + 2 thao tác an toàn:
+   đặt lại mật khẩu (dùng lại endpoint hồ sơ HV — đã kèm buộc đổi MK + thu hồi phiên) và thu hồi phiên. */
+async function loadStudentAccounts() {
+  const box = el('stuAccRows'); if (!box) return;
+  let list = [];
+  try { list = await API.studentAccounts(); }
+  catch (e) { box.innerHTML = `<tr><td colspan="5" class="muted">${esc(e.message)}</td></tr>`; return; }
+  window._stuAccCache = list;
+  const cnt = el('stuAccCount'); if (cnt) cnt.textContent = list.length;
+  box.innerHTML = list.map(u => {
+    const dsxoa = u.student_deleted;
+    const dangO = u.student_status === 'in';
+    const ds = esc(`${u.username} ${u.student_name || ''} ${u.student_code || ''} ${u.room_name || ''}`.toLowerCase());
+    return `<tr data-s="${ds}">
+      <td><strong>${esc(u.username)}</strong>
+        ${u.auth_provider && u.auth_provider !== 'local' ? `<span class="badge blue" style="font-size:10px" title="Đã liên kết Microsoft">Microsoft</span>` : ''}
+        ${u.must_change_password ? '<span class="badge amber" style="font-size:10px" title="Lần đăng nhập tới sẽ bị bắt đổi mật khẩu">Phải đổi MK</span>' : ''}
+        ${u.email ? `<div class="muted" style="font-size:11px">${esc(u.email)}</div>` : ''}</td>
+      <td>${esc(u.student_name || u.full_name || '—')}${u.student_code ? `<div class="muted" style="font-size:11px">${esc(u.student_code)}</div>` : ''}</td>
+      <td>${esc(u.room_name || '—')}</td>
+      <td>${dsxoa ? '<span class="badge red" title="Hồ sơ học viên đã xoá nhưng tài khoản vẫn đăng nhập được">Hồ sơ đã xoá</span>'
+        : dangO ? '<span class="badge green">Đang ở</span>' : '<span class="badge gray">Đã trả phòng</span>'}</td>
+      <td class="num"><div class="rowbtns" style="justify-content:flex-end">
+        <button class="btn sm" title="Đặt lại mật khẩu" data-act="stuAccPwForm" data-args='[${u.id}]'>${IC.key} MK</button>
+        <button class="btn sm ghost" title="Đá mọi thiết bị đang đăng nhập (không đổi mật khẩu)" data-act="revokeStuSession" data-args='[${u.id}]'>Thu hồi phiên</button>
+        ${u.student_id ? `<button class="btn sm" data-act="studentDetail" data-args='[${u.student_id}]'>Hồ sơ</button>` : ''}
+      </div></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="5" class="muted">Chưa có học viên nào có tài khoản đăng nhập.</td></tr>';
+  const sb = el('stuAccSearch'); if (sb) attachRowSearch(sb, 'stuAccCount');
+}
+function stuAccPwForm(id) {
+  const u = (window._stuAccCache || []).find(x => x.id === id); if (!u) return;
+  openModal(`
+    <div class="mh"><h3>Đặt lại mật khẩu học viên</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mb">
+      <p class="muted" style="margin-top:0">Học viên: <strong>${esc(u.student_name || '')}</strong> · Tài khoản: <strong>${esc(u.username)}</strong></p>
+      <div class="field"><label>Mật khẩu mới *</label><input id="sa_newpass" type="text" placeholder="Tối thiểu 6 ký tự"></div>
+      <div class="hint" style="font-size:12px">${IC.info} Học viên sẽ bị <strong>buộc đổi mật khẩu</strong> ở lần đăng nhập kế, và mọi thiết bị đang đăng nhập bị đá ra ngay.</div>
+    </div>
+    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="doStuAccPw" data-args='[${id}]'>Đổi mật khẩu</button></div>`);
+  setTimeout(() => { const f = el('sa_newpass'); if (f) f.focus(); }, 50);
+}
+async function doStuAccPw(id) {
+  const u = (window._stuAccCache || []).find(x => x.id === id); if (!u) return;
+  const pw = el('sa_newpass').value.trim();
+  if (pw.length < 6) return toast('Mật khẩu tối thiểu 6 ký tự', 'err');
+  await guard(() => API.setAccount(u.student_id, { password: pw })); // endpoint hồ sơ HV: đặt MK + buộc đổi + thu hồi phiên
+  closeModal(); toast('Đã đổi mật khẩu học viên'); loadStudentAccounts();
+}
+async function revokeStuSession(id) {
+  const u = (window._stuAccCache || []).find(x => x.id === id); if (!u) return;
+  if (!confirm(`Thu hồi mọi phiên đăng nhập của "${u.student_name || u.username}"?\n\nHọc viên sẽ bị đăng xuất khỏi mọi thiết bị và phải đăng nhập lại. Mật khẩu KHÔNG đổi.`)) return;
+  await guard(() => API.revokeStudentSession(id));
+  toast('Đã thu hồi phiên đăng nhập');
 }
 function resetUserPwForm(id) {
   const u = (window._usrCache || []).find(x => x.id === id);

@@ -257,6 +257,58 @@ func (h *Handlers) AdminPendingCount(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"pending": n})
 }
 
+// AdminStudentAccounts: GET /admin/student-accounts — tài khoản ĐĂNG NHẬP của học viên.
+// /admin/users cố tình chỉ trả nhân viên (adminManagedRolesSQL) nên admin không thấy được ai trong
+// số học viên đăng nhập được. Đây là danh sách CHỈ ĐỌC cho tab "Người dùng"; đổi vai/xoá vẫn KHÔNG
+// cho phép từ đây (tránh nâng nhầm học viên lên quyền quản trị) — tạo tài khoản vẫn ở hồ sơ HV.
+func (h *Handlers) AdminStudentAccounts(c *gin.Context) {
+	rows, err := h.pool().Query(c.Request.Context(),
+		`SELECT u.id, u.username, u.full_name, u.email, u.auth_provider, u.must_change_password,
+		        u.student_id, s.name AS student_name, s.code AS student_code, s.status AS student_status,
+		        r.name AS room_name, (s.deleted_at IS NOT NULL) AS student_deleted
+		   FROM users u
+		   JOIN students s ON s.id = u.student_id
+		   LEFT JOIN rooms r ON r.id = s.room_id
+		  WHERE u.role = 'student' AND u.deleted_at IS NULL
+		  ORDER BY s.name`)
+	if err != nil {
+		serverErr(c, err)
+		return
+	}
+	list, err := db.RowsToMaps(rows)
+	if err != nil {
+		serverErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, list)
+}
+
+// AdminRevokeStudentSession: POST /admin/student-accounts/:id/revoke — đá MỌI phiên đang mở của một
+// tài khoản học viên (mất điện thoại / nghi lộ mật khẩu) mà KHÔNG đổi mật khẩu. Chỉ nhận role='student'
+// để endpoint này không thành đường vòng tác động lên tài khoản quản trị.
+func (h *Handlers) AdminRevokeStudentSession(c *gin.Context) {
+	id, ok := paramInt(c, "id")
+	if !ok {
+		notFound(c, "Không tìm thấy tài khoản")
+		return
+	}
+	ctx := c.Request.Context()
+	var role string
+	if h.pool().QueryRow(ctx, "SELECT role FROM users WHERE id=$1 AND deleted_at IS NULL", id).Scan(&role) != nil {
+		notFound(c, "Không tìm thấy tài khoản")
+		return
+	}
+	if role != "student" {
+		forbidden(c, "Chỉ áp dụng cho tài khoản học viên")
+		return
+	}
+	if err := h.Auth.RevokeTokens(ctx, id); err != nil {
+		serverErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
 func (h *Handlers) ListUsers(c *gin.Context) {
 	rows, err := h.pool().Query(c.Request.Context(),
 		`SELECT u.id, u.username, u.role, u.full_name, u.facility_id, f.name AS facility_name, u.created_at,

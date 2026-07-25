@@ -11,6 +11,11 @@ function fmtDate(d) { if (!d) return '—'; const p = String(d).slice(0, 10).spl
 function monthLabel(m) { const [y, mm] = m.split('-'); return `Tháng ${mm}/${y}`; }
 function initials(name) { const p = (name || '?').trim().split(/\s+/); return ((p[0] || '')[0] || '') + ((p[p.length - 1] || '')[0] || ''); }
 
+// Tài khoản CHỈ đăng nhập bằng Microsoft (auth_provider='sso') KHÔNG có mật khẩu trong hệ thống này
+// -> ẩn nút "Đổi mật khẩu" (mật khẩu do Microsoft quản). Học viên và quản trị khởi tạo (bootstrap)
+// dùng mật khẩu nên vẫn thấy; tài khoản 'both' (có cả hai) cũng thấy vì mật khẩu vẫn còn hiệu lực.
+const dungMatKhau = () => !!Auth.user && Auth.user.auth_provider !== 'sso';
+
 function toast(msg, type = 'ok') {
   const t = el('toast');
   t.className = 'toast show ' + type;
