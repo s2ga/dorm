@@ -52,26 +52,8 @@ async function viewInvoices() {
   const total = all.reduce((a, i) => a + (+i.total || 0), 0);
 
   // Cơ cấu doanh thu: tách Tổng theo từng khoản (tiền phòng/điện/nước/DV/giặt/xe) + xu hướng so kỳ trước.
-  const REV_COMP = [
-    ['Tiền phòng', 'room_charge', 'var(--brand)'], ['Điện', 'electric_charge', '#5f7ea3'],
-    ['Nước', 'water_charge', '#4f8f63'], ['Dịch vụ', 'service_charge', '#b5822f'],
-    ['Máy giặt', 'washing_charge', '#9a7bb0'], ['Gửi xe', 'parking_charge', '#c25545'],
-  ];
-  const sumK = (arr, k) => arr.reduce((a, i) => a + (+i[k] || 0), 0);
-  const comp = REV_COMP.map(([label, k, color]) => ({ label, color, amount: sumK(all, k), prev: sumK(prevAll, k) }));
-  const gross = comp.reduce((a, c) => a + c.amount, 0) || 1;
-  const maxComp = Math.max(1, ...comp.map(c => c.amount));
-  const discount = sumK(all, 'leader_discount') + sumK(all, 'room_discount');
-  const trendPct = (cur, prev) => { if (!prev) return ''; const d = Math.round((cur - prev) / prev * 100); return `<span class="muted" style="font-size:11px;margin-left:5px">${d > 0 ? '▲' : d < 0 ? '▼' : '—'}${d ? ' ' + Math.abs(d) + '%' : ''}</span>`; };
-  const revPanel = all.length ? `<div class="panel"><div class="hd"><h2>${IC.coins} Cơ cấu tiền phiếu — ${monthLabel(invMonth)}</h2><span class="muted" style="font-size:12px">${prevAll.length ? `▲▼ so ${monthLabel(prevInvMonth)}` : 'Tách theo từng khoản'}</span></div>
-    <div class="pad rev-comp">
-      ${comp.map(c => `<div class="rev-row">
-        <div class="rev-lbl">${c.label}</div>
-        <div class="rev-track"><div class="rev-fill" style="width:${Math.round(c.amount / maxComp * 100)}%;background:${c.color}"></div></div>
-        <div class="rev-amt"><strong>${money(c.amount)}</strong> <span class="muted">${Math.round(c.amount / gross * 100)}%</span>${trendPct(c.amount, c.prev)}</div>
-      </div>`).join('')}
-      ${discount ? `<div class="rev-row"><div class="rev-lbl muted">Giảm trừ</div><div class="rev-track"></div><div class="rev-amt muted">−${money(discount)}</div></div>` : ''}
-    </div></div>` : '';
+  const sumK = (arr, k) => arr.reduce((a, i) => a + (+i[k] || 0), 0); // dùng cho dòng TỔNG cuối bảng
+  // Cơ cấu tiền phiếu đã chuyển sang màn Doanh thu (BL-65).
 
   // #2: Tiền phòng theo phòng — tháng này so kỳ trước (dùng lại all + prevAll, không cần backend).
   const rfCur = {}, rfPrev = {};
@@ -91,7 +73,6 @@ async function viewInvoices() {
       <div class="stat"><div class="l">${IC.receipt} Số phiếu</div><div class="v sm">${all.length}</div></div>
       <div class="stat"><div class="l">Tổng tiền phiếu (dự báo)</div><div class="v sm">${money(total)}</div></div>
     </div>
-    ${revPanel}
     <div class="panel"><div class="hd"><h2>Phiếu báo tiền phòng ${monthLabel(invMonth)} (<span id="invCount">${list.length}</span>)</h2>
       <span class="muted" style="font-size:12px">Đơn vị: đồng</span>
       <div class="toolbar">
