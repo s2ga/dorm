@@ -154,7 +154,10 @@ function facilityOptions(sel) {
   return ST.facilities.map(f => `<option value="${f.id}" ${sel === f.id ? 'selected' : ''}>${esc(f.name)}</option>`).join('');
 }
 function roomForm(id) {
-  const r = id ? roomById(id) : { name: '', floor: 1, gender: 'female', hang: 'B', capacity: HANG_CAP.B, monthly_fee: ST.settings.room_fee || 1200000, note: '', facility_id: (ST.facilities[0] || {}).id };
+  // Phòng MỚI: monthly_fee = 0 = "đi theo giá mặc định của hệ thống" (số tiền hôm nay y như cũ, vì
+  // trước đây điền sẵn đúng giá mặc định — chỉ khác là sau này đổi giá ở Cài đặt thì phòng mới cũng
+  // đổi theo, thay vì bị ghim ngay từ lúc tạo). Ô nhập vẫn cho gõ số nếu muốn giá riêng.
+  const r = id ? roomById(id) : { name: '', floor: 1, gender: 'female', hang: 'B', capacity: HANG_CAP.B, monthly_fee: 0, note: '', facility_id: (ST.facilities[0] || {}).id };
   openModal(`
     <div class="mh"><h3>${id ? 'Sửa phòng' : 'Thêm phòng'}</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
     <div class="mb">
@@ -173,7 +176,23 @@ function roomForm(id) {
         <div class="field"><label>Hạng phòng</label><select id="f_hang" data-change="onFCapFromType">${HANGS.map(hh => `<option value="${hh}" ${(r.hang || 'B') === hh ? 'selected' : ''}>Hạng ${hh} — ${HANG_CAP[hh]} giường · nguyên phòng ${money(ST.settings['room_price_' + hh])}</option>`).join('')}</select></div>
         <div class="field"><label>Sức chứa (giường) <span class="opt">(tự điền theo hạng)</span></label><input id="f_cap" type="number" min="0" value="${esc(r.capacity)}"></div>
       </div>
-      <div class="field"><label>Giá thuê ghép / người / tháng <span class="opt">(đồng)</span></label><input id="f_mfee" type="number" min="0" value="${esc(r.monthly_fee)}"></div>
+      ${(() => {
+        // Ô này TRƯỚC ĐÂY hiện "0" cho gần như mọi phòng, đọc như phòng không thu tiền — mà người
+        // sửa lại không biết phòng đang thu bao nhiêu để mà điều chỉnh.
+        // Thật ra 0 (hoặc rỗng) KHÔNG phải miễn phí: billing chỉ lấy monthly_fee KHI > 0, còn lại
+        // dùng giá mặc định room_fee ở Cài đặt (billing.go: `Room.MonthlyFee > 0`). Nên phải nói ra
+        // số ĐANG ÁP DỤNG và nó từ đâu.
+        // Và KHÔNG điền sẵn giá mặc định vào ô: lưu lại là GHIM giá riêng cho phòng này, từ đó đổi
+        // giá ở Cài đặt không còn ăn vào phòng nữa — vào sửa cái ghi chú mà vô tình đóng băng giá.
+        const macDinh = +ST.settings.room_fee || 0;
+        const rieng = +r.monthly_fee > 0 ? +r.monthly_fee : 0;
+        return `<div class="field"><label>Giá thuê ghép / người / tháng <span class="opt">(đồng)</span></label>
+          <input id="f_mfee" type="number" min="0" value="${rieng || ''}" placeholder="${macDinh || ''}">
+          <div class="sub2" style="margin-top:4px">Đang áp dụng: <strong>${money(rieng || macDinh)}</strong> /người/tháng — ${rieng
+            ? 'giá <strong>riêng của phòng này</strong>. Xoá trống ô để quay về giá mặc định của hệ thống.'
+            : 'giá <strong>mặc định của hệ thống</strong> (Cài đặt → Giá &amp; phí). Để trống = luôn đi theo giá mặc định; nhập số = ghim giá riêng cho phòng này.'}</div>
+        </div>`;
+      })()}
       <div class="field"><label>Loại phòng</label><select id="f_rtype">
         ${Object.keys(ROOM_TYPE).map(k => `<option value="${k}" ${roomType(r) === k ? 'selected' : ''}>${ROOM_TYPE[k][0]}</option>`).join('')}
       </select><div class="muted" style="font-size:11.5px;margin-top:4px">${IC.info} "Thuê nguyên phòng / An ninh / Nhân viên công tác" sẽ <strong>không tính vào giường trống</strong> cho thuê ghép.</div></div>
