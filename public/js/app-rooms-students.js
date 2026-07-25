@@ -148,6 +148,7 @@ const STU_FILTER_LABELS = {
   handover_pending: 'Chưa ký phiếu bàn giao', washing: 'Dùng máy giặt', nodeposit: 'Chưa đóng cọc',
   checkin_today: 'Nhận phòng hôm nay', checkout_today: 'Trả phòng hôm nay',
 };
+const STU_PAGE_SIZE = 50; // BL-12: số học viên mỗi trang (phân trang lớp DOM, giữ tìm kiếm/phễu cột)
 function viewStudents() {
   el('topActions').innerHTML = `<button class="btn" data-act="showDeletedStudents">${IC.trash} Đã xóa</button><button class="btn pri" data-act="adminGo" data-args='["reg"]'>${IC.filePen} Đăng ký / duyệt đơn</button>`;
   let list = ST.students.slice();
@@ -206,8 +207,9 @@ function viewStudents() {
         </div></td></tr>`; }).join('')}
       <tr class="no-result" style="display:none"><td colspan="${nCols}"><div class="empty">Không tìm thấy học viên phù hợp.</div></td></tr>
       </tbody></table>` : `<div class="empty">Không có học viên phù hợp.</div>`}
-    </div></div>`;
+    </div><div id="stuPager" class="pager"></div></div>`;
   const ss = el('ss'); if (ss) { ss.addEventListener('input', () => { stuSearch = ss.value; syncFilterUrl(); }); attachRowSearch(ss, 'stuCount', { numWord: true }); }  // BL-56: gõ số phòng ra đúng phòng
+  if (list.length) enablePaging(ss, 'stuPager', STU_PAGE_SIZE); // BL-12: phân trang danh sách học viên
   document.querySelectorAll('#content th.sortable').forEach(th => {
     th.onclick = e => {
       if (e.target.classList.contains('rz-handle')) return; // đang kéo giãn cột

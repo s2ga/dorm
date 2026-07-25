@@ -345,6 +345,9 @@ input[type=checkbox],input[type=radio]{width:auto;flex:none;accent-color:var(--b
 /* ---------- Khác ---------- */
 .muted{color:var(--muted)}
 .pill-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+/* Khung phân trang bảng (BL-12) */
+.pager{display:flex;gap:12px;align-items:center;justify-content:center;padding:12px 8px 2px;flex-wrap:wrap}
+.pager:empty{display:none}
 /* Menu gom trang Cài đặt cho đỡ dài — thanh chọn nhóm ở đầu, mỗi lần hiện 1 nhóm panel */
 .set-nav{border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:22px}
 .hint{background:var(--bg2);border:1px solid var(--line);color:var(--ink2);padding:13px 16px;border-radius:13px;font-size:13.5px;margin-bottom:18px;line-height:1.55;overflow:hidden}
