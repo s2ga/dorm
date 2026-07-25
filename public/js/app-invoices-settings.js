@@ -121,7 +121,20 @@ async function viewInvoices() {
             <button class="btn sm ghost" data-act="delInvoice" data-args='[${i.id}]'>${IC.trash}</button>
           </div></td></tr>`).join('')}
         <tr class="no-result" style="display:none"><td colspan="12"><div class="empty">Không tìm thấy hóa đơn phù hợp.</div></td></tr>
-      </tbody></table>` : `<div class="empty">Không có hóa đơn ${invFilter === 'paid' ? 'đã đóng' : 'chưa đóng'} trong kỳ này.</div>`}
+      </tbody><tfoot><tr class="tot-row">
+        <td><strong>TỔNG</strong></td>
+        <td data-label="Phòng" class="muted">${list.length} phiếu</td>
+        <td class="num"></td>
+        <td class="num" data-label="Tiền phòng"><strong>${moneyN(sumK(list, 'room_charge'))}</strong></td>
+        <td class="num" data-label="Điện"><strong>${moneyN(sumK(list, 'electric_charge'))}</strong></td>
+        <td class="num" data-label="Nước"><strong>${moneyN(sumK(list, 'water_charge'))}</strong></td>
+        <td class="num" data-label="DV"><strong>${moneyN(sumK(list, 'service_charge'))}</strong></td>
+        <td class="num" data-label="Giặt"><strong>${moneyN(sumK(list, 'washing_charge'))}</strong></td>
+        <td class="num" data-label="Xe"><strong>${moneyN(sumK(list, 'parking_charge'))}</strong></td>
+        <td class="num" data-label="Giảm"><strong>${sumK(list, 'leader_discount') + sumK(list, 'room_discount') ? '−' + moneyN(sumK(list, 'leader_discount') + sumK(list, 'room_discount')) : '—'}</strong></td>
+        <td class="num" data-label="Tổng"><strong>${moneyN(sumK(list, 'total'))}</strong></td>
+        <td class="num"></td>
+      </tr></tfoot></table>` : `<div class="empty">Không có hóa đơn ${invFilter === 'paid' ? 'đã đóng' : 'chưa đóng'} trong kỳ này.</div>`}
     </div></div>
     ${roomFeePanel}
     ${elecPanel}`;
