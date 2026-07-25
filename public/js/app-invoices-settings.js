@@ -687,6 +687,16 @@ async function loadAdminUsers() {
     // Tài khoản do đăng nhập Microsoft tự tạo, chưa duyệt: phải ĐẬP VÀO MẮT admin, kèm email để
     // đối chiếu người thật. Duyệt = bấm "Sửa" rồi gán vai + cơ sở (server tự bật approved).
     const cho = u.approved === false;
+    const khoa = !!u.locked; // đã KHOÁ (không đăng nhập được) — vẫn giữ dữ liệu, mở lại được
+    if (khoa) return `<tr style="background:var(--bg2);opacity:.75">
+      <td><strong style="text-decoration:line-through">${esc(u.username)}</strong>
+        ${u.email ? `<div class="muted" style="font-size:11px">${esc(u.email)}</div>` : ''}</td>
+      <td>${esc(u.full_name || '—')}</td>
+      <td><span class="badge red" title="Bị khoá: không đăng nhập được. Dữ liệu và nhật ký vẫn còn.">${IC.lock} Đã khoá</span></td>
+      <td>${u.facility_id ? esc(u.facility_name || facilityName(u.facility_id)) : '<span class="badge gray">Tất cả</span>'}</td>
+      <td class="num"><div class="rowbtns" style="justify-content:flex-end">
+        <button class="btn sm green" title="Cho đăng nhập lại" data-act="unlockUserRow" data-args='[${u.id}]' data-uname="${esc(u.username)}">${IC.undo} Mở khoá</button>
+      </div></td></tr>`;
     return `<tr${cho ? ' style="background:var(--bg2)"' : ''}>
       <td><strong>${esc(u.username)}</strong>${u.id === me ? ' <span class="badge amber" style="font-size:10px">Bạn</span>' : ''}
         ${u.auth_provider && u.auth_provider !== 'local' ? `<span class="badge blue" style="font-size:10px" title="Đăng nhập bằng Microsoft">${esc(u.auth_provider === 'sso' ? 'Microsoft' : 'MK + Microsoft')}</span>` : ''}
@@ -697,7 +707,7 @@ async function loadAdminUsers() {
       <td class="num"><div class="rowbtns" style="justify-content:flex-end">
         <button class="btn sm" data-act="userForm" data-args='[${u.id}]'>${cho ? 'Duyệt / gán vai' : 'Sửa'}</button>
         ${u.auth_provider === 'sso' ? '' : `<button class="btn sm" title="Chỉ áp dụng cho tài khoản còn dùng mật khẩu" data-act="resetUserPwForm" data-args='[${u.id}]'>${IC.key} MK</button>`}
-        ${u.id === me ? '' : `<button class="btn sm ghost" title="Xóa" data-act="delUserRow" data-args='[${u.id}]' data-uname="${esc(u.username)}">${IC.trash}</button>`}
+        ${u.id === me ? '' : `<button class="btn sm ghost" title="Khoá tài khoản — chặn đăng nhập, KHÔNG xoá dữ liệu" data-act="delUserRow" data-args='[${u.id}]' data-uname="${esc(u.username)}">${IC.lock} Khoá</button>`}
       </div></td>
     </tr>`;
   }).join('') || '<tr><td colspan="5" class="muted">Chưa có tài khoản.</td></tr>';
@@ -802,10 +812,16 @@ async function doResetUserPw(id) {
   await guard(() => API.resetUserPw(id, pw));
   closeModal(); toast('Đã đổi mật khẩu');
 }
+// KHOÁ (không xoá): chặn đăng nhập + đá mọi phiên đang mở, dữ liệu và nhật ký giữ nguyên, mở lại được.
 async function delUser(id, name) {
-  if (!confirm(`Xóa tài khoản "${name}"? Không thể hoàn tác.`)) return;
+  if (!confirm(`Khoá tài khoản "${name}"?\n\n• Người này KHÔNG đăng nhập được nữa và bị đá khỏi mọi thiết bị ngay.\n• Dữ liệu, nhật ký thao tác VẪN GIỮ — đây không phải xoá.\n• Mở lại được bất cứ lúc nào bằng nút "Mở khoá".`)) return;
   await guard(() => API.deleteUser(id));
-  toast('Đã xóa tài khoản'); loadAdminUsers();
+  toast('Đã khoá tài khoản'); loadAdminUsers();
+}
+async function unlockUser(id, name) {
+  if (!confirm(`Mở khoá tài khoản "${name}"? Người này sẽ đăng nhập lại được.`)) return;
+  await guard(() => API.unlockUser(id));
+  toast('Đã mở khoá tài khoản'); loadAdminUsers();
 }
 /* Ảnh trang giới thiệu (upload trong Cài đặt) */
 function uploadIntroMedia(key, input) {

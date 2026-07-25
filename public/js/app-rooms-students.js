@@ -150,7 +150,7 @@ const STU_FILTER_LABELS = {
 };
 const STU_PAGE_SIZE = 50; // BL-12: số học viên mỗi trang (phân trang lớp DOM, giữ tìm kiếm/phễu cột)
 function viewStudents() {
-  el('topActions').innerHTML = `<button class="btn" data-act="showDeletedStudents">${IC.trash} Đã xóa</button><button class="btn pri" data-act="adminGo" data-args='["reg"]'>${IC.filePen} Đăng ký / duyệt đơn</button>`;
+  el('topActions').innerHTML = `<button class="btn" data-act="showDeletedStudents">${IC.lock} Đã khoá</button><button class="btn pri" data-act="adminGo" data-args='["reg"]'>${IC.filePen} Đăng ký / duyệt đơn</button>`;
   let list = ST.students.slice();
   if (stuFilter === 'in') list = list.filter(isOccupying);
   if (stuFilter === 'upcoming') list = list.filter(s => liveStatus(s) === 'upcoming');
@@ -380,8 +380,10 @@ async function studentDetail(id) {
   const vios = s.violations || [];
   const vthr = (ST.settings && +ST.settings.violation_mail_threshold) || 3;
   openModal(`
-    <div class="mh"><h3>${esc(s.name)} <span class="badge ${s.gender === 'female' ? 'sage' : 'blue'}">${genderLabel(s.gender)}</span> ${statusBadge(s)}</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${esc(s.name)} <span class="badge ${s.gender === 'female' ? 'sage' : 'blue'}">${genderLabel(s.gender)}</span> ${statusBadge(s)}${s.deleted_at ? ` <span class="badge red">${IC.lock} Đã khoá</span>` : ''}</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
     <div class="mb">
+      ${s.deleted_at ? `<div class="hint" style="margin-top:0;border-color:var(--red-ink)">${IC.lock} <span>Hồ sơ này <strong>đang bị khoá</strong> từ ${fmtDate(String(s.deleted_at).slice(0, 10))} — bị ẩn khỏi danh sách và tài khoản không đăng nhập được. Dữ liệu vẫn còn nguyên.
+        <div class="rowbtns" style="margin-top:10px"><button class="btn sm green" data-act="restoreStudentAndReload" data-args='[${s.id}]'>${IC.undo} Mở khoá hồ sơ này</button></div></span></div>` : ''}
       <div class="cards" style="margin-bottom:16px">
         <div class="stat"><div class="l">Phòng</div><div class="v sm">${esc(s.room_name || '—')}${s.room_hang ? ` <span class="badge gray">${s.room_hang}</span>` : ''}</div></div>
         <div class="stat"><div class="l">Hình thức</div><div class="v sm">${RENTAL_LABEL[s.rental_type] || 'Thuê ghép'}</div></div>
@@ -617,24 +619,31 @@ async function delStudent(id) {
   toast(`Đã xóa ${s.name || 'học viên'} (khôi phục được)`); viewStudents();
 }
 // Thùng rác học viên: xem danh sách đã xóa mềm + khôi phục
+// Danh sách HV ĐÃ KHOÁ (hồ sơ ẩn khỏi danh sách + tài khoản không đăng nhập được — KHÔNG xoá dữ liệu).
+// Bấm vào hàng để xem CHI TIẾT hồ sơ trước khi quyết định mở khoá (trước đây chỉ có tên/mã/phòng nên
+// không đủ căn cứ để dám mở lại).
 async function showDeletedStudents() {
   const list = await guard(() => API.students(true));
   openModal(`
-    <div class="mh"><h3>${IC.trash} Học viên đã xóa (${list.length})</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${IC.lock} Học viên đã khoá (${list.length})</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
     <div class="mb">
-      ${list.length ? `<div class="table-wrap"><table><thead><tr><th>Học viên</th><th>Mã</th><th>Phòng</th><th></th></tr></thead><tbody>
-        ${list.map(s => `<tr>
+      ${list.length ? `<div class="hint" style="margin-top:0">${IC.info} Bấm vào một dòng để xem <strong>chi tiết hồ sơ</strong> (phòng, hợp đồng, cọc, ngày ở, vi phạm…) rồi mở khoá ngay trong đó.</div>
+      <div class="table-wrap"><table><thead><tr><th>Học viên</th><th>Mã</th><th>Phòng</th><th></th></tr></thead><tbody>
+        ${list.map(s => `<tr style="cursor:pointer" title="Xem chi tiết hồ sơ" data-act="studentDetail" data-args='[${s.id}]'>
           <td><strong>${esc(s.name)}</strong>${s.class_name ? ` <span class="muted">· ${esc(s.class_name)}</span>` : ''}</td>
           <td>${esc(s.code || '—')}</td><td>${esc(s.room_name || '—')}</td>
-          <td class="num"><button class="btn sm green" data-act="restoreStudentAndReload" data-args='[${s.id}]'>${IC.undo} Khôi phục</button></td>
+          <td class="num"><div class="rowbtns" style="justify-content:flex-end">
+            <button class="btn sm" data-act="studentDetail" data-args='[${s.id}]'>Chi tiết</button>
+            <button class="btn sm green" data-act="restoreStudentAndReload" data-args='[${s.id}]'>${IC.undo} Mở khoá</button>
+          </div></td>
         </tr>`).join('')}
-      </tbody></table></div>` : '<div class="empty">Không có học viên nào trong thùng rác.</div>'}
+      </tbody></table></div>` : '<div class="empty">Không có học viên nào bị khoá.</div>'}
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Đóng</button></div>`, true);
 }
 async function restoreStudentAndReload(id) {
   await guard(() => API.restoreStudent(id));
-  await refreshCache(); closeModal(); toast('Đã khôi phục học viên'); viewStudents();
+  await refreshCache(); closeModal(); toast('Đã mở khoá học viên'); viewStudents();
 }
 // Admin tạo ĐƠN ĐĂNG KÝ hộ học viên (thay cho việc thêm học viên trực tiếp).
 // Đơn vào trạng thái "Chờ duyệt" -> admin bấm "Thêm vào phòng" để tạo học viên.

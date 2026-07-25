@@ -257,6 +257,45 @@ func (h *Handlers) AdminPendingCount(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"pending": n})
 }
 
+// UnlockUser: POST /admin/users/:id/unlock — MỞ KHOÁ tài khoản đã khoá (cho đăng nhập lại).
+// Bản ghi bị khoá bởi phiên bản CŨ có username dạng 'ten#da-xoa-12' -> cắt hậu tố để trả lại tên gốc;
+// nếu tên gốc đã có người khác đang dùng thì báo rõ thay vì để vỡ khoá UNIQUE (500).
+func (h *Handlers) UnlockUser(c *gin.Context) {
+	id, ok := paramInt(c, "id")
+	if !ok {
+		notFound(c, "Không tìm thấy tài khoản")
+		return
+	}
+	ctx := c.Request.Context()
+	var uname string
+	var locked bool
+	if h.pool().QueryRow(ctx,
+		"SELECT username, (deleted_at IS NOT NULL) FROM users WHERE id=$1 AND role IN ("+adminManagedRolesSQL+")",
+		id).Scan(&uname, &locked) != nil {
+		notFound(c, "Không tìm thấy tài khoản")
+		return
+	}
+	if !locked {
+		badRequest(c, "Tài khoản đang hoạt động — không cần mở khoá")
+		return
+	}
+	orig := uname
+	if i := strings.LastIndex(uname, "#da-xoa-"); i > 0 { // di sản bản cũ
+		orig = uname[:i]
+		var one int
+		if h.pool().QueryRow(ctx,
+			"SELECT 1 FROM users WHERE lower(username)=lower($1) AND deleted_at IS NULL AND id<>$2", orig, id).Scan(&one) == nil {
+			badRequest(c, `Tên đăng nhập "`+orig+`" hiện đã có người khác dùng — không mở khoá lại được. Hãy đổi tên tài khoản kia trước.`)
+			return
+		}
+	}
+	if _, err := h.pool().Exec(ctx, "UPDATE users SET deleted_at=NULL, username=$2 WHERE id=$1", id, orig); err != nil {
+		serverErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "username": orig})
+}
+
 // AdminStudentAccounts: GET /admin/student-accounts — tài khoản ĐĂNG NHẬP của học viên.
 // /admin/users cố tình chỉ trả nhân viên (adminManagedRolesSQL) nên admin không thấy được ai trong
 // số học viên đăng nhập được. Đây là danh sách CHỈ ĐỌC cho tab "Người dùng"; đổi vai/xoá vẫn KHÔNG
@@ -311,11 +350,13 @@ func (h *Handlers) AdminRevokeStudentSession(c *gin.Context) {
 
 func (h *Handlers) ListUsers(c *gin.Context) {
 	rows, err := h.pool().Query(c.Request.Context(),
+		// Trả CẢ tài khoản đã khoá (cờ locked) — trước đây lọc bỏ nên admin khoá xong là mất dấu,
+		// không còn đường mở khoá. Đang hoạt động xếp trước, đã khoá xuống cuối.
 		`SELECT u.id, u.username, u.role, u.full_name, u.facility_id, f.name AS facility_name, u.created_at,
-                u.email, u.auth_provider, u.approved
+                u.email, u.auth_provider, u.approved, (u.deleted_at IS NOT NULL) AS locked
            FROM users u LEFT JOIN facilities f ON f.id = u.facility_id
-          WHERE u.role IN (`+adminManagedRolesSQL+`) AND u.deleted_at IS NULL
-          ORDER BY u.role, u.username`)
+          WHERE u.role IN (`+adminManagedRolesSQL+`)
+          ORDER BY (u.deleted_at IS NOT NULL), u.role, u.username`)
 	if err != nil {
 		serverErr(c)
 		return
@@ -526,7 +567,7 @@ func (h *Handlers) DeleteUser(c *gin.Context) {
 	}
 	u := auth.CurrentUser(c)
 	if u != nil && id == u.ID {
-		badRequest(c, "Không thể xóa chính mình")
+		badRequest(c, "Không thể tự khoá chính mình")
 		return
 	}
 	ctx := c.Request.Context()
@@ -541,11 +582,14 @@ func (h *Handlers) DeleteUser(c *gin.Context) {
 		badRequest(c, "Phải còn ít nhất 1 quản trị viên")
 		return
 	}
-	// Vô hiệu hoá (xoá mềm) + ĐỔI TÊN để nhả tên gốc (UNIQUE username). admin.routes.js:222-224
+	// KHOÁ tài khoản (không xoá dữ liệu): chặn đăng nhập (login lọc deleted_at IS NULL) + đá mọi phiên.
+	// Trước đây còn ĐỔI TÊN username thành 'ten#da-xoa-<id>' để nhả tên gốc -> mở khoá lại thì tên đã
+	// méo, coi như một chiều. Nay GIỮ NGUYÊN username (tên vẫn thuộc về người đó) để mở khoá là trả về
+	// đúng nguyên trạng; muốn nhả tên hẳn thì đó là việc "xoá thật", không phải khoá.
 	if _, err := h.pool().Exec(ctx,
-		`UPDATE users SET deleted_at=now(), username = username || '#da-xoa-' || id
+		`UPDATE users SET deleted_at=now()
            WHERE id=$1 AND role IN (`+adminManagedRolesSQL+`)`, id); err != nil {
-		serverErr(c)
+		serverErr(c, err)
 		return
 	}
 	if err := h.Auth.RevokeTokens(ctx, id); err != nil { // đá ngay mọi phiên đang mở. admin.routes.js:225

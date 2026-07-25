@@ -192,7 +192,9 @@ const API = {
   createUser: b => api('/admin/users', { method: 'POST', body: b }),
   updateUser: (id, b) => api('/admin/users/' + id, { method: 'PUT', body: b }),
   resetUserPw: (id, password) => api('/admin/users/' + id + '/password', { method: 'POST', body: { password } }),
+  // DELETE = KHOÁ tài khoản (chặn đăng nhập, giữ nguyên dữ liệu) — mở lại bằng unlockUser.
   deleteUser: id => api('/admin/users/' + id, { method: 'DELETE' }),
+  unlockUser: id => api('/admin/users/' + id + '/unlock', { method: 'POST' }),
 
   meProfile: () => api('/me/profile'),
   meRoommates: () => api('/me/roommates'),

@@ -76,7 +76,8 @@ function reloadView() { closeModal(); adminGo(ST.view); }
 /* ---- Wrapper: ca doc DOM / dieu kien / method object ---- */
 function quickPickGo(type) { const id = +el('q_stu').value; closeModal(); (type === 'in' ? checkInForm : checkOutForm)(id); }
 function washAdd() { toggleWashing(+el('wash_stu').value, true); }
-function delUserRow(id) { delUser(id, (this && this.dataset && this.dataset.uname) || ''); } // ten doc tu data-uname
+function delUserRow(id) { delUser(id, (this && this.dataset && this.dataset.uname) || ''); } // ten doc tu data-uname (delUser = KHOA tai khoan)
+function unlockUserRow(id) { unlockUser(id, (this && this.dataset && this.dataset.uname) || ''); }
 function logout() { Auth.logout(); }
 function doPrint() { window.print(); }
 function reloadPage() { location.reload(); } // BL-22: nút "Tải lại" trang công khai (CSP chặn inline onclick)
