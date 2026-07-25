@@ -289,7 +289,13 @@ func (h *Handlers) UnlockUser(c *gin.Context) {
 			return
 		}
 	}
-	if _, err := h.pool().Exec(ctx, "UPDATE users SET deleted_at=NULL, username=$2 WHERE id=$1", id, orig); err != nil {
+	// approved: chỉ vai 'pending' mới có nghĩa "chờ duyệt". Vai thật mà approved=false là DI SẢN của lỗi
+	// cũ (đăng nhập Microsoft lại sau khi bị khoá thì tự hạ approved=false) — mở khoá xong người ta vẫn
+	// kẹt ở màn "Tài khoản đang chờ duyệt". Mở khoá là trả lại nguyên trạng nên bật lại luôn.
+	if _, err := h.pool().Exec(ctx,
+		`UPDATE users SET deleted_at=NULL, username=$2,
+		   approved = CASE WHEN role <> 'pending' THEN true ELSE approved END
+		 WHERE id=$1`, id, orig); err != nil {
 		serverErr(c, err)
 		return
 	}
@@ -502,8 +508,11 @@ func (h *Handlers) UpdateUser(c *gin.Context) {
 		hasFac = true
 		facVal = nil
 	}
-	// Gán vai THẬT cho tài khoản chờ duyệt = DUYỆT nó. admin.routes.js:184
-	duyet := curRole == "pending" && newRole != "pending"
+	// Gán vai THẬT = DUYỆT tài khoản. admin.routes.js:184
+	// KHÔNG còn đòi `curRole == "pending"`: hàng có VAI THẬT mà approved=false (di sản lỗi cũ — xem
+	// UnlockUser) thì trước đây admin bấm "Duyệt / gán vai" bao nhiêu lần cũng không bật được approved,
+	// người kia kẹt vĩnh viễn ở màn "Tài khoản đang chờ duyệt". Nay gán vai thật là duyệt, luôn đúng.
+	duyet := newRole != "pending"
 	if _, err := h.pool().Exec(ctx,
 		`UPDATE users SET full_name = CASE WHEN $1 THEN $2 ELSE full_name END, role=$3,
            facility_id = CASE WHEN $5 THEN $6 ELSE facility_id END,

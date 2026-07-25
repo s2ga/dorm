@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
 	"os"
@@ -12,6 +13,10 @@ import (
 )
 
 // Handler SSO Microsoft (start/callback). Port từ server/routes/auth.routes.js:148-216 + sso.js.
+
+// errTaiKhoanBiKhoa: danh tính Microsoft xác thực THÀNH CÔNG nhưng tài khoản trong app đang bị khoá.
+// Không phải lỗi hệ thống, cũng không phải "chưa có tài khoản" -> trả 403 với msgTaiKhoanBiKhoa.
+var errTaiKhoanBiKhoa = errors.New("tài khoản đã bị khoá")
 
 // ssoRedirectURI: địa chỉ callback — ENV ép trước, else proto://host/api/auth/sso/callback. sso.js:47-51
 func (h *Handlers) ssoRedirectURI(c *gin.Context) string {
@@ -98,6 +103,11 @@ func (h *Handlers) SSOCallback(c *gin.Context) {
 	}
 
 	user, e := h.ssoResolveUser(ctx, identity)
+	if errors.Is(e, errTaiKhoanBiKhoa) {
+		loginLog(h, c, nil, identity.Email, "", "đăng nhập Microsoft — tài khoản đã bị KHOÁ")
+		veTrang(msgTaiKhoanBiKhoa) // về màn đăng nhập kèm lý do, KHÔNG cấp vé, KHÔNG mở khoá
+		return
+	}
 	if e != nil {
 		veTrang("Không tạo được tài khoản.")
 		return
@@ -128,19 +138,27 @@ func (h *Handlers) SSOCallback(c *gin.Context) {
 
 // ssoResolveUser: từ danh tính Microsoft -> user trong CSDL. (1) khớp sso_subject; (2) khớp email ->
 // liên kết; (3) chưa có -> tạo 'pending' chờ duyệt. Dùng chung cho callback (server-side) và verify (SPA).
+// Tài khoản ĐÃ BỊ KHOÁ ở bước (1) hoặc (2) -> errTaiKhoanBiKhoa, KHÔNG mở lại và KHÔNG tạo bản mới.
 func (h *Handlers) ssoResolveUser(ctx context.Context, identity sso.Identity) (*ssoUser, error) {
-	// 1) Theo sso_subject — KỂ CẢ tài khoản đã XOÁ MỀM. Unique index (sso_subject, username) KHÔNG loại
-	// trừ deleted_at, nên KHÔNG được INSERT lại (sẽ trùng khoá -> 500). Đăng nhập lại sau khi bị xoá =
-	// KHÔI PHỤC bản ghi cũ; nếu từng bị xoá thì đưa về CHỜ DUYỆT để admin duyệt lại.
+	// 1) Theo sso_subject — tìm KỂ CẢ hàng đã khoá, vì unique index (sso_subject, username) KHÔNG loại
+	// trừ deleted_at nên INSERT lại sẽ trùng khoá -> 500.
+	// ĐANG BỊ KHOÁ thì DỪNG: trước đây chỗ này tự `deleted_at = NULL` + hạ về chờ duyệt, thành ra khoá
+	// một nhân viên xong họ bấm "Đăng nhập bằng Microsoft" là tài khoản sống lại ở trạng thái chờ duyệt
+	// (thấy màn "Tài khoản đang chờ duyệt") — khoá bị vô hiệu hoá, và admin còn bị gọi đi duyệt lại
+	// đúng người mình vừa khoá. Mở khoá là việc CỦA ADMIN (POST /admin/users/:id/unlock), không phải
+	// việc người bị khoá tự làm bằng cách đăng nhập lại.
 	var existID int
-	if h.pool().QueryRow(ctx, "SELECT id FROM users WHERE sso_subject = $1", identity.Subject).Scan(&existID) == nil {
+	var existLocked bool
+	if h.pool().QueryRow(ctx, "SELECT id, (deleted_at IS NOT NULL) FROM users WHERE sso_subject = $1",
+		identity.Subject).Scan(&existID, &existLocked) == nil {
+		if existLocked {
+			return nil, errTaiKhoanBiKhoa
+		}
 		if _, err := h.pool().Exec(ctx,
 			`UPDATE users SET
 			   email = $2,
 			   full_name = CASE WHEN $3 <> '' THEN $3 ELSE full_name END,
-			   auth_provider = CASE WHEN password_hash IS NULL THEN 'sso' ELSE 'both' END,
-			   approved = CASE WHEN deleted_at IS NOT NULL THEN false ELSE approved END,
-			   deleted_at = NULL
+			   auth_provider = CASE WHEN password_hash IS NULL THEN 'sso' ELSE 'both' END
 			 WHERE id = $1`, existID, identity.Email, identity.FullName); err != nil {
 			return nil, err
 		}
@@ -152,6 +170,15 @@ func (h *Handlers) ssoResolveUser(ctx context.Context, identity sso.Identity) (*
 			`UPDATE users SET sso_subject = $1, auth_provider = CASE WHEN password_hash IS NULL THEN 'sso' ELSE 'both' END WHERE id = $2`,
 			identity.Subject, byEmail.ID)
 		return h.ssoLoadUser(ctx, "id = $1", byEmail.ID), nil
+	}
+	// 2b) Email khớp một tài khoản ĐANG BỊ KHOÁ (chưa từng liên kết SSO nên bước 1 không thấy) -> chặn.
+	// Không có bước này thì bước 3 sẽ tạo một tài khoản 'pending' MỚI cho đúng con người vừa bị khoá:
+	// khoá coi như vô nghĩa, danh sách chờ duyệt thì đầy bản trùng.
+	var lockedByEmail int
+	if h.pool().QueryRow(ctx,
+		"SELECT 1 FROM users WHERE lower(email) = lower($1) AND deleted_at IS NOT NULL", identity.Email).
+		Scan(&lockedByEmail) == nil {
+		return nil, errTaiKhoanBiKhoa
 	}
 	// 3) Chưa có -> tạo 'pending'. Nếu username (email) đã bị một tài khoản khác dùng (kể cả đã xoá mềm)
 	// thì né bằng hậu tố để KHÔNG 500 vì trùng username.
@@ -197,6 +224,11 @@ func (h *Handlers) SSOVerify(c *gin.Context) {
 		return
 	}
 	user, e := h.ssoResolveUser(ctx, identity)
+	if errors.Is(e, errTaiKhoanBiKhoa) {
+		loginLog(h, c, nil, identity.Email, "", "đăng nhập Microsoft — tài khoản đã bị KHOÁ")
+		c.JSON(http.StatusForbidden, gin.H{"error": msgTaiKhoanBiKhoa}) // 403: không cấp cookie phiên
+		return
+	}
 	if e != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Không tạo/khôi phục được tài khoản: " + e.Error()})
 		return

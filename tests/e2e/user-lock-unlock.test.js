@@ -2,9 +2,17 @@
 // GIỮ NGUYÊN username; POST /admin/users/:id/unlock cho đăng nhập lại. Đây là hành vi xác thực nên
 // phải khoá bằng test: khoá xong KHÔNG vào được, mở khoá xong VÀO ĐƯỢC, và tài khoản đã khoá vẫn
 // hiện trong danh sách (cờ locked) để admin còn đường mở lại.
+//
+// Tài khoản/hồ sơ ĐÃ KHOÁ đăng nhập lại phải nhận 403 kèm câu "đã bị khoá" — KHÔNG phải 401 "sai tên
+// đăng nhập hoặc mật khẩu" (người dùng tưởng gõ sai, thử tiếp tới mức tự khoá thêm 15 phút) và tuyệt
+// đối KHÔNG phải màn "đang chờ duyệt" (nghĩa hoàn toàn khác: chờ duyệt là chưa được cấp quyền, khoá
+// là đã bị cấm). Nhưng SAI mật khẩu vẫn phải là 401 chung, không thì 403 thành máy dò tài khoản.
 const bcrypt = require('../../node_modules/bcryptjs');
 const P = '__test_lock';
-const clean = db => db.query(`DELETE FROM users WHERE username LIKE '${P}%'`);
+const clean = async db => {
+  await db.query(`DELETE FROM users WHERE username LIKE '${P}%'`);
+  await db.query(`DELETE FROM students WHERE name LIKE '${P}%'`);
+};
 
 module.exports = {
   name: 'Khoá / mở khoá tài khoản (không xoá thật)',
@@ -15,7 +23,7 @@ module.exports = {
     await clean(t.db);
     const pw = 'test1234';
     const uid = (await t.db.query(
-      `INSERT INTO users (username,password_hash,role,full_name) VALUES ($1,$2,'staff','NV bi khoa') RETURNING id`,
+      `INSERT INTO users (username,password_hash,role,full_name) VALUES ($1,$2,'staff','NV bị khoá') RETURNING id`,
       [P + '_nv', bcrypt.hashSync(pw, 10)])).rows[0].id;
 
     try {
@@ -35,7 +43,14 @@ module.exports = {
       t.eq('TC-L4 · GIỮ NGUYÊN username (không còn đổi thành "#da-xoa-") → mở khoá được', row.username, P + '_nv', row.username);
 
       const sau = await t.api('POST', '/api/auth/login', null, { username: P + '_nv', password: pw });
-      t.ok('TC-L5 · đã khoá → KHÔNG đăng nhập được', sau.status === 401, `HTTP ${sau.status} (phải 401)`);
+      t.eq('TC-L5 · đã khoá + mật khẩu ĐÚNG → 403 (cửa đóng), không phải 401 "sai mật khẩu"',
+        sau.status, 403, `HTTP ${sau.status} — ${sau.json && sau.json.error}`);
+      t.ok('TC-L5a · … câu trả lời nói rõ "bị khoá" (không phải "chờ duyệt")',
+        /bị khoá/i.test((sau.json && sau.json.error) || '') && !/chờ duyệt/i.test((sau.json && sau.json.error) || ''),
+        JSON.stringify(sau.json));
+      const saiMk = await t.api('POST', '/api/auth/login', null, { username: P + '_nv', password: 'sai-be-bet' });
+      t.eq('TC-L5b · đã khoá + mật khẩu SAI → vẫn 401 chung (403 không được thành máy dò tài khoản)',
+        saiMk.status, 401, `HTTP ${saiMk.status} — ${saiMk.json && saiMk.json.error}`);
 
       // Vẫn thấy trong danh sách + có cờ locked (nếu không, admin mất dấu, hết đường mở khoá)
       const ds = await t.api('GET', '/api/admin/users', admin);
@@ -61,6 +76,43 @@ module.exports = {
       t.eq('TC-L12 · … trả lại ĐÚNG tên gốc (cắt hậu tố)', ten, P + '_nv', ten);
       const lai2 = await t.api('POST', '/api/auth/login', null, { username: P + '_nv', password: pw });
       t.eq('TC-L13 · … và đăng nhập lại được bằng tên gốc', lai2.status, 200, `HTTP ${lai2.status}`);
+
+      // ===== HỌC VIÊN bị KHOÁ hồ sơ (students.deleted_at) — trang Học viên gọi đúng là "Đã khoá"
+      const sid = (await t.db.query(
+        `INSERT INTO students (name, check_in_date) VALUES ($1, CURRENT_DATE) RETURNING id`, [P + '_hv'])).rows[0].id;
+      await t.db.query(
+        `INSERT INTO users (username,password_hash,role,full_name,student_id) VALUES ($1,$2,'student',$3,$4)`,
+        [P + '_hv', bcrypt.hashSync(pw, 10), P + '_hv', sid]);
+      const hvTruoc = await t.api('POST', '/api/auth/login', null, { username: P + '_hv', password: pw });
+      t.eq('TC-L14 · học viên bình thường: đăng nhập được', hvTruoc.status, 200, `HTTP ${hvTruoc.status}`);
+      await t.db.query(`UPDATE students SET deleted_at=now() WHERE id=$1`, [sid]);
+      const hvSau = await t.api('POST', '/api/auth/login', null, { username: P + '_hv', password: pw });
+      t.eq('TC-L15 · hồ sơ học viên bị KHOÁ → 403 (cùng nghĩa với khoá tài khoản, không phải 401)',
+        hvSau.status, 403, `HTTP ${hvSau.status} — ${hvSau.json && hvSau.json.error}`);
+      t.ok('TC-L16 · … kèm câu "bị khoá"', /bị khoá/i.test((hvSau.json && hvSau.json.error) || ''), JSON.stringify(hvSau.json));
+      await t.db.query(`UPDATE students SET deleted_at=NULL WHERE id=$1`, [sid]);
+      const hvMo = await t.api('POST', '/api/auth/login', null, { username: P + '_hv', password: pw });
+      t.eq('TC-L17 · mở khoá hồ sơ → học viên đăng nhập lại được', hvMo.status, 200, `HTTP ${hvMo.status}`);
+
+      // ===== DI SẢN lỗi cũ: vai THẬT nhưng approved=false (đăng nhập Microsoft lại sau khi bị khoá
+      // từng tự hạ cờ này). Người ta kẹt ở màn "chờ duyệt" mà admin bấm duyệt cũng không lên.
+      await t.db.query(`UPDATE users SET approved=false WHERE id=$1`, [uid]);
+      const kep = await t.api('POST', '/api/auth/login', null, { username: P + '_nv', password: pw });
+      t.eq('TC-L18 · vai thật + approved=false → 403 "chờ duyệt" (bằng chứng có thật cái kẹt này)', kep.status, 403, `HTTP ${kep.status}`);
+      const duyet = await t.api('PUT', `/api/admin/users/${uid}`, admin, { role: 'staff', full_name: 'NV bị khoá' });
+      t.eq('TC-L19 · admin gán lại vai → 200', duyet.status, 200, `HTTP ${duyet.status} ${JSON.stringify(duyet.json)}`);
+      const apr = (await t.db.query('SELECT approved FROM users WHERE id=$1', [uid])).rows[0].approved;
+      t.ok('TC-L20 · … gán vai THẬT là DUYỆT: approved bật lại (trước đây chỉ bật khi vai cũ là "pending" → kẹt vĩnh viễn)',
+        apr === true, `approved=${apr}`);
+      const vao = await t.api('POST', '/api/auth/login', null, { username: P + '_nv', password: pw });
+      t.eq('TC-L21 · … và vào được', vao.status, 200, `HTTP ${vao.status} — ${vao.json && vao.json.error}`);
+
+      // Mở khoá cũng phải trả lại approved cho vai thật, không thì mở khoá xong vẫn kẹt "chờ duyệt"
+      await t.db.query(`UPDATE users SET deleted_at=now(), approved=false WHERE id=$1`, [uid]);
+      await t.api('POST', `/api/admin/users/${uid}/unlock`, admin);
+      const apr2 = (await t.db.query('SELECT approved, deleted_at FROM users WHERE id=$1', [uid])).rows[0];
+      t.ok('TC-L22 · mở khoá tài khoản vai thật → approved=true (mở khoá là trả lại nguyên trạng)',
+        apr2.approved === true && apr2.deleted_at === null, JSON.stringify(apr2));
     } finally {
       await clean(t.db);
     }

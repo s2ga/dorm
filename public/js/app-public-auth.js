@@ -42,7 +42,16 @@ async function ssoHandleReturn() {
       client_id: saved.client, grant_type: 'authorization_code', code: qp.get('code'),
       redirect_uri: saved.redirect, code_verifier: saved.verifier, scope: 'openid profile email',
     });
-    const r = await fetch(_MS_TOKEN(saved.tenant), { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() });
+    // Lời gọi này đi TRỰC TIẾP sang Microsoft (không qua api() nên không được dịch lỗi giúp). Mất
+    // mạng / bị tường lửa chặn thì fetch ném TypeError("Failed to fetch") — chữ Anh, người dùng đọc
+    // không hiểu, mà nó lại hiện ngay trên màn đăng nhập. Bắt riêng để nói bằng tiếng Việt.
+    let r;
+    try {
+      r = await fetch(_MS_TOKEN(saved.tenant), { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() });
+    } catch (eNet) {
+      fail('Không kết nối được tới Microsoft (mất mạng hoặc bị chặn). Vui lòng thử lại, hoặc đăng nhập bằng tên và mật khẩu.');
+      return true;
+    }
     const tok = await r.json().catch(() => ({}));
     if (!r.ok || !tok.id_token) { fail('Microsoft từ chối: ' + String(tok.error_description || tok.error || 'không đổi được mã đăng nhập').split('\n')[0]); return true; }
     await API.ssoVerify(tok.id_token);   // server xác minh id_token (JWKS) + cấp cookie phiên

@@ -14,6 +14,11 @@ import (
 	"ktx/internal/valid"
 )
 
+// msgTaiKhoanBiKhoa: câu trả lời DUY NHẤT cho tài khoản đã bị khoá (đăng nhập thường và SSO dùng
+// chung). Khoá là "đóng cửa", không phải "chờ duyệt" — nói đúng để người dùng biết đường liên hệ,
+// và tuyệt đối KHÔNG cấp vé phiên.
+const msgTaiKhoanBiKhoa = "Tài khoản đã bị khoá. Vui lòng liên hệ ban quản lý khu nội trú."
+
 type loginUser struct {
 	ID           int
 	Username     string
@@ -27,16 +32,26 @@ type loginUser struct {
 	Approved     bool
 	Email        *string
 	AuthProvider *string
+	Locked       bool // deleted_at IS NOT NULL -> đã bị khoá (deactive), không cho vào
 }
 
 func (h *Handlers) loadLoginUser(c *gin.Context, username string) (*loginUser, error) {
 	var u loginUser
+	// KHÔNG lọc `deleted_at IS NULL` nữa: tài khoản bị khoá vẫn phải nạp được để trả 403 "đã bị
+	// khoá" (trước đây rơi vào nhánh "không thấy user" -> 401 "sai tên đăng nhập hoặc mật khẩu",
+	// người dùng tưởng gõ sai nên thử lại tới mức tự khoá thêm 15 phút).
+	// ORDER BY đưa hàng CÒN HIỆU LỰC lên trước. Bỏ bộ lọc deleted_at thì lower(username) có thể khớp
+	// 2 hàng: uq_users_username_ci chỉ ràng buộc hàng CHƯA KHOÁ, còn UNIQUE(username) của bảng thì
+	// phân biệt hoa/thường -> "nv01" (đã khoá) và "NV01" (mới, đang dùng) sống chung được. Không được
+	// để hàng khoá cũ chặn người đang dùng tên đó.
 	err := h.pool().QueryRow(c.Request.Context(),
 		`SELECT id, username, password_hash, role, full_name, student_id, facility_id,
-		        must_change_password, token_epoch, approved, email, auth_provider
-		 FROM users WHERE lower(username) = lower($1) AND deleted_at IS NULL`, username).
+		        must_change_password, token_epoch, approved, email, auth_provider,
+		        (deleted_at IS NOT NULL) AS locked
+		 FROM users WHERE lower(username) = lower($1)
+		 ORDER BY (deleted_at IS NOT NULL), id LIMIT 1`, username).
 		Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.FullName, &u.StudentID, &u.FacilityID,
-			&u.MustChange, &u.TokenEpoch, &u.Approved, &u.Email, &u.AuthProvider)
+			&u.MustChange, &u.TokenEpoch, &u.Approved, &u.Email, &u.AuthProvider, &u.Locked)
 	if err != nil {
 		return nil, err
 	}
@@ -100,12 +115,23 @@ func (h *Handlers) Login(c *gin.Context) {
 		return
 	}
 
-	// Học viên đã bị xoá hồ sơ -> không cho đăng nhập
+	// TÀI KHOẢN BỊ KHOÁ -> 403, không cấp vé. Đặt SAU khi so mật khẩu để câu trả lời này không thành
+	// máy dò "tài khoản nào có thật" (mật khẩu sai vẫn là 401 chung như mọi trường hợp khác).
+	// Mật khẩu ĐÚNG nên KHÔNG tính là lần thử sai -> đừng cộng vào bộ đếm chống dò mật khẩu.
+	if user.Locked {
+		h.Guard.GhiNhanKetQua(username, true, now)
+		loginLog(h, c, &user.ID, user.Username, user.Role, "tài khoản đã bị KHOÁ")
+		c.JSON(http.StatusForbidden, gin.H{"error": msgTaiKhoanBiKhoa})
+		return
+	}
+
+	// Học viên đã bị KHOÁ hồ sơ -> cũng là cửa đóng, trả 403 cùng câu với khoá tài khoản
 	if user.Role == "student" && user.StudentID != nil {
 		var one int
 		if h.pool().QueryRow(c.Request.Context(), "SELECT 1 FROM students WHERE id=$1 AND deleted_at IS NULL", *user.StudentID).Scan(&one) != nil {
-			loginLog(h, c, &user.ID, user.Username, user.Role, "tài khoản học viên đã bị xoá hồ sơ")
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Tài khoản không còn hiệu lực"})
+			h.Guard.GhiNhanKetQua(username, true, now)
+			loginLog(h, c, &user.ID, user.Username, user.Role, "hồ sơ học viên đã bị KHOÁ")
+			c.JSON(http.StatusForbidden, gin.H{"error": msgTaiKhoanBiKhoa})
 			return
 		}
 	}
