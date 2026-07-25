@@ -400,6 +400,10 @@ function filterUrl(view) {
 // (những ô này lọc bằng ẩn/hiện hàng, không re-render nên phải gọi tay).
 function syncFilterUrl() {
   if (!Auth.user || !el('nav')) return;             // chỉ áp cho giao diện quản trị
+  // Modal đang mở -> ĐỪNG ghi. Mục lịch sử đang đứng lúc này là mục MƯỢN của modal (ui.js openModal);
+  // replaceState ở đây sẽ xoá dấu {modal:true} của nó, và cú Back kế tiếp nhảy ra khỏi màn thay vì
+  // đóng modal. Bộ lọc sẽ được ghi lại ở lần vẽ view kế tiếp (mỗi viewX() đều gọi hàm này ở cuối).
+  if (el('overlay') && el('overlay').classList.contains('show')) return;
   const target = filterUrl(ST.view);
   if (curUrl() !== target) history.replaceState({ view: ST.view, d: navDepth() }, '', target);
 }
@@ -457,6 +461,10 @@ function adminGo(view, opts) {
 // Nút Back/Forward của trình duyệt (kể cả nút cứng Android trên PWA standalone).
 // Gán bằng onpopstate (không phải addEventListener) để boot() gọi lại nhiều lần cũng không nhân đôi.
 window.onpopstate = () => {
+  // MODAL TRƯỚC: đang mở thì Back nghĩa là "lùi một lớp / đóng modal", KHÔNG phải đổi màn. Trước đây
+  // popstate đi thẳng xuống adminGo -> vẽ lại màn phía SAU trong khi modal vẫn nằm nguyên trên mặt.
+  // Hàm này cũng áp cho cổng học viên / bảo trì (chúng dùng chung #overlay nhưng không có #nav).
+  if (typeof modalXuLyPop === 'function' && modalXuLyPop()) return;
   if (!Auth.user || !['admin', 'staff'].includes(Auth.user.role) || !el('nav')) return; // chỉ áp cho giao diện quản trị
   const v = viewFromPath(location.pathname);
   if (v) adminGo(v, { fromPop: true });

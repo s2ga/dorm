@@ -50,9 +50,51 @@ function _chupForm() {
 let _formLucMo = null;
 function formDangDo() { return _formLucMo !== null && el('overlay').classList.contains('show') && _chupForm() !== _formLucMo; }
 
+/* ---- MODAL: trên điện thoại là MÀN HÌNH, không phải hộp nổi ----------------------------------
+   CSS ≤620px kéo modal ra toàn màn. Kèm theo đó là 2 việc của phần JS:
+
+   ① NGĂN XẾP. App chỉ có MỘT #modal, mở modal khác là ghi đè innerHTML — nên trước đây "quay lại"
+      không có gì để quay về (bấm Hủy ở Sửa phòng là đóng sạch, không trở lại Chi tiết phòng).
+      Nay giữ lại chuỗi HTML của từng lớp: lùi = vẽ lại lớp trước. Rẻ vì modal vốn là chuỗi HTML.
+   ② LỊCH SỬ. Modal toàn màn hình mà bấm Back (nút cứng Android / vuốt mép iOS) lại đổi màn phía
+      SAU trong khi modal vẫn nằm nguyên trên mặt — đó là lỗi có sẵn. Nay mở modal đẩy MỘT mục lịch
+      sử cho cả phiên; Back = lùi một lớp modal, hết lớp thì đóng.
+   KHÔNG đẩy mỗi lớp một mục: syncFilterUrl() (12 chỗ, có cả ô tìm kiếm) gọi replaceState và sẽ
+   xoá dấu mục modal — càng nhiều mục càng dễ lệch. Một mục cho cả phiên thì lùi mấy lớp cũng an toàn. */
+let _lopModal = [];          // ngăn xếp HTML từng lớp: [{html, wide}]
+let _modalCoLichSu = false;  // phiên modal này đã đẩy mục lịch sử chưa
+let _boQuaPopKe = false;     // cú popstate kế tiếp là do CHÍNH TA gọi history.back() -> đừng xử lý lại
+let _henTraLichSu = null;    // hẹn trả mục lịch sử (hoãn 1 tick, xem closeModalNgay)
+
+function _veModal(lop) {
+  el('modal').className = 'modal' + (lop.wide ? ' wide' : '');
+  el('modal').removeAttribute('style');   // dọn transform còn sót của cử chỉ vuốt lần trước
+  el('modal').innerHTML = lop.html;
+  el('modal').scrollTop = 0;
+  const mb = el('modal').querySelector('.mb'); if (mb) mb.scrollTop = 0;
+}
 function openModal(html, wide) {
-  el('modal').className = 'modal' + (wide ? ' wide' : '');
-  el('modal').innerHTML = html;
+  const dangMo = el('overlay').classList.contains('show');
+  if (!dangMo) {
+    _lopModal = [];
+    document.body.classList.add('modal-open');   // khoá cuộn trang nền (toàn màn hình thì bắt buộc)
+    if (_henTraLichSu) {
+      // Vừa đóng modal xong lại mở modal khác NGAY trong cùng một tick — mẫu này có ở ~11 chỗ
+      // ("đóng rồi mở phiếu báo", data-close rồi mở form...). Đừng trả rồi mượn lại: giữ nguyên mục
+      // lịch sử đang có. Nếu trả, cú history.back() bất đồng bộ sẽ đua với pushState của modal mới.
+      clearTimeout(_henTraLichSu); _henTraLichSu = null; _modalCoLichSu = true;
+    } else {
+      // Đẩy mục lịch sử để Back của HỆ ĐIỀU HÀNH đóng modal thay vì thoát app / đổi màn sau lưng.
+      // Giữ nguyên URL: modal không phải một địa chỉ, chỉ là một lớp phủ lên màn đang đứng.
+      try {
+        const st = Object.assign({}, history.state || {}, { modal: true });
+        history.pushState(st, '', location.href);
+        _modalCoLichSu = true;
+      } catch (e) { _modalCoLichSu = false; }
+    }
+  }
+  _lopModal.push({ html, wide: !!wide });
+  _veModal(_lopModal[_lopModal.length - 1]);
   el('overlay').classList.add('show');
   _formLucMo = _chupForm();
   // BL-23: nhiều form gọi attachDate(...) NGAY SAU openModal (điền ngày vào ô đang rỗng). Ảnh chụp ở
@@ -61,13 +103,108 @@ function openModal(html, wide) {
   // (attachDate…) đã chạy xong — vẫn bắt được thay đổi thật vì người dùng chưa kịp gõ trong ~0ms này.
   setTimeout(() => { if (el('overlay').classList.contains('show')) _formLucMo = _chupForm(); }, 0);
 }
+// THAY nội dung lớp đang đứng (không thêm lớp mới). Dùng cho màn tự vẽ lại chính mình nhiều lần —
+// vd đổi kỳ ở form nhập chỉ số điện: nếu ghi thẳng el('modal').innerHTML thì ngăn xếp vẫn giữ HTML
+// cũ, vuốt quay lại sẽ trả về đúng cái spinner của lần vẽ đầu.
+function modalThay(html) {
+  // Đóng mất rồi thì THÔI, tuyệt đối không mở lại: renderElectricForm/renderGenerateForm vẽ spinner
+  // rồi `await` gọi API; người dùng bấm × trong lúc chờ mà ta lại mở modal khi API về thì nó tự hiện
+  // lại sau 1-2 giây như ma, còn mất cả cờ `wide` lẫn đúng một mục lịch sử.
+  if (!_lopModal.length || !el('overlay').classList.contains('show')) return;
+  _lopModal[_lopModal.length - 1].html = html;
+  el('modal').innerHTML = html;
+  // Chụp LẠI mốc form: vẽ lại lớp = nội dung mới hoàn toàn (mọi thứ người dùng gõ đã bị chính lần vẽ
+  // này xoá), mốc cũ vô nghĩa. Không chụp lại thì mốc kẹt ở ảnh của spinner (chuỗi rỗng) trong khi
+  // form thật đã có sẵn giá trị (kỳ tháng, chỉ số điện) -> đóng ra là bị hỏi "có dữ liệu chưa lưu"
+  // dù chưa ai gõ gì.
+  _formLucMo = _chupForm();
+}
+// LÙI MỘT LỚP: còn lớp dưới thì vẽ lại lớp đó (vd Sửa phòng -> về Chi tiết phòng), hết thì đóng hẳn.
+// Dùng cho: vuốt mép trái, nút ‹ trên đầu modal, Back của hệ điều hành.
+function modalBack() {
+  if (!el('overlay').classList.contains('show')) return false;
+  if (_lopModal.length > 1) {
+    if (!window._dangLuu && formDangDo()
+        && !confirm('Bạn có dữ liệu chưa lưu.\n\nQuay lại và bỏ những gì vừa nhập?')) return true;
+    _lopModal.pop();
+    _veModal(_lopModal[_lopModal.length - 1]);
+    _formLucMo = _chupForm();
+    return true;
+  }
+  closeModal();
+  return true;
+}
 function closeModal() {
   if (!window._dangLuu && formDangDo()
       && !confirm('Bạn có dữ liệu chưa lưu.\n\nĐóng lại và bỏ những gì vừa nhập?')) return;
   closeModalNgay();
 }
 // Đóng thẳng, không hỏi — dùng khi người dùng ĐÃ đồng ý bỏ (vd đã xác nhận ở adminGo)
-function closeModalNgay() { _formLucMo = null; el('overlay').classList.remove('show'); }
+function closeModalNgay() {
+  const dangMo = el('overlay').classList.contains('show');
+  _formLucMo = null; _lopModal = [];
+  el('overlay').classList.remove('show');
+  el('modal').removeAttribute('style');
+  document.body.classList.remove('modal-open');
+  // Trả lại mục lịch sử đã mượn. CHỈ khi modal thật sự đang mở: closeModal() được gọi ~139 chỗ, nhiều
+  // chỗ gọi lúc KHÔNG có modal nào ("vô hại" theo comment cũ) — nếu chỗ đó cũng lùi lịch sử thì mỗi
+  // lần lưu xong là văng ra khỏi màn, tệ hơn nữa là thoát app.
+  // HOÃN một tick: rất nhiều chỗ "đóng modal rồi mở modal khác" ngay trong cùng một cú bấm. Trả ngay
+  // thì cú back (bất đồng bộ) sẽ đua với pushState của modal mới và lịch sử lệch. Hoãn thì openModal
+  // kịp huỷ cái hẹn này và dùng lại đúng mục đang có.
+  if (dangMo && _modalCoLichSu) {
+    _modalCoLichSu = false;
+    clearTimeout(_henTraLichSu);
+    _henTraLichSu = setTimeout(() => {
+      _henTraLichSu = null;
+      if (el('overlay').classList.contains('show')) return;   // đã có modal khác mở lên -> giữ mục đó
+      // CHỈ trả khi ta còn đang ĐỨNG trên đúng mục đã mượn. Rất nhiều chỗ làm "đóng modal rồi đi màn
+      // khác" ngay trong một cú bấm (stuGoAdmin, reloadView, lưu hoá đơn xong nhảy màn...) — lúc đó
+      // adminGo đã đẩy mục MỚI, mục mượn nằm phía sau; back() sẽ kéo URL ngược về màn cũ trong khi
+      // màn hình đang hiện màn mới (F5 là văng, copy link là sai màn). Mục mượn để lại cũng vô hại:
+      // nó thành "màn trước" hợp lệ, Back kế tiếp rơi vào popstate thường và router vẽ đúng.
+      if (!(history.state && history.state.modal)) return;
+      _boQuaPopKe = true;               // cú popstate sinh ra từ đây là của ta, đừng diễn giải lại
+      try { history.back(); } catch (e) { _boQuaPopKe = false; }
+    }, 0);
+  }
+}
+// Router (app-admin-core.js) và các cổng gọi hàm này TRƯỚC khi xử lý popstate của mình.
+// Trả true = sự kiện đã được modal tiêu thụ, đừng đổi màn.
+function modalXuLyPop() {
+  if (_boQuaPopKe) {
+    _boQuaPopKe = false;
+    // Cú lùi này ta đã tính trước: hoặc do chính closeModalNgay gọi, hoặc do TRÌNH DUYỆT tự lùi cho
+    // cùng một cú vuốt mép mà ta vừa xử lý (Chrome Android bắt vuốt mép trái làm cử chỉ back của
+    // nó, song song với cử chỉ của app). Đừng lùi thêm lớp nữa.
+    if (_henTraLichSu) { clearTimeout(_henTraLichSu); _henTraLichSu = null; }  // trình duyệt lùi hộ rồi
+    _modalCoLichSu = false;                                    // mục lịch sử đã bị lấy đi
+    if (el('overlay').classList.contains('show')) _muonMucLichSu();   // còn modal -> mượn lại mục khác
+    return true;
+  }
+  if (!el('overlay').classList.contains('show')) return false;
+  _modalCoLichSu = false;              // mục vừa bị trình duyệt lấy đi rồi
+  modalBack();
+  // Còn lớp nữa (hoặc người dùng bấm Huỷ ở hộp "chưa lưu") -> mượn lại một mục để lần Back sau
+  // vẫn rơi vào modal chứ không nhảy ra khỏi màn.
+  if (el('overlay').classList.contains('show')) _muonMucLichSu();
+  return true;
+}
+function _muonMucLichSu() {
+  try {
+    history.pushState(Object.assign({}, history.state || {}, { modal: true }), '', location.href);
+    _modalCoLichSu = true;
+  } catch (e) { _modalCoLichSu = false; }   // không đẩy được thì thôi, lần Back sau sẽ đổi màn
+}
+// Cử chỉ vuốt mép trái gọi hàm này thay cho modalBack(): trên trình duyệt (không phải PWA standalone),
+// vuốt mép trái CŨNG là cử chỉ back của Chrome/Safari -> ngay sau đó sẽ có một popstate cho CÙNG một
+// thao tác của người dùng. Không chặn thì nó lùi tiếp lớp thứ hai, tức vuốt một cái mất hai màn.
+function modalCuChiLui() {
+  if (!el('overlay').classList.contains('show')) return;
+  _boQuaPopKe = true;
+  setTimeout(() => { _boQuaPopKe = false; }, 700);   // trình duyệt không lùi thì cờ tự tan, không kẹt
+  modalBack();
+}
 
 // F5 / đóng tab / bấm Back của trình duyệt khi form đang dở -> nhờ trình duyệt hỏi hộ.
 // closeModal chỉ cứu được đường TRONG app; F5 là đường của trình duyệt, phải chặn ở đây.

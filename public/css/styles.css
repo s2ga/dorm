@@ -701,3 +701,57 @@ body.drawer-open{overflow:hidden}
 /* Cả hàng bấm được -> phải thấy được viền focus khi đi bằng bàn phím (trước chỉ .stu-name có) */
 tbody tr[data-act]:focus-visible{outline:2px solid var(--brand);outline-offset:-2px;border-radius:10px}
 @media(prefers-reduced-motion:reduce){.card-tbl tr[data-del]{transition:none}}
+
+/* ===== MODAL TOÀN MÀN HÌNH TRÊN ĐIỆN THOẠI ==================================================
+   Trên màn hẹp, thẻ nổi giữa màn là kiểu của máy tính: nội dung bị bóp trong khung nhỏ, xung quanh
+   là nền mờ vô dụng, mà cuộn thì cuộn cả overlay nên đầu/chân trôi mất. Ở đây modal trở thành một
+   MÀN HÌNH thật: chiếm trọn, đầu và chân ghim, chỉ thân cuộn.
+   Đặt SAU khối @media(max-width:820px) ở trên (nó cũng đụng .overlay/.modal) để thắng đúng thứ tự.
+   Phần JS đi kèm ở ui.js (ngăn xếp lớp + mục lịch sử) và app-actions.js (vuốt mép trái = quay lại). */
+@media(max-width:620px){
+  .overlay{padding:0;align-items:stretch;justify-content:stretch;overflow:hidden;
+    /* nền đã bị modal che kín -> bỏ blur cho đỡ tốn GPU khi vuốt */
+    backdrop-filter:none;background:var(--card)}
+  .modal,.modal.wide{max-width:none;width:100%;border-radius:0;box-shadow:none;
+    display:flex;flex-direction:column;
+    /* dvh: 100vh trên iOS tính cả thanh địa chỉ -> modal dài hơn màn, chân bị đẩy khuất */
+    height:100vh;height:100dvh;
+    animation:modal-vao .2s ease}
+  @keyframes modal-vao{from{transform:translateX(18px);opacity:.55}to{transform:none;opacity:1}}
+  /* Đầu ghim: đây là chỗ duy nhất có nút thoát khi nội dung dài. Chừa tai thỏ. */
+  .modal .mh{position:sticky;top:0;z-index:2;background:var(--card);
+    padding-top:calc(16px + env(safe-area-inset-top));padding-bottom:14px}
+  .modal .mh h3{font-size:19px;line-height:1.25;min-width:0;overflow-wrap:anywhere}
+  /* Nút đóng đổi mặt thành mũi tên QUAY LẠI và nhảy sang TRÁI tiêu đề — đúng chỗ mắt tìm nút lùi
+     trên điện thoại. Ở chế độ toàn màn hình, "×" nằm góc phải đọc như "đóng cửa sổ", còn người dùng
+     mong một cú lùi. Đổi bằng CSS để không phải sửa 89 chỗ markup.
+     order:-1 đảo vị trí trong .mh (vốn là flex: tiêu đề trước, nút sau). */
+  .modal .mh{gap:6px;justify-content:flex-start}
+  .modal .mh .x{order:-1;font-size:0;min-width:40px;min-height:40px;margin-left:-8px;
+    display:inline-flex;align-items:center;justify-content:center;flex:none}
+  .modal .mh .x::before{content:"‹";font-size:30px;line-height:1;color:var(--ink2)}
+  /* Thẻ số liệu: 185px/cột nên trên máy 390px tụt xuống 1 cột, ba thẻ ăn hết màn hình trước khi
+     thấy nội dung chính. Cho 2 cột và bóp lại cho vừa. */
+  .modal .cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:14px}
+  .modal .stat{padding:12px 14px;border-radius:12px}
+  .modal .stat .v{font-size:20px;margin-top:4px}
+  .modal .stat .v.sm{font-size:15.5px}
+  /* Kéo ngang TRONG modal không được rơi vào cử chỉ back của TRÌNH DUYỆT (Chrome Android:
+     "overscroll history navigation" — vuốt phải ở giữa màn cũng lùi lịch sử, và modal biến mất
+     giữa chừng trong khi người dùng chỉ định lướt qua một bảng). Chỉ nhường trục dọc + phóng to;
+     việc quay lại đã có cử chỉ mép trái lo, có chủ đích hơn nhiều. */
+  .modal{touch-action:pan-y pinch-zoom}
+  /* Chỉ THÂN cuộn; overscroll-behavior để cuộn hết thân không chuyền xuống trang nền (BL-55) */
+  .modal .mb{flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:18px 16px}
+  /* Chân ghim đáy + chừa thanh home. Nút trải đều cho vừa ngón tay. */
+  .modal .mf{position:sticky;bottom:0;z-index:2;padding:12px 16px calc(12px + env(safe-area-inset-bottom));
+    justify-content:stretch;gap:8px}
+  .modal .mf .btn{flex:1 1 auto;justify-content:center;min-height:44px}
+  /* Bảng trong modal: ở đây mới có chỗ mà thở, đừng để nó cuộn lồng trong thân đang cuộn */
+  .modal .table-wrap{max-height:none}
+  .modal .cards{gap:10px}
+  body.modal-open{overflow:hidden}   /* nền không trôi sau lưng modal */
+}
+@media(max-width:620px) and (prefers-reduced-motion:reduce){
+  .modal,.modal.wide{animation:none}
+}

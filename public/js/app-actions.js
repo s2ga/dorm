@@ -53,6 +53,49 @@ document.addEventListener('keydown', e => {
   e.preventDefault();   // Space không cuộn trang
   t.click();            // tổng hợp click -> chạy qua listener click ở trên
 });
+/* ===== VUỐT MÉP TRÁI = QUAY LẠI (điện thoại) =================================================
+   Modal trên điện thoại chiếm trọn màn hình, nên nó phải cư xử như MỘT MÀN HÌNH: vuốt từ mép trái
+   sang phải là lùi về màn trước (lớp modal dưới, hoặc đóng hẳn) — đúng quy ước iOS/Android.
+   Vùng mép trái ≤24px chính là vùng mà bộ cử chỉ xoá-hàng bên dưới CỐ Ý chừa ra, nên hai cử chỉ
+   không tranh nhau: chạm mép = quay lại, chạm giữa hàng = giữ/kéo để xoá.
+   Chỉ chạy khi modal đang mở; ngoài modal thì để nguyên cử chỉ back của hệ điều hành. */
+const _VUOT = { MEP: 26, NGUONG: 70, LECH_HUY: 40 };
+let _vuot = null;
+document.addEventListener('touchstart', e => {
+  _vuot = null;
+  if (e.touches.length !== 1) return;
+  if (!el('overlay') || !el('overlay').classList.contains('show')) return;
+  if (!window.matchMedia || !matchMedia('(max-width:620px)').matches) return; // chỉ ở chế độ TOÀN MÀN HÌNH
+  const p = e.touches[0];
+  if (p.clientX > _VUOT.MEP) return;
+  _vuot = { x0: p.clientX, y0: p.clientY, keo: false };
+}, { passive: true });
+document.addEventListener('touchmove', e => {
+  if (!_vuot) return;
+  const p = e.touches[0], dx = p.clientX - _vuot.x0, dy = p.clientY - _vuot.y0;
+  if (!_vuot.keo) {
+    if (Math.abs(dy) > _VUOT.LECH_HUY && Math.abs(dy) > Math.abs(dx)) return (_vuot = null);  // đang cuộn dọc
+    if (dx <= 8) return;
+    _vuot.keo = true;
+  }
+  const m = el('modal');
+  if (m) { m.style.transition = 'none'; m.style.transform = `translateX(${Math.max(0, dx)}px)`; m.style.opacity = String(Math.max(.35, 1 - dx / 420)); }
+}, { passive: true });
+document.addEventListener('touchend', () => {
+  if (!_vuot) return;
+  const m = el('modal'), keo = _vuot.keo, dx = m ? parseFloat((m.style.transform.match(/-?[\d.]+/) || [0])[0]) : 0;
+  _vuot = null;
+  if (m) { m.style.transition = ''; m.style.transform = ''; m.style.opacity = ''; }
+  // modalCuChiLui (không phải modalBack): nó nuốt thêm cú popstate mà trình duyệt tự sinh cho cùng
+  // cú vuốt mép này, nếu không thì một cái vuốt lùi mất hai lớp.
+  if (keo && dx >= _VUOT.NGUONG && typeof modalCuChiLui === 'function') modalCuChiLui();
+}, { passive: true });
+document.addEventListener('touchcancel', () => {
+  const m = el('modal');
+  if (_vuot && m) { m.style.transition = ''; m.style.transform = ''; m.style.opacity = ''; }
+  _vuot = null;
+}, { passive: true });
+
 /* ===== CỬ CHỈ TRÊN HÀNG BẢNG (điện thoại): GIỮ hoặc KÉO NGANG = XOÁ ==========================
    Trên điện thoại nút thùng rác bị ẩn (.row-del) vì đứng sát vùng bấm của hàng, chỉ lệch vài pixel
    là bấm nhầm. Thay bằng cử chỉ có chủ đích: GIỮ ~0,6s hoặc KÉO NGANG hàng qua 90px.

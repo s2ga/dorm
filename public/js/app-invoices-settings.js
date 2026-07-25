@@ -157,15 +157,18 @@ async function saveOneInvoice() {
   if (r.invoice) { r.invoice.room_name = (roomById(r.invoice.room_id) || {}).name || ''; setTimeout(() => phieuBao(r.invoice), 150); }
 }
 async function generateForm() {
-  el('overlay').classList.add('show');
-  el('modal').className = 'modal wide';
-  el('modal').innerHTML = `<div class="mb"><div class="spinner"></div></div>`;
+  // Qua openModal chứ KHÔNG tự bật .show: openModal mới là chỗ đẩy mục lịch sử (để Back của hệ điều
+  // hành / vuốt mép trái đóng được modal), khoá cuộn trang nền, và chụp ảnh form cho lá chắn "dữ liệu
+  // chưa lưu". Tự bật tay là mất cả ba — đây là 1 trong 2 modal duy nhất còn đi cửa sau.
+  openModal(`<div class="mb"><div class="spinner"></div></div>`, true);
   await renderGenerateForm(invMonth);
 }
 async function renderGenerateForm(month) {
-  el('modal').innerHTML = `<div class="mb"><div class="spinner"></div></div>`;   // BL-34: spinner khi đổi kỳ
+  // modalThay: vẽ lại CHÍNH lớp này (đổi kỳ vẽ lại nhiều lần). Ghi thẳng innerHTML thì ngăn xếp
+  // modal vẫn giữ HTML cũ -> vuốt quay lại trả về đúng cái spinner của lần vẽ đầu.
+  modalThay(`<div class="mb"><div class="spinner"></div></div>`);   // BL-34: spinner khi đổi kỳ
   const rooms = await guard(() => API.electric(month));
-  el('modal').innerHTML = `
+  modalThay(`
     <div class="mh"><h3>${IC.receipt} Tạo hóa đơn tháng</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
     <div class="mb">
       <div class="field"><label>Kỳ (tháng)</label><input id="g_month" type="month" value="${month}" data-change="onGenMonth"></div>
@@ -173,7 +176,7 @@ async function renderGenerateForm(month) {
       ${electricTable(rooms)}
       <p class="muted" style="font-size:12px;margin-top:10px">Hóa đơn <strong>chưa đóng</strong> sẽ được <strong>tính lại</strong> theo điện & ngày mới; hóa đơn <strong>đã đóng</strong> được giữ nguyên.</p>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="runGenerate">Lưu số điện & tạo/cập nhật hóa đơn</button></div>`;
+    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="runGenerate">Lưu số điện & tạo/cập nhật hóa đơn</button></div>`);
 }
 // Bảng nhập chỉ số điện (số đầu + số cuối đều sửa được)
 function electricTable(rooms) {
@@ -219,22 +222,21 @@ function badElectricRooms() {
 /* Màn hình nhập chỉ số điện độc lập (lưu, không tạo hóa đơn) */
 let elecMonth = curMonth();
 async function electricForm() {
-  el('overlay').classList.add('show'); el('modal').className = 'modal wide';
-  el('modal').innerHTML = `<div class="mb"><div class="spinner"></div></div>`;
+  openModal(`<div class="mb"><div class="spinner"></div></div>`, true);   // xem ghi chú ở generateForm
   await renderElectricForm(elecMonth);
 }
 async function renderElectricForm(month) {
   elecMonth = month;
-  el('modal').innerHTML = `<div class="mb"><div class="spinner"></div></div>`;   // BL-34: spinner khi đổi kỳ
+  modalThay(`<div class="mb"><div class="spinner"></div></div>`);   // BL-34: spinner khi đổi kỳ
   const rooms = await guard(() => API.electric(month));
-  el('modal').innerHTML = `
+  modalThay(`
     <div class="mh"><h3>${IC.zap} Chỉ số điện theo tháng</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
     <div class="mb">
       <div class="field"><label>Kỳ (tháng)</label><input id="e_month" type="month" value="${month}" data-change="onElecMonth"></div>
       <div class="hint">Nhập số đầu (lần đầu để test) và số cuối. Tháng sau số đầu sẽ tự nối tiếp. Bấm Lưu để ghi lại — dùng khi tạo hóa đơn.</div>
       ${electricTable(rooms)}
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Đóng</button><button class="btn pri" data-act="saveElectric">Lưu chỉ số điện</button></div>`;
+    <div class="mf"><button class="btn" data-act="closeModal">Đóng</button><button class="btn pri" data-act="saveElectric">Lưu chỉ số điện</button></div>`);
 }
 async function saveElectric() {
   if (badElectricRooms().length) return toast('Có phòng "số cuối < số đầu" — sửa lại chỉ số điện trước khi lưu', 'err');
