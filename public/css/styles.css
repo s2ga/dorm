@@ -595,9 +595,14 @@ body.drawer-open{overflow:hidden}
   .modal .mh,.modal .mb,.modal .mf{padding-left:16px;padding-right:16px}
   .pill-row{gap:7px}
   .cards,.kpis{gap:12px}
-  /* BL-46: đưa cụm nút hành động + chuông xuống HÀNG RIÊNG dưới tựa (flex-basis:100%) → khối tựa
-     (flex:1) chiếm trọn hàng 1, hết cảnh tựa/phụ đề bị nén thành cột dọc trên màn hẹp. */
-  .top>.flex{flex-basis:100%;justify-content:flex-start;margin-top:2px}
+  /* BL-46 (sửa lại): trước đây đẩy CẢ cụm phải xuống hàng riêng và căn TRÁI — kéo theo cả cái chuông,
+     nên nó rơi xuống dòng dưới, nằm thụt lẻ loi bên trái, đọc như bị vỡ giao diện.
+     Nay chỉ có CỤM NÚT HÀNH ĐỘNG xuống hàng: chuông (và bộ chọn cơ sở) ở lại hàng đầu, sát mép phải —
+     đúng chỗ mắt tìm thông báo. Khối tựa vẫn flex:1 + min-width:0 nên tự co, không bị nén thành cột. */
+  .top>.flex{margin-left:auto;flex-shrink:0}          /* cụm chuông: bám mép phải hàng đầu, không co */
+  .top>#topActions{flex-basis:100%;justify-content:flex-end;margin-top:2px}
+  /* Rỗng thì đừng chiếm chỗ: flex-basis:100% vẫn tạo một dòng trống + khoảng hở thừa dưới chuông. */
+  .top>#topActions:empty{display:none}
   /* BL-26: vùng chạm ≥40px cho nút nhỏ/phễu lọc/điều hướng lịch; input ≥16px chặn iOS auto-zoom. */
   .btn.sm,.btn.ghost,.cal-nav{min-height:40px}
   .btn.ghost,.col-filt,.cal-nav{min-width:40px}

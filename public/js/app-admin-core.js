@@ -40,11 +40,14 @@ function renderAdmin() {
           <button class="hamburger" data-act="toggleSide" aria-label="Menu" aria-expanded="false">${IC.menu}</button>
           <button class="hamburger" id="backBtn" data-act="goBack" aria-label="Quay lại" title="Quay lại" style="display:none">${IC.arrowLeft}</button>
           <div style="flex:1;min-width:0"><h1 id="pgTitle">Tổng quan</h1><div class="sub" id="pgSub"></div></div>
+          ${/* topActions nằm NGOÀI cụm chuông: trên điện thoại cụm nút hành động rộng cả trăm pixel,
+                để chung một cụm là kéo luôn cái chuông xuống dòng dưới (xem styles.css @820px). Tách ra
+                thì chuông + bộ chọn cơ sở ở lại hàng đầu sát mép phải, chỉ nút hành động xuống hàng. */''}
           <div class="flex" style="gap:10px">
             <span id="facSel"></span>
             <button class="notif-bell" id="notifBell" title="Thông báo" aria-haspopup="dialog" aria-expanded="false" data-act="toggleNotif">${IC.bell}<span class="notif-dot" id="notifDot" style="display:none"></span></button>
-            <div class="toolbar" id="topActions"></div>
           </div>
+          <div class="toolbar" id="topActions"></div>
         </div>
         <div class="content" id="content"><div class="spinner"></div></div>
       </div>
