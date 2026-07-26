@@ -755,3 +755,24 @@ tbody tr[data-act]:focus-visible{outline:2px solid var(--brand);outline-offset:-
 @media(max-width:620px) and (prefers-reduced-motion:reduce){
   .modal,.modal.wide{animation:none}
 }
+
+/* ===== CHUYỂN MÀN TRÊN ĐIỆN THOẠI: hiệu ứng + kéo mép trái để quay lại ========================
+   Trên điện thoại, đổi màn mà nội dung thay tức thì thì người dùng mất phương hướng: không biết vừa
+   đi TIẾP hay vừa LÙI. Hướng trượt trả lời câu đó — vào từ phải = đi tiếp, vào từ trái = quay lại,
+   y như cách mọi ứng dụng điện thoại làm.
+   .main = đúng một màn hình (đầu trang + nội dung), không gồm menu bên -> kéo nó là kéo cả màn. */
+@media(max-width:620px){
+  .content.nav-phai{animation:nav-vao-phai .24s cubic-bezier(.32,.72,0,1)}
+  .content.nav-trai{animation:nav-vao-trai .24s cubic-bezier(.32,.72,0,1)}
+  @keyframes nav-vao-phai{from{transform:translateX(26px);opacity:.3}to{transform:none;opacity:1}}
+  @keyframes nav-vao-trai{from{transform:translateX(-26px);opacity:.3}to{transform:none;opacity:1}}
+  /* đang kéo theo tay: bám sát ngón, không được có độ trễ */
+  .main.keo-man{transition:none;will-change:transform}
+  /* nhả tay: hoặc bật về chỗ, hoặc trượt hẳn ra rồi màn mới vào */
+  .main.keo-ve{transition:transform .2s cubic-bezier(.32,.72,0,1),opacity .2s}
+  .main.keo-ra{transition:transform .18s ease-in,opacity .18s ease-in;transform:translateX(100%);opacity:.2}
+}
+@media(prefers-reduced-motion:reduce){
+  .content.nav-phai,.content.nav-trai{animation:none}
+  .main.keo-ve,.main.keo-ra{transition:none}
+}

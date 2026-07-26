@@ -59,16 +59,25 @@ document.addEventListener('keydown', e => {
    Vùng mép trái ≤24px chính là vùng mà bộ cử chỉ xoá-hàng bên dưới CỐ Ý chừa ra, nên hai cử chỉ
    không tranh nhau: chạm mép = quay lại, chạm giữa hàng = giữ/kéo để xoá.
    Chỉ chạy khi modal đang mở; ngoài modal thì để nguyên cử chỉ back của hệ điều hành. */
-const _VUOT = { MEP: 26, NGUONG: 70, LECH_HUY: 40 };
+// Cử chỉ áp cho HAI thứ, tuỳ lúc đó đang có gì trên màn:
+//   · modal đang mở  -> lùi một lớp modal (hoặc đóng)
+//   · màn thường     -> QUAY LẠI MÀN TRƯỚC, kéo cả .main theo tay rồi trượt hẳn ra
+// Không có chỗ để lùi (đang ở màn gốc) thì vẫn cho kéo một đoạn ngắn rồi bật về — im lặng không phản
+// hồi gì thì người dùng tưởng máy đơ, còn kéo hụt một cái là hiểu ngay "hết đường lùi".
+const _VUOT = { MEP: 26, NGUONG: 70, LECH_HUY: 40, CAN_GOC: 44 };
 let _vuot = null;
+const _vuotManHinh = () => el('main') || document.querySelector('.main');
 document.addEventListener('touchstart', e => {
   _vuot = null;
   if (e.touches.length !== 1) return;
-  if (!el('overlay') || !el('overlay').classList.contains('show')) return;
-  if (!window.matchMedia || !matchMedia('(max-width:620px)').matches) return; // chỉ ở chế độ TOÀN MÀN HÌNH
+  if (!window.matchMedia || !matchMedia('(max-width:620px)').matches) return; // chỉ chế độ điện thoại
   const p = e.touches[0];
   if (p.clientX > _VUOT.MEP) return;
-  _vuot = { x0: p.clientX, y0: p.clientY, keo: false };
+  const trongModal = el('overlay') && el('overlay').classList.contains('show');
+  if (!trongModal && !_vuotManHinh()) return;                 // màn đăng nhập / cổng -> không có gì để kéo
+  // Màn gốc (chưa đi đâu) thì chỉ cho kéo hụt: có phản hồi nhưng không lùi.
+  const luiDuoc = trongModal || (typeof navDepth === 'function' && navDepth() > 0);
+  _vuot = { x0: p.clientX, y0: p.clientY, keo: false, trongModal, luiDuoc };
 }, { passive: true });
 document.addEventListener('touchmove', e => {
   if (!_vuot) return;
@@ -77,22 +86,53 @@ document.addEventListener('touchmove', e => {
     if (Math.abs(dy) > _VUOT.LECH_HUY && Math.abs(dy) > Math.abs(dx)) return (_vuot = null);  // đang cuộn dọc
     if (dx <= 8) return;
     _vuot.keo = true;
+    if (!_vuot.trongModal) { const s = _vuotManHinh(); if (s) s.classList.add('keo-man'); }
   }
-  const m = el('modal');
-  if (m) { m.style.transition = 'none'; m.style.transform = `translateX(${Math.max(0, dx)}px)`; m.style.opacity = String(Math.max(.35, 1 - dx / 420)); }
+  const dich = _vuot.trongModal ? el('modal') : _vuotManHinh();
+  if (!dich) return;
+  // Kéo hụt ở màn gốc: cho đi rất ngắn rồi ì lại (kiểu dây chun), đủ để thấy là "không lùi được nữa".
+  const di = _vuot.luiDuoc ? Math.max(0, dx) : Math.min(_VUOT.CAN_GOC, Math.max(0, dx) * .35);
+  if (_vuot.trongModal) dich.style.transition = 'none';
+  dich.style.transform = `translateX(${di}px)`;
+  dich.style.opacity = String(Math.max(.35, 1 - di / 420));
 }, { passive: true });
 document.addEventListener('touchend', () => {
   if (!_vuot) return;
-  const m = el('modal'), keo = _vuot.keo, dx = m ? parseFloat((m.style.transform.match(/-?[\d.]+/) || [0])[0]) : 0;
+  const trongModal = _vuot.trongModal, luiDuoc = _vuot.luiDuoc, keo = _vuot.keo;
+  const dich = trongModal ? el('modal') : _vuotManHinh();
+  const dx = dich ? parseFloat((dich.style.transform.match(/-?[\d.]+/) || [0])[0]) : 0;
   _vuot = null;
-  if (m) { m.style.transition = ''; m.style.transform = ''; m.style.opacity = ''; }
-  // modalCuChiLui (không phải modalBack): nó nuốt thêm cú popstate mà trình duyệt tự sinh cho cùng
-  // cú vuốt mép này, nếu không thì một cái vuốt lùi mất hai lớp.
-  if (keo && dx >= _VUOT.NGUONG && typeof modalCuChiLui === 'function') modalCuChiLui();
+  const du = keo && luiDuoc && dx >= _VUOT.NGUONG;
+
+  if (trongModal) {
+    if (dich) { dich.style.transition = ''; dich.style.transform = ''; dich.style.opacity = ''; }
+    // modalCuChiLui (không phải modalBack): nó nuốt thêm cú popstate mà trình duyệt tự sinh cho cùng
+    // cú vuốt mép này, nếu không thì một cái vuốt lùi mất hai lớp.
+    if (du && typeof modalCuChiLui === 'function') modalCuChiLui();
+    return;
+  }
+  if (!dich) return;
+  dich.classList.remove('keo-man');
+  if (!du) {                                   // chưa tới ngưỡng (hoặc hết đường lùi) -> bật về chỗ
+    dich.classList.add('keo-ve');
+    dich.style.transform = ''; dich.style.opacity = '';
+    setTimeout(() => dich.classList.remove('keo-ve'), 220);
+    return;
+  }
+  // Đủ ngưỡng: trượt hẳn màn cũ ra rồi mới đổi màn — màn mới tự trượt vào từ trái (navHieuUng).
+  dich.classList.add('keo-ra');
+  dich.style.transform = ''; dich.style.opacity = '';
+  setTimeout(() => {
+    dich.classList.remove('keo-ra');
+    dich.style.transform = ''; dich.style.opacity = '';
+    if (typeof goBackCuChi === 'function') goBackCuChi();
+  }, 180);
 }, { passive: true });
 document.addEventListener('touchcancel', () => {
-  const m = el('modal');
-  if (_vuot && m) { m.style.transition = ''; m.style.transform = ''; m.style.opacity = ''; }
+  if (_vuot) {
+    const dich = _vuot.trongModal ? el('modal') : _vuotManHinh();
+    if (dich) { dich.classList.remove('keo-man'); dich.style.transition = ''; dich.style.transform = ''; dich.style.opacity = ''; }
+  }
   _vuot = null;
 }, { passive: true });
 

@@ -411,6 +411,25 @@ function syncFilterUrl() {
 // Nút "Quay lại" (‹) chỉ hiện khi d>0 → ở màn gốc thì ẩn, không bấm back ra ngoài app.
 const navDepth = () => (history.state && history.state.d) || 0;
 function goBack() { history.back(); }               // routing (BL-10) + onpopstate đã xử lý sẵn
+
+// Hiệu ứng chuyển màn (chỉ điện thoại). Hướng trượt cho biết vừa ĐI TIẾP hay vừa QUAY LẠI — không có
+// nó thì đổi màn chỉ là nội dung nhảy phát một, người dùng mất phương hướng.
+// Vẽ LẠI CÙNG MÀN (lưu xong, đổi bộ lọc) KHÔNG chạy hiệu ứng: nhấp nháy suốt ngày còn khó chịu hơn.
+function navHieuUng(huong) {
+  const c = el('content');
+  if (!c || !window.matchMedia || !matchMedia('(max-width:620px)').matches) return;
+  c.classList.remove('nav-phai', 'nav-trai');
+  void c.offsetWidth;                    // ép tính lại bố cục -> animation chạy lại từ đầu, không thì lần 2 im
+  c.classList.add('nav-' + huong);
+  const xong = () => { c.classList.remove('nav-phai', 'nav-trai'); c.removeEventListener('animationend', xong); };
+  c.addEventListener('animationend', xong);
+}
+
+// LÙI BẰNG CỬ CHỈ (vuốt mép trái ở màn thường, không phải trong modal).
+// Trên trình duyệt (không phải PWA đã cài), vuốt mép trái CŨNG là cử chỉ back của Chrome/Safari -> sẽ
+// có cú popstate THỨ HAI cho cùng một thao tác, tức lùi 2 màn. Đánh dấu để onpopstate huỷ cú thừa đó.
+let _luiCuChi = null;
+function goBackCuChi() { _luiCuChi = { t: Date.now(), daDung: false }; history.back(); }
 function updateBackBtn() { const b = el('backBtn'); if (b) b.style.display = navDepth() > 0 ? '' : 'none'; }
 
 // opts.replace: nạp lần đầu (thay URL, không thêm history) · opts.fromPop: đến từ nút Back/Forward
@@ -455,6 +474,8 @@ function adminGo(view, opts) {
   }
   updateBackBtn();  // BL-58: hiện/ẩn nút Quay lại theo độ sâu điều hướng
   const _vp = ({ exec: viewExec, dashboard: viewDashboard, students: viewStudents, rooms: viewRooms, services: viewServices, checkin: viewCheckin, invoices: viewInvoices, revenue: viewRevenue, reg: viewRequests, checkout: viewRequests, repair: viewRequests, violations: viewRequests, feedback: viewRequests, audit: viewAudit, settings: viewSettings }[view])();
+  // Đổi màn -> trượt vào. fromPop = đến từ Back (kể cả cử chỉ vuốt) nên vào từ TRÁI; còn lại là đi tiếp.
+  if (view !== prev) navHieuUng(opts.fromPop ? 'trai' : 'phai');
   // BL-21: màn async reject (lỗi tải) -> khối lỗi + Thử lại thay vì kẹt spinner. (Các màn tự bắt lỗi nội bộ thì không reject.)
   if (_vp && _vp.catch) _vp.catch(e => renderViewError(view, e));
 }
@@ -466,6 +487,17 @@ window.onpopstate = () => {
   // Hàm này cũng áp cho cổng học viên / bảo trì (chúng dùng chung #overlay nhưng không có #nav).
   if (typeof modalXuLyPop === 'function' && modalXuLyPop()) return;
   if (!Auth.user || !['admin', 'staff'].includes(Auth.user.role) || !el('nav')) return; // chỉ áp cho giao diện quản trị
+  // Vuốt mép trái vừa gọi history.back(): cú popstate ĐẦU là của ta (xử lý bình thường). Nếu có cú
+  // THỨ HAI ngay sau đó thì đó là trình duyệt tự lùi thêm cho cùng cú vuốt — kéo lại về màn đang xem,
+  // không thì một cái vuốt đi tụt hai màn. pushState KHÔNG phát popstate nên không sinh vòng lặp.
+  if (_luiCuChi && Date.now() - _luiCuChi.t < 900) {
+    if (_luiCuChi.daDung) {
+      _luiCuChi = null;
+      history.pushState({ view: ST.view, d: navDepth() }, '', filterUrl(ST.view));
+      return;
+    }
+    _luiCuChi.daDung = true;
+  } else { _luiCuChi = null; }
   const v = viewFromPath(location.pathname);
   if (v) adminGo(v, { fromPop: true });
   else location.reload(); // lùi tới đường dẫn ngoài hệ view (vd /dang-ky) -> để boot() tự quyết
