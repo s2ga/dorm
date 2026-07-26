@@ -17,8 +17,10 @@ async function viewRooms() {
         <div class="search"><span class="i">${IC.search}</span><input id="rs" placeholder="Tìm phòng, tầng, giới tính..." value="${esc(roomSearch)}"></div>
       </div>
     </div>
-      ${del || !list.length ? '' : `<div class="hint only-touch" style="margin:16px 16px 0">${IC.info}<span>Bấm một hàng để xem chi tiết phòng (sửa phòng và cử phòng trưởng nằm trong đó).
-        Muốn xoá: <strong>giữ</strong> hàng đó khoảng 1 giây, hoặc <strong>kéo ngang</strong> hàng sang trái/phải.</span></div>`}
+      ${/* Gợi ý phải NGẮN: nó nằm chắn giữa ô tìm kiếm và phòng đầu tiên, dài dòng là đẩy danh sách
+            xuống dưới màn. Việc "bấm để xem chi tiết" đã có mũi tên ‹ ở mỗi hàng nói hộ; chỉ cử chỉ
+            xoá là không tự nói ra được, nên giữ đúng câu đó. */''}
+      ${del || !list.length ? '' : `<div class="hint only-touch" style="margin:12px 12px 0">${IC.info}<span><strong>Giữ</strong> hoặc <strong>kéo ngang</strong> một hàng để xoá phòng.</span></div>`}
     <div class="table-wrap card-tbl">
       ${list.length ? `<table><thead><tr><th>Phòng</th><th>Loại</th><th class="num">Đang ở</th><th>${IC.star} Phòng trưởng</th><th class="num">Giá thuê</th><th></th></tr></thead><tbody>
       ${list.map(r => { const full = r.occupancy >= r.capacity && r.capacity > 0; return `<tr data-s="${esc((r.name + ' ' + genderLabel(r.gender) + ' tầng' + r.floor + ' hạng' + (r.hang || 'b')).toLowerCase())}"${del ? ''
@@ -35,9 +37,11 @@ async function viewRooms() {
         <td><div class="flex${del ? '' : ' stu-name'}"${del ? '' : ` data-act="roomDetail" data-args='[${r.id}]' role="button" tabindex="0" title="Xem chi tiết phòng — ai đang ở"`}><div><strong>${esc(r.name)}</strong>${r.upcoming ? ` <span class="badge blue" title="Sắp vào">+${r.upcoming}</span>` : ''}
           <div class="sub2">Tầng ${r.floor || '—'}</div>${r.note ? `<div class="sub2" style="white-space:pre-wrap;margin-top:3px">${esc(r.note)}</div>` : ''}</div>
           ${del ? '' : `<span class="row-chev" aria-hidden="true">${IC.chevronRight}</span>`}</div></td>
-        <td data-label="Loại"><span>${r.gender === 'female' ? '<span class="badge sage">Nữ</span>' : '<span class="badge blue">Nam</span>'} <span class="badge gray">Hạng ${esc(r.hang || 'B')}</span>${!roomIsShared(r) ? ' ' + roomTypeBadge(r) : ''}</span></td>
-        <td class="num" data-label="Đang ở">${roomIsShared(r) ? `<span class="badge ${full ? 'amber' : r.occupancy ? 'green' : 'gray'}">${r.occupancy}/${r.capacity || 0}</span>` : `<span class="badge gray">${r.occupancy} người</span>`}</td>
-        <td data-label="Phòng trưởng">${leaderCell(r)}</td>
+        <td class="ct-gon" data-label="Loại"><span>${r.gender === 'female' ? '<span class="badge sage">Nữ</span>' : '<span class="badge blue">Nam</span>'} <span class="badge gray">Hạng ${esc(r.hang || 'B')}</span>${!roomIsShared(r) ? ' ' + roomTypeBadge(r) : ''}</span></td>
+        <td class="num ct-gon" data-label="Đang ở">${roomIsShared(r) ? `<span class="badge ${full ? 'amber' : r.occupancy ? 'green' : 'gray'}">${r.occupancy}/${r.capacity || 0}</span>` : `<span class="badge gray">${r.occupancy} người</span>`}</td>
+        ${/* data-trong: ô rỗng thì ở chế độ thẻ (điện thoại) ẩn hẳn dòng — "PHÒNG TRƯỞNG —" không
+              đáng chiếm một dòng, không hiện tức là chưa cử. Máy tính vẫn giữ cột cho thẳng hàng. */''}
+        <td data-label="Phòng trưởng"${leaderOf(r.id) ? '' : ' data-trong="1"'}>${leaderCell(r)}</td>
         ${/* bọc giá trị trong MỘT thẻ: ở chế độ thẻ, td[data-label] là flex space-between nên nhiều
              con sẽ bị xé ra hai đầu ("1.200.000" một bên, "/người" bên kia) */''}
         <td class="num" data-label="Giá thuê"><span>${money(+r.monthly_fee > 0 ? r.monthly_fee : ST.settings.room_fee)}${roomIsShared(r) ? '<span class="muted">/người</span>' : ''}${roomType(r) === 'whole' ? `<div class="sub2">Nguyên phòng: ${money(ST.settings['room_price_' + (r.hang || 'B')])}</div>` : ''}</span></td>
@@ -303,7 +307,11 @@ function viewStudents() {
     <div class="panel"><div class="hd"><h2>Học viên (<span id="stuCount">${list.length}</span>)</h2>
       <div class="search"><span class="i">${IC.search}</span><input id="ss" placeholder="Tìm tên, mã, lớp, SĐT, số phòng..." value="${esc(stuSearch)}"></div>
     </div><div class="table-wrap card-tbl">
-      ${list.length ? `<table><thead><tr>${sTh('name', 'Học viên')}${sTh('room', 'Phòng')}${sTh('contract', 'Hợp đồng')}${sTh('deposit', 'Cọc')}${hasXC ? '<th>Dự kiến XC</th>' : ''}${sTh('status', 'Trạng thái')}<th></th></tr></thead><tbody>
+      ${/* Thứ tự cột: Trạng thái đứng ngay sau Phòng. Hai ô này đều ngắn nên ở chế độ THẺ (điện thoại)
+            chúng nằm chung một dòng (.ct-gon) thay vì mỗi thứ một dòng — thẻ thấp đi, xem được nhiều
+            người hơn trong một màn. Trên máy tính thì đây cũng là thứ tự dễ đọc hơn: ở phòng nào và
+            đang ở hay đã trả là hai câu hỏi đi liền nhau. */''}
+      ${list.length ? `<table><thead><tr>${sTh('name', 'Học viên')}${sTh('room', 'Phòng')}${sTh('status', 'Trạng thái')}${sTh('contract', 'Hợp đồng')}${sTh('deposit', 'Cọc')}${hasXC ? '<th>Dự kiến XC</th>' : ''}<th></th></tr></thead><tbody>
       ${list.map(s => {
         const flags = `${isOccupying(s) && s.residency_status !== 'registered' ? `<span title="Chưa đăng ký tạm trú"> ${IC.flag}</span>` : ''}${s.uses_washing ? `<span title="Máy giặt"> ${IC.washer}</span>` : ''}${s.vehicle_count ? `<span title="Xe gửi"> ${IC.bike}${s.vehicle_count}</span>` : ''}${s.violation_count ? `<span title="Vi phạm ${s.violation_count} lần" style="color:${s.violation_count >= vthr ? 'var(--red-ink)' : 'var(--amber-ink)'}"> ${IC.alert}${s.violation_count}</span>` : ''}`;
         const ds = esc((s.name + ' ' + (s.code || '') + ' ' + (s.phone || '') + ' ' + (s.class_name || '') + ' ' + (s.room_name || '')).toLowerCase());
@@ -312,11 +320,11 @@ function viewStudents() {
           <strong>${esc(s.name)}</strong> <span class="badge ${s.gender === 'female' ? 'sage' : 'blue'}">${genderLabel(s.gender)}</span>${s.login_username ? ` <span title="Có tài khoản">${IC.key}</span>` : ''}
           <div class="sub2">${esc(s.code || '—')}${s.class_name ? ' · ' + esc(s.class_name) : ''}${showFacilityUI() && s.facility_id ? ` · <span class="badge gray" style="font-size:10px">${esc(facilityName(s.facility_id))}</span>` : ''}${flags}</div>
         </div><span class="row-chev" aria-hidden="true">${IC.chevronRight}</span></div></td>
-        <td data-label="Phòng">${s.room_name ? `<strong>${esc(s.room_name)}</strong>` : '<span class="muted">Chưa xếp</span>'}${s.rental_type === 'phong' ? '<div class="sub2">Thuê nguyên phòng</div>' : ''}</td>
+        <td class="ct-gon" data-label="Phòng">${s.room_name ? `<strong>${esc(s.room_name)}</strong>` : '<span class="muted">Chưa xếp</span>'}${s.rental_type === 'phong' ? '<div class="sub2">Thuê nguyên phòng</div>' : ''}</td>
+        <td class="ct-gon" data-label="Trạng thái">${statusBadge(s)}</td>
         <td data-label="Hợp đồng"><span class="badge ${CONTRACT_BADGE[s.contract_status] || 'gray'}">${CONTRACT_LABEL[s.contract_status] || '—'}</span>${s.contract_no ? `<div class="sub2">${esc(s.contract_no)}</div>` : ''}</td>
         <td data-label="Cọc">${depositBadge(s)}${s.deposit_status === 'none' && isOccupying(s) ? ` <button class="btn sm ghost" style="white-space:nowrap" title="Ghi nhận đóng cọc" data-act="depositForm" data-args='[${s.id}]'>＋ Thu cọc</button>` : ''}</td>
         ${hasXC ? `<td class="muted" data-label="Dự kiến XC" style="font-size:12px;white-space:nowrap">${xcOf(s) ? fmtDate(xcOf(s)) : '—'}</td>` : ''}
-        <td data-label="Trạng thái">${statusBadge(s)}</td>
         <td class="num"><div class="rowbtns" style="justify-content:flex-end">
           ${isOccupying(s) ? `<button class="btn sm danger" data-act="checkOutForm" data-args='[${s.id}]'>Check-out</button>` : `<button class="btn sm" title="Nhận lại học viên đã trả phòng" data-act="checkInForm" data-args='[${s.id}]'>Check-in</button>`}
         </div></td></tr>`; }).join('')}

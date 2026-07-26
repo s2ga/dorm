@@ -761,6 +761,37 @@ tbody tr[data-act]:focus-visible{outline:2px solid var(--brand);outline-offset:-
   .modal,.modal.wide{animation:none}
 }
 
+/* ===== MẬT ĐỘ TRÊN ĐIỆN THOẠI ================================================================
+   Đo trên khung 390x844 màn Phòng: 377px (45% màn hình) là tiêu đề + tên bảng + ô tìm + gợi ý,
+   rồi mỗi thẻ phòng 204px nữa -> cuộn cả màn chỉ thấy ĐÚNG HAI phòng. Phần lớn chỗ đó là khoảng
+   trống và chữ trang trí của bố cục máy tính bê nguyên xuống. Bóp lại từng chỗ một. */
+@media(max-width:620px){
+  .top h1{font-size:18px}
+  /* Phụ đề trang ("Danh sách phòng theo tầng / hạng / giới tính") xuống 2 dòng mà không nói thêm gì
+     so với chính tên màn đang hiện ngay trên nó. Trên màn hẹp: bỏ. */
+  .top .sub{display:none}
+  .content{padding:12px 12px}
+  .panel{margin-bottom:14px;border-radius:14px}
+  .panel .hd{padding:10px 12px;gap:6px}
+  .panel .hd h2{font-size:15.5px}
+  .hint{padding:9px 12px;font-size:12.5px;line-height:1.45;margin-bottom:12px;border-radius:10px}
+  .hint .ic-svg{width:15px;height:15px;margin:1px 7px 0 0}
+  /* Thẻ hàng: bớt khoảng thở thừa (mỗi ô đang ăn 4px trên + 4px dưới cho một dòng chữ 13px) */
+  .card-tbl tr{padding:8px 12px;margin-bottom:8px}
+  .card-tbl td{padding:2px 0}
+  .card-tbl td[data-label]::before{font-size:10.5px}
+  /* Ô rỗng (vd "PHÒNG TRƯỞNG —") không đáng một dòng trên thẻ: không hiện = chưa có. */
+  .card-tbl td[data-trong]{display:none}
+  /* Ô đánh dấu .ct-gon nằm CHUNG một dòng thay vì mỗi thứ một dòng: giới tính/hạng/số người ở đều là
+     nhãn ngắn, tự nói ra nghĩa, không cần chữ "LOẠI:" hay "ĐANG Ở:" đứng trước cũng hiểu. */
+  .card-tbl td.ct-gon{display:inline-flex;width:auto;padding-right:12px;text-align:left}
+  .card-tbl td.ct-gon::before{display:none}
+  /* Dòng phụ dưới tên (mã HV · lớp) dài thì xuống 2-3 dòng, đẩy cả thẻ cao thêm mà phần đuôi lớp
+     chẳng ai đọc trên danh sách. Cắt gọn một dòng; xem đủ thì mở chi tiết. */
+  .card-tbl .stu-name .sub2{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .card-tbl .rowbtns .btn{min-height:36px}
+}
+
 /* ===== CHUYỂN MÀN TRÊN ĐIỆN THOẠI: hiệu ứng + kéo mép trái để quay lại ========================
    Trên điện thoại, đổi màn mà nội dung thay tức thì thì người dùng mất phương hướng: không biết vừa
    đi TIẾP hay vừa LÙI. Hướng trượt trả lời câu đó — vào từ phải = đi tiếp, vào từ trái = quay lại,
