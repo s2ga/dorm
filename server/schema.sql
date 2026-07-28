@@ -139,6 +139,10 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS approved BOOLEAN NOT NULL DEFAULT tru
 -- SSO -> bỏ ràng buộc NOT NULL và chặn đăng nhập mật khẩu khi password_hash IS NULL.
 ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
 -- Một email / một danh tính Microsoft chỉ gắn được vào MỘT tài khoản còn sống.
+-- deleted_at khai báo NGAY TẠI ĐÂY (khối xoá mềm ở cuối file khai lại, IF NOT EXISTS nên vô hại):
+-- chỉ mục bên dưới lọc theo cột này, mà CSDL RỖNG thì chạy tuần tự từ trên xuống — thiếu cột là
+-- vỡ nguyên file (cả script là MỘT transaction ngầm, hỏng một câu là không tạo được gì).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 CREATE UNIQUE INDEX IF NOT EXISTS ux_users_email ON users (lower(email)) WHERE email IS NOT NULL AND deleted_at IS NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS ux_users_sso_subject ON users (sso_subject) WHERE sso_subject IS NOT NULL;
 
