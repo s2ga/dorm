@@ -1,5 +1,5 @@
 # ---- Ứng dụng quản lý ký túc xá (Go + Gin + PWA) ----
-# Multi-stage: build binary tĩnh rồi bỏ vào image tối giản.
+# Multi-stage: build binary tĩnh rồi bỏ vào image RỖNG (scratch).
 #
 # BUILD ĐA KIẾN TRÚC KHÔNG CẦN GIẢ LẬP (QEMU):
 #   --platform=$BUILDPLATFORM  -> stage build luôn chạy bằng CPU THẬT của máy build.
@@ -15,17 +15,29 @@ COPY . .
 # TARGETOS/TARGETARCH: BuildKit tự truyền vào theo --platform (bỏ trống = giống máy đang build).
 ARG TARGETOS
 ARG TARGETARCH
-# Binary tĩnh (CGO tắt) — tzdata đã nhúng qua import _ "time/tzdata".
+# Binary TĨNH: CGO tắt nên không cần libc trong image cuối; tzdata nhúng sẵn qua
+# import _ "time/tzdata" (internal/timeutil) nên không cần /usr/share/zoneinfo.
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} \
     go build -trimpath -ldflags="-s -w" -o /out/ktx ./cmd/server
 
-FROM alpine:3.20
-# CỐ Ý KHÔNG có lệnh RUN nào ở stage này.
-# Mọi RUN ở stage ĐÍCH phải chạy bằng CPU đích, tức phải qua QEMU khi build chéo — đó đúng là chỗ
-# "exec format error" nổ ra (kernel không hiểu định dạng /bin/sh của kiến trúc khác).
-# Trước đây ở đây có `apk add --no-cache ca-certificates`, mà dòng đó VỐN DĨ THỪA: image alpine gốc
-# đã kèm sẵn /etc/ssl/certs/ca-certificates.crt (gói ca-certificates-bundle) — đủ cho Go gọi HTTPS
-# tới Supabase Storage (S3) và Microsoft. Bỏ đi: build nhanh hơn, và hết phụ thuộc vào QEMU.
+# ---- Image cuối: RỖNG HOÀN TOÀN ----
+# Không shell, không trình quản lý gói, không tiện ích nào. Có gì trong đây là do ta COPY vào, nên
+# bề mặt tấn công gần như bằng không và cũng không còn CVE của distro để vá.
+# Đánh đổi phải biết trước: KHÔNG `docker exec`/`kubectl exec` vào xem được nữa (không có sh).
+# Chẩn đoán bằng: nhật ký (RequestLog + serverErr đã in ra stdout), /api/health, và
+# `kubectl debug -it <pod> --image=alpine --target=ktx` khi thật sự cần soi bên trong.
+FROM scratch
+
+# Bó chứng chỉ gốc — Go cần để xác thực HTTPS tới Supabase Storage (S3) và Microsoft (JWKS/SSO).
+# Lấy từ stage build (chạy trên máy build): đây là tệp VĂN BẢN, không phụ thuộc kiến trúc.
+COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+
+# /tmp: scratch không có sẵn thư mục nào. Go ghi tạm vào đây khi biểu mẫu nhiều phần vượt ngưỡng bộ
+# nhớ (tải ảnh CCCD). Mở quyền ghi cho mọi UID vì tiến trình chạy bằng 65534, không phải root.
+# (Đã kiểm bằng `docker export`: thư mục ra đúng drwxrwxrwx. Bit sticky không được giữ qua COPY —
+# không sao, container này chỉ có MỘT UID nên sticky chẳng bảo vệ ai.)
+COPY --from=build --chmod=777 /tmp /tmp
+
 WORKDIR /app
 COPY --from=build /out/ktx /app/ktx
 # Frontend tĩnh + schema/migrations (db.Init đọc lúc boot).
@@ -35,5 +47,7 @@ COPY server/migrations ./server/migrations
 
 ENV PORT=3000
 EXPOSE 3000
-USER nobody
+# UID bằng SỐ, không phải tên: scratch không có /etc/passwd nên "nobody" không tra ra được.
+# 65534 đúng bằng nobody của alpine và khớp runAsUser trong k8s/helm.
+USER 65534:65534
 CMD ["/app/ktx"]
