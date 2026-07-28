@@ -1,9 +1,49 @@
+# Mọi thứ ở đây KHÔNG được đưa vào build context.
+# Hai lý do, cái nào cũng thật:
+#  1) Rò rỉ: `COPY . .` ở stage build bê nguyên context vào layer. Layer đó không nằm trong image
+#     cuối (scratch chỉ COPY vài đường dẫn), nhưng vẫn còn trong cache và sẽ đi theo nếu ai đó
+#     build --target build hoặc đẩy cache lên registry.
+#  2) Cache: đổi BẤT KỲ tệp nào trong context là vỡ layer `COPY . .` -> biên dịch lại Go từ đầu.
+#     Sửa một dòng tài liệu mà phải build lại toàn bộ là phí thời gian mỗi lần.
+
+# --- Bí mật / dữ liệu ---
+.env
+.env.*
+.data
+
+# --- Không liên quan tới image ---
 node_modules
 npm-debug.log
 .git
 .gitignore
-.env
-*.md
 .vscode
+.idea
 .runtime
-.data
+
+# --- Tài liệu nội bộ: dự án CỐ Ý để ngoài git vì repo công khai (xem AGENTS.md) ---
+# Càng không có lý do gì để nó nằm trong build context.
+.agents
+*.md
+HUONG-DAN-NHANH.txt
+
+# --- Công cụ phát triển, không phải mã chạy thật ---
+tests
+tools
+scratch_*.js
+*.bat
+
+# --- Hạ tầng triển khai: mô tả CÁCH chạy image, bản thân image không cần ---
+k8s
+helm
+docker-compose.yml
+render.yaml
+Dockerfile
+.dockerignore
+
+# --- Của bản Node cũ, backend nay là Go (BL-18) ---
+# GIỮ LẠI server/schema.sql và server/migrations/ — stage cuối COPY thẳng từ context, thiếu là app
+# không dựng nổi lược đồ lúc khởi động.
+server/*.js
+server/routes
+package.json
+package-lock.json

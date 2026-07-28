@@ -7,7 +7,10 @@
 # Không có hai thứ này thì khi build cho máy khác kiến trúc (vd máy amd64 build image arm64),
 # BuildKit phải chạy cả trình biên dịch Go dưới QEMU: chậm gấp nhiều lần, và máy/CI nào chưa cài
 # binfmt thì vỡ ngay với "exec format error".
-FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
+# Ghim tới bản vá cụ thể, không dùng tag trôi (golang:1.26-alpine). Tag trôi nghĩa là hôm nay và
+# tháng sau build ra hai binary khác nhau mà không ai đổi một dòng mã — hỏng thì không biết tại code
+# hay tại trình biên dịch vừa nhảy phiên bản. Nâng phiên bản là một commit có chủ đích.
+FROM --platform=$BUILDPLATFORM golang:1.26.5-alpine3.24 AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
@@ -46,6 +49,11 @@ COPY server/schema.sql ./server/schema.sql
 COPY server/migrations ./server/migrations
 
 ENV PORT=3000
+# TZ ngay trong image, không trông chờ nơi triển khai truyền vào. BLK-5: container mặc định chạy UTC,
+# mà nghiệp vụ tính theo NGÀY giờ Việt Nam (chốt công-tơ, số ngày ở, hạn hợp đồng) — quên đặt là
+# lệch ngày, tức lệch tiền, và sai kiểu đó rất khó thấy. Có mặc định đúng thì nơi nào cần khác vẫn
+# ghi đè được bằng ENV. Chạy được trên scratch vì tzdata đã nhúng trong binary (internal/timeutil).
+ENV TZ=Asia/Ho_Chi_Minh
 EXPOSE 3000
 # UID bằng SỐ, không phải tên: scratch không có /etc/passwd nên "nobody" không tra ra được.
 # 65534 đúng bằng nobody của alpine và khớp runAsUser trong k8s/helm.
