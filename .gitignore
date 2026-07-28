@@ -19,3 +19,6 @@ tools/don-du-lieu.json
 .agents/
 AGENTS.md
 CLAUDE.md
+
+
+/k8s/
