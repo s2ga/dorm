@@ -50,4 +50,14 @@ EXPOSE 3000
 # UID bằng SỐ, không phải tên: scratch không có /etc/passwd nên "nobody" không tra ra được.
 # 65534 đúng bằng nobody của alpine và khớp runAsUser trong k8s/helm.
 USER 65534:65534
-CMD ["/app/ktx"]
+
+# ENTRYPOINT chứ không phải CMD. Khác nhau ở chỗ:
+#   CMD        = lệnh mặc định, `docker run image <gì đó>` THAY LUÔN nó.
+#   ENTRYPOINT = chương trình cố định, phần thêm vào trở thành THAM SỐ của chương trình đó.
+# Image này chỉ có đúng một việc, và là scratch nên bên trong chẳng còn gì khác để chạy: lỡ tay
+# `docker run image sh` thì với CMD sẽ chết khó hiểu ("exec: sh: not found"), còn với ENTRYPOINT thì
+# "sh" chỉ là tham số dư của app. App không đọc cờ dòng lệnh nào (chỉ cấu hình qua ENV) nên không
+# cần CMD đi kèm để làm tham số mặc định.
+# Trong Kubernetes: `command:` mới ghi đè ENTRYPOINT, `args:` ghi đè CMD — manifest ở k8s/ và
+# helm/ đều không đặt cái nào, nên vẫn chạy đúng lệnh này.
+ENTRYPOINT ["/app/ktx"]
