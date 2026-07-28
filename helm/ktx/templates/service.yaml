@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ktx.fullname" . }}
+  labels:
+    {{- include "ktx.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "ktx.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http     # theo TÊN cổng: đổi PORT trong config không phải sửa hai chỗ
+      protocol: TCP

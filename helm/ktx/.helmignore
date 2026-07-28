@@ -1,0 +1,12 @@
+.DS_Store
+.git/
+.gitignore
+*.tmproj
+.vscode/
+.idea/
+*.swp
+*.bak
+*.orig
+# values thật (có bí mật) không được đóng gói vào chart
+values-*.local.yaml
+values.secret.yaml

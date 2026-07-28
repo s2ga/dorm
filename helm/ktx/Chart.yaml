@@ -1,0 +1,19 @@
+apiVersion: v2
+name: ktx
+description: Ứng dụng quản lý Ký túc xá Nội trú Esuhai (Go + Gin + PWA)
+type: application
+# version   = phiên bản CHART (đổi khi sửa template/values)
+# appVersion = phiên bản ỨNG DỤNG (khớp ?v= của asset trong public/index.html)
+version: 0.1.0
+# Có tiền tố "v" để khớp tag image (ghcr.io/...:v164) — image.tag bỏ trống là lấy đúng giá trị này.
+appVersion: "v164"
+keywords:
+  - ktx
+  - dormitory
+  - go
+  - gin
+home: https://github.com/thuyhienvo/ktx-tnh
+sources:
+  - https://github.com/thuyhienvo/ktx-tnh
+maintainers:
+  - name: thuyhienvo

@@ -1,0 +1,116 @@
+# Giá trị mặc định cho chart ktx.
+# Bí mật (CSDL, JWT, S3): ĐỪNG điền vào đây rồi commit — repo này công khai.
+# Dùng `-f values-that.yaml` để ngoài git, hoặc trỏ sang Secret có sẵn (existingSecret).
+
+image:
+  repository: ghcr.io/thuyhienvo/ktx-tnh
+  # Bỏ trống -> lấy .Chart.AppVersion. Dùng tag cụ thể, đừng "latest": không thì rollback
+  # không biết quay về đâu và hai node có thể chạy hai bản khác nhau.
+  tag: ""
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+# MỘT bản chạy + Recreate. App tự áp schema/migration lúc khởi động, hai pod bật cùng lúc là hai
+# tiến trình cùng vá lược đồ trên một CSDL. Muốn >1 thì phải tách phần vá ra Job chạy trước.
+replicaCount: 1
+strategy:
+  type: Recreate
+
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  className: nginx
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+    # nginx.ingress.kubernetes.io/proxy-body-size: "12m"   # ảnh CCCD tối đa 12MB (xem cccdMaxBytes)
+  hosts:
+    - host: ktx.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+    # - secretName: ktx-tls
+    #   hosts: [ktx.example.com]
+
+# ---- Cấu hình KHÔNG bí mật -> ConfigMap ----
+config:
+  # BLK-5: container mặc định UTC -> lệch NGÀY (chốt công-tơ, số ngày ở, hạn hợp đồng tính theo ngày).
+  TZ: "Asia/Ho_Chi_Minh"
+  PORT: "3000"
+  # Sau Ingress là HTTPS -> cookie phiên phải Secure. Thử qua port-forward (http) thì đặt "false",
+  # không thì trình duyệt vứt cookie và cứ bị đá về màn đăng nhập.
+  COOKIE_SECURE: "true"
+  PGSSL: "require"
+  ADMIN_USERNAME: "admin"
+  DORM_NAME: "Ký túc xá Nội trú Esuhai"
+  S3_ENDPOINT: "https://sceuwqrpyungzkhohmvj.storage.supabase.co/storage/v1/s3"
+  S3_REGION: "ap-southeast-1"
+  S3_CCCD_BUCKET: "cccd"
+  S3_INTRO_BUCKET: "intro"
+  SSO_ENABLED: "false"
+
+# ---- Bí mật ----
+# Cách 1 (khuyến nghị): tạo Secret sẵn rồi trỏ tên vào đây, chart sẽ không tự tạo Secret.
+#   kubectl -n ktx create secret generic ktx-secret --from-literal=DATABASE_URL=... ...
+existingSecret: ""
+# Cách 2: để chart tạo Secret từ giá trị dưới đây — CHỈ dùng với file values để ngoài git.
+secret:
+  DATABASE_URL: ""
+  JWT_SECRET: ""        # >= 16 ký tự, nếu không app từ chối khởi động. openssl rand -hex 32
+  ADMIN_PASSWORD: ""    # chỉ dùng lần đầu lúc CSDL chưa có tài khoản quản trị
+  S3_ACCESS_KEY: ""
+  S3_SECRET_KEY: ""
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 96Mi
+  limits:
+    # Cố ý KHÔNG đặt limits.cpu: bóp CPU của Go chỉ kéo dài đuôi độ trễ chứ không bảo vệ được gì.
+    memory: 512Mi
+
+# /api/health CỐ Ý trả 503 khi CSDL chết (MON-01). Nên liveness KHÔNG được dùng nó — CSDL sập mà
+# restart pod thì chỉ tạo CrashLoop. Liveness hỏi "tiến trình còn sống" (TCP), readiness hỏi
+# "có phục vụ được không" (chạm CSDL).
+probes:
+  liveness:
+    periodSeconds: 20
+    failureThreshold: 3
+  readiness:
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  startup:
+    # Boot phải áp schema + chạy migration -> cho tối đa 12 x 5s = 60s.
+    periodSeconds: 5
+    failureThreshold: 12
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65534        # nobody, khớp USER nobody trong Dockerfile
+  runAsGroup: 65534
+  fsGroup: 65534
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true   # app không ghi xuống đĩa; ảnh tải lên đi thẳng S3
+  capabilities:
+    drop: ["ALL"]
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
