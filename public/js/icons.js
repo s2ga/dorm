@@ -46,6 +46,8 @@
     undo: S('<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>'),
     arrowLeft: S('<path d="M19 12H5"/><path d="m12 19-7-7 7-7"/>'),
     chevronRight: S('<path d="m9 18 6-6-6-6"/>'),
+    // Mắt xích: dùng cho liên kết tham chiếu hợp đồng (thành viên -> HĐ của phòng trưởng)
+    link: S('<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>'),
     // Khác
     graduation: S('<path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c3 2.5 9 2.5 12 0v-5"/><path d="M22 10v6"/>'),
     user: S('<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>'),

@@ -72,7 +72,17 @@ func (h *Handlers) GetSettings(c *gin.Context) {
 		return
 	}
 	u := auth.CurrentUser(c)
-	c.JSON(http.StatusOK, sanitizeSettings(s, u != nil && u.Role == "admin"))
+	isAdmin := u != nil && u.Role == "admin"
+	out := sanitizeSettings(s, isAdmin)
+	if isAdmin {
+		// Trạng thái SSO THẬT (chỉ đọc, không lưu được). Giao diện chỉ thấy giá trị trong CSDL, không
+		// thấy ENV AZURE_* — tự suy từ sso_tenant_id/sso_client_id sẽ báo "Đang tắt" trong khi SSO
+		// đang chạy bằng ENV.
+		cfg := h.SSO.Config(c.Request.Context())
+		out["sso_effective"] = cfg.Enabled
+		out["sso_from_env"] = cfg.FromEnv
+	}
+	c.JSON(http.StatusOK, out)
 }
 
 // Danh sách khoá được phép cập nhật. server/routes/settings.routes.js:54-68
@@ -165,7 +175,8 @@ func (h *Handlers) UpdateSettings(c *gin.Context) {
 		if inList(key, secretKeys) && strings.TrimSpace(v) == "" {
 			continue
 		}
-		if key == "smtp_secure" || key == "sso_enabled" {
+		// sso_enabled rỗng = TỰ ĐỘNG (bật khi đủ tham số) — giữ nguyên rỗng, đừng ép thành "false".
+		if key == "smtp_secure" || (key == "sso_enabled" && strings.TrimSpace(v) != "") {
 			if valid.NormalizeBool(v) {
 				v = "true"
 			} else {

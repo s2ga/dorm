@@ -416,6 +416,11 @@ function viewSettings() {
   const setNav = `<div class="pill-row set-nav">${SET_TABS.map(([id, label, ic]) =>
     `<button class="btn sm ${settingsTab === id ? 'pri' : ''}" data-tab="${id}" data-act="settingsGo" data-args='["${id}"]'>${ic} ${label}</button>`).join('')}</div>`;
   const grpOpen = id => `<div class="set-group" data-setgroup="${id}"${settingsTab === id ? '' : ' hidden'}>`;
+  // SSO: trạng thái THẬT do máy chủ tính (sso_effective) — vì Tenant/Client có thể đến từ ENV AZURE_*,
+  // giao diện không nhìn thấy. Máy chủ cũ chưa trả cờ thì mới tự suy từ giá trị trong CSDL.
+  const ssoOn = typeof s.sso_effective === 'boolean'
+    ? s.sso_effective
+    : (s.sso_enabled !== 'false' && !!s.sso_tenant_id && !!s.sso_client_id);
   el('content').innerHTML = setNav + `
     ${grpOpen('gia')}
     <div class="panel"><div class="hd"><h2>${IC.home} Thông tin hiển thị trên phiếu báo</h2></div><div class="pad">
@@ -591,17 +596,19 @@ function viewSettings() {
 
     ${grpOpen('dangnhap')}
     <div class="panel"><div class="hd"><h2>${IC.shield} Đăng nhập bằng tài khoản Microsoft (SSO)</h2>
-      <span class="muted" style="font-size:12px">${s.sso_enabled === 'true' && s.sso_tenant_id && s.sso_client_id ? '<span class="badge green">Đang bật</span>' : '<span class="badge gray">Đang tắt</span>'}</span></div><div class="pad">
-      <div class="hint">${IC.info} Lấy 3 thông số ở <strong>Azure Portal → Microsoft Entra ID → App registrations</strong>.
+      <span class="muted" id="ssoStateBadge" style="font-size:12px">${ssoOn ? '<span class="badge green">Đang bật</span>' : '<span class="badge gray">Đang tắt</span>'}</span></div><div class="pad">
+      <div class="hint">${IC.info} Lấy thông số ở <strong>Azure Portal → Microsoft Entra ID → App registrations</strong>.
         Khi đăng ký ứng dụng phải khai đúng <strong>Redirect URI</strong>:
         <code>${esc(location.origin)}/api/auth/sso/callback</code> và cấp quyền <code>openid profile email</code>.
-        Đủ 3 thông số + bật lên thì nút "Đăng nhập bằng Microsoft" mới hiện ở màn đăng nhập.</div>
+        <strong>Điền đủ Tenant ID + Client ID là SSO tự bật</strong> — nút "Đăng nhập bằng Microsoft" hiện ngay ở màn đăng nhập.
+        Không muốn dùng thì chọn <em>Tắt</em> ở ô bên dưới.</div>
       <div class="hint" style="font-size:12px">${IC.lock} Nếu máy chủ có biến môi trường <code>AZURE_TENANT_ID</code> / <code>AZURE_CLIENT_ID</code> / <code>AZURE_CLIENT_SECRET</code> thì
-        <strong>ENV được ưu tiên</strong> hơn giá trị điền ở đây (môi trường thật nên giữ bí mật ở ENV, không nằm trong CSDL).</div>
+        <strong>ENV được ưu tiên</strong> hơn giá trị điền ở đây (môi trường thật nên giữ bí mật ở ENV, không nằm trong CSDL).
+        ${s.sso_from_env ? '<br><strong>Máy chủ này đang lấy Tenant/Client từ ENV</strong> — ô bên dưới có để trống cũng không sao, giá trị ở ENV mới là cái đang chạy.' : ''}</div>
       <div class="grid2">
         <div class="field"><label>Bật đăng nhập Microsoft</label><select id="set_sso_enabled">
-          <option value="false" ${s.sso_enabled !== 'true' ? 'selected' : ''}>Tắt</option>
-          <option value="true" ${s.sso_enabled === 'true' ? 'selected' : ''}>Bật</option>
+          <option value="false" ${s.sso_enabled === 'false' ? 'selected' : ''}>Tắt</option>
+          <option value="true" ${s.sso_enabled !== 'false' ? 'selected' : ''}>Bật (tự động khi đủ tham số)</option>
         </select></div>
         <div class="field"><label>Chỉ nhận email thuộc tên miền <span class="opt">(cách nhau dấu phẩy — để trống = mọi email trong tenant)</span></label>
           <input id="set_sso_allowed_domains" value="${esc(s.sso_allowed_domains || '')}" placeholder="esuhai.com, esuhai.vn"></div>
@@ -978,11 +985,16 @@ async function saveSsoSettings() {
   // Chỉ gửi secret khi người dùng THỰC SỰ nhập — để trống nghĩa là giữ nguyên cái đã lưu.
   const sec = el('set_sso_client_secret').value;
   if (sec.trim()) body.sso_client_secret = sec;
-  if (body.sso_enabled === 'true' && !(body.sso_tenant_id && body.sso_client_id)) {
+  // Chỉ chặn khi CHẮC CHẮN thiếu: máy chủ có ENV AZURE_* thì ô ở đây để trống là chuyện bình thường.
+  if (body.sso_enabled === 'true' && !ST.settings.sso_from_env && !(body.sso_tenant_id && body.sso_client_id)) {
     return toast('Bật SSO cần ít nhất Tenant ID + Client ID', 'err');
   }
   await guard(() => API.updateSettings(body));
   await refreshCache(); toast('Đã lưu cấu hình đăng nhập Microsoft'); // BL-24: không re-render, giữ input panel khác
+  // Badge "Đang bật/Đang tắt" do máy chủ tính -> vẽ lại riêng nó cho khớp, không re-render cả màn.
+  const badge = el('ssoStateBadge');
+  if (badge) badge.innerHTML = ST.settings.sso_effective
+    ? '<span class="badge green">Đang bật</span>' : '<span class="badge gray">Đang tắt</span>';
 }
 async function saveMailSettings() {
   const body = {

@@ -11,20 +11,17 @@ function _b64url(buf) { return btoa(String.fromCharCode.apply(null, new Uint8Arr
 function _randStr(n) { const a = new Uint8Array(n); crypto.getRandomValues(a); return _b64url(a); }
 async function _sha256url(s) { return _b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s))); }
 
-// Bấm "Đăng nhập bằng Microsoft" -> dựng PKCE + chuyển sang trang đăng nhập của Microsoft.
+// Bấm "Đăng nhập bằng Microsoft" -> giao hẳn cho MÁY CHỦ.
+// Trước đây trình duyệt tự dựng yêu cầu uỷ quyền, nên phải xin tenantId + clientId qua
+// /api/auth/sso/config — mà endpoint đó mở cho khách chưa đăng nhập, tức ai cũng đọc được tenant và
+// client của công ty bằng một request. Nay máy chủ dựng yêu cầu (kèm PKCE), giữ state trong cookie
+// httpOnly rồi 302 sang Microsoft; trình duyệt không cầm tham số cấu hình nào.
+// Mọi tham số lấy từ ENV hoặc màn Cài đặt (settings), không ghi cứng ở đâu.
 async function ssoLogin() {
   let cfg;
   try { cfg = await API.ssoConfig(); } catch (e) { return toast('Không lấy được cấu hình đăng nhập Microsoft', 'err'); }
-  if (!cfg || !cfg.enabled || !cfg.tenantId || !cfg.clientId) return toast('Đăng nhập Microsoft chưa được cấu hình', 'err');
-  const verifier = _randStr(48), state = _randStr(16), nonce = _randStr(16);
-  const challenge = await _sha256url(verifier);
-  const redirect = location.origin + '/';
-  sessionStorage.setItem('_sso', JSON.stringify({ verifier, state, nonce, tenant: cfg.tenantId, client: cfg.clientId, redirect }));
-  const p = new URLSearchParams({
-    client_id: cfg.clientId, response_type: 'code', redirect_uri: redirect, response_mode: 'query',
-    scope: 'openid profile email', state, nonce, code_challenge: challenge, code_challenge_method: 'S256',
-  });
-  location.href = _MS_AUTH(cfg.tenantId) + '?' + p.toString();
+  if (!cfg || !cfg.enabled) return toast('Đăng nhập Microsoft chưa được cấu hình', 'err');
+  location.href = '/api/auth/sso/start';
 }
 
 // Microsoft chuyển về (origin/?code=...&state=...). Trả true nếu đang trong luồng SSO (đã xử lý).
@@ -458,6 +455,24 @@ const RESI = { registered: ['Đã đăng ký', 'green'], processing: ['Đang x�
 const resiBadge = st => { const [l, c] = RESI[st] || RESI.unregistered; return `<span class="badge ${c}">${l}</span>`; };
 const CONTRACT_LABEL = { done: 'Đã hoàn tất', scanned: 'Đã scan HĐ', unsigned: 'Chưa ký HĐ', none: 'Không ký HĐ', handover: 'Đã ký phiếu bàn giao' };
 const CONTRACT_BADGE = { done: 'green', scanned: 'blue', unsigned: 'amber', none: 'gray', handover: 'blue' };
+
+// THAM CHIẾU HỢP ĐỒNG (owner chốt 29/07/2026): phòng thuê trọn chỉ có MỘT hợp đồng, ký với phòng
+// trưởng; thành viên còn lại không ký riêng mà TRỎ tới hợp đồng đó. Máy chủ suy ra tại chỗ từ
+// room_leaders (contract_ref_*) — không chép số HĐ vào từng hồ sơ, nên đổi phòng trưởng là liên kết
+// tự đổi theo. Bấm vào là mở đúng hồ sơ người đứng tên.
+function hdThamChieu(s, day) {
+  if (!s || !s.contract_ref_id || !s.contract_ref_no) return '';
+  const nhan = `${IC.link} HĐ ${esc(s.contract_ref_no)}`;
+  const nguoi = esc(s.contract_ref_name || '');
+  const moTa = `Theo hợp đồng thuê trọn phòng, người đứng tên: ${nguoi}`;
+  // Dùng span role="button" chứ không phải <a href="#">: href="#" sẽ nhét dấu # vào URL và cuộn vọt
+  // lên đầu trang trước khi handler kịp chạy.
+  const link = (noiDung) => `<span class="hd-ref" role="button" tabindex="0" title="${moTa}"` +
+    ` data-act="studentDetail" data-args='[${s.contract_ref_id}]'>${noiDung}</span>`;
+  return day
+    ? `<p style="margin:8px 0 0" class="muted">Không ký riêng — theo hợp đồng của phòng: ${link(`${nhan} · ${nguoi}`)}</p>`
+    : `<div class="sub2">${link(nhan)}</div>`;
+}
 const CHECKOUT_REASONS = [['departure', 'Xuất cảnh (đi Nhật)'], ['personal', 'Cá nhân'], ['facility', 'Cơ sở vật chất'], ['dropout', 'Nghỉ học'], ['reserve', 'Bảo lưu'], ['other', 'Khác']];
 const REASON_LABEL = { departure: 'Xuất cảnh', personal: 'Cá nhân', facility: 'Cơ sở vật chất', dropout: 'Nghỉ học', reserve: 'Bảo lưu', other: 'Khác', normal: 'Khác', urgent_visa: 'Xuất cảnh' };
 // Lý do trả phòng = XUẤT CẢNH (đi Nhật). 'urgent_visa' là giá trị CŨ (dữ liệu di sản) — luồng mới chỉ

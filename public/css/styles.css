@@ -705,6 +705,17 @@ body.drawer-open{overflow:hidden}
 }
 /* Cả hàng bấm được -> phải thấy được viền focus khi đi bằng bàn phím (trước chỉ .stu-name có) */
 tbody tr[data-act]:focus-visible{outline:2px solid var(--brand);outline-offset:-2px;border-radius:10px}
+
+/* ===== Liên kết tham chiếu hợp đồng (thành viên -> HĐ của phòng trưởng) =====
+   Phải TRÔNG như liên kết bấm được, không phải chữ trang trí: nằm trong ô "Hợp đồng" vốn toàn
+   nhãn tĩnh, không gạch chân thì không ai biết bấm được. */
+.hd-ref{color:var(--brand);cursor:pointer;text-decoration:underline;text-underline-offset:2px;
+  text-decoration-style:dotted;display:inline-flex;align-items:center;gap:3px}
+.hd-ref:hover{text-decoration-style:solid}
+.hd-ref:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:4px}
+.hd-ref .ic-svg{width:13px;height:13px;flex:none}
+/* Cả hàng học viên cũng bấm được -> chặn nổi bọt để bấm liên kết không mở nhầm hồ sơ của hàng. */
+td .hd-ref{position:relative;z-index:1}
 @media(prefers-reduced-motion:reduce){.card-tbl tr[data-del]{transition:none}}
 
 /* ===== MODAL TOÀN MÀN HÌNH TRÊN ĐIỆN THOẠI ==================================================

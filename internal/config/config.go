@@ -31,8 +31,8 @@ type Config struct {
 	S3CccdBucket  string
 	S3IntroBucket string
 
-	// SSO Microsoft (tuỳ chọn — phần lớn cấu hình nằm ở bảng settings)
-	SSOEnabled     bool
+	// SSO Microsoft (tuỳ chọn — cấu hình nằm ở bảng settings + AZURE_* ; KHÔNG có công tắc ENV,
+	// xem internal/sso/sso.go Config())
 	SSORedirectURI string
 }
 
@@ -68,7 +68,6 @@ func Load() (*Config, error) {
 		S3CccdBucket:  os.Getenv("S3_CCCD_BUCKET"),
 		S3IntroBucket: os.Getenv("S3_INTRO_BUCKET"),
 
-		SSOEnabled:     os.Getenv("SSO_ENABLED") == "true",
 		SSORedirectURI: os.Getenv("SSO_REDIRECT_URI"),
 	}
 

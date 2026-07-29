@@ -59,19 +59,32 @@ type Config struct {
 	ClientID       string
 	ClientSecret   string
 	AllowedDomains []string
+	FromEnv        bool // Tenant/Client đến từ ENV — màn Cài đặt không nhìn thấy, phải báo cho admin biết
 }
 
+// envMap2: chỉ ánh xạ THAM SỐ sang ENV (môi trường thật giữ bí mật ở ENV, không nằm trong CSDL).
+// Cố ý KHÔNG có công tắc bật/tắt ở đây — xem ghi chú tại Config().
 var envMap2 = map[string]string{
 	"sso_tenant_id": "AZURE_TENANT_ID", "sso_client_id": "AZURE_CLIENT_ID",
-	"sso_client_secret": "AZURE_CLIENT_SECRET", "sso_allowed_domains": "SSO_ALLOWED_DOMAINS", "sso_enabled": "SSO_ENABLED",
+	"sso_client_secret": "AZURE_CLIENT_SECRET", "sso_allowed_domains": "SSO_ALLOWED_DOMAINS",
 }
 
-// Config: ENV ưu tiên hơn CSDL. server/sso.js:26-38
+// Config: tham số lấy ENV trước, thiếu thì lấy CSDL.
+//
+// BẬT/TẮT KHÔNG CÓ ENV — đủ Tenant ID + Client ID là TỰ BẬT; muốn tắt thì admin vào màn Cài đặt
+// chọn "Tắt" (ghi sso_enabled='false'). Trước đây có ENV SSO_ENABLED và nó đi chung hàm pick():
+// chuỗi "false" khác rỗng nên luôn thắng CSDL -> admin điền đủ tham số, bấm Bật trong giao diện mà
+// vẫn không đăng nhập được, và không có đường nào mở ra từ giao diện. Đó là KHOÁ CỨNG chứ không
+// phải "mặc định tắt". Một công tắc, một nơi: CSDL + WebUI.
 func (m *Manager) Config(ctx context.Context) Config {
 	s, _ := m.db.GetSettings(ctx)
+	fromEnv := false
 	pick := func(key string) string {
-		if env := os.Getenv(envMap2[key]); env != "" {
-			return strings.TrimSpace(env)
+		if env := strings.TrimSpace(os.Getenv(envMap2[key])); env != "" {
+			if key == "sso_tenant_id" || key == "sso_client_id" {
+				fromEnv = true
+			}
+			return env
 		}
 		return strings.TrimSpace(s[key])
 	}
@@ -85,13 +98,15 @@ func (m *Manager) Config(ctx context.Context) Config {
 			domains = append(domains, d)
 		}
 	}
-	on := pick("sso_enabled") == "true"
+	// Chỉ "false" TƯỜNG MINH (admin bấm Tắt) mới chặn. Rỗng/chưa đặt = tự động theo tham số.
+	off := strings.TrimSpace(s["sso_enabled"]) == "false"
 	// Secret KHÔNG bắt buộc: có secret -> client tin cậy (confidential); bỏ trống -> public client,
 	// đăng nhập dựa PKCE (đã dùng ở BuildAuthRequest/ExchangeAndVerify). Muốn chạy không secret thì
 	// app trên Azure phải bật "Allow public client flows".
 	return Config{
-		Enabled: on && tenant != "" && client != "",
+		Enabled: !off && tenant != "" && client != "",
 		TenantID: tenant, ClientID: client, ClientSecret: secret, AllowedDomains: domains,
+		FromEnv: fromEnv,
 	}
 }
 

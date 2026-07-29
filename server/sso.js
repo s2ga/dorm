@@ -21,8 +21,12 @@ const STATE_COOKIE = 'ktx_sso';
 const STATE_TTL_SEC = 600;                 // 10 phút: đủ cho người dùng gõ mật khẩu + 2FA, không hơn
 const b64url = buf => buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
-// Cấu hình: ENV được ƯU TIÊN hơn CSDL. Môi trường thật nên giữ bí mật ở ENV; ô trong màn Cài đặt
-// là để chạy thử/khi công ty chưa cấp được ENV. Không đủ tham số -> coi như TẮT (nút Microsoft tự ẩn).
+// Cấu hình: THAM SỐ lấy ENV trước, thiếu thì lấy CSDL. Môi trường thật nên giữ bí mật ở ENV; ô trong
+// màn Cài đặt là để chạy thử/khi công ty chưa cấp được ENV. Không đủ tham số -> TẮT (nút Microsoft tự ẩn).
+//
+// BẬT/TẮT KHÔNG CÓ ENV: đủ Tenant ID + Client ID là tự bật, muốn tắt thì admin bấm Tắt trong Cài đặt
+// (ghi sso_enabled='false'). ENV SSO_ENABLED cũ đi chung đường pick() nên chuỗi 'false' — truthy trong
+// JS — luôn thắng CSDL: admin điền đủ tham số, bấm Bật mà vẫn không đăng nhập được. Một công tắc, một nơi.
 async function ssoConfig() {
   let s = {};
   try { s = await getSettings(); } catch (e) { s = {}; }
@@ -32,9 +36,11 @@ async function ssoConfig() {
   const clientSecret = pick('AZURE_CLIENT_SECRET', 'sso_client_secret');
   const domains = pick('SSO_ALLOWED_DOMAINS', 'sso_allowed_domains')
     .split(',').map(d => d.trim().toLowerCase().replace(/^@/, '')).filter(Boolean);
-  // Bật khi: được bật tường minh (ENV hoặc Cài đặt) VÀ đủ 3 tham số bắt buộc.
-  const on = (process.env.SSO_ENABLED || s.sso_enabled || 'false') === 'true';
-  return { enabled: !!(on && tenantId && clientId && clientSecret), tenantId, clientId, clientSecret, allowedDomains: domains };
+  // Chỉ 'false' TƯỜNG MINH mới chặn; rỗng/chưa đặt = tự động theo tham số.
+  const off = String(s.sso_enabled || '').trim() === 'false';
+  // Secret KHÔNG bắt buộc (khớp bản Go): có secret -> confidential client; bỏ trống -> public client
+  // dựa PKCE, khi đó app trên Azure phải bật "Allow public client flows".
+  return { enabled: !!(!off && tenantId && clientId), tenantId, clientId, clientSecret, allowedDomains: domains };
 }
 
 const issuerOf = tenantId => `https://login.microsoftonline.com/${tenantId}/v2.0`;
@@ -112,13 +118,15 @@ async function exchangeAndVerify(req, { code, state }) {
 
   const body = new URLSearchParams({
     client_id: cfg.clientId,
-    client_secret: cfg.clientSecret,
     grant_type: 'authorization_code',
     code,
     redirect_uri: st.uri,
     code_verifier: st.cv,
     scope: 'openid profile email',
   });
+  // Public client (không secret): TUYỆT ĐỐI không gửi client_secret rỗng — Microsoft trả lỗi
+  // invalid_client thay vì hiểu là public client.
+  if (cfg.clientSecret) body.set('client_secret', cfg.clientSecret);
   const r = await fetch(tokenEndpoint(cfg.tenantId), {
     method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body,
   });

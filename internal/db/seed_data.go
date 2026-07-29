@@ -14,10 +14,11 @@ func defaultSettings(dormName string) [][2]string {
 		{"shortterm_max_days", "60"},
 		{"deposit_notice_min_days", "30"},
 		{"partial_half_factor", "0.5"},
-		{"room_cap_A", "8"}, {"room_cap_B", "8"}, {"room_cap_C", "8"}, {"room_cap_D", "8"},
+		{"room_cap_A", "5"}, {"room_cap_B", "4"}, {"room_cap_C", "4"}, {"room_cap_D", "3"},
 		{"checkout_max_future_days", "365"},
 		{"max_cccd_mb", "12"},
-		{"sso_enabled", "false"},
+		// Rỗng = TỰ ĐỘNG: đủ Tenant ID + Client ID là SSO bật. Chỉ 'false' (admin bấm Tắt) mới chặn.
+		{"sso_enabled", ""},
 		{"sso_tenant_id", ""},
 		{"sso_client_id", ""},
 		{"sso_client_secret", ""},

@@ -53,7 +53,8 @@ config:
   S3_REGION: "ap-southeast-1"
   S3_CCCD_BUCKET: "cccd"
   S3_INTRO_BUCKET: "intro"
-  SSO_ENABLED: "false"
+  # SSO Microsoft: KHÔNG có ENV bật/tắt — đủ Tenant ID + Client ID (gõ ở màn Cài đặt, hoặc cấp qua
+  # Secret AZURE_TENANT_ID/AZURE_CLIENT_ID) là tự bật; muốn tắt thì admin bấm Tắt trong Cài đặt.
 
 # ---- Bí mật ----
 # Cách 1 (khuyến nghị): tạo Secret sẵn rồi trỏ tên vào đây, chart sẽ không tự tạo Secret.

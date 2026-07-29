@@ -103,10 +103,28 @@ const studentsListSelect = `
     r.name AS room_name, r.floor AS room_floor, r.gender AS room_gender, r.hang AS room_hang,
     u.username AS login_username,
     (SELECT COUNT(*) FROM vehicles v WHERE v.student_id=s.id AND v.deleted_at IS NULL)::int AS vehicle_count,
-    (SELECT COUNT(*) FROM violations vi WHERE vi.student_id=s.id AND vi.deleted_at IS NULL)::int AS violation_count
+    (SELECT COUNT(*) FROM violations vi WHERE vi.student_id=s.id AND vi.deleted_at IS NULL)::int AS violation_count,
+    cref.student_id  AS contract_ref_id,
+    cref.name        AS contract_ref_name,
+    cref.contract_no AS contract_ref_no
   FROM students s
   LEFT JOIN rooms r ON r.id = s.room_id
-  LEFT JOIN users u ON u.student_id = s.id`
+  LEFT JOIN users u ON u.student_id = s.id
+  -- THAM CHIẾU HỢP ĐỒNG (owner chốt 29/07/2026): phòng thuê trọn chỉ có MỘT hợp đồng, ký với phòng
+  -- trưởng; thành viên còn lại KHÔNG ký riêng. Suy ra tại chỗ từ room_leaders thay vì chép số HĐ vào
+  -- từng hồ sơ: chép là gán cứng — đổi phòng trưởng hay sửa số HĐ thì các bản chép thành sai lặng lẽ.
+  -- Chỉ áp cho người CHƯA có số HĐ của riêng mình; ai có HĐ riêng thì không tham chiếu ai cả.
+  LEFT JOIN LATERAL (
+    SELECT ls.id AS student_id, ls.name, ls.contract_no
+      FROM room_leaders rl
+      JOIN students ls ON ls.id = rl.student_id AND ls.deleted_at IS NULL
+     WHERE rl.room_id = s.room_id
+       AND rl.to_date IS NULL
+       AND ls.id <> s.id
+       AND COALESCE(btrim(ls.contract_no), '') <> ''
+       AND COALESCE(btrim(s.contract_no), '') = ''
+     LIMIT 1
+  ) cref ON TRUE`
 
 // DATE_FIELDS — students.routes.js:17
 var studentsDateFields = []string{"birth_date", "check_in_date", "check_out_date", "contract_date", "deposit_date", "class_start_date", "expected_departure", "checkout_notice_date"}
