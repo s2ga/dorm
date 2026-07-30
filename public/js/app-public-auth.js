@@ -20,26 +20,35 @@ async function ssoLogin() {
 }
 
 // Microsoft chuyển về (origin/?code=...&state=...). Trả true nếu đang trong luồng SSO (đã xử lý).
+//
+// Máy chủ dựng yêu cầu uỷ quyền (state/nonce/code_verifier nằm trong cookie httpOnly ktx_sso), còn
+// BƯỚC ĐỔI MÃ phải do trình duyệt làm: app trên Azure khai redirect URI kiểu SPA, mã cấp cho client
+// kiểu đó chỉ đổi được bằng request cross-origin có header Origin. Tham số đổi mã xin qua
+// /auth/sso/exchange-params — endpoint chỉ trả lời khi cookie state khớp, nên không lộ cho khách.
 async function ssoHandleReturn() {
   const qp = new URLSearchParams(location.search);
-  let saved = null; try { saved = JSON.parse(sessionStorage.getItem('_sso') || 'null'); } catch (e) {}
-  if (!qp.get('code') || !saved) return false;
-  sessionStorage.removeItem('_sso');
+  if (!qp.get('code') || !qp.get('state')) {
+    // Microsoft từ chối ngay từ màn đăng nhập (người dùng bấm Huỷ, admin chưa cấp quyền...)
+    if (qp.get('error')) { location.href = '/?sso_error=' + encodeURIComponent(qp.get('error_description') || qp.get('error')); return true; }
+    return false;
+  }
   history.replaceState(null, '', location.pathname); // dọn ?code khỏi thanh địa chỉ
   const fail = msg => { location.href = '/?sso_error=' + encodeURIComponent(msg); }; // dùng lại màn login + ghi chú lỗi
-  if (qp.get('state') !== saved.state) { fail('Yêu cầu đăng nhập không khớp (state). Vui lòng thử lại.'); return true; }
   el('app').innerHTML = '<div class="intro-loading"><div class="spinner"></div></div>';
   try {
+    let saved;
+    try { saved = await API.ssoExchangeParams(qp.get('state')); }
+    catch (eP) { fail((eP && eP.message) || 'Phiên đăng nhập Microsoft đã hết hạn. Vui lòng thử lại.'); return true; }
     const body = new URLSearchParams({
-      client_id: saved.client, grant_type: 'authorization_code', code: qp.get('code'),
-      redirect_uri: saved.redirect, code_verifier: saved.verifier, scope: 'openid profile email',
+      client_id: saved.clientId, grant_type: 'authorization_code', code: qp.get('code'),
+      redirect_uri: saved.redirectUri, code_verifier: saved.codeVerifier, scope: 'openid profile email',
     });
     // Lời gọi này đi TRỰC TIẾP sang Microsoft (không qua api() nên không được dịch lỗi giúp). Mất
     // mạng / bị tường lửa chặn thì fetch ném TypeError("Failed to fetch") — chữ Anh, người dùng đọc
     // không hiểu, mà nó lại hiện ngay trên màn đăng nhập. Bắt riêng để nói bằng tiếng Việt.
     let r;
     try {
-      r = await fetch(_MS_TOKEN(saved.tenant), { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() });
+      r = await fetch(_MS_TOKEN(saved.tenantId), { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() });
     } catch (eNet) {
       fail('Không kết nối được tới Microsoft (mất mạng hoặc bị chặn). Vui lòng thử lại, hoặc đăng nhập bằng tên và mật khẩu.');
       return true;

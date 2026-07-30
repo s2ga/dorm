@@ -113,6 +113,43 @@ func (m *Manager) Config(ctx context.Context) Config {
 // Enabled: cho endpoint /auth/sso/config.
 func (m *Manager) Enabled(ctx context.Context) bool { return m.Config(ctx).Enabled }
 
+// ExchangeParams: tham số để TRÌNH DUYỆT tự đổi mã lấy id_token. KHÔNG có client_secret — luồng này
+// là public client, chỗ dựa là PKCE (code_verifier).
+type ExchangeParams struct {
+	TenantID     string `json:"tenantId"`
+	ClientID     string `json:"clientId"`
+	CodeVerifier string `json:"codeVerifier"`
+	RedirectURI  string `json:"redirectUri"`
+}
+
+// ParamsForBrowserExchange: phát tham số đổi mã cho người VỪA từ Microsoft quay về.
+//
+// Vì sao trình duyệt đổi mã chứ không phải máy chủ: app trên Azure khai redirect URI dưới nền tảng
+// Single-page application, mà mã cấp cho client kiểu đó CHỈ đổi được bằng request cross-origin từ
+// trình duyệt (Microsoft đòi header Origin) — máy chủ POST thẳng thì bị từ chối AADSTS9002327.
+//
+// Vì sao không phát qua /auth/sso/config: endpoint đó mở cho khách chưa đăng nhập, ai cũng đọc được
+// tenant + client của công ty bằng một request. Ở đây tham số chỉ ra khỏi máy chủ khi cookie ktx_sso
+// hợp lệ VÀ state khớp — tức đúng người vừa đi hết một vòng uỷ quyền.
+func (m *Manager) ParamsForBrowserExchange(ctx context.Context, ssoCookie, state string) (ExchangeParams, error) {
+	cfg := m.Config(ctx)
+	if !cfg.Enabled {
+		return ExchangeParams{}, &HTTPError{503, "Đăng nhập Microsoft chưa được cấu hình"}
+	}
+	if ssoCookie == "" {
+		return ExchangeParams{}, &HTTPError{400, "Phiên đăng nhập Microsoft đã hết hạn. Vui lòng thử lại."}
+	}
+	var st stateClaims
+	_, err := jwt.ParseWithClaims(ssoCookie, &st, func(t *jwt.Token) (interface{}, error) { return m.secret, nil }, jwt.WithValidMethods([]string{"HS256"}))
+	if err != nil {
+		return ExchangeParams{}, &HTTPError{400, "Phiên đăng nhập Microsoft không hợp lệ hoặc đã hết hạn."}
+	}
+	if subtle.ConstantTimeCompare([]byte(state), []byte(st.State)) != 1 {
+		return ExchangeParams{}, &HTTPError{400, "Yêu cầu đăng nhập không khớp (state). Vui lòng thử lại."}
+	}
+	return ExchangeParams{TenantID: cfg.TenantID, ClientID: cfg.ClientID, CodeVerifier: st.CV, RedirectURI: st.URI}, nil
+}
+
 func issuerOf(t string) string    { return "https://login.microsoftonline.com/" + t + "/v2.0" }
 func authorizeEP(t string) string { return "https://login.microsoftonline.com/" + t + "/oauth2/v2.0/authorize" }
 func tokenEP(t string) string     { return "https://login.microsoftonline.com/" + t + "/oauth2/v2.0/token" }

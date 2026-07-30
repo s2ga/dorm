@@ -18,10 +18,17 @@ import (
 // Không phải lỗi hệ thống, cũng không phải "chưa có tài khoản" -> trả 403 với msgTaiKhoanBiKhoa.
 var errTaiKhoanBiKhoa = errors.New("tài khoản đã bị khoá")
 
-// ssoRedirectURI: địa chỉ callback — ENV ép trước, else proto://host/api/auth/sso/callback. sso.js:47-51
+// ssoRedirectURI: nơi Microsoft trả người dùng về = ORIGIN của app (dấu "/"), vì trình duyệt mới là
+// bên đổi mã — xem ParamsForBrowserExchange. Trước đây trỏ /api/auth/sso/callback để máy chủ đổi mã,
+// nhưng redirect URI đó khai trên Azure dưới nền tảng SPA nên Microsoft chặn (AADSTS9002327).
+//
+// SSO_REDIRECT_URI vẫn đọc, nhưng CHỈ lấy scheme+host của nó (công dụng gốc: sau proxy Render đôi khi
+// đoán sai scheme/host); phần path luôn ép về "/" để không lệch với URI đã khai.
 func (h *Handlers) ssoRedirectURI(c *gin.Context) string {
-	if v := os.Getenv("SSO_REDIRECT_URI"); strings.TrimSpace(v) != "" {
-		return strings.TrimSpace(v)
+	if v := strings.TrimSpace(os.Getenv("SSO_REDIRECT_URI")); v != "" {
+		if u, err := url.Parse(v); err == nil && u.Scheme != "" && u.Host != "" {
+			return u.Scheme + "://" + u.Host + "/"
+		}
 	}
 	proto := c.GetHeader("X-Forwarded-Proto")
 	if proto == "" {
@@ -32,7 +39,31 @@ func (h *Handlers) ssoRedirectURI(c *gin.Context) string {
 		}
 	}
 	proto = strings.TrimSpace(strings.Split(proto, ",")[0])
-	return proto + "://" + c.Request.Host + "/api/auth/sso/callback"
+	return proto + "://" + c.Request.Host + "/"
+}
+
+// SSOExchangeParams: POST /api/auth/sso/exchange-params — phát tenant/client/code_verifier cho trình
+// duyệt tự đổi mã. Chỉ trả lời khi cookie ktx_sso hợp lệ và state khớp; khách gõ tay không lấy được gì.
+func (h *Handlers) SSOExchangeParams(c *gin.Context) {
+	var body struct {
+		State string `json:"state"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil || strings.TrimSpace(body.State) == "" {
+		badRequest(c, "Thiếu state")
+		return
+	}
+	ssoCookie, _ := c.Cookie(sso.StateCookie)
+	p, err := h.SSO.ParamsForBrowserExchange(c.Request.Context(), ssoCookie, body.State)
+	if err != nil {
+		if he, ok := err.(*sso.HTTPError); ok {
+			c.JSON(he.Status, gin.H{"error": he.Msg})
+			return
+		}
+		serverErr(c)
+		return
+	}
+	h.ssoClearCookie(c) // dùng một lần: mã uỷ quyền cũng chỉ đổi được một lần
+	c.JSON(http.StatusOK, p)
 }
 
 func (h *Handlers) ssoClearCookie(c *gin.Context) {
