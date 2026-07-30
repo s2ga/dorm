@@ -151,6 +151,7 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	adm.GET("/users", h.ListUsers)
 	adm.POST("/users", h.CreateUser)
 	adm.PUT("/users/:id", h.UpdateUser)
+	adm.POST("/users/:id/approve-student", h.ApproveUserAsStudent) // duyệt tài khoản chờ thành học viên (ghép hồ sơ)
 	adm.POST("/users/:id/password", h.ResetPassword)
 	adm.POST("/users/:id/unlock", h.UnlockUser) // mở khoá (DELETE = khoá, không xoá dữ liệu)
 	adm.DELETE("/users/:id", h.DeleteUser)

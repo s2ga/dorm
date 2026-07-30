@@ -532,6 +532,110 @@ func (h *Handlers) UpdateUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
+// ApproveUserAsStudent: POST /api/admin/users/:id/approve-student — duyệt tài khoản đang chờ thành HỌC VIÊN.
+//
+// Vì sao phải có endpoint riêng thay vì thêm 'student' vào ô chọn vai: vai 'student' KHÔNG có nghĩa
+// nếu thiếu hồ sơ. Cổng học viên đọc mọi thứ qua users.student_id (auth.go, RequireRole("student")),
+// gán vai suông thì người đó đăng nhập được nhưng vào trong trống trơn — không phòng, không hoá đơn.
+// Nên duyệt học viên = GHÉP HỒ SƠ, không phải gán vai.
+//
+// Nhận một trong hai: {"student_id":12} ghép hồ sơ có sẵn, hoặc {"new_student":{...}} tạo hồ sơ mới rồi ghép.
+func (h *Handlers) ApproveUserAsStudent(c *gin.Context) {
+	id, ok := paramInt(c, "id")
+	if !ok {
+		notFound(c, "Không tìm thấy tài khoản")
+		return
+	}
+	var body struct {
+		StudentID  int `json:"student_id"`
+		NewStudent *struct {
+			Name      string `json:"name"`
+			Code      string `json:"code"`
+			Gender    string `json:"gender"`
+			Phone     string `json:"phone"`
+			ClassName string `json:"class_name"`
+		} `json:"new_student"`
+	}
+	_ = c.ShouldBindJSON(&body)
+
+	if u := auth.CurrentUser(c); u != nil && u.ID == id {
+		badRequest(c, "Không thể tự chuyển chính mình thành học viên.")
+		return
+	}
+	ctx := c.Request.Context()
+	var curRole, userEmail, userName string
+	if h.pool().QueryRow(ctx,
+		"SELECT role, COALESCE(email,''), COALESCE(full_name,'') FROM users WHERE id=$1 AND role IN ("+adminManagedRolesSQL+") AND deleted_at IS NULL",
+		id).Scan(&curRole, &userEmail, &userName) != nil {
+		notFound(c, "Không tìm thấy tài khoản")
+		return
+	}
+	// Quản trị viên KHÔNG hạ thẳng xuống học viên ở đây: đường đó đi qua PUT /admin/users/:id, nơi có
+	// sẵn chốt "phải còn ít nhất 1 quản trị".
+	if curRole == "admin" {
+		badRequest(c, "Tài khoản quản trị không chuyển thẳng thành học viên được. Hạ vai trước ở màn Sửa tài khoản.")
+		return
+	}
+
+	studentID := body.StudentID
+	if studentID <= 0 {
+		if body.NewStudent == nil || strings.TrimSpace(body.NewStudent.Name) == "" {
+			badRequest(c, "Chọn hồ sơ học viên có sẵn, hoặc nhập họ tên để tạo hồ sơ mới.")
+			return
+		}
+		gioiTinh := strings.TrimSpace(body.NewStudent.Gender)
+		if gioiTinh != "male" && gioiTinh != "female" {
+			gioiTinh = "male"
+		}
+		// Hồ sơ mới cố ý để TRỐNG phòng + ngày vào: duyệt tài khoản không phải là check-in. Admin vào
+		// màn Học viên xếp phòng sau, lúc đó mới phát sinh tiền.
+		if e := h.pool().QueryRow(ctx,
+			`INSERT INTO students (name, code, gender, phone, class_name, email) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+			strings.TrimSpace(body.NewStudent.Name), strings.TrimSpace(body.NewStudent.Code), gioiTinh,
+			strings.TrimSpace(body.NewStudent.Phone), strings.TrimSpace(body.NewStudent.ClassName),
+			strings.ToLower(strings.TrimSpace(userEmail))).Scan(&studentID); e != nil {
+			badRequest(c, "Không tạo được hồ sơ học viên (mã hoặc email đã tồn tại?): "+e.Error())
+			return
+		}
+	} else {
+		var ten string
+		if h.pool().QueryRow(ctx, "SELECT name FROM students WHERE id=$1", studentID).Scan(&ten) != nil {
+			badRequest(c, "Không tìm thấy hồ sơ học viên đã chọn.")
+			return
+		}
+		// Một hồ sơ chỉ một tài khoản — nếu không, thu hồi một cái vẫn còn lối vào kia.
+		var daCo int
+		if h.pool().QueryRow(ctx,
+			"SELECT 1 FROM users WHERE student_id=$1 AND id<>$2 AND deleted_at IS NULL", studentID, id).Scan(&daCo) == nil {
+			badRequest(c, `Hồ sơ "`+ten+`" đã có tài khoản đăng nhập. Mỗi hồ sơ chỉ một tài khoản.`)
+			return
+		}
+		// Ghi email vào hồ sơ nếu hồ sơ chưa có: lần đăng nhập sau khớp thẳng, khỏi duyệt lại.
+		if strings.TrimSpace(userEmail) != "" {
+			if _, err := h.pool().Exec(ctx,
+				"UPDATE students SET email=$1 WHERE id=$2 AND COALESCE(email,'')=''",
+				strings.ToLower(strings.TrimSpace(userEmail)), studentID); err != nil {
+				serverErr(c)
+				return
+			}
+		}
+	}
+
+	// facility_id = NULL: phạm vi của học viên đến từ hồ sơ/phòng, không phải từ cơ sở phụ trách.
+	if _, err := h.pool().Exec(ctx,
+		`UPDATE users SET role='student', student_id=$1, approved=true, facility_id=NULL
+		   WHERE id=$2 AND role IN (`+adminManagedRolesSQL+`) AND deleted_at IS NULL`, studentID, id); err != nil {
+		serverErr(c)
+		return
+	}
+	// Vé cũ ghi role='pending' -> phải thu hồi, không thì họ vẫn kẹt ở màn chờ duyệt tới khi hết hạn.
+	if err := h.Auth.RevokeTokens(ctx, id); err != nil {
+		serverErr(c)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "student_id": studentID})
+}
+
 // ResetPassword: POST /api/admin/users/:id/password. admin.routes.js:197-208
 func (h *Handlers) ResetPassword(c *gin.Context) {
 	id, ok := paramInt(c, "id")

@@ -388,6 +388,9 @@ async function studentForm(id) {
         <div class="field"><label>Lớp</label><input id="f_class" value="${esc(s.class_name || '')}" placeholder="Esu684"></div>
         <div class="field"><label>Ngày sinh</label><input id="f_birth"></div>
       </div>
+      <div class="field"><label>Email công ty <span class="opt">(để học viên đăng nhập bằng tài khoản Microsoft)</span></label>
+        <input id="f_email" type="email" value="${esc(s.email || '')}" placeholder="hoten@esuhai.com">
+        <div class="sub2" style="margin-top:4px">${IC.info} Điền đúng email này thì lần đầu học viên bấm "Đăng nhập bằng Microsoft" là vào thẳng, <strong>không phải chờ admin duyệt</strong>. Bỏ trống cũng được — khi đó admin duyệt tay ở màn Cài đặt → Người dùng.</div></div>
       <div class="grid2">
         <div class="field"><label>Giới tính</label><select id="f_gender" data-change="onFRoomFromGender">
           ${opt('female', s.gender, 'Nữ')}${opt('male', s.gender, 'Nam')}</select></div>
@@ -467,6 +470,7 @@ async function studentForm(id) {
 async function saveStudent(id) {
   const body = {
     name: el('f_name').value.trim(), code: el('f_code').value.trim(), class_name: el('f_class').value.trim(),
+    email: el('f_email').value.trim().toLowerCase(),
     birth_date: el('f_birth').dataset.iso || null, gender: el('f_gender').value, phone: el('f_phone').value.trim(),
     room_id: el('f_room').value || null, rental_type: el('f_rental').value, check_in_date: el('f_in').value,
     ...Object.fromEntries(GIAM_O.map(([k, id2]) => [k, +el(id2).value || 0])),

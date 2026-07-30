@@ -634,10 +634,13 @@ function viewSettings() {
     ${grpOpen('nguoidung')}
     <div class="panel" id="usersPanel"><div class="hd"><h2>${IC.shield} Nhân viên & phân quyền</h2>
       <span class="muted" style="font-size:12px">Đăng nhập bằng Microsoft — không tạo tay</span></div>
-      <div class="pad hint" style="margin:0 14px 10px">${IC.info} <strong>Nhân viên không cần tạo tài khoản.</strong> Người mới cứ bấm
-        <em>“Đăng nhập bằng tài khoản Microsoft”</em> ở màn đăng nhập — hệ thống tự tạo tài khoản ở trạng thái
-        <span class="badge amber" style="font-size:10px">⏳ Chờ duyệt</span>, chưa vào được gì. Quản trị viên bấm <strong>Sửa</strong> ở dòng đó để
-        <strong>gán vai + cơ sở</strong>; gán xong là tài khoản được duyệt.
+      <div class="pad hint" style="margin:0 14px 10px">${IC.info} <strong>Không cần tạo tài khoản tay.</strong> Người mới — nhân viên hay học viên — cứ bấm
+        <em>“Đăng nhập bằng tài khoản Microsoft”</em> ở màn đăng nhập. App chưa biết họ là ai nên xếp vào
+        <span class="badge amber" style="font-size:10px">⏳ Chờ duyệt</span>, chưa vào được gì. Quản trị viên bấm <strong>Duyệt</strong> rồi chọn:
+        <strong>nhân viên</strong> (gán vai + cơ sở) hay <strong>học viên</strong> (ghép vào hồ sơ có sẵn, chưa có thì tạo hồ sơ mới).
+        <br>${IC.bulb} <strong>Học viên khỏi phải qua bước này</strong> nếu hồ sơ của họ đã điền <strong>Email công ty</strong> (màn Học viên → Sửa hồ sơ):
+        email trùng thì lần đầu đăng nhập là vào thẳng. Duyệt xong, tài khoản học viên chuyển sang bảng
+        <em>“Tài khoản đăng nhập của học viên”</em> bên dưới, không nằm ở danh sách này nữa.
         <br>${IC.lock} Riêng tài khoản <strong>quản trị khởi tạo</strong> (bootstrap) vẫn dùng mật khẩu — đường vào dự phòng khi SSO trục trặc.</div>
       <div class="table-wrap"><table><thead><tr><th>Tên đăng nhập</th><th>Họ tên</th><th>Vai trò</th><th>Cơ sở</th><th></th></tr></thead>
         <tbody id="usrRows"><tr><td colspan="5"><div class="spinner"></div></td></tr></tbody></table></div>
@@ -700,7 +703,8 @@ async function loadAdminUsers() {
   box.innerHTML = users.map(u => {
     const [rl, rc] = ROLE_LABEL[u.role] || [u.role, 'gray'];
     // Tài khoản do đăng nhập Microsoft tự tạo, chưa duyệt: phải ĐẬP VÀO MẮT admin, kèm email để
-    // đối chiếu người thật. Duyệt = bấm "Sửa" rồi gán vai + cơ sở (server tự bật approved).
+    // đối chiếu người thật. Duyệt = bấm "Duyệt" -> chọn nhân viên (gán vai + cơ sở) hay học viên
+    // (ghép hồ sơ). Xem approveForm.
     const cho = u.approved === false;
     const khoa = !!u.locked; // đã KHOÁ (không đăng nhập được) — vẫn giữ dữ liệu, mở lại được
     if (khoa) return `<tr style="background:var(--bg2);opacity:.75">
@@ -717,16 +721,92 @@ async function loadAdminUsers() {
         ${u.auth_provider && u.auth_provider !== 'local' ? `<span class="badge blue" style="font-size:10px" title="Đăng nhập bằng Microsoft">${esc(u.auth_provider === 'sso' ? 'Microsoft' : 'MK + Microsoft')}</span>` : ''}
         ${u.email ? `<div class="muted" style="font-size:11px">${esc(u.email)}</div>` : ''}</td>
       <td>${esc(u.full_name || '—')}</td>
-      <td>${cho ? '<span class="badge amber" title="Tự tạo qua Microsoft — bấm Sửa để gán vai + cơ sở, gán xong là duyệt">⏳ Chờ duyệt</span>' : `<span class="badge ${rc}">${rl}</span>`}</td>
+      <td>${cho ? '<span class="badge amber" title="Tự tạo qua Microsoft — bấm Duyệt để chọn nhân viên (gán vai + cơ sở) hay học viên (ghép hồ sơ)">⏳ Chờ duyệt</span>' : `<span class="badge ${rc}">${rl}</span>`}</td>
       <td>${u.facility_id ? esc(u.facility_name || facilityName(u.facility_id)) : '<span class="badge gray" title="Điều hành — thấy tất cả cơ sở">Tất cả</span>'}</td>
       <td class="num"><div class="rowbtns" style="justify-content:flex-end">
-        <button class="btn sm" data-act="userForm" data-args='[${u.id}]'>${cho ? 'Duyệt / gán vai' : 'Sửa'}</button>
+        <button class="btn sm${cho ? ' pri' : ''}" data-act="${cho ? 'approveForm' : 'userForm'}" data-args='[${u.id}]'>${cho ? 'Duyệt' : 'Sửa'}</button>
         ${u.auth_provider === 'sso' ? '' : `<button class="btn sm" title="Chỉ áp dụng cho tài khoản còn dùng mật khẩu" data-act="resetUserPwForm" data-args='[${u.id}]'>${IC.key} MK</button>`}
         ${u.id === me ? '' : `<button class="btn sm ghost" title="Khoá tài khoản — chặn đăng nhập, KHÔNG xoá dữ liệu" data-act="delUserRow" data-args='[${u.id}]' data-uname="${esc(u.username)}">${IC.lock} Khoá</button>`}
       </div></td>
     </tr>`;
   }).join('') || '<tr><td colspan="5" class="muted">Chưa có tài khoản.</td></tr>';
   window._usrCache = users;
+}
+/* ---------- DUYỆT tài khoản chờ (SSO tự tạo) ----------
+   Tách khỏi userForm vì hai nhánh khác hẳn nhau về BẢN CHẤT, không chỉ khác giá trị vai:
+   · nhân viên -> gán vai + cơ sở (PUT /admin/users/:id, y như cũ)
+   · học viên  -> GHÉP HỒ SƠ. Vai 'student' mà thiếu users.student_id là tài khoản rỗng: đăng nhập
+     được nhưng không phòng, không hoá đơn, không gì — nên ở đây bắt chọn hồ sơ, chưa có thì tạo. */
+function approveForm(id) {
+  const u = (window._usrCache || []).find(x => x.id === id);
+  if (!u) return;
+  const hv = (ST.students || []).slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'vi'));
+  openModal(`
+    <div class="mh"><h3>Duyệt tài khoản</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mb">
+      <div class="hint">${IC.info} Tài khoản này do <strong>đăng nhập Microsoft</strong> tự tạo — app chưa biết là ai.
+        <br><strong>${esc(u.full_name || '—')}</strong> · ${esc(u.email || u.username)}</div>
+      <div class="field"><label>Người này là *</label><select id="ap_kind" data-change="apToggle">
+        <option value="staff">Nhân viên</option>
+        <option value="student">Học viên</option>
+      </select></div>
+      <div id="ap_staff">
+        <div class="field"><label>Vai trò</label><select id="ap_role">
+          <option value="staff">Nhân viên — thao tác nghiệp vụ</option>
+          <option value="maintenance">Bảo trì / An ninh — xử lý báo hư hỏng</option>
+          <option value="admin">Quản trị viên — toàn quyền</option>
+        </select></div>
+        <div class="field"><label>Cơ sở phụ trách</label><select id="ap_facility">
+          <option value="">Tất cả cơ sở (điều hành)</option>
+          ${(ST.facilities || []).map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join('')}
+        </select></div>
+      </div>
+      <div id="ap_student" hidden>
+        <div class="field"><label>Hồ sơ học viên</label><select id="ap_hv" data-change="apToggle">
+          <option value="">— Chưa có hồ sơ, tạo mới —</option>
+          ${hv.map(s => `<option value="${s.id}">${esc((s.code ? s.code + ' — ' : '') + (s.name || ''))}</option>`).join('')}
+        </select></div>
+        <div id="ap_new">
+          <div class="grid2">
+            <div class="field"><label>Họ tên *</label><input id="ap_name" value="${esc(u.full_name || '')}" placeholder="Nguyễn Văn A"></div>
+            <div class="field"><label>Mã học viên</label><input id="ap_code" placeholder="TXTS-S25..."></div>
+          </div>
+          <div class="grid2">
+            <div class="field"><label>Giới tính</label><select id="ap_gender"><option value="male">Nam</option><option value="female">Nữ</option></select></div>
+            <div class="field"><label>Số điện thoại</label><input id="ap_phone" placeholder="09..."></div>
+          </div>
+          <div class="field"><label>Lớp</label><input id="ap_class" placeholder="Esu684"></div>
+          <div class="hint" style="font-size:12px">${IC.info} Hồ sơ mới để <strong>trống phòng và ngày vào</strong> — duyệt tài khoản không phải là check-in. Xếp phòng ở màn Học viên sau, lúc đó mới phát sinh tiền.</div>
+        </div>
+        <div class="hint" style="font-size:12px">${IC.lock} Email <strong>${esc(u.email || '—')}</strong> sẽ được ghi vào hồ sơ (nếu hồ sơ chưa có), lần sau học viên đăng nhập Microsoft là vào thẳng, khỏi qua đây.</div>
+      </div>
+    </div>
+    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveApprove" data-args='[${id}]'>Duyệt</button></div>`);
+}
+function apToggle() {
+  const la = el('ap_kind').value;
+  el('ap_staff').hidden = la !== 'staff';
+  el('ap_student').hidden = la !== 'student';
+  el('ap_new').hidden = !!el('ap_hv').value; // đã chọn hồ sơ có sẵn -> không cần form tạo mới
+}
+async function saveApprove(id) {
+  if (el('ap_kind').value === 'staff') {
+    await guard(() => API.updateUser(id, { role: el('ap_role').value, facility_id: el('ap_facility').value }));
+    closeModal(); toast('Đã duyệt — tài khoản nhân viên'); loadAdminUsers();
+    return;
+  }
+  const sid = el('ap_hv').value;
+  const body = sid ? { student_id: +sid } : {
+    new_student: {
+      name: el('ap_name').value.trim(), code: el('ap_code').value.trim(), gender: el('ap_gender').value,
+      phone: el('ap_phone').value.trim(), class_name: el('ap_class').value.trim(),
+    },
+  };
+  if (!sid && !body.new_student.name) return toast('Nhập họ tên để tạo hồ sơ học viên', 'err');
+  await guard(() => API.approveUserAsStudent(id, body));
+  closeModal(); toast('Đã duyệt — tài khoản học viên');
+  await refreshCache(); // hồ sơ mới -> danh sách học viên phải nạp lại
+  loadAdminUsers(); loadStudentAccounts();
 }
 function userForm(id) {
   const u = id ? (window._usrCache || []).find(x => x.id === id) : { username: '', full_name: '', role: 'staff' };

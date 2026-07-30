@@ -93,7 +93,7 @@ func (h *Handlers) studentsValidateCccd(c *gin.Context, b map[string]interface{}
 const studentsListSelect = `
   SELECT s.id, s.code, s.name, s.gender, s.phone, s.id_card, s.room_id, s.check_in_date, s.check_out_date,
     s.status, s.note, s.uses_washing, s.deposit_amount, s.deposit_status, s.deposit_date, s.deposit_refund_date,
-    s.checkout_notice_date, s.checkout_reason, s.birth_date, s.class_name, s.rental_type, s.residency_status,
+    s.checkout_notice_date, s.checkout_reason, s.birth_date, s.class_name, s.email, s.rental_type, s.residency_status,
     s.contract_no, s.contract_date, s.contract_status, s.deposit_bank, s.deposit_account,
     s.class_start_date, s.expected_departure, s.parent_phone, s.room_fee_discount_pct, s.facility_id,
     s.water_discount_pct, s.electric_discount_pct, s.service_discount_pct, s.washing_discount_pct, s.parking_discount_pct,
@@ -1173,6 +1173,7 @@ func (h *Handlers) CreateStudent(c *gin.Context) {
 		studentsPct(b["service_discount_pct"]),      // $33
 		studentsPct(b["washing_discount_pct"]),      // $34
 		studentsPct(b["parking_discount_pct"]),      // $35
+		strings.ToLower(strings.TrimSpace(studentsStrOr(b["email"]))), // $36 — hạ chữ thường để khớp SSO không phụ thuộc hoa/thường
 	)
 
 	if !h.studentsValidateCccd(c, b) { // 400 nếu ảnh CCCD sai chữ ký (trước khi ghi)
@@ -1185,8 +1186,9 @@ func (h *Handlers) CreateStudent(c *gin.Context) {
            uses_washing, rental_type, residency_status, contract_no, contract_date, contract_status, cccd_image,
            status, check_out_date, deposit_amount, deposit_status, deposit_date, cccd_front, cccd_back, checkout_reason,
            class_start_date, expected_departure, parent_phone, room_fee_discount_pct, facility_id,
-           water_discount_pct, electric_discount_pct, service_discount_pct, washing_discount_pct, parking_discount_pct)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35) RETURNING *`,
+           water_discount_pct, electric_discount_pct, service_discount_pct, washing_discount_pct, parking_discount_pct,
+           email)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36) RETURNING *`,
 			params...)
 		if e != nil {
 			return e
@@ -1335,19 +1337,20 @@ func (h *Handlers) UpdateStudent(c *gin.Context) {
 		studentsPct(b["service_discount_pct"]),      // $23
 		studentsPct(b["washing_discount_pct"]),      // $24
 		studentsPct(b["parking_discount_pct"]),      // $25
+		strings.ToLower(strings.TrimSpace(studentsStrOr(b["email"]))), // $26
 	)
 	cols := `code=$1, name=$2, gender=$3, phone=$4, id_card=$5, birth_date=$6, class_name=$7, room_id=$8,
       check_in_date=$9, note=$10, uses_washing=$11, rental_type=$12, residency_status=$13,
       contract_no=$14, contract_date=$15, contract_status=$16,
       class_start_date=$17, expected_departure=$18, parent_phone=$19, room_fee_discount_pct=$20,
       water_discount_pct=$21, electric_discount_pct=$22, service_discount_pct=$23,
-      washing_discount_pct=$24, parking_discount_pct=$25`
+      washing_discount_pct=$24, parking_discount_pct=$25, email=$26`
 	// (CCCD extra BỎ — CHƯA port S3; cột cccd_* không đổi ở PUT)
-	params = append(params, id) // $26
-	sql := "UPDATE students SET " + cols + " WHERE id=$26"
+	params = append(params, id) // $27
+	sql := "UPDATE students SET " + cols + " WHERE id=$27"
 	if studentsJSTruthy(raw["_v"]) {
-		params = append(params, studentsJSString(raw["_v"])) // $27
-		sql = "UPDATE students SET " + cols + " WHERE id=$26 AND xmin::text = $27"
+		params = append(params, studentsJSString(raw["_v"])) // $28
+		sql = "UPDATE students SET " + cols + " WHERE id=$27 AND xmin::text = $28"
 	}
 	sql += " RETURNING *"
 

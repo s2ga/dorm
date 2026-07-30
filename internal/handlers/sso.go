@@ -211,6 +211,50 @@ func (h *Handlers) ssoResolveUser(ctx context.Context, identity sso.Identity) (*
 		Scan(&lockedByEmail) == nil {
 		return nil, errTaiKhoanBiKhoa
 	}
+	// 2c) Email khớp một HỒ SƠ HỌC VIÊN -> vào thẳng cổng học viên, KHÔNG qua hàng chờ duyệt.
+	// Lý do students.email tồn tại: học viên đông gấp nhiều lần nhân viên, bắt admin duyệt tay từng
+	// người thì đến đợt nhập học hàng chờ ngập, ai cũng đứng ngoài cổng.
+	var stID int
+	var stName string
+	if h.pool().QueryRow(ctx,
+		"SELECT id, name FROM students WHERE email <> '' AND lower(email) = lower($1)", identity.Email).
+		Scan(&stID, &stName) == nil {
+		// Hồ sơ đã có tài khoản (admin từng cấp mật khẩu) -> LIÊN KẾT vào đúng tài khoản đó, tuyệt đối
+		// không tạo bản thứ hai: users.student_id trùng nghĩa là học viên có 2 lối vào, thu hồi 1 cái
+		// vẫn còn cái kia.
+		var accID int
+		var accLocked bool
+		if h.pool().QueryRow(ctx, "SELECT id, (deleted_at IS NOT NULL) FROM users WHERE student_id = $1", stID).
+			Scan(&accID, &accLocked) == nil {
+			if accLocked {
+				return nil, errTaiKhoanBiKhoa
+			}
+			if _, err := h.pool().Exec(ctx,
+				`UPDATE users SET sso_subject = $1, email = $2,
+				   auth_provider = CASE WHEN password_hash IS NULL THEN 'sso' ELSE 'both' END
+				 WHERE id = $3`, identity.Subject, identity.Email, accID); err != nil {
+				return nil, err
+			}
+			return h.ssoLoadUser(ctx, "id = $1", accID), nil
+		}
+		unameHV := identity.Email
+		var takenHV int
+		if h.pool().QueryRow(ctx, "SELECT 1 FROM users WHERE lower(username) = lower($1)", unameHV).Scan(&takenHV) == nil {
+			unameHV = identity.Email + ":" + identity.Subject
+		}
+		tenHV := identity.FullName
+		if tenHV == "" {
+			tenHV = stName
+		}
+		var hvID int
+		if e := h.pool().QueryRow(ctx,
+			`INSERT INTO users (username, password_hash, role, full_name, email, student_id, sso_subject, auth_provider, approved)
+			 VALUES ($1, NULL, 'student', $2, $3, $4, $5, 'sso', true) RETURNING id`,
+			unameHV, tenHV, identity.Email, stID, identity.Subject).Scan(&hvID); e != nil {
+			return nil, e
+		}
+		return h.ssoLoadUser(ctx, "id = $1", hvID), nil
+	}
 	// 3) Chưa có -> tạo 'pending'. Nếu username (email) đã bị một tài khoản khác dùng (kể cả đã xoá mềm)
 	// thì né bằng hậu tố để KHÔNG 500 vì trùng username.
 	fullName := identity.FullName

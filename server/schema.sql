@@ -61,6 +61,11 @@ ALTER TABLE students ADD COLUMN IF NOT EXISTS checkout_reason TEXT;
 -- Bổ sung theo nghiệp vụ thực tế
 ALTER TABLE students ADD COLUMN IF NOT EXISTS birth_date DATE;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS class_name TEXT DEFAULT '';        -- Lớp
+-- Email công ty của học viên. Khớp email này với tài khoản Microsoft ở lần đăng nhập ĐẦU TIÊN thì
+-- vào thẳng cổng học viên, không phải nằm hàng chờ admin duyệt. Trống = vẫn phải duyệt tay.
+ALTER TABLE students ADD COLUMN IF NOT EXISTS email TEXT DEFAULT '';
+-- Một email chỉ được thuộc MỘT hồ sơ: nếu không, khớp email lúc đăng nhập sẽ không biết chọn ai.
+CREATE UNIQUE INDEX IF NOT EXISTS ux_students_email ON students (lower(email)) WHERE email IS NOT NULL AND email <> '';
 ALTER TABLE students ADD COLUMN IF NOT EXISTS rental_type TEXT DEFAULT 'ghep';    -- 'ghep' | 'phong'
 ALTER TABLE students ADD COLUMN IF NOT EXISTS residency_status TEXT DEFAULT 'unregistered'; -- tạm trú: 'registered'|'unregistered'
 ALTER TABLE students ADD COLUMN IF NOT EXISTS contract_no TEXT DEFAULT '';        -- số HĐ
