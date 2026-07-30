@@ -632,16 +632,23 @@ function viewSettings() {
     </div>
 
     ${grpOpen('nguoidung')}
+    <div class="panel" id="pendingPanel"><div class="hd"><h2>${IC.clock} Chờ duyệt (<span id="pendCount">…</span>)</h2>
+      <span class="muted" style="font-size:12px">Người mới đăng nhập Microsoft lần đầu</span></div>
+      <div class="pad hint" style="margin:0 14px 10px">${IC.info} <strong>Không cần tạo tài khoản tay.</strong> Người mới — nhân viên hay học viên — cứ bấm
+        <em>“Đăng nhập bằng tài khoản Microsoft”</em> ở màn đăng nhập. App chưa biết họ là ai nên xếp vào đây,
+        chưa vào được gì. Bấm <strong>Duyệt</strong> rồi chọn: <strong>nhân viên</strong> (gán vai + cơ sở) hay
+        <strong>học viên</strong> (ghép vào hồ sơ có sẵn, chưa có thì tạo hồ sơ mới). Duyệt xong họ rời khỏi bảng này,
+        sang bảng nhân viên hoặc bảng tài khoản học viên bên dưới.
+        <br>${IC.bulb} <strong>Học viên khỏi phải qua đây</strong> nếu hồ sơ đã điền <strong>Email công ty</strong>
+        (màn Học viên → Sửa hồ sơ): email trùng thì lần đầu đăng nhập là vào thẳng.</div>
+      <div class="table-wrap"><table><thead><tr><th>Tên đăng nhập / Email</th><th>Họ tên</th><th>Đăng nhập lần đầu</th><th></th></tr></thead>
+        <tbody id="pendRows"><tr><td colspan="4"><div class="spinner"></div></td></tr></tbody></table></div>
+    </div>
+
     <div class="panel" id="usersPanel"><div class="hd"><h2>${IC.shield} Nhân viên & phân quyền</h2>
       <span class="muted" style="font-size:12px">Đăng nhập bằng Microsoft — không tạo tay</span></div>
-      <div class="pad hint" style="margin:0 14px 10px">${IC.info} <strong>Không cần tạo tài khoản tay.</strong> Người mới — nhân viên hay học viên — cứ bấm
-        <em>“Đăng nhập bằng tài khoản Microsoft”</em> ở màn đăng nhập. App chưa biết họ là ai nên xếp vào
-        <span class="badge amber" style="font-size:10px">⏳ Chờ duyệt</span>, chưa vào được gì. Quản trị viên bấm <strong>Duyệt</strong> rồi chọn:
-        <strong>nhân viên</strong> (gán vai + cơ sở) hay <strong>học viên</strong> (ghép vào hồ sơ có sẵn, chưa có thì tạo hồ sơ mới).
-        <br>${IC.bulb} <strong>Học viên khỏi phải qua bước này</strong> nếu hồ sơ của họ đã điền <strong>Email công ty</strong> (màn Học viên → Sửa hồ sơ):
-        email trùng thì lần đầu đăng nhập là vào thẳng. Duyệt xong, tài khoản học viên chuyển sang bảng
-        <em>“Tài khoản đăng nhập của học viên”</em> bên dưới, không nằm ở danh sách này nữa.
-        <br>${IC.lock} Riêng tài khoản <strong>quản trị khởi tạo</strong> (bootstrap) vẫn dùng mật khẩu — đường vào dự phòng khi SSO trục trặc.</div>
+      <div class="pad hint" style="margin:0 14px 10px">${IC.lock} Tài khoản <strong>quản trị khởi tạo</strong> (bootstrap) vẫn dùng mật khẩu — đường vào dự phòng khi SSO trục trặc.
+        Tài khoản học viên KHÔNG nằm ở bảng này, xem bảng <em>“Tài khoản học viên”</em> bên dưới.</div>
       <div class="table-wrap"><table><thead><tr><th>Tên đăng nhập</th><th>Họ tên</th><th>Vai trò</th><th>Cơ sở</th><th></th></tr></thead>
         <tbody id="usrRows"><tr><td colspan="5"><div class="spinner"></div></td></tr></tbody></table></div>
       <div class="pad muted" style="font-size:12.5px">${IC.bulb} <strong>Quản trị viên</strong> có toàn quyền (kể cả Điều hành, Doanh thu, Nhật ký, Cài đặt). <strong>Nhân viên</strong> chỉ thao tác nghiệp vụ (Học viên, Phòng, Xe, Check-in/out, Tiền phòng, Tiếp nhận & Hỗ trợ) và đều được ghi vào Nhật ký.
@@ -700,12 +707,13 @@ async function loadAdminUsers() {
   let users = [];
   try { users = await API.adminUsers(); } catch (e) { box.innerHTML = `<tr><td colspan="5" class="muted">${esc(e.message)}</td></tr>`; return; }
   const me = Auth.user.id;
-  box.innerHTML = users.map(u => {
+  // Chờ duyệt tách hẳn sang bảng riêng: nó là VIỆC PHẢI LÀM, còn bảng nhân viên là danh sách để tra
+  // cứu. Trộn chung thì người mới nằm lẫn giữa vài chục dòng đã duyệt, dễ bỏ sót — mà họ đang đứng
+  // ngoài cổng chờ. Tài khoản đã KHOÁ không tính là chờ duyệt: mở khoá mới là việc của bảng kia.
+  const cho = u => u.approved === false && !u.locked;
+  veBangChoDuyet(users.filter(cho));
+  box.innerHTML = users.filter(u => !cho(u)).map(u => {
     const [rl, rc] = ROLE_LABEL[u.role] || [u.role, 'gray'];
-    // Tài khoản do đăng nhập Microsoft tự tạo, chưa duyệt: phải ĐẬP VÀO MẮT admin, kèm email để
-    // đối chiếu người thật. Duyệt = bấm "Duyệt" -> chọn nhân viên (gán vai + cơ sở) hay học viên
-    // (ghép hồ sơ). Xem approveForm.
-    const cho = u.approved === false;
     const khoa = !!u.locked; // đã KHOÁ (không đăng nhập được) — vẫn giữ dữ liệu, mở lại được
     if (khoa) return `<tr style="background:var(--bg2);opacity:.75">
       <td><strong style="text-decoration:line-through">${esc(u.username)}</strong>
@@ -716,21 +724,39 @@ async function loadAdminUsers() {
       <td class="num"><div class="rowbtns" style="justify-content:flex-end">
         <button class="btn sm green" title="Cho đăng nhập lại" data-act="unlockUserRow" data-args='[${u.id}]' data-uname="${esc(u.username)}">${IC.undo} Mở khoá</button>
       </div></td></tr>`;
-    return `<tr${cho ? ' style="background:var(--bg2)"' : ''}>
+    return `<tr>
       <td><strong>${esc(u.username)}</strong>${u.id === me ? ' <span class="badge amber" style="font-size:10px">Bạn</span>' : ''}
         ${u.auth_provider && u.auth_provider !== 'local' ? `<span class="badge blue" style="font-size:10px" title="Đăng nhập bằng Microsoft">${esc(u.auth_provider === 'sso' ? 'Microsoft' : 'MK + Microsoft')}</span>` : ''}
         ${u.email ? `<div class="muted" style="font-size:11px">${esc(u.email)}</div>` : ''}</td>
       <td>${esc(u.full_name || '—')}</td>
-      <td>${cho ? '<span class="badge amber" title="Tự tạo qua Microsoft — bấm Duyệt để chọn nhân viên (gán vai + cơ sở) hay học viên (ghép hồ sơ)">⏳ Chờ duyệt</span>' : `<span class="badge ${rc}">${rl}</span>`}</td>
+      <td><span class="badge ${rc}">${rl}</span></td>
       <td>${u.facility_id ? esc(u.facility_name || facilityName(u.facility_id)) : '<span class="badge gray" title="Điều hành — thấy tất cả cơ sở">Tất cả</span>'}</td>
       <td class="num"><div class="rowbtns" style="justify-content:flex-end">
-        <button class="btn sm${cho ? ' pri' : ''}" data-act="${cho ? 'approveForm' : 'userForm'}" data-args='[${u.id}]'>${cho ? 'Duyệt' : 'Sửa'}</button>
+        <button class="btn sm" data-act="userForm" data-args='[${u.id}]'>Sửa</button>
         ${u.auth_provider === 'sso' ? '' : `<button class="btn sm" title="Chỉ áp dụng cho tài khoản còn dùng mật khẩu" data-act="resetUserPwForm" data-args='[${u.id}]'>${IC.key} MK</button>`}
         ${u.id === me ? '' : `<button class="btn sm ghost" title="Khoá tài khoản — chặn đăng nhập, KHÔNG xoá dữ liệu" data-act="delUserRow" data-args='[${u.id}]' data-uname="${esc(u.username)}">${IC.lock} Khoá</button>`}
       </div></td>
     </tr>`;
   }).join('') || '<tr><td colspan="5" class="muted">Chưa có tài khoản.</td></tr>';
   window._usrCache = users;
+}
+// Bảng CHỜ DUYỆT — việc phải làm, để riêng và đặt trên cùng.
+function veBangChoDuyet(ds) {
+  const box = el('pendRows'); if (!box) return;
+  const dem = el('pendCount'); if (dem) dem.textContent = ds.length;
+  if (!ds.length) {
+    box.innerHTML = `<tr><td colspan="4" class="muted" style="padding:14px">${IC.check} Không có ai đang chờ — mọi tài khoản đều đã được duyệt.</td></tr>`;
+    return;
+  }
+  box.innerHTML = ds.map(u => `<tr style="background:var(--bg2)">
+    <td><strong>${esc(u.username)}</strong>
+      ${u.email && u.email !== u.username ? `<div class="muted" style="font-size:11px">${esc(u.email)}</div>` : ''}</td>
+    <td>${esc(u.full_name || '—')}</td>
+    <td class="muted" style="font-size:12px">${esc(fmtDT(u.created_at))}</td>
+    <td class="num"><div class="rowbtns" style="justify-content:flex-end">
+      <button class="btn sm pri" data-act="approveForm" data-args='[${u.id}]'>Duyệt</button>
+      <button class="btn sm ghost" title="Không phải người của mình — khoá lại, chặn đăng nhập" data-act="delUserRow" data-args='[${u.id}]' data-uname="${esc(u.username)}">${IC.lock} Khoá</button>
+    </div></td></tr>`).join('');
 }
 /* ---------- DUYỆT tài khoản chờ (SSO tự tạo) ----------
    Tách khỏi userForm vì hai nhánh khác hẳn nhau về BẢN CHẤT, không chỉ khác giá trị vai:
