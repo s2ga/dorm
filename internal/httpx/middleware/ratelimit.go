@@ -118,6 +118,18 @@ func (l *KeyedLimiter) Handler() gin.HandlerFunc {
 	}
 }
 
+// SSOLimiter: đăng nhập Microsoft — 300 lượt/15 phút/IP, bỏ đếm lượt THÀNH CÔNG.
+// Trần rộng vì ký túc xá và mạng 4G đều NAT nhiều người sau một IP.
+func SSOLimiter() gin.HandlerFunc {
+	l := &KeyedLimiter{
+		windowMs: 15 * 60 * 1000, max: 300, skipSuccess: true,
+		message: gin.H{"error": "Bạn đã thử đăng nhập Microsoft quá nhiều lần. Vui lòng đợi vài phút."},
+		buckets: map[string]*bucket{},
+		keyFn:   func(c *gin.Context) string { return normIP(c.ClientIP()) },
+	}
+	return l.Handler()
+}
+
 // AuthLimiter: chống dò mật khẩu — 20 lần/15 phút, KEY = IP|username, bỏ đếm lần ĐĂNG NHẬP ĐÚNG.
 // server/index.js:58-63. (Rào THẬT theo tài khoản là login-guard; limiter này là net phụ.)
 func AuthLimiter() gin.HandlerFunc {

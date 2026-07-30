@@ -68,7 +68,7 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	ag.GET("/me", a.RequireAuth(), h.Me)
 	ag.POST("/change-password", authLim, a.RequireAuth(), h.ChangePassword)
 	ag.GET("/sso/config", h.SSOConfig)
-	ssoLim := middleware.NewLimiter(15*60*1000, 30, "Bạn đã thử đăng nhập Microsoft quá nhiều lần. Vui lòng đợi vài phút.").Handler()
+	ssoLim := middleware.SSOLimiter()
 	ag.GET("/sso/start", ssoLim, h.SSOStart)
 	ag.GET("/sso/callback", ssoLim, h.SSOCallback)
 	ag.POST("/sso/exchange-params", ssoLim, h.SSOExchangeParams) // tham số đổi mã, gác bằng cookie state
