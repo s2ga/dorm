@@ -43,6 +43,30 @@ func OpenStayOf(ctx context.Context, q db.Querier, studentID int) (*Stay, error)
 	return &s, nil
 }
 
+// LastStayOf: lượt ở gần nhất của HV, kể cả đã đóng.
+func LastStayOf(ctx context.Context, q db.Querier, studentID int) (*Stay, error) {
+	var s Stay
+	var roomID *int
+	var from, to pgtype.Date
+	err := q.QueryRow(ctx, "SELECT id, room_id, from_date, to_date FROM room_stays WHERE student_id=$1 ORDER BY from_date DESC, id DESC LIMIT 1", studentID).
+		Scan(&s.ID, &roomID, &from, &to)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	s.RoomID = roomID
+	if from.Valid {
+		s.FromDate = from.Time.Format("2006-01-02")
+	}
+	if to.Valid {
+		t := to.Time.Format("2006-01-02")
+		s.ToDate = &t
+	}
+	return &s, nil
+}
+
 // CloseStay: đóng lượt đang mở tại ngày toDate (tính trọn ngày đó). server/room-stays.js:23-33
 func CloseStay(ctx context.Context, q db.Querier, studentID int, toDate string) error {
 	cur, err := OpenStayOf(ctx, q, studentID)
@@ -100,6 +124,28 @@ func Reconcile(ctx context.Context, q db.Querier, studentID int, roomID *int, ch
 		}
 		return err
 	}
+	var n int
+	if err := q.QueryRow(ctx, "SELECT COUNT(*)::int FROM room_stays WHERE student_id=$1", studentID).Scan(&n); err != nil {
+		return err
+	}
+	// Không còn lượt ĐANG MỞ = HV đã trả phòng. Phải sửa lượt CUỐI, mở lượt mới là nhân bản lượt ở
+	// -> roster() cộng dồn ngày của cùng một người hai lần -> chia tiền điện sai cho cả phòng.
+	if cur == nil && n > 0 {
+		last, err := LastStayOf(ctx, q, studentID)
+		if err != nil || last == nil {
+			return err
+		}
+		var toArg interface{}
+		if checkOutDate != "" {
+			toArg = checkOutDate
+		}
+		if n == 1 {
+			_, err = q.Exec(ctx, "UPDATE room_stays SET room_id=$1, from_date=$2, to_date=$3 WHERE id=$4", *roomID, checkInDate, toArg, last.ID)
+		} else {
+			_, err = q.Exec(ctx, "UPDATE room_stays SET room_id=$1, to_date=$2 WHERE id=$3", *roomID, toArg, last.ID)
+		}
+		return err
+	}
 	if cur == nil {
 		if err := OpenStay(ctx, q, studentID, roomID, checkInDate); err != nil {
 			return err
@@ -108,10 +154,6 @@ func Reconcile(ctx context.Context, q db.Querier, studentID int, roomID *int, ch
 			return CloseStay(ctx, q, studentID, checkOutDate)
 		}
 		return nil
-	}
-	var n int
-	if err := q.QueryRow(ctx, "SELECT COUNT(*)::int FROM room_stays WHERE student_id=$1", studentID).Scan(&n); err != nil {
-		return err
 	}
 	if n > 1 {
 		_, err = q.Exec(ctx, "UPDATE room_stays SET room_id=$1 WHERE id=$2", *roomID, cur.ID)

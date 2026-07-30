@@ -927,9 +927,13 @@ func (h *Handlers) BillCheckout(c *gin.Context) {
 		RoomFeeDiscountPct: pctVal, UsesWashing: uw, UsesParking: up,
 	}
 	giam.GanVao(&hv)
+	var np *invoicecalc.NguyenPhongThang
+	if roomID != nil {
+		np, _ = invoicecalc.NguyenPhongCuaPhong(ctx, h.DB, *roomID, month, billing.Fees(fees))
+	}
 	comp := billing.ComputeInvoice(billing.ComputeInput{
-		Student: hv,
-		Room:    room, Month: month, Fees: billing.Fees(fees),
+		Student: hv, NguyenPhong: np.Cua(sid),
+		Room: room, Month: month, Fees: billing.Fees(fees),
 		Roster: roster, ElectricCharge: electricCharge, LeaderDays: leaderDays, Kwh: kwh, VehicleCount: &veh,
 	})
 

@@ -370,6 +370,9 @@ async function studentForm(id) {
   window._svV = s._v || null;   // ghi nhớ hồ sơ này ở phiên bản nào lúc mình MỞ form
   _cccdFront = null; _cccdBack = null; _cccdFrontChanged = false; _cccdBackChanged = false;
   const opt = (val, cur, label) => `<option value="${val}" ${cur === val ? 'selected' : ''}>${label}</option>`;
+  // Ngày trả phòng chỉ đặt/đổi được sang ngày tương lai — đã qua thì phiếu đã phát, công-tơ đã chốt.
+  const coHienTai = (s.check_out_date || '').slice(0, 10);
+  const daRoi = !!coHienTai && coHienTai <= today();
   openModal(`
     <div class="mh"><h3>${id ? 'Sửa học viên' : 'Thêm học viên'}</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
     <div class="mb">
@@ -414,6 +417,10 @@ async function studentForm(id) {
         <div class="field"><label>Tạm trú</label><select id="f_residency">
           ${opt('unregistered', s.residency_status, 'Chưa đăng ký')}${opt('processing', s.residency_status, 'Đang xử lý')}${opt('registered', s.residency_status, 'Đã đăng ký')}</select></div>
       </div>
+      <div class="field"><label>Ngày trả phòng ${daRoi ? '' : '<span class="opt">(báo trước — để trống nếu chưa báo)</span>'}</label>
+        ${daRoi
+    ? `<input value="${esc(fmtDate(coHienTai))}" readonly title="Đã trả phòng — ngày đã qua không sửa được ở đây">`
+    : '<input id="f_out">'}</div>
 
       <div style="background:var(--bg2);padding:12px;border-radius:10px;margin-bottom:14px">
         <div style="font-weight:600;font-size:13px;margin-bottom:10px">${IC.fileText} Hợp đồng</div>
@@ -439,11 +446,6 @@ async function studentForm(id) {
         </div>
       </div>
 
-      <div class="field"><label>Dịch vụ</label>
-        <label class="check"><input type="checkbox" id="f_wash" ${s.uses_washing ? 'checked' : ''}> ${IC.washer} Máy giặt (${money(ST.settings.washing_fee)}/tháng)</label>
-        <div class="muted" style="font-size:12px;margin-top:4px">${IC.bike} Xe: thêm ở mục "Chi tiết" của học viên (phí gửi xe tính theo số xe).</div>
-      </div>
-      <div class="field"><label>Ghi chú</label><input id="f_note" value="${esc(s.note || '')}"></div>
       ${!id ? `
       <label class="check"><input type="checkbox" id="f_dep" checked> ${IC.lock} Đã đóng cọc ${money(ST.settings.deposit_fee)} khi nhận phòng</label>
       <label class="check" style="margin-top:8px"><input type="checkbox" id="f_login" data-change="onLoginBoxToggle"> ${IC.key} Tạo tài khoản đăng nhập</label>
@@ -460,6 +462,7 @@ async function studentForm(id) {
   attachDate(el('f_departure'), s.expected_departure);
   attachDate(el('f_in'), s.check_in_date || today());
   attachDate(el('f_cdate'), s.contract_date);
+  attachDate(el('f_out'), daRoi ? '' : coHienTai, { min: addDays(today(), 1) });
   setTimeout(() => el('f_name').focus(), 50);
 }
 async function saveStudent(id) {
@@ -468,6 +471,8 @@ async function saveStudent(id) {
     email: el('f_email').value.trim().toLowerCase(),
     birth_date: el('f_birth').dataset.iso || null, gender: el('f_gender').value, phone: el('f_phone').value.trim(),
     room_id: el('f_room').value || null, rental_type: el('f_rental').value, check_in_date: el('f_in').dataset.iso,
+    // Ô vắng mặt (HV đã trả phòng) -> KHÔNG gửi field, để server giữ nguyên ngày cũ.
+    ...(el('f_out') ? { check_out_date: el('f_out').dataset.iso || null } : {}),
     ...Object.fromEntries(GIAM_O.map(([k, id2]) => [k, +el(id2).value || 0])),
     // Số hiệu phiên bản đọc lúc MỞ form. Server so lại: khác nghĩa là người khác vừa sửa
     // trong lúc mình đang điền -> báo cho biết thay vì đè mất công của họ.
@@ -476,16 +481,17 @@ async function saveStudent(id) {
     contract_date: el('f_cdate').dataset.iso || null, contract_status: el('f_cstatus').value,
     class_start_date: el('f_cstart').dataset.iso || null, expected_departure: el('f_departure').dataset.iso || null,
     parent_phone: el('f_pphone').value.trim(),
-    note: el('f_note').value.trim(), uses_washing: el('f_wash').checked,
+    // note + uses_washing KHÔNG gửi: máy giặt do màn Dịch vụ quản, ghi chú đã bỏ khỏi form.
+    // Không gửi field = máy chủ giữ nguyên giá trị cũ, không phải xoá trắng.
   };
   if (!body.name) return toast('Nhập họ tên', 'err');
   if (!id) {
-    body.cccd_image = _cccdData || null;
     body.deposit_paid = el('f_dep').checked;
     if (el('f_login').checked) { body.create_login = true; body.login_username = el('f_luser').value.trim(); body.login_password = el('f_lpass').value.trim(); }
-  } else if (_cccdChanged) {
-    body.cccd_image = _cccdData;
   }
+  // Chỉ gửi mặt ảnh NÀO vừa chọn — không gửi = giữ nguyên ảnh cũ trên máy chủ.
+  if (_cccdFrontChanged) body.cccd_front = _cccdFront;
+  if (_cccdBackChanged) body.cccd_back = _cccdBack;
   // Hai lớp hỏi lại của server, đều trả 409:
   //   - TRÙNG hồ sơ (mã HV/CCCD đã có) -> chỉ đường sang Chuyển phòng / Check-in lại
   //   - Phòng QUÁ TẢI -> hỏi có xếp nữa không (đồng ý thì ghi nhật ký)

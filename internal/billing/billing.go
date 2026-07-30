@@ -381,8 +381,19 @@ func MienTienPhong(roomType string) bool {
 	return roomType == "security" || roomType == "staff"
 }
 
+// NguyenPhong: phòng cho thuê TRỌN. Mọi khoản chung dồn về một hoá đơn đứng tên phòng trưởng —
+// tiền phòng theo hạng thu MỘT lần cho cả phòng, trọn tiền điện công-tơ, nước và dịch vụ nhân theo
+// tổng suất-người. Thành viên còn lại chỉ còn phí cá nhân (máy giặt, gửi xe).
+type NguyenPhong struct {
+	DungHoaDon  bool    // người này là người ký hợp đồng — phòng trưởng, người đứng phiếu
+	SuatNguoi   float64 // Σ hệ số ngày ở của MỌI người trong phòng tháng đó (nước, dịch vụ)
+	SuatMayGiat float64 // Σ hệ số ngày của những người dùng máy giặt
+	SuatXe      float64 // Σ (số xe × hệ số ngày) của cả phòng
+}
+
 // ComputeInput gói tham số cho ComputeInvoice (opts của server/billing.js:158).
 type ComputeInput struct {
+	NguyenPhong    *NguyenPhong // nil = thuê ghép (mỗi người một hoá đơn như cũ)
 	Student        Student
 	Room           *Room
 	Month          string
@@ -419,11 +430,17 @@ func ComputeInvoice(in ComputeInput) Invoice {
 	days := DaysStayedInMonth(in.Student.CheckInDate, in.Student.CheckOutDate, in.Month)
 	fees := in.Fees
 
+	// Thuê nguyên phòng: chỉ người đứng hoá đơn mới gánh khoản chung, người khác về 0.
+	nguyenPhong := in.NguyenPhong != nil
+	thanhVien := nguyenPhong && !in.NguyenPhong.DungHoaDon
+
 	// Tiền phòng
 	var roomFee float64
-	if in.Room != nil && MienTienPhong(in.Room.RoomType) {
+	if thanhVien {
 		roomFee = 0
-	} else if in.Student.RentalType == "phong" {
+	} else if in.Room != nil && MienTienPhong(in.Room.RoomType) {
+		roomFee = 0
+	} else if nguyenPhong || in.Student.RentalType == "phong" {
 		hang := ""
 		if in.Room != nil {
 			hang = in.Room.Hang
@@ -454,25 +471,47 @@ func ComputeInvoice(in ComputeInput) Invoice {
 		halfFactor = numStr(v)
 	}
 	fFactor := PartialFactor(days, dim, int(fees.num("partial_half_min")), int(fees.num("partial_full_min")), halfFactor)
-	waterCharge := r0(fees.num("water_fee") * fFactor)
-	serviceCharge := r0(fees.num("service_fee") * fFactor)
+	// Nguyên phòng: người đứng hoá đơn trả nước+dịch vụ cho CẢ phòng (Σ suất-người theo ngày ở);
+	// thành viên về 0 vì đã nằm trong hoá đơn đó rồi.
+	suat := fFactor
+	if nguyenPhong {
+		suat = in.NguyenPhong.SuatNguoi
+		if thanhVien {
+			suat = 0
+		}
+	}
+	waterCharge := r0(fees.num("water_fee") * suat)
+	serviceCharge := r0(fees.num("service_fee") * suat)
+	// Nguyên phòng: máy giặt và gửi xe của MỌI người cũng dồn vào phiếu của phòng trưởng.
 	washingCharge := 0
-	if in.Student.UsesWashing {
-		washingCharge = r0(fees.num("washing_fee") * fFactor)
+	parkingCharge := 0
+	if thanhVien {
+		// để 0 — đã nằm trong phiếu phòng trưởng
+	} else if nguyenPhong {
+		washingCharge = r0(fees.num("washing_fee") * in.NguyenPhong.SuatMayGiat)
+		parkingCharge = r0(fees.num("parking_fee") * in.NguyenPhong.SuatXe)
+	} else {
+		if in.Student.UsesWashing {
+			washingCharge = r0(fees.num("washing_fee") * fFactor)
+		}
+		nVehicles := 0
+		if in.VehicleCount != nil {
+			nVehicles = *in.VehicleCount
+		} else if in.Student.UsesParking {
+			nVehicles = 1
+		}
+		parkingCharge = r0(fees.num("parking_fee") * float64(nVehicles) * fFactor)
 	}
-	nVehicles := 0
-	if in.VehicleCount != nil {
-		nVehicles = *in.VehicleCount
-	} else if in.Student.UsesParking {
-		nVehicles = 1
-	}
-	parkingCharge := r0(fees.num("parking_fee") * float64(nVehicles) * fFactor)
 
 	// Điện
 	unit := fees.num("electric_unit")
 	roomElectric := float64(r0(in.Kwh * unit))
 	var electricCharge int
-	if in.ElectricCharge != nil {
+	if thanhVien {
+		electricCharge = 0
+	} else if nguyenPhong {
+		electricCharge = r0(roomElectric) // trọn công-tơ của phòng, không chia đầu người
+	} else if in.ElectricCharge != nil {
 		electricCharge = r0(*in.ElectricCharge)
 	} else if len(in.Roster) > 0 {
 		share := SplitElectricByDays(roomElectric, in.Roster)
@@ -493,6 +532,18 @@ func ComputeInvoice(in ComputeInput) Invoice {
 	// Giảm phòng trưởng tính trên nước+dịch vụ CÒN LẠI sau khi đã trừ giảm % (tránh trừ hai lần).
 	waterConLai := waterCharge - giamTheoPct(waterCharge, st.WaterDiscountPct)
 	serviceConLai := serviceCharge - giamTheoPct(serviceCharge, st.ServiceDiscountPct)
+	if nguyenPhong {
+		// Hoá đơn này gánh nước+dịch vụ của CẢ phòng. Miễn theo tổng là xoá sạch phần của mọi
+		// người — chỉ miễn ĐÚNG MỘT SUẤT của bản thân phòng trưởng.
+		motSuat := func(tong int, heSo float64) int {
+			if suat <= 0 {
+				return 0
+			}
+			return r0((float64(tong) * heSo) / suat)
+		}
+		waterConLai = motSuat(waterConLai, fFactor)
+		serviceConLai = motSuat(serviceConLai, fFactor)
+	}
 	leaderDiscount := LeaderDiscount(in.LeaderDays, days, waterConLai, serviceConLai)
 
 	total := InvoiceTotal(map[string]float64{

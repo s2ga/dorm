@@ -402,9 +402,13 @@ func RecalcInvoice(ctx context.Context, database *db.DB, studentID int, month st
 		RoomFeeDiscountPct: pct, UsesWashing: usesWashing, UsesParking: usesParking,
 	}
 	giam.GanVao(&hv)
+	var np *NguyenPhongThang
+	if roomID != nil {
+		np, _ = NguyenPhongCuaPhong(ctx, database, *roomID, month, billing.Fees(fees))
+	}
 	c := billing.ComputeInvoice(billing.ComputeInput{
-		Student: hv,
-		Room:    room, Month: month, Fees: billing.Fees(fees),
+		Student: hv, NguyenPhong: np.Cua(sID),
+		Room: room, Month: month, Fees: billing.Fees(fees),
 		Roster: roster, ElectricCharge: electricCharge, LeaderDays: leaderDays, Kwh: kwh, VehicleCount: &veh,
 	})
 

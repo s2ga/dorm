@@ -735,9 +735,13 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 				RoomFeeDiscountPct: s.discountPct, UsesWashing: s.usesWashing, UsesParking: s.usesParking,
 			}
 			s.giam.GanVao(&hv)
+			var np *invoicecalc.NguyenPhongThang
+			if s.roomID != nil {
+				np, _ = invoicecalc.NguyenPhongCuaPhong(ctx, h.DB, *s.roomID, body.Month, billing.Fees(fees))
+			}
 			inv := billing.ComputeInvoice(billing.ComputeInput{
-				Student: hv,
-				Room:    room, Month: body.Month, Fees: billing.Fees(fees),
+				Student: hv, NguyenPhong: np.Cua(s.id),
+				Room: room, Month: body.Month, Fees: billing.Fees(fees),
 				Roster: roster, ElectricCharge: ec, LeaderDays: leaderDays[s.id], Kwh: kwh, VehicleCount: &vc,
 			})
 			if hasDup {
@@ -916,9 +920,13 @@ func (h *Handlers) GenerateOneInvoice(c *gin.Context) {
 		RoomFeeDiscountPct: pctVal, UsesWashing: uw, UsesParking: up,
 	}
 	giam.GanVao(&hv)
+	var np *invoicecalc.NguyenPhongThang
+	if roomID != nil {
+		np, _ = invoicecalc.NguyenPhongCuaPhong(ctx, h.DB, *roomID, monthStr, billing.Fees(fees))
+	}
 	inv := billing.ComputeInvoice(billing.ComputeInput{
-		Student: hv,
-		Room:    room, Month: monthStr, Fees: billing.Fees(fees),
+		Student: hv, NguyenPhong: np.Cua(sID),
+		Room: room, Month: monthStr, Fees: billing.Fees(fees),
 		Roster: roster, ElectricCharge: electricCharge, LeaderDays: leaderDays, Kwh: kwh, VehicleCount: &vehicleCnt,
 	})
 

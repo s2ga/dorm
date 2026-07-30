@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
@@ -335,6 +336,43 @@ func studentsSlice10(s string) string {
 		return s[:10]
 	}
 	return s
+}
+
+// studentsThangBiCham: các tháng "YYYY-MM" mà việc đổi ngày trả phòng từ a sang b chạm tới.
+// Chuỗi rỗng = không có ngày trả. Chặn 24 tháng cho khỏi lặp vô hạn nếu gặp ngày rác.
+func studentsThangBiCham(a, b string) []string {
+	moc := []string{}
+	for _, d := range []string{a, b} {
+		if len(d) >= 7 {
+			moc = append(moc, d[:7])
+		}
+	}
+	if len(moc) == 0 {
+		return nil
+	}
+	dau, cuoi := moc[0], moc[0]
+	for _, m := range moc {
+		if m < dau {
+			dau = m
+		}
+		if m > cuoi {
+			cuoi = m
+		}
+	}
+	t, err := time.Parse("2006-01", dau)
+	if err != nil {
+		return nil
+	}
+	out := []string{}
+	for i := 0; i < 24; i++ {
+		mo := t.Format("2006-01")
+		out = append(out, mo)
+		if mo >= cuoi {
+			break
+		}
+		t = t.AddDate(0, 1, 0)
+	}
+	return out
 }
 
 // studentsPad2: String(seq).padStart(2,'0'). students.routes.js:172
@@ -1157,16 +1195,16 @@ func (h *Handlers) CreateStudent(c *gin.Context) {
 		nil,               // $23 cccd_front
 		nil,               // $24 cccd_back
 		checkoutReasonArg, // $25
-		studentsDateOrNull(b["class_start_date"]),   // $26
-		studentsDateOrNull(b["expected_departure"]), // $27
-		studentsStrOr(b["parent_phone"]),            // $28
-		studentsPct(b["room_fee_discount_pct"]),     // $29
-		facIDArg,                                    // $30
-		studentsPct(b["water_discount_pct"]),        // $31
-		studentsPct(b["electric_discount_pct"]),     // $32
-		studentsPct(b["service_discount_pct"]),      // $33
-		studentsPct(b["washing_discount_pct"]),      // $34
-		studentsPct(b["parking_discount_pct"]),      // $35
+		studentsDateOrNull(b["class_start_date"]),                     // $26
+		studentsDateOrNull(b["expected_departure"]),                   // $27
+		studentsStrOr(b["parent_phone"]),                              // $28
+		studentsPct(b["room_fee_discount_pct"]),                       // $29
+		facIDArg,                                                      // $30
+		studentsPct(b["water_discount_pct"]),                          // $31
+		studentsPct(b["electric_discount_pct"]),                       // $32
+		studentsPct(b["service_discount_pct"]),                        // $33
+		studentsPct(b["washing_discount_pct"]),                        // $34
+		studentsPct(b["parking_discount_pct"]),                        // $35
 		strings.ToLower(strings.TrimSpace(studentsStrOr(b["email"]))), // $36 — hạ chữ thường để khớp SSO không phụ thuộc hoa/thường
 	)
 
@@ -1294,6 +1332,32 @@ func (h *Handlers) UpdateStudent(c *gin.Context) {
 		badRequest(c, "Ngày trả phòng không thể trước ngày nhận phòng")
 		return
 	}
+	// Ngày trả phòng chỉ ĐẶT/ĐỔI được sang ngày TƯƠNG LAI. Ngày đã qua là việc đã rồi — phiếu tháng
+	// đó đã phát, công-tơ đã chốt — sửa ở đây là làm lệch sổ mà không ai thấy.
+	homNay := timeutil.Today()
+	coCu := studentsSlice10(studentsJSString(cur["check_out_date"]))
+	coMoi := studentsSlice10(coM)
+	if coMoi != coCu {
+		if coCu != "" && coCu <= homNay {
+			badRequest(c, "Học viên đã trả phòng ngày "+coCu+". Ngày đã qua không sửa được ở đây.")
+			return
+		}
+		if coMoi != "" && coMoi <= homNay {
+			badRequest(c, "Ngày trả phòng phải sau hôm nay ("+homNay+"). Trả phòng hôm nay hoặc đã trả rồi thì dùng nút Check-out.")
+			return
+		}
+		if coMoi != "" {
+			msg, e := checkout.BadCheckoutDate(ctx, h.pool(), id, coMoi, studentsSlice10(ciM))
+			if e != nil {
+				serverErr(c)
+				return
+			}
+			if msg != "" {
+				badRequest(c, msg)
+				return
+			}
+		}
+	}
 	if pv := b["phone"]; pv != nil {
 		ps := studentsJSString(pv)
 		if strings.TrimSpace(ps) != "" && !valid.IsValidPhone(ps) {
@@ -1322,29 +1386,30 @@ func (h *Handlers) UpdateStudent(c *gin.Context) {
 	}
 	params := studentsCoreFields(b, nil) // $1..$16
 	params = append(params,
-		studentsDateOrNull(b["class_start_date"]),   // $17
-		studentsDateOrNull(b["expected_departure"]), // $18
-		studentsStrOr(b["parent_phone"]),            // $19
-		studentsPct(b["room_fee_discount_pct"]),     // $20
-		studentsPct(b["water_discount_pct"]),        // $21
-		studentsPct(b["electric_discount_pct"]),     // $22
-		studentsPct(b["service_discount_pct"]),      // $23
-		studentsPct(b["washing_discount_pct"]),      // $24
-		studentsPct(b["parking_discount_pct"]),      // $25
+		studentsDateOrNull(b["class_start_date"]),                     // $17
+		studentsDateOrNull(b["expected_departure"]),                   // $18
+		studentsStrOr(b["parent_phone"]),                              // $19
+		studentsPct(b["room_fee_discount_pct"]),                       // $20
+		studentsPct(b["water_discount_pct"]),                          // $21
+		studentsPct(b["electric_discount_pct"]),                       // $22
+		studentsPct(b["service_discount_pct"]),                        // $23
+		studentsPct(b["washing_discount_pct"]),                        // $24
+		studentsPct(b["parking_discount_pct"]),                        // $25
 		strings.ToLower(strings.TrimSpace(studentsStrOr(b["email"]))), // $26
+		studentsDateOrNull(b["check_out_date"]),                       // $27
 	)
 	cols := `code=$1, name=$2, gender=$3, phone=$4, id_card=$5, birth_date=$6, class_name=$7, room_id=$8,
       check_in_date=$9, note=$10, uses_washing=$11, rental_type=$12, residency_status=$13,
       contract_no=$14, contract_date=$15, contract_status=$16,
       class_start_date=$17, expected_departure=$18, parent_phone=$19, room_fee_discount_pct=$20,
       water_discount_pct=$21, electric_discount_pct=$22, service_discount_pct=$23,
-      washing_discount_pct=$24, parking_discount_pct=$25, email=$26`
+      washing_discount_pct=$24, parking_discount_pct=$25, email=$26, check_out_date=$27`
 	// (CCCD extra BỎ — CHƯA port S3; cột cccd_* không đổi ở PUT)
-	params = append(params, id) // $27
-	sql := "UPDATE students SET " + cols + " WHERE id=$27"
+	params = append(params, id) // $28
+	sql := "UPDATE students SET " + cols + " WHERE id=$28"
 	if studentsJSTruthy(raw["_v"]) {
-		params = append(params, studentsJSString(raw["_v"])) // $28
-		sql = "UPDATE students SET " + cols + " WHERE id=$27 AND xmin::text = $28"
+		params = append(params, studentsJSString(raw["_v"])) // $29
+		sql = "UPDATE students SET " + cols + " WHERE id=$28 AND xmin::text = $29"
 	}
 	sql += " RETURNING *"
 
@@ -1390,6 +1455,26 @@ func (h *Handlers) UpdateStudent(c *gin.Context) {
 	if err := roomstays.Reconcile(ctx, h.pool(), intFromDB(row["id"]), intPtrFromDB(row["room_id"]), ciStr, coStr); err != nil {
 		serverErr(c)
 		return
+	}
+	// Đổi ngày trả phòng = đổi số ngày ở: tiền phòng/nước/dịch vụ của HV và phần điện chia cho CẢ
+	// PHÒNG đều lệch theo. RecalcInvoice tự bỏ qua tháng chưa có phiếu và phiếu đã thu.
+	if coMoi != coCu {
+		roomID := intPtrFromDB(row["room_id"])
+		for _, mo := range studentsThangBiCham(coCu, coMoi) {
+			_, _ = invoicecalc.RecalcInvoice(ctx, h.DB, id, mo)
+			if roomID == nil {
+				continue
+			}
+			roster, e := invoicecalc.RoomRoster(ctx, h.DB, *roomID, mo)
+			if e != nil {
+				continue
+			}
+			for _, r := range roster {
+				if r.StudentID != id {
+					_, _ = invoicecalc.RecalcInvoice(ctx, h.DB, r.StudentID, mo)
+				}
+			}
+		}
 	}
 	// Upload/đổi/xoá ảnh CCCD (resolveCccd cho sửa: chỉ field CÓ gửi lên).
 	if h.Store != nil {

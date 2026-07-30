@@ -754,7 +754,7 @@ function veBangChoDuyet(ds) {
     <td>${esc(u.full_name || '—')}</td>
     <td class="muted" style="font-size:12px">${esc(fmtDT(u.created_at))}</td>
     <td class="num"><div class="rowbtns" style="justify-content:flex-end">
-      <button class="btn sm pri" data-act="approveForm" data-args='[${u.id}]'>Duyệt</button>
+      <button class="btn sm pri" data-act="duyetTaiKhoanForm" data-args='[${u.id}]'>Duyệt</button>
       <button class="btn sm ghost" title="Không phải người của mình — khoá lại, chặn đăng nhập" data-act="delUserRow" data-args='[${u.id}]' data-uname="${esc(u.username)}">${IC.lock} Khoá</button>
     </div></td></tr>`).join('');
 }
@@ -817,7 +817,9 @@ function apFilterHV() {
 }
 function apChonHV(sid) { el('ap_hvid').value = sid; el('ap_hvq').value = ''; apFilterHV(); }
 function apBoChonHV() { el('ap_hvid').value = ''; apFilterHV(); }
-function approveForm(id) {
+// Tên phải KHÁC approveForm của app-requests-checkin.js: classic script dùng chung một scope, file này
+// nạp sau nên trùng tên là đè mất hàm kia — nút "Thêm vào phòng" im lặng không phản ứng.
+function duyetTaiKhoanForm(id) {
   const u = (window._usrCache || []).find(x => x.id === id);
   if (!u) return;
   const hv = (ST.students || []).slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'vi'));
