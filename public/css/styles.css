@@ -350,7 +350,16 @@ input[type=checkbox],input[type=radio]{width:auto;flex:none;accent-color:var(--b
 .pager:empty{display:none}
 /* Menu gom trang Cài đặt cho đỡ dài — thanh chọn nhóm ở đầu, mỗi lần hiện 1 nhóm panel */
 .set-nav{border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:22px}
-.hint{background:var(--bg2);border:1px solid var(--line);color:var(--ink2);padding:13px 16px;border-radius:13px;font-size:13.5px;margin-bottom:18px;line-height:1.55;overflow:hidden}
+/* BL-95: note thu về một icon ⓘ; rê chuột, chạm hoặc tab tới mới bung nội dung. */
+.hint{position:relative;display:inline-flex;align-items:center;justify-content:center;
+  width:26px;height:26px;padding:0;margin:0 0 10px;border:1px solid var(--line);border-radius:50%;
+  background:var(--bg2);color:var(--ink2);font-size:13.5px;line-height:1.55;cursor:help;overflow:visible}
+.hint:hover,.hint:focus{border-color:var(--brand-d);outline:none}
+.hint>.hint-noi-dung{position:absolute;left:0;top:calc(100% + 7px);z-index:60;display:none;
+  width:max-content;max-width:min(340px,78vw);text-align:left;
+  background:var(--bg2);border:1px solid var(--line);border-radius:13px;padding:12px 15px;
+  box-shadow:0 10px 28px rgba(0,0,0,.16)}
+.hint:hover>.hint-noi-dung,.hint:focus>.hint-noi-dung,.hint:focus-within>.hint-noi-dung{display:block}
 .avatar{width:37px;height:37px;border-radius:50%;background:var(--brand-soft);color:var(--brand-d);display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;letter-spacing:.02em}
 .flex{display:flex;align-items:center;gap:10px}
 .spinner{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:spin .7s linear infinite;margin:48px auto}
@@ -405,7 +414,7 @@ input[type=checkbox],input[type=radio]{width:auto;flex:none;accent-color:var(--b
 .auth-chip .ic-svg{width:15px;height:15px}
 .auth-card .ac-ico .ic-svg{width:20px;height:20px;color:var(--brand-d)}
 .auth-amen span .ic-svg{width:14px;height:14px;vertical-align:-.16em;margin-right:3px;color:var(--gold-line)}
-.hint .ic-svg{float:left;width:17px;height:17px;margin:1px 9px 0 0;color:var(--brand-d)}
+.hint .ic-svg{float:none;width:17px;height:17px;margin:0;color:var(--brand-d);flex:none}
 /* .hint KHÔNG dùng flex nữa: flex làm MỖI <strong>/<a> chèn thẳng thành 1 CỘT -> chữ vỡ, đọc không nổi.
    Nay icon float trái, chữ (kể cả <strong>/<a> chèn thẳng) chảy quanh icon -> luôn liền mạch.
    overflow:hidden ở .hint để chứa float; <span> (nếu có) tạo BFC nằm gọn bên phải icon. */
@@ -789,7 +798,7 @@ td .hd-ref{position:relative;z-index:1}   /* nổi trên vùng bấm của cả 
   .panel .hd{padding:10px 12px;gap:6px}
   .panel .hd h2{font-size:15.5px}
   .hint{padding:9px 12px;font-size:12.5px;line-height:1.45;margin-bottom:12px;border-radius:10px}
-  .hint .ic-svg{width:15px;height:15px;margin:1px 7px 0 0}
+  .hint .ic-svg{width:15px;height:15px;margin:0}
   /* Thẻ hàng: bớt khoảng thở thừa (mỗi ô đang ăn 4px trên + 4px dưới cho một dòng chữ 13px) */
   .card-tbl tr{padding:8px 12px;margin-bottom:8px}
   .card-tbl td{padding:2px 0}

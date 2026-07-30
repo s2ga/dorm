@@ -9,6 +9,26 @@ const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(
 const curMonth = () => today().slice(0, 7);
 const addDays = (iso, n) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 function fmtDate(d) { if (!d) return '—'; const p = String(d).slice(0, 10).split('-'); return `${p[2]}/${p[1]}/${p[0]}`; }
+// BL-95: gói phần chữ của mỗi .hint vào một lớp phủ, chỉ chừa icon. Làm ở đây thay vì sửa 63 chỗ
+// dựng HTML, và note viết sau này cũng tự có hành vi đó.
+function gonNote(goc) {
+  (goc || document).querySelectorAll('.hint:not([data-gon])').forEach(h => {
+    h.dataset.gon = '1';
+    h.tabIndex = 0;                                  // chạm/tab được -> điện thoại và bàn phím vẫn mở được
+    const boc = document.createElement('span');
+    boc.className = 'hint-noi-dung';
+    [...h.childNodes].forEach(n => {
+      if (n.nodeType === 1 && n.classList.contains('ic-svg')) return;   // giữ icon ở ngoài làm nút bấm
+      boc.appendChild(n);
+    });
+    h.appendChild(boc);
+  });
+}
+let _henGonNote = 0;
+new MutationObserver(() => {
+  if (_henGonNote) return;
+  _henGonNote = requestAnimationFrame(() => { _henGonNote = 0; gonNote(); });
+}).observe(document.documentElement, { childList: true, subtree: true });
 function monthLabel(m) { const [y, mm] = m.split('-'); return `Tháng ${mm}/${y}`; }
 function initials(name) { const p = (name || '?').trim().split(/\s+/); return ((p[0] || '')[0] || '') + ((p[p.length - 1] || '')[0] || ''); }
 
