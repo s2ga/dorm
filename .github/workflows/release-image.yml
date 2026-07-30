@@ -1,0 +1,149 @@
+name: Release image (gắn tag → GHCR)
+
+# CHỈ chạy khi ĐẨY TAG, không chạy khi push commit.
+#   git tag v168 && git push origin v168
+# Push commit lên main vẫn do .github/workflows/deploy.yml lo (ảnh :latest + :sha cho Render).
+# Workflow này làm ảnh PHÁT HÀNH: tên ảnh đúng bằng tên tag, đa kiến trúc, và KHÔNG ghi đè tag cũ.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # Cổng test: tag có thể trỏ vào commit chưa từng qua CI (nhánh phụ, commit cũ, hoặc tag đặt tay
+  # trên máy). Không kiểm lại là phát hành một ảnh chưa ai chạy thử.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go build ./...
+      - run: go vet ./...
+      - run: go test ./...
+
+  image:
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.img.outputs.ref }}
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # cần lịch sử đầy đủ để biết tag có nằm trên main không
+
+      - name: Tên ảnh + tag
+        id: img
+        run: |
+          # GHCR bắt buộc chữ thường; ${VAR,,} là cú pháp hạ chữ của bash.
+          name="ghcr.io/${GITHUB_REPOSITORY,,}"
+          tag="${GITHUB_REF_NAME}"
+          {
+            echo "name=$name"
+            echo "tag=$tag"
+            echo "ref=$name:$tag"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Tag có nằm trên main không (chỉ ghi nhận, không chặn)
+        run: |
+          if git merge-base --is-ancestor "$GITHUB_SHA" origin/main 2>/dev/null; then
+            echo "TREN_MAIN=1" >> "$GITHUB_ENV"
+            echo "Commit của tag nằm trên main."
+          else
+            echo "TREN_MAIN=0" >> "$GITHUB_ENV"
+            echo "::warning::Tag ${GITHUB_REF_NAME} trỏ vào commit KHÔNG nằm trên main — vẫn phát hành, nhưng nhớ là bản này chưa qua cổng DOM smoke của nhánh main."
+          fi
+
+      # Quy ước của repo: tag vNN đi cùng ?v=NN trong index.html và ktx-shell-vNN trong sw.js.
+      # Lệch nhau là trình duyệt giữ nguyên asset cũ trong cache service worker sau khi deploy —
+      # lỗi khó thấy nhất hạng: server mới, giao diện cũ. Chặn ngay ở đây.
+      - name: Đối chiếu tag với phiên bản asset
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if ! printf '%s' "$tag" | grep -Eq '^v[0-9]+$'; then
+            echo "Tag '$tag' không theo dạng vNN — bỏ qua bước đối chiếu asset."
+            exit 0
+          fi
+          so="${tag#v}"
+          html=$(grep -o '?v=[0-9]\+' public/index.html | head -1 | cut -d= -f2)
+          sw=$(grep -o "ktx-shell-v[0-9]\+" public/sw.js | head -1 | sed 's/.*-v//')
+          echo "tag=$so · index.html=?v=$html · sw.js=ktx-shell-v$sw"
+          if [ "$so" != "$html" ] || [ "$so" != "$sw" ]; then
+            echo "::error::Tag $tag không khớp phiên bản asset (index.html=$html, sw.js=$sw). Bump ?v và ktx-shell-v cho khớp rồi đặt lại tag."
+            exit 1
+          fi
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Đăng nhập GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # GHCR CHO PHÉP ghi đè tag. Với k8s đang dùng imagePullPolicy: IfNotPresent, ghi đè là cái bẫy
+      # tệ nhất: node đã cache tag đó sẽ KHÔNG kéo lại, cụm chạy hai phiên bản khác nhau dưới cùng
+      # một tên. Thà dừng và bắt đặt tag mới.
+      - name: Chặn ghi đè tag đã có
+        run: |
+          if docker buildx imagetools inspect "${{ steps.img.outputs.ref }}" >/dev/null 2>&1; then
+            echo "::error::${{ steps.img.outputs.ref }} ĐÃ TỒN TẠI trên GHCR. Tag ảnh là bất biến — đặt tag MỚI thay vì ghi đè (xoá tag rồi đẩy lại cũng không nên: node đã cache thì không kéo lại)."
+            exit 1
+          fi
+          echo "Tag chưa có trên GHCR — phát hành được."
+
+      # Đa kiến trúc KHÔNG cần QEMU: Dockerfile ghim stage build vào --platform=$BUILDPLATFORM rồi
+      # để Go biên dịch chéo theo $TARGETARCH. Chạy bằng CPU thật của runner, nhanh hơn giả lập nhiều.
+      - name: Build & push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          # KHÔNG có :latest ở đây. Tag phát hành phải cố định để rollback biết quay về đâu
+          # (xem chú thích trong k8s/deployment.yaml). :latest do workflow main lo.
+          tags: |
+            ${{ steps.img.outputs.ref }}
+            ${{ steps.img.outputs.name }}:sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.title=Quản lý ký túc xá Nội trú
+            org.opencontainers.image.version=${{ steps.img.outputs.tag }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Ghi tóm tắt + lệnh triển khai
+        run: |
+          {
+            echo "## Đã phát hành \`${{ steps.img.outputs.tag }}\`"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Ảnh | \`${{ steps.img.outputs.ref }}\` |"
+            echo "| Digest | \`${{ steps.build.outputs.digest }}\` |"
+            echo "| Kiến trúc | linux/amd64 · linux/arm64 |"
+            echo "| Commit | \`${{ github.sha }}\` |"
+            echo "| Trên main | $([ "$TREN_MAIN" = 1 ] && echo 'có' || echo '**KHÔNG** — chưa qua cổng DOM smoke') |"
+            echo
+            echo "### Triển khai"
+            echo '```bash'
+            echo "kubectl -n dorm set image deploy/knt knt=${{ steps.img.outputs.ref }}"
+            echo "kubectl -n dorm rollout status deploy/knt"
+            echo '```'
+            echo
+            echo "Ghim theo digest (chắc nhất, không phụ thuộc tag):"
+            echo '```bash'
+            echo "kubectl -n dorm set image deploy/knt knt=${{ steps.img.outputs.name }}@${{ steps.build.outputs.digest }}"
+            echo '```'
+            echo
+            echo "> Lần đầu dùng ảnh này: mở **repo → Packages → đổi visibility sang Public**, hoặc khai imagePullSecret cho namespace \`dorm\`."
+          } >> "$GITHUB_STEP_SUMMARY"

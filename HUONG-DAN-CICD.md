@@ -33,4 +33,51 @@ Vào **repo → Packages → `ktx-tnh` → Package settings → Change visibilit
 ## Xong!
 Từ giờ mỗi lần **push lên `main`** (hoặc bấm Run trong tab Actions), hệ thống tự: build → đẩy GHCR → deploy Render. Không cần bấm tay.
 
+---
+
+# Ảnh phát hành: đẩy TAG → build → GHCR
+
+Hai luồng khác nhau, đừng lẫn:
+
+| | Push commit lên `main` | **Đẩy tag `vNN`** |
+|---|---|---|
+| Workflow | `.github/workflows/deploy.yml` | `.github/workflows/release-image.yml` |
+| Tag ảnh | `:latest` + `:<sha>` | `:vNN` + `:sha-<sha>` |
+| Kiến trúc | amd64 | **amd64 + arm64** |
+| Dùng cho | staging Render (tự deploy) | **UAT / production trên Kubernetes** |
+
+Cách dùng:
+
+```bash
+git tag v168
+git push origin v168        # CHỈ đẩy tag, không phải push commit
+```
+
+Xong, ảnh nằm ở `ghcr.io/thuyhienvo/ktx-tnh:v168`. Tab **Actions** của lần chạy đó in sẵn digest và
+lệnh `kubectl set image` để dán.
+
+### Bốn chốt chặn trong workflow này
+
+1. **Cổng test** — `go build` + `go vet` + `go test` chạy trước khi build ảnh. Tag có thể trỏ vào
+   commit chưa từng qua CI (nhánh phụ, commit cũ, tag đặt tay), nên phải kiểm lại.
+2. **Đối chiếu tag với phiên bản asset** — tag `v168` bắt buộc khớp `?v=168` trong `index.html` và
+   `ktx-shell-v168` trong `sw.js`. Lệch là **dừng**: deploy xong trình duyệt vẫn giữ asset cũ trong
+   cache service worker → server mới, giao diện cũ, cực khó lần ra. (Tag không theo dạng `vNN` thì
+   bỏ qua bước này.)
+3. **Chặn ghi đè tag đã có** — GHCR cho phép ghi đè, nhưng k8s đang dùng `imagePullPolicy: IfNotPresent`
+   nên node đã cache tag đó sẽ KHÔNG kéo lại: cụm chạy hai phiên bản khác nhau dưới cùng một tên.
+   Tag đã tồn tại thì workflow dừng, buộc đặt tag mới.
+4. **Ghi nhận tag có nằm trên `main` hay không** — không chặn, chỉ cảnh báo, vì bản không nằm trên
+   `main` thì chưa qua cổng DOM smoke.
+
+### Vì sao không có `:latest` ở luồng tag
+
+Tag phát hành phải cố định để rollback biết quay về đâu. `:latest` là tag di động — dùng nó với
+`imagePullPolicy: IfNotPresent` là tự tạo ra tình trạng "không biết đang chạy bản nào".
+
+### Lần đầu dùng ảnh trên Kubernetes
+
+Mở **repo → Packages → `ktx-tnh` → đổi visibility sang Public**, hoặc khai `imagePullSecret` cho
+namespace `dorm`.
+
 > Ghi chú: service kiểu **git-build** cũ (`ktx-tnh`) có thể xoá đi sau khi service **image** chạy ổn (dùng chung Postgres `ktx-db`).
