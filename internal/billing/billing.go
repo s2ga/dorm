@@ -88,7 +88,30 @@ type Student struct {
 	RoomFeeDiscountPct float64
 	UsesWashing       bool
 	UsesParking       bool
+	// Giảm % cho TỪNG khoản (owner chốt 30/07/2026). Công thức tính tiền không đổi — mấy ô này chỉ
+	// điều chỉnh BÊN TRÊN kết quả công thức, và ghi thành dòng giảm riêng trên phiếu.
+	// Mở ô thay vì viết luật cứng: các ca miễn/giảm là số ít và hay đổi (phòng nhân viên miễn tiền
+	// phòng, ai đó được miễn tiền nước...), sửa dữ liệu nhanh hơn sửa app rồi deploy lại.
+	WaterDiscountPct    float64
+	ElectricDiscountPct float64
+	ServiceDiscountPct  float64
+	WashingDiscountPct  float64
+	ParkingDiscountPct  float64
 }
+
+// kepPct: kẹp % giảm vào [0..100]. Dữ liệu ngoài khoảng đó là rác, không phải ý đồ.
+func kepPct(p float64) float64 {
+	if p < 0 {
+		return 0
+	}
+	if p > 100 {
+		return 100
+	}
+	return p
+}
+
+// giamTheoPct: số tiền giảm của một khoản.
+func giamTheoPct(charge int, pct float64) int { return r0((float64(charge) * kepPct(pct)) / 100) }
 
 // DaysStayedInRange: số ngày ở thực tế trong [from..to] (cả 2 đầu). server/billing.js:33-40
 func DaysStayedInRange(ci, co, from, to string) int {
@@ -380,6 +403,9 @@ type Invoice struct {
 	ParkingCharge  int `json:"parking_charge"`
 	LeaderDiscount int `json:"leader_discount"`
 	RoomDiscount   int `json:"room_discount"`
+	// FeeDiscount: tổng phần giảm % của các khoản NGOÀI tiền phòng (nước/điện/dịch vụ/máy giặt/xe).
+	// Ghi thành một dòng riêng, không âm thầm hạ từng khoản xuống — cùng nguyên tắc với room_discount.
+	FeeDiscount int `json:"fee_discount"`
 	OtherCharge    int `json:"other_charge"`
 	Total          int `json:"total"`
 }
@@ -452,13 +478,27 @@ func ComputeInvoice(in ComputeInput) Invoice {
 		electricCharge = 0
 	}
 
-	leaderDiscount := LeaderDiscount(in.LeaderDays, days, waterCharge, serviceCharge)
+	// Giảm % từng khoản (ngoài tiền phòng — tiền phòng đã có room_discount ở trên).
+	st := in.Student
+	feeDiscount := giamTheoPct(waterCharge, st.WaterDiscountPct) +
+		giamTheoPct(electricCharge, st.ElectricDiscountPct) +
+		giamTheoPct(serviceCharge, st.ServiceDiscountPct) +
+		giamTheoPct(washingCharge, st.WashingDiscountPct) +
+		giamTheoPct(parkingCharge, st.ParkingDiscountPct)
+
+	// Giảm cho phòng trưởng tính trên phần nước+dịch vụ CÒN LẠI sau khi đã giảm %. Nếu tính trên số
+	// gốc thì người vừa được miễn 100% tiền nước lại được giảm thêm lần nữa cho đúng số tiền đó —
+	// tổng phiếu âm, và ck_invoices_no_negative sẽ chặn ngay lúc lưu.
+	waterConLai := waterCharge - giamTheoPct(waterCharge, st.WaterDiscountPct)
+	serviceConLai := serviceCharge - giamTheoPct(serviceCharge, st.ServiceDiscountPct)
+	leaderDiscount := LeaderDiscount(in.LeaderDays, days, waterConLai, serviceConLai)
 
 	total := InvoiceTotal(map[string]float64{
 		"room_charge": float64(roomCharge), "electric_charge": float64(electricCharge),
 		"water_charge": float64(waterCharge), "service_charge": float64(serviceCharge),
 		"washing_charge": float64(washingCharge), "parking_charge": float64(parkingCharge),
 		"leader_discount": float64(leaderDiscount), "room_discount": float64(roomDiscount),
+		"fee_discount": float64(feeDiscount),
 	})
 
 	electricKwh := 0
@@ -470,7 +510,8 @@ func ComputeInvoice(in ComputeInput) Invoice {
 		DaysStayed: days, RoomCharge: roomCharge, ElectricKwh: electricKwh,
 		ElectricCharge: electricCharge, WaterCharge: waterCharge, ServiceCharge: serviceCharge,
 		WashingCharge: washingCharge, ParkingCharge: parkingCharge,
-		LeaderDiscount: leaderDiscount, RoomDiscount: roomDiscount, OtherCharge: 0, Total: total,
+		LeaderDiscount: leaderDiscount, RoomDiscount: roomDiscount, FeeDiscount: feeDiscount,
+		OtherCharge: 0, Total: total,
 	}
 }
 
@@ -482,7 +523,7 @@ func InvoiceTotal(f map[string]float64) int {
 	for _, k := range invoiceFeeFields {
 		fee += f[k]
 	}
-	return r0(fee - f["leader_discount"] - f["room_discount"])
+	return r0(fee - f["leader_discount"] - f["room_discount"] - f["fee_discount"])
 }
 
 // LeaderDiscount: (nước+dịch vụ) × ngàyLàmTrưởng/ngàyỞ, kẹp leaderDays ≤ days. server/billing.js:240-244

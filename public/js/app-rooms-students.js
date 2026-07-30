@@ -398,10 +398,15 @@ async function studentForm(id) {
         <div class="field"><label>Hình thức thuê</label><select id="f_rental">
           ${opt('ghep', s.rental_type, 'Thuê ghép (giá/người)')}${opt('phong', s.rental_type, 'Thuê nguyên phòng (giá theo hạng)')}</select></div>
       </div>
-      <div class="field"><label>Giảm tiền phòng <span class="opt">(% — để trống nếu thu đủ)</span></label>
-        <input id="f_rdisc" type="number" min="0" max="100" step="1" placeholder="0" value="${+s.room_fee_discount_pct > 0 ? +s.room_fee_discount_pct : ''}">
-        <div class="hint">${IC.info}<span>Ưu đãi riêng cho từng người, vd quản lý ký túc xá ở phòng 104 được giảm <strong>50%</strong> tiền phòng.
-          Phiếu vẫn ghi tiền phòng đủ, kèm dòng "Giảm tiền phòng" riêng. Bỏ trống = thu đủ.</span></div>
+      <div class="field"><label>Giảm giá <span class="opt">(% mỗi khoản — để trống nếu thu đủ)</span></label>
+        <div class="giam-grid">
+          ${GIAM_O.map(([k, id2, nhan]) => `<label class="giam-o"><span>${nhan}</span>
+            <input id="${id2}" type="number" min="0" max="100" step="1" placeholder="0"
+              value="${+s[k] > 0 ? +s[k] : ''}"><span class="dv">%</span></label>`).join('')}
+        </div>
+        <div class="hint">${IC.info}<span>Dùng cho các ca lẻ, vd quản lý ký túc xá ở phòng 104 giảm <strong>50%</strong>
+          tiền phòng, hay người ở phòng nhân viên được <strong>miễn 100%</strong> tiền phòng nhưng vẫn trả nước/điện/dịch vụ.
+          Công thức tính tiền không đổi — phiếu vẫn ghi đủ từng khoản, kèm dòng giảm riêng. Bỏ trống = thu đủ.</span></div>
       </div>
       <div class="grid2">
         <div class="field"><label>Ngày vào (check-in)</label><input id="f_in" type="date" value="${esc((s.check_in_date || today()).slice(0, 10))}"></div>
@@ -452,7 +457,7 @@ async function saveStudent(id) {
     name: el('f_name').value.trim(), code: el('f_code').value.trim(), class_name: el('f_class').value.trim(),
     birth_date: el('f_birth').dataset.iso || null, gender: el('f_gender').value, phone: el('f_phone').value.trim(),
     room_id: el('f_room').value || null, rental_type: el('f_rental').value, check_in_date: el('f_in').value,
-    room_fee_discount_pct: +el('f_rdisc').value || 0,
+    ...Object.fromEntries(GIAM_O.map(([k, id2]) => [k, +el(id2).value || 0])),
     // Số hiệu phiên bản đọc lúc MỞ form. Server so lại: khác nghĩa là người khác vừa sửa
     // trong lúc mình đang điền -> báo cho biết thay vì đè mất công của họ.
     _v: window._svV || undefined,

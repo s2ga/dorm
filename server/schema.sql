@@ -464,6 +464,21 @@ ALTER TABLE students ADD COLUMN IF NOT EXISTS room_fee_discount_pct SMALLINT NOT
   CHECK (room_fee_discount_pct >= 0 AND room_fee_discount_pct <= 100);
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS room_discount NUMERIC(12,0) NOT NULL DEFAULT 0;
 
+-- ===== Giảm giá theo % cho TỪNG khoản (owner chốt 30/07/2026) =====
+-- Trước đây chỉ có room_fee_discount_pct. Các ca miễn/giảm khác (phòng nhân viên miễn tiền phòng,
+-- ai đó được miễn tiền nước...) là SỐ ÍT và hay thay đổi, nên owner chốt: KHÔNG viết luật cứng trong
+-- code, mở ô giảm % cho từng khoản để ban quản lý tự điều chỉnh. Sửa luật = sửa dữ liệu, không cần
+-- sửa app rồi deploy lại.
+ALTER TABLE students ADD COLUMN IF NOT EXISTS water_discount_pct    SMALLINT NOT NULL DEFAULT 0 CHECK (water_discount_pct    BETWEEN 0 AND 100);
+ALTER TABLE students ADD COLUMN IF NOT EXISTS electric_discount_pct SMALLINT NOT NULL DEFAULT 0 CHECK (electric_discount_pct BETWEEN 0 AND 100);
+ALTER TABLE students ADD COLUMN IF NOT EXISTS service_discount_pct  SMALLINT NOT NULL DEFAULT 0 CHECK (service_discount_pct  BETWEEN 0 AND 100);
+ALTER TABLE students ADD COLUMN IF NOT EXISTS washing_discount_pct  SMALLINT NOT NULL DEFAULT 0 CHECK (washing_discount_pct  BETWEEN 0 AND 100);
+ALTER TABLE students ADD COLUMN IF NOT EXISTS parking_discount_pct  SMALLINT NOT NULL DEFAULT 0 CHECK (parking_discount_pct  BETWEEN 0 AND 100);
+-- Ghi tổng phần giảm của các khoản NGOÀI tiền phòng vào một dòng riêng trên phiếu — cùng lý do như
+-- leader_discount/room_discount: không âm thầm hạ tiền nước xuống 0, để học viên thấy được ưu đãi và
+-- cấp trên thống kê được chế độ này tốn bao nhiêu.
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS fee_discount NUMERIC(12,0) NOT NULL DEFAULT 0;
+
 DO $ktx$
 DECLARE
   r RECORD;
@@ -540,7 +555,7 @@ BEGIN
      $q$ALTER TABLE invoices ADD CONSTRAINT ck_invoices_no_negative CHECK (
         room_charge >= 0 AND electric_charge >= 0 AND water_charge >= 0 AND service_charge >= 0
         AND washing_charge >= 0 AND parking_charge >= 0 AND other_charge >= 0
-        AND leader_discount >= 0 AND room_discount >= 0
+        AND leader_discount >= 0 AND room_discount >= 0 AND fee_discount >= 0
         AND electric_kwh >= 0 AND days_stayed >= 0 AND total >= 0)$q$),
     -- Kỳ phải đúng dạng YYYY-MM. Kỳ "xyz" lọt vào là mọi báo cáo doanh thu lệch.
     ('ck_invoices_month',

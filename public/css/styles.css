@@ -706,6 +706,16 @@ body.drawer-open{overflow:hidden}
 /* Cả hàng bấm được -> phải thấy được viền focus khi đi bằng bàn phím (trước chỉ .stu-name có) */
 tbody tr[data-act]:focus-visible{outline:2px solid var(--brand);outline-offset:-2px;border-radius:10px}
 
+/* ===== Ô giảm giá % theo từng khoản =====
+   Sáu ô nhỏ cạnh nhau, mỗi ô có nhãn khoản + dấu %. Xếp lưới tự co để trên điện thoại thành 2 cột
+   thay vì 6 ô chen nhau bé xíu không bấm nổi. */
+.giam-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.giam-o{display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--line);
+  border-radius:10px;padding:6px 10px;font-size:12.5px}
+.giam-o>span:first-child{flex:1;color:var(--muted);white-space:nowrap}
+.giam-o input{width:56px;text-align:right;padding:4px 6px;margin:0}
+.giam-o .dv{color:var(--muted)}
+
 /* ===== Liên kết tham chiếu hợp đồng (thành viên -> HĐ của phòng trưởng) =====
    Phải TRÔNG như liên kết bấm được, không phải chữ trang trí: nằm trong ô "Hợp đồng" vốn toàn
    nhãn tĩnh, không gạch chân thì không ai biết bấm được. */

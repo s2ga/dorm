@@ -460,6 +460,21 @@ const resiBadge = st => { const [l, c] = RESI[st] || RESI.unregistered; return `
 const CONTRACT_LABEL = { done: 'Đã hoàn tất', scanned: 'Đã scan HĐ', unsigned: 'Chưa ký HĐ', none: 'Không ký HĐ', handover: 'Đã ký phiếu bàn giao' };
 const CONTRACT_BADGE = { done: 'green', scanned: 'blue', unsigned: 'amber', none: 'gray', handover: 'blue' };
 
+// GIẢM GIÁ % THEO TỪNG KHOẢN (owner chốt 30/07/2026).
+// Owner chốt KHÔNG viết luật cứng trong code cho các ca miễn/giảm — chúng là số ít và hay đổi
+// (phòng nhân viên miễn tiền phòng, ai đó miễn tiền nước...). Mở ô % để ban quản lý tự điều chỉnh:
+// sửa luật = sửa dữ liệu, không phải sửa app rồi deploy lại.
+// Công thức tính tiền KHÔNG đổi — mấy ô này chỉ trừ bên trên kết quả, và ghi thành dòng giảm riêng.
+// [tên cột, id ô nhập, nhãn]
+const GIAM_O = [
+  ['room_fee_discount_pct', 'f_rdisc', 'Tiền phòng'],
+  ['water_discount_pct', 'f_wdisc', 'Tiền nước'],
+  ['electric_discount_pct', 'f_edisc', 'Tiền điện'],
+  ['service_discount_pct', 'f_sdisc', 'Phí dịch vụ'],
+  ['washing_discount_pct', 'f_mdisc', 'Máy giặt'],
+  ['parking_discount_pct', 'f_pdisc', 'Gửi xe'],
+];
+
 // THAM CHIẾU HỢP ĐỒNG (owner chốt 29/07/2026): phòng thuê trọn chỉ có MỘT hợp đồng, ký với phòng
 // trưởng; thành viên còn lại không ký riêng mà TRỎ tới hợp đồng đó. Máy chủ suy ra tại chỗ từ
 // room_leaders (contract_ref_*) — không chép số HĐ vào từng hồ sơ, nên đổi phòng trưởng là liên kết
