@@ -359,18 +359,23 @@ function roomOptions(sel, gender) {
     return `<option value="${r.id}" ${sel === r.id ? 'selected' : ''}>${esc(r.name)} · Tầng ${r.floor} (${r.occupancy}/${r.capacity || 0})${full ? ' - đầy' : ''}</option>`;
   }).join('');
 }
-let _cccdData = null, _cccdChanged = false;
-function previewCccd(input) {
+// BL-86: CCCD 2 mặt (đồng bộ form đăng ký) — ghi cột cccd_front/cccd_back, không phải cột cũ cccd_image.
+let _cccdFront = null, _cccdBack = null, _cccdFrontChanged = false, _cccdBackChanged = false;
+function previewCccd(input, side) {
   const f = input.files[0]; if (!f) return;
   if (f.size > cccdMaxBytes()) { input.value = ''; return toast(`Ảnh CCCD quá lớn (tối đa ${cccdMaxBytes() / 1024 / 1024}MB)`, 'err'); }
   const r = new FileReader();
-  r.onload = () => { _cccdData = r.result; _cccdChanged = true; el('cccdPrev').innerHTML = `<img src="${r.result}" style="max-width:100%;max-height:200px;border-radius:8px;border:1px solid var(--line)">`; };
+  r.onload = () => {
+    if (side === 'back') { _cccdBack = r.result; _cccdBackChanged = true; }
+    else { _cccdFront = r.result; _cccdFrontChanged = true; }
+    el(side === 'back' ? 'cccdBackPrev' : 'cccdFrontPrev').innerHTML = `<img src="${r.result}" style="max-width:100%;max-height:180px;border-radius:8px;border:1px solid var(--line)">`;
+  };
   r.readAsDataURL(f);
 }
 async function studentForm(id) {
   const s = id ? await guard(() => API.student(id)) : { name: '', code: '', gender: 'female', phone: '', id_card: '', room_id: '', check_in_date: today(), note: '', uses_washing: false, rental_type: 'ghep', residency_status: 'unregistered', contract_status: 'unsigned', class_name: '', birth_date: '', contract_no: '', contract_date: '', class_start_date: '', expected_departure: '', parent_phone: '' };
   window._svV = s._v || null;   // ghi nhớ hồ sơ này ở phiên bản nào lúc mình MỞ form
-  _cccdData = s.cccd_image || null; _cccdChanged = false;
+  _cccdFront = null; _cccdBack = null; _cccdFrontChanged = false; _cccdBackChanged = false;
   const opt = (val, cur, label) => `<option value="${val}" ${cur === val ? 'selected' : ''}>${label}</option>`;
   openModal(`
     <div class="mh"><h3>${id ? 'Sửa học viên' : 'Thêm học viên'}</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
@@ -425,9 +430,16 @@ async function studentForm(id) {
         <div class="field" style="margin:0 0 12px"><label>Tình trạng HĐ</label><select id="f_cstatus">
           ${['done', 'scanned', 'unsigned', 'none', 'handover'].map(k => opt(k, s.contract_status || 'unsigned', CONTRACT_LABEL[k])).join('')}</select></div>
         <div class="hint" style="margin:0;font-size:11.5px">${IC.info} Thuê <strong>trên ${shortTermMaxDays()} ngày</strong> (ghép hoặc nguyên phòng) → ký <strong>HĐ thuê phòng</strong>. Thuê <strong>dưới ${shortTermMaxDays()} ngày</strong> hoặc <strong>nhân viên công tác</strong> → ký <strong>phiếu đăng ký & bàn giao</strong>. Phòng an ninh không cần ký gì.</div>
-        <div class="field" style="margin:0"><label>Ảnh CCCD <span class="opt">(chụp/chọn ảnh)</span></label>
-          <input type="file" id="f_cccd" accept="image/*" data-change="onCccdPreview">
-          <div id="cccdPrev" style="margin-top:8px">${s.cccd_image ? `<img src="${s.cccd_image}" style="max-width:100%;max-height:200px;border-radius:8px;border:1px solid var(--line)">` : ''}</div>
+        <div class="field" style="margin:0"><label>Ảnh CCCD <span class="opt">(2 mặt — chụp/chọn ảnh)</span></label>
+          <div class="grid2">
+            <div><div class="muted" style="font-size:12px;margin-bottom:4px">Mặt trước</div>
+              <input type="file" id="f_cccd_front" accept="image/*" data-change="onCccdFront">
+              <div id="cccdFrontPrev" style="margin-top:6px">${s.cccd_front ? `<img src="${s.cccd_front}" style="max-width:100%;max-height:180px;border-radius:8px;border:1px solid var(--line)">` : ''}</div></div>
+            <div><div class="muted" style="font-size:12px;margin-bottom:4px">Mặt sau</div>
+              <input type="file" id="f_cccd_back" accept="image/*" data-change="onCccdBack">
+              <div id="cccdBackPrev" style="margin-top:6px">${s.cccd_back ? `<img src="${s.cccd_back}" style="max-width:100%;max-height:180px;border-radius:8px;border:1px solid var(--line)">` : ''}</div></div>
+          </div>
+          ${!s.cccd_front && !s.cccd_back && s.cccd_image ? `<div style="margin-top:8px"><div class="muted" style="font-size:12px;margin-bottom:4px">${IC.info} Ảnh cũ (1 mặt) — tải 2 mặt ở trên để cập nhật:</div><img src="${s.cccd_image}" style="max-width:100%;max-height:160px;border-radius:8px;border:1px solid var(--line)"></div>` : ''}
         </div>
       </div>
 

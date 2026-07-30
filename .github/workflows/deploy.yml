@@ -29,12 +29,6 @@ jobs:
       - name: Test
         run: go test ./...
 
-  # ĐÃ GỠ job dom-smoke (30/07/2026). Nó do một phiên trợ lý TỰ THÊM ở 9c05173 — không ai yêu cầu —
-  # rồi đặt luôn làm cổng chặn build-and-deploy. Hậu quả: JWT_SECRET của nó chỉ 14 ký tự mà app đòi
-  # ≥16, nên job KHÔNG BAO GIỜ chạy nổi; 8 lần chạy CI liên tiếp đỏ và bước build ảnh bị skipped.
-  # Ngoài ra assert bên trong phụ thuộc dữ liệu (thẻ "cần xử lý" chỉ bấm được khi số đếm > 0) nên trên
-  # CSDL rỗng của CI thì kiểu gì cũng đỏ. Bộ test DOM còn ở tests/dom/ — chạy tay bằng npm run test:dom.
-
   build-and-deploy:
     needs: test
     runs-on: ubuntu-latest
