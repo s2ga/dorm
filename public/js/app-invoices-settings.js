@@ -737,10 +737,50 @@ async function loadAdminUsers() {
    · nhân viên -> gán vai + cơ sở (PUT /admin/users/:id, y như cũ)
    · học viên  -> GHÉP HỒ SƠ. Vai 'student' mà thiếu users.student_id là tài khoản rỗng: đăng nhập
      được nhưng không phòng, không hoá đơn, không gì — nên ở đây bắt chọn hồ sơ, chưa có thì tạo. */
+let _apHV = []; // danh sách hồ sơ của popup duyệt — giữ nguyên bản để ô tìm lọc tại chỗ
+const apChuan = s => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+// Gợi ý hồ sơ khớp với tài khoản đang duyệt. Hai dấu hiệu, xếp theo độ chắc:
+//   3 · mã học viên TRÙNG phần trước @ của email (hồ sơ "DNA123456" ↔ DNA123456@kaizen.edu.vn)
+//   2 · họ tên trùng (không phân biệt hoa/thường)
+//   1 · mã gần trùng email (bên này là tiền tố của bên kia) — yếu nhất, để cuối
+// Chỉ GỢI Ý, không tự chọn: ghép nhầm là học viên nhìn thấy dữ liệu của người khác.
+function apGoiY(u, list) {
+  const local = apChuan(String(u.email || u.username || '').split('@')[0]);
+  const ten = apChuan(u.full_name);
+  const out = [];
+  list.forEach(s => {
+    const ma = apChuan(s.code), tenHS = apChuan(s.name);
+    if (ma && local && ma === local) out.push({ s, vi: 'mã trùng email', w: 3 });
+    else if (ten && tenHS && ten === tenHS) out.push({ s, vi: 'họ tên trùng', w: 2 });
+    else if (ma && local && ma.length >= 4 && (local.startsWith(ma) || ma.startsWith(local))) out.push({ s, vi: 'mã gần trùng email', w: 1 });
+  });
+  return out.sort((a, b) => b.w - a.w).slice(0, 5);
+}
+function apHVOptions(list, chon) {
+  return `<option value="" ${chon ? '' : 'selected'}>— Chưa có hồ sơ, tạo mới —</option>` + list.map(s =>
+    `<option value="${s.id}" ${+chon === s.id ? 'selected' : ''}>${esc((s.code ? s.code + ' — ' : '') + (s.name || ''))}</option>`).join('');
+}
+// Ô tìm: lọc ngay trên danh sách đang có (không gọi server) — giữ lại hồ sơ đang chọn nếu còn khớp.
+function apFilterHV() {
+  const q = apChuan(el('ap_hvq').value), cur = el('ap_hv').value;
+  const ds = q ? _apHV.filter(s => apChuan((s.code || '') + ' ' + (s.name || '') + ' ' + (s.phone || '')).includes(q)) : _apHV;
+  el('ap_hv').innerHTML = apHVOptions(ds, cur);
+  el('ap_hvcount').textContent = q ? `${ds.length}/${_apHV.length} hồ sơ khớp` : `${_apHV.length} hồ sơ`;
+  apToggle();
+}
+// Bấm một gợi ý -> xoá bộ lọc rồi chọn đúng hồ sơ đó (nó có thể đang bị ô tìm lọc mất).
+function apChonHV(sid) {
+  el('ap_hvq').value = '';
+  el('ap_hv').innerHTML = apHVOptions(_apHV, sid);
+  el('ap_hvcount').textContent = `${_apHV.length} hồ sơ`;
+  apToggle();
+}
 function approveForm(id) {
   const u = (window._usrCache || []).find(x => x.id === id);
   if (!u) return;
   const hv = (ST.students || []).slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'vi'));
+  _apHV = hv;
+  const gy = apGoiY(u, hv);
   openModal(`
     <div class="mh"><h3>Duyệt tài khoản</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
     <div class="mb">
@@ -762,9 +802,14 @@ function approveForm(id) {
         </select></div>
       </div>
       <div id="ap_student" hidden>
-        <div class="field"><label>Hồ sơ học viên</label><select id="ap_hv" data-change="apToggle">
-          <option value="">— Chưa có hồ sơ, tạo mới —</option>
-          ${hv.map(s => `<option value="${s.id}">${esc((s.code ? s.code + ' — ' : '') + (s.name || ''))}</option>`).join('')}
+        ${gy.length ? `<div class="hint" style="border-color:var(--ok,#3a7);background:var(--bg2)">${IC.bulb} <strong>Có thể là hồ sơ này</strong> — bấm để chọn, app KHÔNG tự ghép:
+          <div class="rowbtns" style="margin-top:6px;flex-wrap:wrap">${gy.map(g =>
+            `<button class="btn sm pri" data-act="apChonHV" data-args='[${g.s.id}]'>${esc((g.s.code ? g.s.code + ' — ' : '') + (g.s.name || ''))} <span style="opacity:.75">· ${g.vi}</span></button>`).join('')}</div></div>` : ''}
+        <div class="field"><label>Tìm hồ sơ <span class="opt">(theo mã, họ tên hoặc số điện thoại)</span></label>
+          <input id="ap_hvq" data-input="apFilterHV" placeholder="Gõ vài chữ: DNA2509… hoặc Phương Thuỷ" autocomplete="off">
+          <div class="sub2" id="ap_hvcount" style="margin-top:4px">${hv.length} hồ sơ</div></div>
+        <div class="field"><label>Hồ sơ học viên</label><select id="ap_hv" data-change="apToggle" size="6" style="height:auto">
+          ${apHVOptions(hv, '')}
         </select></div>
         <div id="ap_new">
           <div class="grid2">
