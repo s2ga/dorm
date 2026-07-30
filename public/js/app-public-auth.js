@@ -323,7 +323,7 @@ async function renderLogin() {
           <div id="lgNotice"></div>
           <div id="lgSso" style="display:none">
             <button type="button" class="btn lg auth-btn auth-sso" data-act="ssoLogin">${IC.shield} Đăng nhập bằng tài khoản Microsoft</button>
-            <div class="auth-or"><span>hoặc dùng mật khẩu</span></div>
+            <div class="auth-or"><span>hoặc</span></div>
           </div>
           <form id="loginForm">
             <div class="field"><label>Tài khoản</label><input id="lg_user" autocomplete="username" placeholder="Tên đăng nhập" autofocus></div>
