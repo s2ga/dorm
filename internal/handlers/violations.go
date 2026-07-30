@@ -47,16 +47,9 @@ func (h *Handlers) violationsSendMail(ctx context.Context, studentID int) (bool,
 	return mail.SendViolationMail(ctx, h.DB, st, vios)
 }
 
-// Handler vi phạm (violations). Port từ server/routes/violations.routes.js.
-// Base: /api/violations — TẤT CẢ route requireAuth + requireRole('admin','staff')
-// (violations.routes.js:39). Ba route /types (POST/PUT/DELETE) SIẾT thêm requireRole('admin').
-//
-// LƯU Ý PORT (mailer chưa chuyển sang Go):
-//   - Bước gửi mail báo trường bị BỎ. Vẫn ghi vi phạm + xử lý cờ notified_school như Node
-//     lúc gửi THẤT BẠI: sau khi transaction đánh cờ, gỡ lại cờ (notified_school=false,
-//     notified_at=NULL) để nút "Gửi lại" thủ công dùng được (violations.routes.js:240-243).
-//   - /mail-status trả trạng thái "chưa cấu hình".
-//   - /student/:id/notify trả {mail:{sent:false,reason}} như đường gửi-fail của Node.
+// Handler vi phạm. /api/violations — requireAuth + role admin|staff; /types (POST/PUT/DELETE) chỉ admin.
+// Mailer CHƯA port sang Go: bước gửi mail bị bỏ, cờ notified_school luôn gỡ lại sau transaction để
+// nút "Gửi lại" dùng được; /mail-status trả "chưa cấu hình"; /notify trả {mail:{sent:false,reason}}.
 
 // violationsSev: chuẩn hoá severity — chỉ minor/major/severe, mặc định minor. violations.routes.js:41
 func violationsSev(v string) string {

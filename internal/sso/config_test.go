@@ -1,13 +1,7 @@
 package sso
 
-// Quy tắc BẬT/TẮT SSO — chốt bằng test vì đây đúng chỗ đã có lỗi thật:
-// ENV SSO_ENABLED="false" đi chung đường pick() với các tham số, mà chuỗi "false" khác rỗng nên nó
-// LUÔN thắng CSDL. Hậu quả: admin điền đủ Tenant ID + Client ID trong màn Cài đặt, bấm Bật, lưu xong
-// vẫn không đăng nhập Microsoft được — và không có đường nào mở ra từ giao diện (helm/k8s còn ghi sẵn
-// SSO_ENABLED: "false" vào ConfigMap). Nay bỏ hẳn công tắc ENV: đủ tham số là tự bật, tắt bằng WebUI.
-//
-// Chạy:  go test ./internal/sso/ -v
-// Cần Postgres local (npm run services). Không có DB -> t.Skip, không báo đỏ oan.
+// Quy tắc bật/tắt SSO: KHÔNG có công tắc ENV — đủ Tenant ID + Client ID là tự bật, tắt bằng WebUI.
+//   go test ./internal/sso/ -v   (cần Postgres local; không có DB -> t.Skip)
 
 import (
 	"context"

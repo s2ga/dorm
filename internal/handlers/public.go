@@ -13,12 +13,8 @@ import (
 	"ktx/internal/valid"
 )
 
-// Handler công khai (public). Port từ server/routes/public.routes.js.
-// KHÔNG yêu cầu đăng nhập (public.routes.js:6).
-//
-// LƯU Ý PORT: 3 endpoint /apply, /image/:key, /doc/noi-quy phụ thuộc kho S3
-// (storage.getObject/putDataUrl/parseDataUrl) — package storage CHƯA port sang Go
-// nên để lại stub 501 "Chức năng đang chuyển đổi" (theo QUY TẮC 6). Xem notes.
+// Handler công khai (public) — không yêu cầu đăng nhập.
+// 3 endpoint /apply, /image/:key, /doc/noi-quy phụ thuộc S3; package storage chưa port -> stub 501.
 
 // publicMediaKeys: khoá ảnh hợp lệ của trang giới thiệu. public.routes.js:9
 // (Chỉ dùng cho /image/:key — hiện là stub; giữ lại để tài liệu hoá hợp đồng.)

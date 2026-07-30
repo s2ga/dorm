@@ -1,16 +1,9 @@
 package handlers
 
-// Học viên đăng nhập bằng Microsoft.
-//
-// Bài toán: lần đầu SSO, app chưa biết người đó là nhân viên hay học viên nên xếp hết vào hàng chờ
-// duyệt. Nhưng vai 'student' KHÔNG có nghĩa nếu thiếu users.student_id — cổng học viên đọc mọi thứ
-// qua liên kết đó, gán vai suông thì đăng nhập vào trống trơn. Nên có hai đường:
+// Học viên đăng nhập bằng Microsoft, hai đường:
 //   · email hồ sơ học viên khớp email Microsoft -> vào thẳng, bỏ qua duyệt (ssoResolveUser)
-//   · không khớp -> chờ duyệt, admin bấm Duyệt rồi GHÉP HỒ SƠ (ApproveUserAsStudent)
-// Bộ này canh cả hai, chạy trên CSDL thật vì phần lớn ràng buộc nằm ở SQL.
-//
-// Chạy:  go test ./internal/handlers/ -run "HocVien|Duyet" -v
-// Cần Postgres local (npm run services). Không có DB -> t.Skip.
+//   · không khớp -> chờ duyệt, admin bấm Duyệt rồi ghép hồ sơ (ApproveUserAsStudent)
+//   go test ./internal/handlers/ -run "HocVien|Duyet" -v   (cần Postgres local; không có DB -> t.Skip)
 
 import (
 	"context"

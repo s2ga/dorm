@@ -532,12 +532,9 @@ func (h *Handlers) UpdateUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
-// ApproveUserAsStudent: POST /api/admin/users/:id/approve-student — duyệt tài khoản đang chờ thành HỌC VIÊN.
-//
-// Vì sao phải có endpoint riêng thay vì thêm 'student' vào ô chọn vai: vai 'student' KHÔNG có nghĩa
-// nếu thiếu hồ sơ. Cổng học viên đọc mọi thứ qua users.student_id (auth.go, RequireRole("student")),
-// gán vai suông thì người đó đăng nhập được nhưng vào trong trống trơn — không phòng, không hoá đơn.
-// Nên duyệt học viên = GHÉP HỒ SƠ, không phải gán vai.
+// ApproveUserAsStudent: POST /api/admin/users/:id/approve-student — duyệt tài khoản chờ thành học viên.
+// Duyệt học viên = GHÉP HỒ SƠ chứ không phải gán vai: cổng học viên đọc mọi thứ qua users.student_id,
+// gán vai suông thì đăng nhập vào trống trơn.
 //
 // Nhận một trong hai: {"student_id":12} ghép hồ sơ có sẵn, hoặc {"new_student":{...}} tạo hồ sơ mới rồi ghép.
 func (h *Handlers) ApproveUserAsStudent(c *gin.Context) {

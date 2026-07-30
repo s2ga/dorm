@@ -38,13 +38,9 @@ type loginUser struct {
 
 func (h *Handlers) loadLoginUser(c *gin.Context, username string) (*loginUser, error) {
 	var u loginUser
-	// KHÔNG lọc `deleted_at IS NULL` nữa: tài khoản bị khoá vẫn phải nạp được để trả 403 "đã bị
-	// khoá" (trước đây rơi vào nhánh "không thấy user" -> 401 "sai tên đăng nhập hoặc mật khẩu",
-	// người dùng tưởng gõ sai nên thử lại tới mức tự khoá thêm 15 phút).
-	// ORDER BY đưa hàng CÒN HIỆU LỰC lên trước. Bỏ bộ lọc deleted_at thì lower(username) có thể khớp
-	// 2 hàng: uq_users_username_ci chỉ ràng buộc hàng CHƯA KHOÁ, còn UNIQUE(username) của bảng thì
-	// phân biệt hoa/thường -> "nv01" (đã khoá) và "NV01" (mới, đang dùng) sống chung được. Không được
-	// để hàng khoá cũ chặn người đang dùng tên đó.
+	// KHÔNG lọc deleted_at: tài khoản bị khoá vẫn phải nạp được để trả 403 "đã bị khoá" thay vì 401.
+	// ORDER BY đưa hàng còn hiệu lực lên trước — lower(username) có thể khớp 2 hàng vì
+	// uq_users_username_ci chỉ ràng buộc hàng chưa khoá ("nv01" đã khoá và "NV01" đang dùng sống chung).
 	err := h.pool().QueryRow(c.Request.Context(),
 		`SELECT id, username, password_hash, role, full_name, student_id, facility_id,
 		        must_change_password, token_epoch, approved, email, auth_provider,

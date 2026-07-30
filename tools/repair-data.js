@@ -1,20 +1,10 @@
 #!/usr/bin/env node
-// ===== Dọn dữ liệu một lần =====
-//   node tools/repair-data.js          -> CHẠY THỬ, chỉ in ra sẽ sửa gì (không ghi)
+// Dọn dữ liệu một lần. Chạy lại nhiều lần được (mỗi bản sửa chỉ khớp khi dữ liệu còn trạng thái cũ).
+//   node tools/repair-data.js          -> chạy thử, chỉ in ra
 //   node tools/repair-data.js --apply  -> ghi thật
 //
-// Sửa gì thì đọc từ tools/don-du-lieu.json:
-//   1. nhân viên đang để chữ "Nhân viên" ở ô Mã HV -> đặt mã riêng
-//   2. hai người khác tên chung mã -> người không giữ thì XOÁ mã (không bịa mã mới —
-//      bịa ra thì tra sang hệ thống trường sẽ ra nhầm người, tệ hơn là để trống)
-//   3. hồ sơ gõ nhầm NĂM -> sửa lại năm
-//
-// DỮ LIỆU ĐỂ Ở FILE RIÊNG, KHÔNG VIẾT VÀO ĐÂY: nó là họ tên thật + mã học viên thật.
-// Repo này công khai — viết thẳng vào file .js là đẩy dữ liệu cá nhân lên GitHub cho cả
-// thế giới đọc, trái Nghị định 13. tools/don-du-lieu.json nằm trong .gitignore.
-//
-// CHẠY LẠI NHIỀU LẦN ĐƯỢC: mỗi bản sửa chỉ khớp khi dữ liệu còn ở trạng thái CŨ.
-// Không dùng id: id ở máy local và trên bản chạy thật KHÁC NHAU -> tìm theo tên + mã + ngày.
+// Danh sách cần sửa đọc từ tools/don-du-lieu.json (gitignore — chứa họ tên và mã học viên thật,
+// repo này công khai). Tìm theo tên + mã + ngày, KHÔNG theo id: id local khác id bản chạy thật.
 
 require('../server/load-env'); // cùng cách nạp .env như máy chủ — không thêm thư viện mới
 const fs = require('fs');

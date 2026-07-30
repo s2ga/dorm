@@ -1,14 +1,8 @@
 package sso
 
-// Cổng phát tham số đổi mã cho trình duyệt.
-//
-// Vì sao endpoint này tồn tại: app trên Azure khai redirect URI kiểu SPA, mã cấp cho client kiểu đó
-// chỉ đổi được bằng request cross-origin từ trình duyệt — máy chủ đổi thì Microsoft từ chối
-// (AADSTS9002327). Nhưng tenant/client KHÔNG được phát bừa cho khách chưa đăng nhập, nên tham số chỉ
-// ra khỏi máy chủ khi cookie ktx_sso hợp lệ VÀ state khớp. Bộ này canh đúng cái cổng đó.
-//
-// Chạy:  go test ./internal/sso/ -v
-// Cần Postgres local (npm run services). Không có DB -> t.Skip.
+// Cổng phát tham số đổi mã: chỉ ra khỏi máy chủ khi cookie ktx_sso hợp lệ VÀ state khớp — tenant và
+// client không được phát cho khách chưa đăng nhập.
+//   go test ./internal/sso/ -v   (cần Postgres local; không có DB -> t.Skip)
 
 import (
 	"context"

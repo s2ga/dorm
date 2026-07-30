@@ -70,12 +70,7 @@ var envMap2 = map[string]string{
 }
 
 // Config: tham số lấy ENV trước, thiếu thì lấy CSDL.
-//
-// BẬT/TẮT KHÔNG CÓ ENV — đủ Tenant ID + Client ID là TỰ BẬT; muốn tắt thì admin vào màn Cài đặt
-// chọn "Tắt" (ghi sso_enabled='false'). Trước đây có ENV SSO_ENABLED và nó đi chung hàm pick():
-// chuỗi "false" khác rỗng nên luôn thắng CSDL -> admin điền đủ tham số, bấm Bật trong giao diện mà
-// vẫn không đăng nhập được, và không có đường nào mở ra từ giao diện. Đó là KHOÁ CỨNG chứ không
-// phải "mặc định tắt". Một công tắc, một nơi: CSDL + WebUI.
+// Bật/tắt KHÔNG có ENV: đủ Tenant ID + Client ID là tự bật, tắt bằng màn Cài đặt (sso_enabled='false').
 func (m *Manager) Config(ctx context.Context) Config {
 	s, _ := m.db.GetSettings(ctx)
 	fromEnv := false
@@ -122,15 +117,9 @@ type ExchangeParams struct {
 	RedirectURI  string `json:"redirectUri"`
 }
 
-// ParamsForBrowserExchange: phát tham số đổi mã cho người VỪA từ Microsoft quay về.
-//
-// Vì sao trình duyệt đổi mã chứ không phải máy chủ: app trên Azure khai redirect URI dưới nền tảng
-// Single-page application, mà mã cấp cho client kiểu đó CHỈ đổi được bằng request cross-origin từ
-// trình duyệt (Microsoft đòi header Origin) — máy chủ POST thẳng thì bị từ chối AADSTS9002327.
-//
-// Vì sao không phát qua /auth/sso/config: endpoint đó mở cho khách chưa đăng nhập, ai cũng đọc được
-// tenant + client của công ty bằng một request. Ở đây tham số chỉ ra khỏi máy chủ khi cookie ktx_sso
-// hợp lệ VÀ state khớp — tức đúng người vừa đi hết một vòng uỷ quyền.
+// ParamsForBrowserExchange: phát tham số đổi mã cho người vừa từ Microsoft quay về.
+// Trình duyệt phải tự đổi mã (app Azure khai redirect URI kiểu SPA -> Microsoft đòi header Origin,
+// máy chủ POST thẳng bị từ chối AADSTS9002327). Chỉ phát khi cookie ktx_sso hợp lệ VÀ state khớp.
 func (m *Manager) ParamsForBrowserExchange(ctx context.Context, ssoCookie, state string) (ExchangeParams, error) {
 	cfg := m.Config(ctx)
 	if !cfg.Enabled {

@@ -1,12 +1,6 @@
-// Đăng nhập sau khi GỘP MỘT CỔNG + thêm Microsoft SSO + vá BL-08.
-//
-// Bộ này thay cho login-portal.test.js cũ. Khái niệm "cổng đăng nhập" đã bị BỎ:
-// loại tài khoản (nhân viên / học viên) là THUỘC TÍNH CỦA USER trong CSDL — server tự biết sau
-// khi xác thực, không bắt người đăng nhập tự khai. Vì vậy bộ này đo 3 nhóm:
-//   (1) một cổng duy nhất: ai cũng vào bằng một form; tham số `portal` cũ gửi lên bị BỎ QUA
-//       (client cũ còn cache không bị gãy) và cổng rác vẫn không được làm sập máy chủ.
-//   (2) tài khoản SSO thuần / chờ duyệt KHÔNG lọt qua form mật khẩu.
-//   (3) BL-08: đặt lại mật khẩu học viên phải làm ĐỦ 2 chốt như tài khoản nhân viên.
+// Đăng nhập một cổng (bỏ khái niệm "cổng"): loại tài khoản là thuộc tính của user trong CSDL.
+// Đo 3 nhóm: (1) một form cho mọi người, tham số `portal` cũ bị bỏ qua · (2) tài khoản SSO thuần /
+// chờ duyệt không lọt qua form mật khẩu · (3) BL-08: đặt lại mật khẩu học viên đủ 2 chốt như nhân viên.
 const bcrypt = require('../../node_modules/bcryptjs');
 const { BASE } = require('../lib/harness');
 const P = '__test_auth';

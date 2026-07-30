@@ -412,36 +412,20 @@ SELECT s.id, s.room_id, s.check_in_date, s.check_out_date
  WHERE s.room_id IS NOT NULL AND s.check_in_date IS NOT NULL AND s.deleted_at IS NULL
    AND NOT EXISTS (SELECT 1 FROM room_stays rs WHERE rs.student_id = s.id);
 
--- ============================================================================
--- ===== TUYẾN PHÒNG THỦ Ở CSDL =====
--- Trước đây CSDL nhận mọi thứ: tiền âm, 2 người cùng CCCD, 2 xe cùng biển số,
--- kỳ "xyz"... Mọi kiểm tra đều nằm ở tầng ứng dụng, mà tầng đó có 15 đường ghi —
--- vá sót một đường là rác lọt vào và nằm đó vĩnh viễn. Ràng buộc ở đây là tuyến CUỐI:
--- không đường nào đi vòng được, kể cả gọi thẳng API hay chạy SQL tay.
---
--- BỌC TRONG DO/EXCEPTION vì file này chạy MỖI LẦN máy chủ khởi động và db.js KHÔNG bắt lỗi:
--- một ràng buộc không áp được (dữ liệu đang vi phạm) sẽ làm MÁY CHỦ KHÔNG LÊN NỔI.
---
--- Cái nào trượt thì GHI VÀO BẢNG schema_guard, KHÔNG dùng RAISE WARNING: cảnh báo của
--- PostgreSQL đi qua kênh "notice" mà node-postgres không in ra -> ràng buộc trượt trong im lặng,
--- ai cũng tưởng có phòng thủ trong khi thật ra không có. Ghi vào bảng thì đọc lại được,
--- db.js in ra lúc khởi động và không ai đoán mò.
--- Dọn dữ liệu xong, khởi động lại -> ràng buộc TỰ ÁP và dòng cảnh báo tự biến mất.
--- ============================================================================
+-- ===== Ràng buộc ở CSDL =====
+-- Bọc trong DO/EXCEPTION: file này chạy mỗi lần khởi động, ràng buộc không áp được (dữ liệu đang
+-- vi phạm) mà ném lỗi thì máy chủ không lên nổi. Cái nào trượt thì ghi vào bảng schema_guard và
+-- máy chủ in ra lúc boot; dọn dữ liệu rồi khởi động lại là nó tự áp.
 CREATE TABLE IF NOT EXISTS schema_guard (
   ten        TEXT PRIMARY KEY,
   loi        TEXT NOT NULL,
   checked_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- ===== Phòng trưởng + các cột giảm giá — ĐẶT TRƯỚC khối DO $ktx$ =====
--- BẮT BUỘC đứng trước khối DO: ràng buộc ck_invoices_no_negative tham chiếu leader_discount/
--- room_discount, và ck_room_leaders_dates cần bảng room_leaders. Nếu để SAU (lỗi cũ BLK-7), DB MỚI
--- boot lần đầu áp thiếu 2 chốt này (cột/bảng chưa có) -> hoá đơn không có chốt chặn total âm suốt
--- vòng đời boot đầu, chỉ tự lành ở boot #2. Đưa lên trước = luôn đủ ngay boot #1.
--- Mỗi phòng có 1 phòng trưởng giúp BQL quản lý trong phòng. Đổi lại: MIỄN tiền nước + phí dịch vụ.
--- Có ngày bắt đầu/kết thúc (không phải 1 ô đánh dấu) vì đổi phòng trưởng giữa tháng thì mỗi người
--- chỉ được giảm theo SỐ NGÀY MÌNH LÀM — y như cách chia tiền điện.
+-- ===== Phòng trưởng + các cột giảm giá =====
+-- PHẢI đứng TRƯỚC khối DO: ck_invoices_no_negative tham chiếu leader_discount/room_discount,
+-- ck_room_leaders_dates cần bảng room_leaders — để sau thì CSDL mới boot lần đầu áp thiếu 2 chốt đó.
+-- Phòng trưởng được miễn tiền nước + phí dịch vụ, có from_date/to_date để chia theo số ngày làm.
 CREATE TABLE IF NOT EXISTS room_leaders (
   id         SERIAL PRIMARY KEY,
   room_id    INTEGER NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,

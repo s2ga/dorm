@@ -1,10 +1,6 @@
-// Package db quản lý pool PostgreSQL (pgx) + khởi tạo lúc boot: áp schema.sql baseline,
-// chạy migration đánh số (1 file = 1 transaction), seed dữ liệu mặc định. Cổng tương đương server/db.js.
-//
-// Xử lý kiểu dữ liệu để KHỚP bản Node (server/db.js:13-14):
-//   - DATE  (OID 1082) -> chuỗi 'YYYY-MM-DD'  : dùng pgtype.Date rồi Format, KHÔNG scan ra time.Time thô.
-//   - NUMERIC(OID 1700) -> float64            : pgx scan numeric vào *float64 trực tiếp (đã kiểm ở spike).
-// SET TIME ZONE 'Asia/Ho_Chi_Minh' áp cho MỌI kết nối qua RuntimeParams (server/db.js:31).
+// Package db: pool PostgreSQL (pgx) + khởi tạo lúc boot (áp schema.sql, chạy migration đánh số mỗi
+// file 1 transaction, seed mặc định). DATE -> chuỗi 'YYYY-MM-DD' (pgtype.Date), NUMERIC -> float64.
+// SET TIME ZONE 'Asia/Ho_Chi_Minh' áp cho mọi kết nối qua RuntimeParams.
 package db
 
 import (

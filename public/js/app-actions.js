@@ -1,11 +1,5 @@
-// === app-actions.js — EVENT DELEGATION (CHANG 5 refactor) ===
-// Muc tieu: bo MOI inline on* handler (onclick/onchange/oninput/onerror) khoi HTML de CSP
-// script-src KHONG con can 'unsafe-inline'. Thay bang MOT bo listener uy quyen tren `document`.
-//
-// Vi app ve lai innerHTML lien tuc nen KHONG addEventListener tung nut — chi gan 1 lan o day,
-// bat su kien noi bot len document roi tra hanh dong qua thuoc tinh data-*.
-//
-// QUY UOC DOM (thay onclick/onchange/oninput/onerror):
+// === app-actions.js — EVENT DELEGATION: mot bo listener uy quyen tren `document`, khong inline on* ===
+// QUY UOC DOM:
 //   data-act="tenHam"     -> click:  goi window.tenHam(...args, event), this = phan tu
 //   data-args='[...json]'  -> tham so (JSON HOP LE, dung nhay don cho thuoc tinh); thieu = []
 //   data-close             -> goi closeModal() TRUOC

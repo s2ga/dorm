@@ -1,11 +1,5 @@
-# ============================================================
-#  BACKING SERVICES cho phase LOCAL DEV
-#  - Postgres (cùng engine với staging/Supabase)
-#  - MinIO (S3 object storage, cùng giao thức với Supabase Storage)
-#  App chạy trên host (npm start / Chay-App.bat) và trỏ vào 2 service này qua .env.
-#  KHÔNG đặt secret mặc định ở đây — mọi biến lấy từ .env (bắt buộc có).
-#  Chạy:  docker compose up -d
-# ============================================================
+# Dịch vụ nền cho dev local: Postgres (cùng engine với staging) + MinIO (S3, cùng giao thức Supabase).
+# Mọi biến lấy từ .env, không đặt secret mặc định ở đây.  Chạy: docker compose up -d
 services:
   db:
     image: postgres:16-alpine

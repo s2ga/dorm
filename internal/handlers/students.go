@@ -80,14 +80,8 @@ func (h *Handlers) studentsValidateCccd(c *gin.Context, b map[string]interface{}
 	return true
 }
 
-// Handler học viên (students). Port từ server/routes/students.routes.js — module LỚN NHẤT.
-// Router gốc: requireAuth (router.use) + requireRole('admin','staff') mỗi route (do người điều phối wire).
-// router.param('id') gác đa cơ sở -> studentsFacilityGuard(c,u,idStr) gọi ĐẦU mỗi handler /:id.
-//
-// ĐÃ BỎ (chưa port S3/mail — xem RÀNG BUỘC rule 6):
-//   - Upload ảnh CCCD (resolveCccd) trong POST/PUT: BỎ phần upload, VẪN tạo/sửa bản ghi (cccd_* để nguyên/null).
-//   - Proxy ảnh GET /:id/cccd/:side -> 501 stub. signCccd chỉ ĐỔI TÊN cột CCCD (S3 KEY) -> URL proxy trong
-//     response (thuần chuỗi, không gọi S3) nên GIỮ như Node (students.routes.js:38, cccd-url.js).
+// Handler học viên. requireAuth + role admin|staff; mỗi handler /:id gọi studentsFacilityGuard đầu tiên.
+// CHƯA port S3: POST/PUT bỏ phần upload ảnh CCCD (vẫn tạo/sửa bản ghi); GET /:id/cccd/:side -> 501.
 
 // LIST_SELECT — danh sách (không kèm ảnh CCCD). students.routes.js:78-94
 const studentsListSelect = `
@@ -1989,14 +1983,9 @@ func (h *Handlers) StudentDeposit(c *gin.Context) {
 	c.JSON(http.StatusOK, row)
 }
 
-// StudentDepositSettle: POST /:id/deposit-settle (admin,staff). students.routes.js:615-690
-//
-// ⚠️ BUG NGUỒN được GIỮ NGUYÊN (parity): dòng 669 tham chiếu biến `settings` KHÔNG định nghĩa trong handler
-// này (chỉ có ở POST / và /deposit). Với action='refund', JS ném ReferenceError TRƯỚC khi tính điều kiện
-// hoàn cọc -> Express trả HTTP 500 {"error":"Lỗi máy chủ"} (index.js:165-172). Vì vậy nhánh xét-điều-kiện /
-// override_reason / refund_check (dòng 670-680) là CODE CHẾT. Ở đây tái hiện đúng: action='refunded' mà
-// qua hết validate -> serverErr(500). action != 'refund' ('forfeited') chạy bình thường tới UPDATE.
-// (Nếu muốn refund hoạt động, nguồn Node cần thêm `const settings = await getSettings()` — xem notes.)
+// StudentDepositSettle: POST /:id/deposit-settle (admin,staff).
+// ⚠️ action='refund' luôn trả 500 — giữ nguyên hành vi bản Node (biến `settings` chưa định nghĩa ở đó
+// nên nhánh xét điều kiện hoàn cọc là code chết). action='forfeited' chạy bình thường.
 func (h *Handlers) StudentDepositSettle(c *gin.Context) {
 	u := auth.CurrentUser(c)
 	if !h.studentsFacilityGuard(c, u, c.Param("id")) {

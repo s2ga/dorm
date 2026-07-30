@@ -1,12 +1,6 @@
-// KHOÁ tài khoản thay vì XOÁ: DELETE /admin/users/:id chỉ chặn đăng nhập + đá phiên, GIỮ dữ liệu và
-// GIỮ NGUYÊN username; POST /admin/users/:id/unlock cho đăng nhập lại. Đây là hành vi xác thực nên
-// phải khoá bằng test: khoá xong KHÔNG vào được, mở khoá xong VÀO ĐƯỢC, và tài khoản đã khoá vẫn
-// hiện trong danh sách (cờ locked) để admin còn đường mở lại.
-//
-// Tài khoản/hồ sơ ĐÃ KHOÁ đăng nhập lại phải nhận 403 kèm câu "đã bị khoá" — KHÔNG phải 401 "sai tên
-// đăng nhập hoặc mật khẩu" (người dùng tưởng gõ sai, thử tiếp tới mức tự khoá thêm 15 phút) và tuyệt
-// đối KHÔNG phải màn "đang chờ duyệt" (nghĩa hoàn toàn khác: chờ duyệt là chưa được cấp quyền, khoá
-// là đã bị cấm). Nhưng SAI mật khẩu vẫn phải là 401 chung, không thì 403 thành máy dò tài khoản.
+// Khoá tài khoản thay vì xoá: DELETE /admin/users/:id chặn đăng nhập + đá phiên, giữ dữ liệu và
+// username; POST /unlock cho vào lại. Đăng nhập khi đang khoá phải là 403 "đã bị khoá" — không phải
+// 401 (sai mật khẩu) và không phải màn "chờ duyệt". Sai mật khẩu vẫn 401 chung, không thì thành máy dò.
 const bcrypt = require('../../node_modules/bcryptjs');
 const P = '__test_lock';
 const clean = async db => {

@@ -146,12 +146,9 @@ function closeModalNgay() {
   el('overlay').classList.remove('show');
   el('modal').removeAttribute('style');
   document.body.classList.remove('modal-open');
-  // Trả lại mục lịch sử đã mượn. CHỈ khi modal thật sự đang mở: closeModal() được gọi ~139 chỗ, nhiều
-  // chỗ gọi lúc KHÔNG có modal nào ("vô hại" theo comment cũ) — nếu chỗ đó cũng lùi lịch sử thì mỗi
-  // lần lưu xong là văng ra khỏi màn, tệ hơn nữa là thoát app.
-  // HOÃN một tick: rất nhiều chỗ "đóng modal rồi mở modal khác" ngay trong cùng một cú bấm. Trả ngay
-  // thì cú back (bất đồng bộ) sẽ đua với pushState của modal mới và lịch sử lệch. Hoãn thì openModal
-  // kịp huỷ cái hẹn này và dùng lại đúng mục đang có.
+  // Trả lại mục lịch sử đã mượn, CHỈ khi modal đang thật sự mở (closeModal gọi ở ~139 chỗ, nhiều chỗ
+  // gọi lúc không có modal — lùi lịch sử ở đó là văng khỏi màn). Hoãn một tick vì nhiều chỗ đóng modal
+  // rồi mở modal khác trong cùng cú bấm: hoãn thì openModal kịp huỷ hẹn và dùng lại mục đang có.
   if (dangMo && _modalCoLichSu) {
     _modalCoLichSu = false;
     clearTimeout(_henTraLichSu);

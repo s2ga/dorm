@@ -1,13 +1,4 @@
-// ===== Test DOM/frontend (Playwright) — BL-42 =====
-// Test ĐÚNG các lỗi đã từng vỡ ở giao diện (regression) mà e2e-gọi-API không bắt được:
-//   BL-20 thẻ bấm chết -> modal mở; BL-39 popover lọc checkbox không giãn; BL-23 báo nhầm "chưa lưu";
-//   BL-47 bảng -> thẻ trên mobile. READ-ONLY (không tạo/xoá dữ liệu).
-//
-// KHÔNG cần Node trên máy — chạy qua Docker Playwright (browser có sẵn trong image):
-//   docker run --rm --add-host=host.docker.internal:host-gateway -v "$PWD:/work" -w /work \
-//     -e TEST_BASE=http://host.docker.internal:3000 -e TEST_ADMIN_PASS=... -e PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
-//     mcr.microsoft.com/playwright:latest \
-//     bash -c "cd /tmp && npm init -y >/dev/null 2>&1 && npm i playwright >/dev/null 2>&1 && cd /work && NODE_PATH=/tmp/node_modules node tests/dom/smoke.cjs"
+// Test giao diện (Playwright), READ-ONLY. Chạy: npm run test:dom (qua Docker, xem tests/dom/run.sh).
 
 const { chromium } = require('playwright');
 

@@ -110,14 +110,8 @@ func CheckSetting(key, raw string) string {
 
 func trimFloat(f float64) string { return strconv.FormatFloat(f, 'f', -1, 64) }
 
-// CheckPassword: chính sách mật khẩu (NỚI LỎNG 23/07/2026 theo chốt owner).
-// Mật khẩu local chỉ là TẠM THỜI — về sau đăng nhập chính bằng Microsoft SSO (vẫn chấp nhận
-// mật khẩu local). Vì vậy chỉ giữ 2 ràng buộc KỸ THUẬT, bỏ hết ràng buộc "đoán được":
-//   - tối thiểu 6 ký tự (khớp mật khẩu khởi tạo InitialPasswordMin và mọi form)
-//   - tối đa 72 BYTE (trần cứng của bcrypt — vượt là hàm băm lỗi)
-// Không còn bắt cả-chữ-và-số / danh sách đen / chặn trùng tên. Rào bảo mật thật nằm ở
-// khoá-tài-khoản-khi-sai-nhiều (loginguard) + nhật ký đăng nhập, không ở độ phức tạp mật khẩu.
-// Tham số context giữ trong chữ ký cho tương thích nơi gọi; hiện không dùng.
+// CheckPassword: chỉ 2 ràng buộc kỹ thuật — tối thiểu 6 ký tự, tối đa 72 BYTE (trần cứng của bcrypt).
+// Không bắt cả-chữ-và-số / danh sách đen. Tham số context giữ cho tương thích, hiện không dùng.
 func CheckPassword(pw string, context []string) string {
 	if len([]rune(pw)) < 6 {
 		return "Mật khẩu tối thiểu 6 ký tự"

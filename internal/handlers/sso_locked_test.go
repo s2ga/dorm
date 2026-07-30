@@ -1,17 +1,8 @@
 package handlers
 
-// Tài khoản BỊ KHOÁ đăng nhập lại bằng Microsoft thì KHÔNG được sống lại.
-//
-// Lỗi thật đã gặp trên staging: ssoResolveUser tự `deleted_at = NULL` + hạ `approved = false`, nên khoá
-// một nhân viên xong họ bấm "Đăng nhập bằng Microsoft" là tài khoản mở lại ở trạng thái chờ duyệt —
-// khoá bị vô hiệu hoá, admin còn bị gọi đi duyệt lại đúng người mình vừa khoá, và vì vai vẫn là 'staff'
-// nên nút "Duyệt / gán vai" cũng không bật được approved -> kẹt vĩnh viễn ở màn "Tài khoản đang chờ duyệt".
-//
-// Không kiểm được qua HTTP: /auth/sso/verify đòi id_token có chữ ký Microsoft thật (JWKS), không giả
-// được ở test. Nên gọi thẳng ssoResolveUser với CSDL thật — đây mới là chỗ ra quyết định.
-//
-// Chạy:  go test ./internal/handlers/ -run TestSSOResolve -v
-// Cần Postgres local (npm run services). Không có DB -> t.Skip, không báo đỏ oan.
+// Tài khoản bị khoá đăng nhập lại bằng Microsoft thì không được sống lại.
+// Gọi thẳng ssoResolveUser vì /auth/sso/verify đòi id_token có chữ ký Microsoft thật, không giả được.
+//   go test ./internal/handlers/ -run TestSSOResolve -v   (cần Postgres local; không có DB -> t.Skip)
 
 import (
 	"context"

@@ -24,13 +24,9 @@ async function viewRooms() {
     <div class="table-wrap card-tbl">
       ${list.length ? `<table><thead><tr><th>Phòng</th><th>Loại</th><th class="num">Đang ở</th><th>${IC.star} Phòng trưởng</th><th class="num">Giá thuê</th><th></th></tr></thead><tbody>
       ${list.map(r => { const full = r.occupancy >= r.capacity && r.capacity > 0; return `<tr data-s="${esc((r.name + ' ' + genderLabel(r.gender) + ' tầng' + r.floor + ' hạng' + (r.hang || 'b')).toLowerCase())}"${del ? ''
-        // CẢ HÀNG bấm được (trước chỉ bấm được ô "Phòng" và ô "Đang ở"). Nút bên trong hàng vẫn thắng:
-        // app-actions.js dùng e.target.closest('[data-act]') nên nút gần hơn hàng — không cần stopPropagation.
-        // CỐ Ý KHÔNG đặt role="button" lên <tr>: role đó là "children presentational", trình đọc màn hình
-        // sẽ lược hết <td> con -> mất luôn cấu trúc bảng (không còn row/cell để điều hướng). Bàn phím đi
-        // bằng ô tên phòng bên dưới (.stu-name có role+tabindex) — đúng khuôn màn Học viên đang dùng.
-        // data-del/data-delid: cử chỉ GIỮ hoặc KÉO NGANG để xoá trên điện thoại (xem app-actions.js) —
-        // trên đó nút thùng rác bị ẩn, hàng là thứ duy nhất chạm được.
+        // Cả hàng bấm được. KHÔNG đặt role="button" lên <tr>: role đó lược hết <td> con với trình đọc
+        // màn hình; bàn phím đi bằng .stu-name bên dưới. data-del/data-delid: cử chỉ giữ/kéo để xoá trên
+        // điện thoại (app-actions.js), ở đó nút thùng rác bị ẩn.
         : ` data-act="roomDetail" data-args='[${r.id}]' title="Xem chi tiết phòng — ai đang ở" data-del="delRoom" data-delid="${r.id}"`}>
         ${/* Phòng ĐÃ XOÁ: để trần, không khoác .stu-name — class đó có cursor:pointer + gạch chân khi rê,
               trông bấm được mà bấm không ra gì (hàng đã xoá không có data-act). */''}
@@ -197,13 +193,9 @@ function roomForm(id) {
         <div class="field"><label>Sức chứa (giường) <span class="opt">(tự điền theo hạng)</span></label><input id="f_cap" type="number" min="0" value="${esc(r.capacity)}"></div>
       </div>
       ${(() => {
-        // Ô này TRƯỚC ĐÂY hiện "0" cho gần như mọi phòng, đọc như phòng không thu tiền — mà người
-        // sửa lại không biết phòng đang thu bao nhiêu để mà điều chỉnh.
-        // Thật ra 0 (hoặc rỗng) KHÔNG phải miễn phí: billing chỉ lấy monthly_fee KHI > 0, còn lại
-        // dùng giá mặc định room_fee ở Cài đặt (billing.go: `Room.MonthlyFee > 0`). Nên phải nói ra
-        // số ĐANG ÁP DỤNG và nó từ đâu.
-        // Và KHÔNG điền sẵn giá mặc định vào ô: lưu lại là GHIM giá riêng cho phòng này, từ đó đổi
-        // giá ở Cài đặt không còn ăn vào phòng nữa — vào sửa cái ghi chú mà vô tình đóng băng giá.
+        // monthly_fee = 0 (hoặc rỗng) KHÔNG phải miễn phí: billing chỉ dùng nó khi > 0, còn lại lấy
+        // room_fee ở Cài đặt. KHÔNG điền sẵn giá mặc định vào ô — lưu lại là ghim giá riêng cho phòng,
+        // từ đó đổi giá ở Cài đặt không còn ăn vào phòng này nữa.
         const macDinh = +ST.settings.room_fee || 0;
         const rieng = +r.monthly_fee > 0 ? +r.monthly_fee : 0;
         return `<div class="field"><label>Giá thuê ghép / người / tháng <span class="opt">(đồng)</span></label>

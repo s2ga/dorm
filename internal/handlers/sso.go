@@ -18,12 +18,9 @@ import (
 // Không phải lỗi hệ thống, cũng không phải "chưa có tài khoản" -> trả 403 với msgTaiKhoanBiKhoa.
 var errTaiKhoanBiKhoa = errors.New("tài khoản đã bị khoá")
 
-// ssoRedirectURI: nơi Microsoft trả người dùng về = ORIGIN của app (dấu "/"), vì trình duyệt mới là
-// bên đổi mã — xem ParamsForBrowserExchange. Trước đây trỏ /api/auth/sso/callback để máy chủ đổi mã,
-// nhưng redirect URI đó khai trên Azure dưới nền tảng SPA nên Microsoft chặn (AADSTS9002327).
-//
-// SSO_REDIRECT_URI vẫn đọc, nhưng CHỈ lấy scheme+host của nó (công dụng gốc: sau proxy Render đôi khi
-// đoán sai scheme/host); phần path luôn ép về "/" để không lệch với URI đã khai.
+// ssoRedirectURI: Microsoft trả người dùng về ORIGIN của app (path "/"), vì trình duyệt mới là bên đổi
+// mã. SSO_REDIRECT_URI vẫn đọc nhưng chỉ lấy scheme+host (sau proxy Render đôi khi đoán sai), path luôn
+// ép về "/" cho khớp URI đã khai trên Azure.
 func (h *Handlers) ssoRedirectURI(c *gin.Context) string {
 	if v := strings.TrimSpace(os.Getenv("SSO_REDIRECT_URI")); v != "" {
 		if u, err := url.Parse(v); err == nil && u.Scheme != "" && u.Host != "" {
@@ -171,13 +168,8 @@ func (h *Handlers) SSOCallback(c *gin.Context) {
 // liên kết; (3) chưa có -> tạo 'pending' chờ duyệt. Dùng chung cho callback (server-side) và verify (SPA).
 // Tài khoản ĐÃ BỊ KHOÁ ở bước (1) hoặc (2) -> errTaiKhoanBiKhoa, KHÔNG mở lại và KHÔNG tạo bản mới.
 func (h *Handlers) ssoResolveUser(ctx context.Context, identity sso.Identity) (*ssoUser, error) {
-	// 1) Theo sso_subject — tìm KỂ CẢ hàng đã khoá, vì unique index (sso_subject, username) KHÔNG loại
-	// trừ deleted_at nên INSERT lại sẽ trùng khoá -> 500.
-	// ĐANG BỊ KHOÁ thì DỪNG: trước đây chỗ này tự `deleted_at = NULL` + hạ về chờ duyệt, thành ra khoá
-	// một nhân viên xong họ bấm "Đăng nhập bằng Microsoft" là tài khoản sống lại ở trạng thái chờ duyệt
-	// (thấy màn "Tài khoản đang chờ duyệt") — khoá bị vô hiệu hoá, và admin còn bị gọi đi duyệt lại
-	// đúng người mình vừa khoá. Mở khoá là việc CỦA ADMIN (POST /admin/users/:id/unlock), không phải
-	// việc người bị khoá tự làm bằng cách đăng nhập lại.
+	// 1) Theo sso_subject — tìm KỂ CẢ hàng đã khoá: unique index (sso_subject, username) không loại trừ
+	// deleted_at nên INSERT lại sẽ trùng khoá. Đang bị khoá thì DỪNG; mở khoá là việc của admin.
 	var existID int
 	var existLocked bool
 	if h.pool().QueryRow(ctx, "SELECT id, (deleted_at IS NOT NULL) FROM users WHERE sso_subject = $1",

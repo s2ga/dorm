@@ -1,17 +1,9 @@
 #!/usr/bin/env node
-// ===== Gộp hồ sơ trùng =====
-//   node tools/merge-plan.js          -> CHỈ IN KẾ HOẠCH, không ghi gì
+// Gộp hồ sơ trùng (một người bị tạo 2 hồ sơ khi chuyển phòng). Lịch sử ở phòng giữ ở room_stays.
+//   node tools/merge-plan.js          -> chỉ in kế hoạch
 //   node tools/merge-plan.js --apply  -> gộp thật (1 transaction, lỗi là hoàn tác hết)
 //
-// Vì sao: nhân viên tạo HỒ SƠ MỚI khi học viên chuyển phòng (app cũ không giữ được lịch sử phòng
-// nên đó là cách duy nhất "giữ" phòng cũ). Mỗi người thành 2 hồ sơ -> 2 phiếu -> thu tiền 2 lần.
-// Tháng 07/2026 thu dư 5.709.087đ.
-//
-// Gộp bây giờ KHÔNG MẤT LỊCH SỬ: bảng room_stays (làm cho TC-10) giữ được từng chặng ở phòng.
-//   (ví dụ) 2 hồ sơ -> 1 hồ sơ:  phòng 406 (14/03→02/04)  +  phòng 304 (03/04→nay)
-//
-// Quy tắc chọn hồ sơ GIỮ LẠI: bản ghi phản ánh HIỆN TRẠNG — đang ở & vào sau cùng.
-// Nhóm nào không hợp quy tắc thì BỎ QUA, để người thật xem — thà không gộp còn hơn gộp sai.
+// Hồ sơ giữ lại = bản phản ánh hiện trạng (đang ở & vào sau cùng). Nhóm không hợp quy tắc thì bỏ qua.
 
 require('../server/load-env');
 const fs = require('fs');

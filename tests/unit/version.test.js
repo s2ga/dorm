@@ -1,9 +1,5 @@
-// Phiên bản asset phải KHỚP giữa index.html và sw.js.
-//
-// Vì sao có bộ này: 16/07/2026 phát hiện sw.js tải sẵn '?v=25' trong khi index.html nạp '?v=71'.
-// Service worker tải nguyên bộ asset cũ 46 phiên bản mà KHÔNG lần nào dùng tới — máy học viên
-// tải thừa gần gấp đôi ngay lần mở app đầu tiên, đúng nhóm dùng điện thoại đời thấp mạng yếu.
-// Lệch được vì số phải sửa tay ở 2 file. Không ai phát hiện vì app vẫn "chạy được".
+// Phiên bản asset phải khớp giữa index.html và sw.js — số sửa tay ở 2 file, lệch thì service worker
+// tải sẵn nguyên bộ asset cũ mà không dùng tới, và app vẫn "chạy được" nên không ai thấy.
 const fs = require('fs');
 const path = require('path');
 

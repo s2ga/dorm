@@ -2,12 +2,9 @@ package db
 
 import "regexp"
 
-// hasTxnControl phát hiện lệnh điều khiển transaction cấp cao trong file migration
-// (BEGIN/COMMIT/ROLLBACK/END/SAVEPOINT/START TRANSACTION). Wrapper đã tự bọc BEGIN..COMMIT;
-// file tự COMMIT/END sẽ đóng SỚM transaction -> half-apply. (server/db.js:82-91)
-//
-// Bản Node dùng regex có BACKREFERENCE \1 để khớp dollar-quote ($tag$..$tag$) — Go RE2 KHÔNG hỗ trợ,
-// nên ở đây lược comment / dollar-quote / chuỗi bằng SCANNER TAY rồi mới dò từ khoá.
+// hasTxnControl: phát hiện BEGIN/COMMIT/ROLLBACK/END/SAVEPOINT trong file migration — wrapper đã bọc
+// sẵn transaction, file tự COMMIT sẽ đóng sớm -> half-apply.
+// Lược comment / dollar-quote / chuỗi bằng scanner tay vì RE2 không có backreference.
 func hasTxnControl(sql string) bool {
 	s := stripSQLNoise(sql)
 	return reCommitEtc.MatchString(s) || reBegin.MatchString(s) || reEnd.MatchString(s)

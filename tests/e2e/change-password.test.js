@@ -1,10 +1,6 @@
-// Đổi mật khẩu sau khi NỚI LỎNG 23/07/2026 (chốt owner):
-//   ① BỎ yêu cầu mật khẩu cũ — người dùng đã xác thực bằng cookie ktx_token; lần đổi BẮT BUỘC
-//      thì vừa đăng nhập bằng mật khẩu khởi tạo xong nên hỏi lại là thừa (đúng issue báo về).
-//   ② Rule mật khẩu chỉ còn: tối thiểu 6 ký tự (bỏ chữ+số, bỏ danh sách đen, bỏ chặn trùng tên).
-// Bộ này CỐ TÌNH tái hiện đúng payload trong issue: mật khẩu khởi tạo "123456" -> đổi sang "qwerty".
-// Trước đây trả 400 "tối thiểu 8 ký tự"; giờ phải 200. Đồng thời không được làm thủng 2 chốt còn lại:
-// đổi xong PHẢI thu hồi vé cũ, và không cho đặt LẠI y hệt mật khẩu hiện tại.
+// Đổi mật khẩu: không hỏi mật khẩu cũ (đã xác thực bằng cookie), rule chỉ còn tối thiểu 6 ký tự.
+// Tái hiện payload trong issue: "123456" -> "qwerty" phải 200. Hai chốt còn lại không được thủng:
+// đổi xong thu hồi vé cũ, và không cho đặt lại y hệt mật khẩu hiện tại.
 const bcrypt = require('../../node_modules/bcryptjs');
 const P = '__test_cpw';
 

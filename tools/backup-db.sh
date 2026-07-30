@@ -1,23 +1,12 @@
 #!/usr/bin/env bash
-# ============================================================================
-# BACKUP CSDL (BLK-6) — sao lưu Postgres/Supabase hằng ngày, đẩy ra S3 (Supabase Storage).
-#
-# Vì sao cần: app dùng soft-delete cho hầu hết bảng nên xoá nhầm logic khôi phục được, NHƯNG lỗi
-# CỨNG (drop bảng, ghi đè, sự cố Supabase) là mất không hoàn tác. Đây là lớp phòng thủ cuối.
-# => VẪN NÊN bật thêm Supabase PITR (Dashboard > Database > Backups) cho khả năng khôi phục điểm-thời-gian.
-#
-# Cách dùng (cron hằng ngày, vd 2h sáng giờ VN):
+# Sao lưu Postgres/Supabase, đẩy ra S3. Cần pg_dump; đẩy S3 thì cần aws CLI.
 #   0 2 * * *  DATABASE_URL="postgres://..." BACKUP_S3_BUCKET="db-backup" bash tools/backup-db.sh
 #
-# Biến môi trường:
-#   DATABASE_URL       (bắt buộc) chuỗi kết nối Postgres (Supabase session pooler).
-#   BACKUP_DIR         (tuỳ chọn) thư mục lưu tạm, mặc định ./backups
-#   BACKUP_S3_BUCKET   (tuỳ chọn) bucket S3 để đẩy lên; bỏ trống = chỉ lưu local.
-#   BACKUP_KEEP_DAYS   (tuỳ chọn) số ngày giữ bản local, mặc định 14.
-#   S3_ENDPOINT / S3_ACCESS_KEY / S3_SECRET_KEY / S3_REGION  (nếu đẩy S3, dùng aws CLI)
-#
-# Yêu cầu: pg_dump (postgresql-client). Nếu đẩy S3 cần aws CLI.
-# ============================================================================
+#   DATABASE_URL       bắt buộc
+#   BACKUP_DIR         thư mục lưu tạm, mặc định ./backups
+#   BACKUP_S3_BUCKET   bucket S3; bỏ trống = chỉ lưu local
+#   BACKUP_KEEP_DAYS   số ngày giữ bản local, mặc định 14
+#   S3_ENDPOINT / S3_ACCESS_KEY / S3_SECRET_KEY / S3_REGION
 set -euo pipefail
 
 : "${DATABASE_URL:?Thiếu DATABASE_URL}"

@@ -20,11 +20,8 @@ async function ssoLogin() {
 }
 
 // Microsoft chuyển về (origin/?code=...&state=...). Trả true nếu đang trong luồng SSO (đã xử lý).
-//
-// Máy chủ dựng yêu cầu uỷ quyền (state/nonce/code_verifier nằm trong cookie httpOnly ktx_sso), còn
-// BƯỚC ĐỔI MÃ phải do trình duyệt làm: app trên Azure khai redirect URI kiểu SPA, mã cấp cho client
-// kiểu đó chỉ đổi được bằng request cross-origin có header Origin. Tham số đổi mã xin qua
-// /auth/sso/exchange-params — endpoint chỉ trả lời khi cookie state khớp, nên không lộ cho khách.
+// Bước đổi mã do TRÌNH DUYỆT làm (redirect URI khai kiểu SPA -> Microsoft đòi header Origin); tham số
+// xin qua /auth/sso/exchange-params, endpoint đó chỉ trả lời khi cookie state khớp.
 async function ssoHandleReturn() {
   const qp = new URLSearchParams(location.search);
   if (!qp.get('code') || !qp.get('state')) {

@@ -723,10 +723,8 @@ tbody tr[data-act]:focus-visible{outline:2px solid var(--brand);outline-offset:-
 td .hd-ref{position:relative;z-index:1}   /* nổi trên vùng bấm của cả hàng */
 @media(prefers-reduced-motion:reduce){.card-tbl tr[data-del]{transition:none}}
 
-/* ===== MODAL TOÀN MÀN HÌNH TRÊN ĐIỆN THOẠI ==================================================
-   Trên màn hẹp, thẻ nổi giữa màn là kiểu của máy tính: nội dung bị bóp trong khung nhỏ, xung quanh
-   là nền mờ vô dụng, mà cuộn thì cuộn cả overlay nên đầu/chân trôi mất. Ở đây modal trở thành một
-   MÀN HÌNH thật: chiếm trọn, đầu và chân ghim, chỉ thân cuộn.
+/* ===== MODAL TOÀN MÀN HÌNH TRÊN ĐIỆN THOẠI =====
+   Modal chiếm trọn màn, đầu và chân ghim, chỉ thân cuộn.
    Đặt SAU khối @media(max-width:820px) ở trên (nó cũng đụng .overlay/.modal) để thắng đúng thứ tự.
    Phần JS đi kèm ở ui.js (ngăn xếp lớp + mục lịch sử) và app-actions.js (vuốt mép trái = quay lại). */
 @media(max-width:620px){
