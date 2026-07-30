@@ -737,7 +737,7 @@ async function loadAdminUsers() {
    · nhân viên -> gán vai + cơ sở (PUT /admin/users/:id, y như cũ)
    · học viên  -> GHÉP HỒ SƠ. Vai 'student' mà thiếu users.student_id là tài khoản rỗng: đăng nhập
      được nhưng không phòng, không hoá đơn, không gì — nên ở đây bắt chọn hồ sơ, chưa có thì tạo. */
-let _apHV = []; // danh sách hồ sơ của popup duyệt — giữ nguyên bản để ô tìm lọc tại chỗ
+let _apHV = [], _apGY = []; // hồ sơ (bản gốc để lọc tại chỗ) + gợi ý khớp của tài khoản đang duyệt
 const apChuan = s => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
 // Gợi ý hồ sơ khớp với tài khoản đang duyệt. Hai dấu hiệu, xếp theo độ chắc:
 //   3 · mã học viên TRÙNG phần trước @ của email (hồ sơ "DNA123456" ↔ DNA123456@kaizen.edu.vn)
@@ -756,31 +756,47 @@ function apGoiY(u, list) {
   });
   return out.sort((a, b) => b.w - a.w).slice(0, 5);
 }
-function apHVOptions(list, chon) {
-  return `<option value="" ${chon ? '' : 'selected'}>— Chưa có hồ sơ, tạo mới —</option>` + list.map(s =>
-    `<option value="${s.id}" ${+chon === s.id ? 'selected' : ''}>${esc((s.code ? s.code + ' — ' : '') + (s.name || ''))}</option>`).join('');
+// MỘT ô duy nhất: gõ để lọc, danh sách ngay dưới, bấm một dòng là chọn. Trước đây tách ô tìm riêng
+// với ô danh sách riêng — hai thứ cho cùng một việc, admin phải nhìn hai chỗ.
+function apDongHV(s, vi) {
+  return `<button type="button" class="btn sm ghost" data-act="apChonHV" data-args='[${s.id}]'
+    style="display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);border-radius:0">
+    ${esc((s.code ? s.code + ' — ' : '') + (s.name || ''))}${vi ? ` <span class="badge green" style="font-size:10px">${vi}</span>` : ''}${s.phone ? ` <span class="muted" style="font-size:11px">· ${esc(s.phone)}</span>` : ''}
+  </button>`;
 }
-// Ô tìm: lọc ngay trên danh sách đang có (không gọi server) — giữ lại hồ sơ đang chọn nếu còn khớp.
 function apFilterHV() {
-  const q = apChuan(el('ap_hvq').value), cur = el('ap_hv').value;
+  const box = el('ap_hvbox'), dem = el('ap_hvcount'), sid = +el('ap_hvid').value;
+  if (sid) { // đã chọn -> thu gọn còn một dòng, khỏi phải cuộn qua danh sách nữa
+    const s = _apHV.find(x => x.id === sid) || {};
+    box.innerHTML = `<div style="padding:10px;display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <strong>${esc((s.code ? s.code + ' — ' : '') + (s.name || ''))}</strong>
+      <button type="button" class="btn sm" data-act="apBoChonHV">Bỏ chọn</button></div>`;
+    dem.textContent = 'Đã chọn hồ sơ này. Bấm "Bỏ chọn" để tìm lại.';
+    apToggle();
+    return;
+  }
+  const q = apChuan(el('ap_hvq').value);
   const ds = q ? _apHV.filter(s => apChuan((s.code || '') + ' ' + (s.name || '') + ' ' + (s.phone || '')).includes(q)) : _apHV;
-  el('ap_hv').innerHTML = apHVOptions(ds, cur);
-  el('ap_hvcount').textContent = q ? `${ds.length}/${_apHV.length} hồ sơ khớp` : `${_apHV.length} hồ sơ`;
+  // Chưa gõ gì thì đẩy gợi ý lên đầu; gõ rồi thì người dùng đang tự tìm, không chen ngang nữa.
+  const gy = q ? [] : _apGY;
+  const idGY = new Set(gy.map(g => g.s.id));
+  const conLai = gy.length ? ds.filter(s => !idGY.has(s.id)) : ds;
+  const nhan = t => `<div class="muted" style="padding:6px 10px;font-size:11px;background:var(--bg2)">${t}</div>`;
+  box.innerHTML =
+    (gy.length ? nhan(`${IC.bulb} Có thể là những hồ sơ này`) + gy.map(g => apDongHV(g.s, g.vi)).join('') + nhan('Tất cả hồ sơ') : '') +
+    (conLai.length ? conLai.map(s => apDongHV(s)).join('')
+      : `<div class="muted" style="padding:10px">Không hồ sơ nào khớp. Để trống thì app tạo hồ sơ mới bằng thông tin bên dưới.</div>`);
+  dem.textContent = q ? `${ds.length}/${_apHV.length} hồ sơ khớp` : `${_apHV.length} hồ sơ`;
   apToggle();
 }
-// Bấm một gợi ý -> xoá bộ lọc rồi chọn đúng hồ sơ đó (nó có thể đang bị ô tìm lọc mất).
-function apChonHV(sid) {
-  el('ap_hvq').value = '';
-  el('ap_hv').innerHTML = apHVOptions(_apHV, sid);
-  el('ap_hvcount').textContent = `${_apHV.length} hồ sơ`;
-  apToggle();
-}
+function apChonHV(sid) { el('ap_hvid').value = sid; el('ap_hvq').value = ''; apFilterHV(); }
+function apBoChonHV() { el('ap_hvid').value = ''; apFilterHV(); }
 function approveForm(id) {
   const u = (window._usrCache || []).find(x => x.id === id);
   if (!u) return;
   const hv = (ST.students || []).slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'vi'));
   _apHV = hv;
-  const gy = apGoiY(u, hv);
+  _apGY = apGoiY(u, hv);
   openModal(`
     <div class="mh"><h3>Duyệt tài khoản</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
     <div class="mb">
@@ -802,15 +818,11 @@ function approveForm(id) {
         </select></div>
       </div>
       <div id="ap_student" hidden>
-        ${gy.length ? `<div class="hint" style="border-color:var(--ok,#3a7);background:var(--bg2)">${IC.bulb} <strong>Có thể là hồ sơ này</strong> — bấm để chọn, app KHÔNG tự ghép:
-          <div class="rowbtns" style="margin-top:6px;flex-wrap:wrap">${gy.map(g =>
-            `<button class="btn sm pri" data-act="apChonHV" data-args='[${g.s.id}]'>${esc((g.s.code ? g.s.code + ' — ' : '') + (g.s.name || ''))} <span style="opacity:.75">· ${g.vi}</span></button>`).join('')}</div></div>` : ''}
-        <div class="field"><label>Tìm hồ sơ <span class="opt">(theo mã, họ tên hoặc số điện thoại)</span></label>
-          <input id="ap_hvq" data-input="apFilterHV" placeholder="Gõ vài chữ: DNA2509… hoặc Phương Thuỷ" autocomplete="off">
-          <div class="sub2" id="ap_hvcount" style="margin-top:4px">${hv.length} hồ sơ</div></div>
-        <div class="field"><label>Hồ sơ học viên</label><select id="ap_hv" data-change="apToggle" size="6" style="height:auto">
-          ${apHVOptions(hv, '')}
-        </select></div>
+        <div class="field"><label>Hồ sơ học viên <span class="opt">(gõ để tìm theo mã, họ tên hoặc SĐT — bấm một dòng để chọn)</span></label>
+          <input id="ap_hvq" data-input="apFilterHV" placeholder="Gõ vài chữ: TXCC-S2509… hoặc Phương Thuỷ" autocomplete="off">
+          <input type="hidden" id="ap_hvid" value="">
+          <div id="ap_hvbox" style="max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:10px;margin-top:6px"></div>
+          <div class="sub2" id="ap_hvcount" style="margin-top:4px"></div></div>
         <div id="ap_new">
           <div class="grid2">
             <div class="field"><label>Họ tên *</label><input id="ap_name" value="${esc(u.full_name || '')}" placeholder="Nguyễn Văn A"></div>
@@ -827,12 +839,13 @@ function approveForm(id) {
       </div>
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveApprove" data-args='[${id}]'>Duyệt</button></div>`);
+  apFilterHV(); // vẽ danh sách hồ sơ lần đầu (gợi ý lên trước) — modal vừa dựng xong nên el() có DOM
 }
 function apToggle() {
   const la = el('ap_kind').value;
   el('ap_staff').hidden = la !== 'staff';
   el('ap_student').hidden = la !== 'student';
-  el('ap_new').hidden = !!el('ap_hv').value; // đã chọn hồ sơ có sẵn -> không cần form tạo mới
+  el('ap_new').hidden = !!el('ap_hvid').value; // đã chọn hồ sơ có sẵn -> không cần form tạo mới
 }
 async function saveApprove(id) {
   if (el('ap_kind').value === 'staff') {
@@ -840,7 +853,7 @@ async function saveApprove(id) {
     closeModal(); toast('Đã duyệt — tài khoản nhân viên'); loadAdminUsers();
     return;
   }
-  const sid = el('ap_hv').value;
+  const sid = el('ap_hvid').value;
   const body = sid ? { student_id: +sid } : {
     new_student: {
       name: el('ap_name').value.trim(), code: el('ap_code').value.trim(), gender: el('ap_gender').value,
