@@ -859,13 +859,17 @@ func (h *Handlers) BillCheckout(c *gin.Context) {
 	if roomID != nil {
 		var hang *string
 		var mf *float64
-		if e := h.pool().QueryRow(ctx, "SELECT hang, monthly_fee FROM rooms WHERE id=$1", *roomID).Scan(&hang, &mf); e == nil {
+		var rt *string
+		if e := h.pool().QueryRow(ctx, "SELECT hang, monthly_fee, room_type FROM rooms WHERE id=$1", *roomID).Scan(&hang, &mf, &rt); e == nil {
 			r := billing.Room{}
 			if hang != nil {
 				r.Hang = *hang
 			}
 			if mf != nil {
 				r.MonthlyFee = *mf
+			}
+			if rt != nil {
+				r.RoomType = *rt
 			}
 			room = &r
 		}

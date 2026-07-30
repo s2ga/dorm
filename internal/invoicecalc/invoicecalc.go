@@ -343,13 +343,18 @@ func RecalcInvoice(ctx context.Context, database *db.DB, studentID int, month st
 	if roomID != nil {
 		var hang *string
 		var monthlyFee *float64
-		if e := database.Pool.QueryRow(ctx, "SELECT hang, monthly_fee FROM rooms WHERE id=$1", *roomID).Scan(&hang, &monthlyFee); e == nil {
+		var roomType *string
+		// room_type PHẢI lấy cùng: nó quyết định có thu tiền phòng hay không (billing.MienTienPhong).
+		if e := database.Pool.QueryRow(ctx, "SELECT hang, monthly_fee, room_type FROM rooms WHERE id=$1", *roomID).Scan(&hang, &monthlyFee, &roomType); e == nil {
 			r := billing.Room{}
 			if hang != nil {
 				r.Hang = *hang
 			}
 			if monthlyFee != nil {
 				r.MonthlyFee = *monthlyFee
+			}
+			if roomType != nil {
+				r.RoomType = *roomType
 			}
 			room = &r
 		}

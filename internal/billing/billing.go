@@ -375,6 +375,19 @@ func RoomPriceByHang(hang string, fees Fees) float64 {
 type Room struct {
 	Hang       string
 	MonthlyFee float64
+	// RoomType: 'shared' | 'whole' | 'security' | 'staff'. Rỗng = coi như 'shared'.
+	// Quyết định CÓ THU TIỀN PHÒNG hay không — xem MienTienPhong.
+	RoomType string
+}
+
+// MienTienPhong: phòng an ninh và phòng nhân viên KHÔNG thu tiền phòng (owner chốt 30/07/2026).
+//   - 101 phòng an ninh: không cho thuê.
+//   - 105 phòng nhân viên: công ty cấp cho ai có nhu cầu, ở MIỄN PHÍ tiền phòng.
+// Miễn ĐÚNG tiền phòng thôi. Nước, điện, phí dịch vụ vẫn thu như mọi người — họ vẫn dùng.
+// Đặt ở tầng billing chứ không giảm 100% từng hồ sơ: giảm theo người thì mai có người mới vào phòng
+// đó, ai quên đặt là thu tiền phòng oan mà không ai biết. Đây là thuộc tính của PHÒNG.
+func MienTienPhong(roomType string) bool {
+	return roomType == "security" || roomType == "staff"
 }
 
 // ComputeInput gói tham số cho ComputeInvoice (opts của server/billing.js:158).
@@ -418,7 +431,9 @@ func ComputeInvoice(in ComputeInput) Invoice {
 
 	// Tiền phòng
 	var roomFee float64
-	if in.Student.RentalType == "phong" {
+	if in.Room != nil && MienTienPhong(in.Room.RoomType) {
+		roomFee = 0 // phòng an ninh / phòng nhân viên: miễn tiền phòng, các khoản khác vẫn thu
+	} else if in.Student.RentalType == "phong" {
 		hang := ""
 		if in.Room != nil {
 			hang = in.Room.Hang

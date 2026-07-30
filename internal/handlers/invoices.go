@@ -615,9 +615,10 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 		type genRoom struct {
 			hang       string
 			monthlyFee float64
+			roomType   string // quyết định có thu tiền phòng hay không (billing.MienTienPhong)
 		}
 		roomsCache := map[int]genRoom{}
-		roomRows, err := tx.Query(ctx, "SELECT id, hang, monthly_fee, capacity FROM rooms")
+		roomRows, err := tx.Query(ctx, "SELECT id, hang, monthly_fee, capacity, room_type FROM rooms")
 		if err != nil {
 			return err
 		}
@@ -626,7 +627,8 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 			var hang *string
 			var mf *float64
 			var capCol *int
-			if err := roomRows.Scan(&id, &hang, &mf, &capCol); err != nil {
+			var rt *string
+			if err := roomRows.Scan(&id, &hang, &mf, &capCol, &rt); err != nil {
 				roomRows.Close()
 				return err
 			}
@@ -636,6 +638,9 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 			}
 			if mf != nil {
 				g.monthlyFee = *mf
+			}
+			if rt != nil {
+				g.roomType = *rt
 			}
 			roomsCache[id] = g
 		}
@@ -708,7 +713,7 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 			var room *billing.Room
 			if s.roomID != nil {
 				if rc, ok := roomsCache[*s.roomID]; ok {
-					room = &billing.Room{Hang: rc.hang, MonthlyFee: rc.monthlyFee}
+					room = &billing.Room{Hang: rc.hang, MonthlyFee: rc.monthlyFee, RoomType: rc.roomType}
 				}
 			}
 			var roster []billing.RosterEntry
@@ -853,13 +858,17 @@ func (h *Handlers) GenerateOneInvoice(c *gin.Context) {
 	if roomID != nil {
 		var hang *string
 		var mf *float64
-		if e := h.pool().QueryRow(ctx, "SELECT hang, monthly_fee FROM rooms WHERE id=$1", *roomID).Scan(&hang, &mf); e == nil {
+		var rt *string
+		if e := h.pool().QueryRow(ctx, "SELECT hang, monthly_fee, room_type FROM rooms WHERE id=$1", *roomID).Scan(&hang, &mf, &rt); e == nil {
 			r := billing.Room{}
 			if hang != nil {
 				r.Hang = *hang
 			}
 			if mf != nil {
 				r.MonthlyFee = *mf
+			}
+			if rt != nil {
+				r.RoomType = *rt
 			}
 			room = &r
 		}
