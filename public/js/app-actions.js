@@ -272,7 +272,8 @@ function handoverCheckoutRow(id) { handoverCheckoutForm(id, (this && this.datase
 
 /* ---- Wrapper cho change/input/error dung `this` (phan tu) ---- */
 function onHandoverMonth() { loadHandovers(this.value); }
-function onCccdPreview() { previewCccd(this); }
+function onCccdFront() { previewCccd(this, 'front'); }
+function onCccdBack() { previewCccd(this, 'back'); }
 function onPubCccdFront() { pubCccd(this, 'front'); }
 function onPubCccdBack() { pubCccd(this, 'back'); }
 function onFacSel() { setFacilityFilter(this.value); }

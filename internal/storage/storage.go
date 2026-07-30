@@ -49,6 +49,12 @@ func New(ctx context.Context, cfg *appconfig.Config) (*Storage, error) {
 	client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
 		o.BaseEndpoint = aws.String(cfg.S3Endpoint)
 		o.UsePathStyle = true // MinIO & Supabase Storage dùng path-style
+		// aws-sdk-go-v2 (s3 >= v1.60) bật checksum CRC32 MẶC ĐỊNH trên PutObject: gửi header
+		// x-amz-checksum-* + trailing checksum (aws-chunked). Supabase Storage & nhiều S3-compat
+		// TỪ CHỐI -> upload fail ("[HỆ THỐNG] chưa lưu được ảnh CCCD"). MinIO mới thì chấp nhận nên
+		// local không lộ. Tắt về hành vi cũ: chỉ gửi/validate checksum khi thao tác BẮT BUỘC.
+		o.RequestChecksumCalculation = aws.RequestChecksumCalculationWhenRequired
+		o.ResponseChecksumValidation = aws.ResponseChecksumValidationWhenRequired
 	})
 	return &Storage{client: client, presign: s3.NewPresignClient(client), CccdBucket: cfg.S3CccdBucket, IntroBucket: cfg.S3IntroBucket}, nil
 }

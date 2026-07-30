@@ -29,49 +29,14 @@ jobs:
       - name: Test
         run: go test ./...
 
-  # BL-42: cổng test DOM/frontend (Playwright qua Docker) — bắt lỗi giao diện mà test gọi-API không thấy
-  # (thẻ bấm chết, popover vỡ, báo nhầm "chưa lưu", card-view). Dựng app + Postgres sạch rồi chạy.
-  # CSDL rỗng nên vài assert phụ thuộc học viên tự BỎ QUA; login + BL-20 (thẻ drill-through) luôn chạy.
-  dom-smoke:
-    needs: test
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: ktx
-          POSTGRES_PASSWORD: ktx_ci
-          POSTGRES_DB: ktx
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U ktx" --health-interval 5s --health-timeout 5s --health-retries 15
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-      - name: Build app
-        run: go build -o /tmp/ktx ./cmd/server
-      - name: Run app (nền) + chờ health
-        env:
-          DATABASE_URL: postgres://ktx:ktx_ci@localhost:5432/ktx
-          JWT_SECRET: ci_test_secret
-          ADMIN_USERNAME: admin
-          ADMIN_PASSWORD: CiTestPass123
-          PORT: "3000"
-        run: |
-          /tmp/ktx > /tmp/ktx.log 2>&1 &
-          for i in $(seq 1 40); do curl -sf http://localhost:3000/api/health >/dev/null && break || sleep 1; done
-          curl -sf http://localhost:3000/api/health || { echo "app không lên:"; cat /tmp/ktx.log; exit 1; }
-      - name: DOM smoke (Playwright qua Docker)
-        env:
-          TEST_ADMIN_PASS: CiTestPass123
-        run: bash tests/dom/run.sh
+  # ĐÃ GỠ job dom-smoke (30/07/2026). Nó do một phiên trợ lý TỰ THÊM ở 9c05173 — không ai yêu cầu —
+  # rồi đặt luôn làm cổng chặn build-and-deploy. Hậu quả: JWT_SECRET của nó chỉ 14 ký tự mà app đòi
+  # ≥16, nên job KHÔNG BAO GIỜ chạy nổi; 8 lần chạy CI liên tiếp đỏ và bước build ảnh bị skipped.
+  # Ngoài ra assert bên trong phụ thuộc dữ liệu (thẻ "cần xử lý" chỉ bấm được khi số đếm > 0) nên trên
+  # CSDL rỗng của CI thì kiểu gì cũng đỏ. Bộ test DOM còn ở tests/dom/ — chạy tay bằng npm run test:dom.
 
   build-and-deploy:
-    needs: [test, dom-smoke]
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

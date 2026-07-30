@@ -320,7 +320,7 @@ function viewStudents() {
           <strong>${esc(s.name)}</strong> <span class="badge ${s.gender === 'female' ? 'sage' : 'blue'}">${genderLabel(s.gender)}</span>${s.login_username ? ` <span title="Có tài khoản">${IC.key}</span>` : ''}
           <div class="sub2">${esc(s.code || '—')}${s.class_name ? ' · ' + esc(s.class_name) : ''}${showFacilityUI() && s.facility_id ? ` · <span class="badge gray" style="font-size:10px">${esc(facilityName(s.facility_id))}</span>` : ''}${flags}</div>
         </div><span class="row-chev" aria-hidden="true">${IC.chevronRight}</span></div></td>
-        <td class="ct-gon" data-label="Phòng">${s.room_name ? `<strong>${esc(s.room_name)}</strong>` : '<span class="muted">Chưa xếp</span>'}${s.rental_type === 'phong' ? '<div class="sub2">Thuê nguyên phòng</div>' : ''}</td>
+        <td class="ct-gon" data-label="Phòng">${s.room_name ? `<strong>${esc(s.room_name)}</strong>` : `<button class="btn sm" style="white-space:nowrap" title="Xếp phòng cho học viên này" data-act="transferForm" data-args='[${s.id}]'>${IC.transfer} Xếp phòng</button>`}${s.rental_type === 'phong' ? '<div class="sub2">Thuê nguyên phòng</div>' : ''}</td>
         <td class="ct-gon" data-label="Trạng thái">${statusBadge(s)}</td>
         <td data-label="Hợp đồng"><span class="badge ${CONTRACT_BADGE[s.contract_status] || 'gray'}">${CONTRACT_LABEL[s.contract_status] || '—'}</span>${s.contract_no ? `<div class="sub2">${esc(s.contract_no)}</div>` : hdThamChieu(s)}</td>
         <td data-label="Cọc">${depositBadge(s)}${s.deposit_status === 'none' && isOccupying(s) ? ` <button class="btn sm ghost" style="white-space:nowrap" title="Ghi nhận đóng cọc" data-act="depositForm" data-args='[${s.id}]'>＋ Thu cọc</button>` : ''}</td>
@@ -648,18 +648,19 @@ function meterField(id, roomName, verb) {
 /* Chuyển phòng */
 function transferForm(id) {
   const s = studentById(id);
+  const chuaXep = !s.room_id; // BL-87: HV chưa có phòng -> "Xếp phòng" (lần đầu), không phải "Chuyển phòng"
   openModal(`
-    <div class="mh"><h3>${IC.transfer} Chuyển phòng: ${esc(s.name)}</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${IC.transfer} ${chuaXep ? 'Xếp phòng' : 'Chuyển phòng'}: ${esc(s.name)}</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
     <div class="mb">
-      <p class="muted">Phòng hiện tại: <strong>${esc(s.room_name || '—')}</strong></p>
+      ${chuaXep ? '' : `<p class="muted">Phòng hiện tại: <strong>${esc(s.room_name || '—')}</strong></p>`}
       <div class="grid2">
-        <div class="field"><label>Phòng mới</label><select id="t_room">${roomOptions('', s.gender)}</select></div>
-        <div class="field"><label>Ngày chuyển</label><input id="t_date" type="date" value="${today()}"></div>
+        <div class="field"><label>${chuaXep ? 'Xếp vào phòng' : 'Phòng mới'}</label><select id="t_room">${roomOptions('', s.gender)}</select></div>
+        <div class="field"><label>Ngày ${chuaXep ? 'xếp' : 'chuyển'}</label><input id="t_date" type="date" value="${today()}"></div>
       </div>
-      <div class="field"><label>Ghi chú</label><input id="t_note" placeholder="Lý do chuyển..."></div>
+      <div class="field"><label>Ghi chú</label><input id="t_note" placeholder="${chuaXep ? 'Ghi chú (tuỳ chọn)...' : 'Lý do chuyển...'}"></div>
       ${s.room_id ? meterField('t_meter', s.room_name, 'chuyển đi') : ''}
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="doTransfer" data-args='[${id}]'>Chuyển</button></div>`);
+    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="doTransfer" data-args='[${id}]'>${chuaXep ? 'Xếp phòng' : 'Chuyển'}</button></div>`);
 }
 async function doTransfer(id) {
   const room_id = el('t_room').value; if (!room_id) return toast('Chọn phòng mới', 'err');
