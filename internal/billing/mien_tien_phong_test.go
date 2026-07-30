@@ -2,12 +2,7 @@ package billing
 
 import "testing"
 
-// Luật owner chốt 30/07/2026: phòng AN NINH (101) và phòng NHÂN VIÊN (105) không thu tiền phòng —
-// 105 là chỗ công ty cấp cho ai có nhu cầu, ở miễn phí tiền phòng. Nhưng CHỈ miễn tiền phòng:
-// nước, điện, phí dịch vụ vẫn thu vì họ vẫn dùng.
-//
-// Bộ golden (billing_golden.json) sinh từ bản Node cũ nên không biết luật này — phải có test riêng.
-// Test kiểm CẢ HAI chiều: miễn đúng chỗ cần miễn, và KHÔNG miễn lan sang phòng cho thuê.
+// Phòng an ninh / phòng nhân viên: không thu tiền phòng, các khoản khác vẫn thu.
 
 func feesThu() Fees {
 	return Fees{

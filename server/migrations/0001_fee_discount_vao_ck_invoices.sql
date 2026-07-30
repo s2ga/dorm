@@ -1,13 +1,5 @@
--- Đưa cột fee_discount vào ràng buộc ck_invoices_no_negative.
---
--- Vì sao cần migration riêng: ràng buộc đó được tạo bằng `ALTER TABLE ... ADD CONSTRAINT` trong khối
--- DO $ktx$ của schema.sql. Trên CSDL ĐÃ CÓ ràng buộc, câu ADD sẽ ném duplicate_object và khối DO bắt
--- rồi bỏ qua — nghĩa là định nghĩa MỚI (có fee_discount >= 0) sẽ KHÔNG bao giờ được áp. CSDL rỗng thì
--- áp đúng ngay, CSDL đang chạy thì mãi giữ định nghĩa cũ. Phải gỡ rồi tạo lại, và đó là thao tác một
--- chiều nên thuộc về migrations chứ không phải file baseline.
---
--- An toàn: chỉ đụng vào ràng buộc, không đụng dữ liệu. Nếu đang có dòng fee_discount âm thì câu ADD
--- sẽ vỡ và migration dừng — đúng ý: thà dừng còn hơn chạy tiếp mà thiếu chốt chặn tiền âm.
+-- Đưa fee_discount vào ck_invoices_no_negative. Phải gỡ rồi tạo lại: câu ADD CONSTRAINT trong
+-- schema.sql bị bỏ qua khi ràng buộc đã tồn tại, nên định nghĩa mới không tự áp được.
 
 ALTER TABLE invoices DROP CONSTRAINT IF EXISTS ck_invoices_no_negative;
 

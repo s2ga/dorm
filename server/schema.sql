@@ -139,9 +139,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS approved BOOLEAN NOT NULL DEFAULT tru
 -- SSO -> bỏ ràng buộc NOT NULL và chặn đăng nhập mật khẩu khi password_hash IS NULL.
 ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
 -- Một email / một danh tính Microsoft chỉ gắn được vào MỘT tài khoản còn sống.
--- deleted_at khai báo NGAY TẠI ĐÂY (khối xoá mềm ở cuối file khai lại, IF NOT EXISTS nên vô hại):
--- chỉ mục bên dưới lọc theo cột này, mà CSDL RỖNG thì chạy tuần tự từ trên xuống — thiếu cột là
--- vỡ nguyên file (cả script là MỘT transaction ngầm, hỏng một câu là không tạo được gì).
+-- deleted_at phải khai TRƯỚC chỉ mục bên dưới (chỉ mục lọc theo cột này).
 ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 CREATE UNIQUE INDEX IF NOT EXISTS ux_users_email ON users (lower(email)) WHERE email IS NOT NULL AND deleted_at IS NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS ux_users_sso_subject ON users (sso_subject) WHERE sso_subject IS NOT NULL;
@@ -464,19 +462,13 @@ ALTER TABLE students ADD COLUMN IF NOT EXISTS room_fee_discount_pct SMALLINT NOT
   CHECK (room_fee_discount_pct >= 0 AND room_fee_discount_pct <= 100);
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS room_discount NUMERIC(12,0) NOT NULL DEFAULT 0;
 
--- ===== Giảm giá theo % cho TỪNG khoản (owner chốt 30/07/2026) =====
--- Trước đây chỉ có room_fee_discount_pct. Các ca miễn/giảm khác (phòng nhân viên miễn tiền phòng,
--- ai đó được miễn tiền nước...) là SỐ ÍT và hay thay đổi, nên owner chốt: KHÔNG viết luật cứng trong
--- code, mở ô giảm % cho từng khoản để ban quản lý tự điều chỉnh. Sửa luật = sửa dữ liệu, không cần
--- sửa app rồi deploy lại.
+-- ===== Giảm giá theo % cho từng khoản (ngoài room_fee_discount_pct đã có) =====
 ALTER TABLE students ADD COLUMN IF NOT EXISTS water_discount_pct    SMALLINT NOT NULL DEFAULT 0 CHECK (water_discount_pct    BETWEEN 0 AND 100);
 ALTER TABLE students ADD COLUMN IF NOT EXISTS electric_discount_pct SMALLINT NOT NULL DEFAULT 0 CHECK (electric_discount_pct BETWEEN 0 AND 100);
 ALTER TABLE students ADD COLUMN IF NOT EXISTS service_discount_pct  SMALLINT NOT NULL DEFAULT 0 CHECK (service_discount_pct  BETWEEN 0 AND 100);
 ALTER TABLE students ADD COLUMN IF NOT EXISTS washing_discount_pct  SMALLINT NOT NULL DEFAULT 0 CHECK (washing_discount_pct  BETWEEN 0 AND 100);
 ALTER TABLE students ADD COLUMN IF NOT EXISTS parking_discount_pct  SMALLINT NOT NULL DEFAULT 0 CHECK (parking_discount_pct  BETWEEN 0 AND 100);
--- Ghi tổng phần giảm của các khoản NGOÀI tiền phòng vào một dòng riêng trên phiếu — cùng lý do như
--- leader_discount/room_discount: không âm thầm hạ tiền nước xuống 0, để học viên thấy được ưu đãi và
--- cấp trên thống kê được chế độ này tốn bao nhiêu.
+-- Tổng phần giảm của các khoản ngoài tiền phòng, ghi riêng một dòng trên phiếu.
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS fee_discount NUMERIC(12,0) NOT NULL DEFAULT 0;
 
 DO $ktx$

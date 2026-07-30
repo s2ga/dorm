@@ -81,17 +81,14 @@ func AddDays(ymd string, n int) string {
 // ----- Học viên & số ngày ở -----
 
 type Student struct {
-	ID                int
-	CheckInDate       string // "" = chưa có
-	CheckOutDate      string // "" = chưa có
-	RentalType        string // "phong" = thuê nguyên phòng; còn lại = ghép
+	ID                 int
+	CheckInDate        string // "" = chưa có
+	CheckOutDate       string // "" = chưa có
+	RentalType         string // "phong" = thuê nguyên phòng; còn lại = ghép
 	RoomFeeDiscountPct float64
-	UsesWashing       bool
-	UsesParking       bool
-	// Giảm % cho TỪNG khoản (owner chốt 30/07/2026). Công thức tính tiền không đổi — mấy ô này chỉ
-	// điều chỉnh BÊN TRÊN kết quả công thức, và ghi thành dòng giảm riêng trên phiếu.
-	// Mở ô thay vì viết luật cứng: các ca miễn/giảm là số ít và hay đổi (phòng nhân viên miễn tiền
-	// phòng, ai đó được miễn tiền nước...), sửa dữ liệu nhanh hơn sửa app rồi deploy lại.
+	UsesWashing        bool
+	UsesParking        bool
+	// Giảm % từng khoản, [0..100].
 	WaterDiscountPct    float64
 	ElectricDiscountPct float64
 	ServiceDiscountPct  float64
@@ -99,7 +96,7 @@ type Student struct {
 	ParkingDiscountPct  float64
 }
 
-// kepPct: kẹp % giảm vào [0..100]. Dữ liệu ngoài khoảng đó là rác, không phải ý đồ.
+// kepPct: kẹp % giảm vào [0..100].
 func kepPct(p float64) float64 {
 	if p < 0 {
 		return 0
@@ -376,16 +373,10 @@ type Room struct {
 	Hang       string
 	MonthlyFee float64
 	// RoomType: 'shared' | 'whole' | 'security' | 'staff'. Rỗng = coi như 'shared'.
-	// Quyết định CÓ THU TIỀN PHÒNG hay không — xem MienTienPhong.
 	RoomType string
 }
 
-// MienTienPhong: phòng an ninh và phòng nhân viên KHÔNG thu tiền phòng (owner chốt 30/07/2026).
-//   - 101 phòng an ninh: không cho thuê.
-//   - 105 phòng nhân viên: công ty cấp cho ai có nhu cầu, ở MIỄN PHÍ tiền phòng.
-// Miễn ĐÚNG tiền phòng thôi. Nước, điện, phí dịch vụ vẫn thu như mọi người — họ vẫn dùng.
-// Đặt ở tầng billing chứ không giảm 100% từng hồ sơ: giảm theo người thì mai có người mới vào phòng
-// đó, ai quên đặt là thu tiền phòng oan mà không ai biết. Đây là thuộc tính của PHÒNG.
+// MienTienPhong: phòng an ninh / phòng nhân viên không thu tiền phòng (các khoản khác vẫn thu).
 func MienTienPhong(roomType string) bool {
 	return roomType == "security" || roomType == "staff"
 }
@@ -416,11 +407,10 @@ type Invoice struct {
 	ParkingCharge  int `json:"parking_charge"`
 	LeaderDiscount int `json:"leader_discount"`
 	RoomDiscount   int `json:"room_discount"`
-	// FeeDiscount: tổng phần giảm % của các khoản NGOÀI tiền phòng (nước/điện/dịch vụ/máy giặt/xe).
-	// Ghi thành một dòng riêng, không âm thầm hạ từng khoản xuống — cùng nguyên tắc với room_discount.
+	// FeeDiscount: tổng giảm % của các khoản ngoài tiền phòng (nước/điện/dịch vụ/máy giặt/xe).
 	FeeDiscount int `json:"fee_discount"`
-	OtherCharge    int `json:"other_charge"`
-	Total          int `json:"total"`
+	OtherCharge int `json:"other_charge"`
+	Total       int `json:"total"`
 }
 
 // ComputeInvoice: server/billing.js:158-229
@@ -432,7 +422,7 @@ func ComputeInvoice(in ComputeInput) Invoice {
 	// Tiền phòng
 	var roomFee float64
 	if in.Room != nil && MienTienPhong(in.Room.RoomType) {
-		roomFee = 0 // phòng an ninh / phòng nhân viên: miễn tiền phòng, các khoản khác vẫn thu
+		roomFee = 0
 	} else if in.Student.RentalType == "phong" {
 		hang := ""
 		if in.Room != nil {
@@ -493,7 +483,6 @@ func ComputeInvoice(in ComputeInput) Invoice {
 		electricCharge = 0
 	}
 
-	// Giảm % từng khoản (ngoài tiền phòng — tiền phòng đã có room_discount ở trên).
 	st := in.Student
 	feeDiscount := giamTheoPct(waterCharge, st.WaterDiscountPct) +
 		giamTheoPct(electricCharge, st.ElectricDiscountPct) +
@@ -501,9 +490,7 @@ func ComputeInvoice(in ComputeInput) Invoice {
 		giamTheoPct(washingCharge, st.WashingDiscountPct) +
 		giamTheoPct(parkingCharge, st.ParkingDiscountPct)
 
-	// Giảm cho phòng trưởng tính trên phần nước+dịch vụ CÒN LẠI sau khi đã giảm %. Nếu tính trên số
-	// gốc thì người vừa được miễn 100% tiền nước lại được giảm thêm lần nữa cho đúng số tiền đó —
-	// tổng phiếu âm, và ck_invoices_no_negative sẽ chặn ngay lúc lưu.
+	// Giảm phòng trưởng tính trên nước+dịch vụ CÒN LẠI sau khi đã trừ giảm % (tránh trừ hai lần).
 	waterConLai := waterCharge - giamTheoPct(waterCharge, st.WaterDiscountPct)
 	serviceConLai := serviceCharge - giamTheoPct(serviceCharge, st.ServiceDiscountPct)
 	leaderDiscount := LeaderDiscount(in.LeaderDays, days, waterConLai, serviceConLai)

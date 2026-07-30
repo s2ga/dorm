@@ -328,7 +328,7 @@ type invoiceGenStudent struct {
 	checkIn, checkOut        string
 	usesWashing, usesParking bool
 	discountPct              float64
-	giam                     billing.GiamPct // giảm % nước/điện/dịch vụ/máy giặt/xe
+	giam                     billing.GiamPct
 }
 
 // GenerateInvoices: POST /api/invoices/generate (admin,staff). invoices.routes.js:94-280.
@@ -615,7 +615,7 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 		type genRoom struct {
 			hang       string
 			monthlyFee float64
-			roomType   string // quyết định có thu tiền phòng hay không (billing.MienTienPhong)
+			roomType   string
 		}
 		roomsCache := map[int]genRoom{}
 		roomRows, err := tx.Query(ctx, "SELECT id, hang, monthly_fee, capacity, room_type FROM rooms")
@@ -737,7 +737,7 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 			s.giam.GanVao(&hv)
 			inv := billing.ComputeInvoice(billing.ComputeInput{
 				Student: hv,
-				Room: room, Month: body.Month, Fees: billing.Fees(fees),
+				Room:    room, Month: body.Month, Fees: billing.Fees(fees),
 				Roster: roster, ElectricCharge: ec, LeaderDays: leaderDays[s.id], Kwh: kwh, VehicleCount: &vc,
 			})
 			if hasDup {

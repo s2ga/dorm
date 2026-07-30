@@ -323,13 +323,13 @@ func RecalcInvoice(ctx context.Context, database *db.DB, studentID int, month st
 
 	// Học viên (các field billing cần)
 	var (
-		sID          int
-		rentalType   *string
-		ci, co       pgtype.Date
-		discountPct  *float64
-		usesWashing  bool
-		usesParking  bool
-		roomID       *int
+		sID         int
+		rentalType  *string
+		ci, co      pgtype.Date
+		discountPct *float64
+		usesWashing bool
+		usesParking bool
+		roomID      *int
 	)
 	var giam billing.GiamPct
 	err = database.Pool.QueryRow(ctx,
@@ -344,7 +344,6 @@ func RecalcInvoice(ctx context.Context, database *db.DB, studentID int, month st
 		var hang *string
 		var monthlyFee *float64
 		var roomType *string
-		// room_type PHẢI lấy cùng: nó quyết định có thu tiền phòng hay không (billing.MienTienPhong).
 		if e := database.Pool.QueryRow(ctx, "SELECT hang, monthly_fee, room_type FROM rooms WHERE id=$1", *roomID).Scan(&hang, &monthlyFee, &roomType); e == nil {
 			r := billing.Room{}
 			if hang != nil {
@@ -405,7 +404,7 @@ func RecalcInvoice(ctx context.Context, database *db.DB, studentID int, month st
 	giam.GanVao(&hv)
 	c := billing.ComputeInvoice(billing.ComputeInput{
 		Student: hv,
-		Room: room, Month: month, Fees: billing.Fees(fees),
+		Room:    room, Month: month, Fees: billing.Fees(fees),
 		Roster: roster, ElectricCharge: electricCharge, LeaderDays: leaderDays, Kwh: kwh, VehicleCount: &veh,
 	})
 

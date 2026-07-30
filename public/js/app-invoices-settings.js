@@ -315,8 +315,6 @@ async function phieuBao(inv) {
   // Các khoản GIẢM đứng riêng, ghi số âm — người đọc thấy rõ được ưu đãi gì, vì sao tổng thấp hơn
   if (+inv.room_discount) row('Giảm tiền phòng', `Ưu đãi riêng ${+s.room_fee_discount_pct || 0}% tiền phòng`, -inv.room_discount);
   if (+inv.fee_discount) {
-    // Nêu ĐÍCH DANH khoản nào được giảm bao nhiêu %: một dòng "Giảm dịch vụ −150.000" trơ trọi thì
-    // người nhận phiếu không biết vì sao, còn ban quản lý không kiểm lại được là đã đặt đúng ô chưa.
     const dg = GIAM_O.filter(([k]) => k !== 'room_fee_discount_pct' && +s[k] > 0)
       .map(([k, , nhan]) => `${nhan} ${+s[k]}%`).join(' · ');
     row('Giảm các khoản khác', dg || 'Ưu đãi riêng theo từng khoản', -inv.fee_discount);
@@ -389,7 +387,7 @@ function csvCell(c) {
 }
 function exportCSV() {
   const rows = _invAll.filter(i => invFilter === 'paid' ? i.status === 'paid' : invFilter === 'unpaid' ? i.status !== 'paid' : true); // dung danh sach dang loc (nhu luc render)
-  // Thứ tự cột phải KHỚP data bên dưới — thêm cột mà quên sửa đầu đề là cả bảng lệch một ô (BL-29).
+  // Thứ tự cột phải khớp mảng data bên dưới.
   const head = ['Ho ten', 'Ma HV', 'Phong', 'Ky', 'So ngay o', 'Tien phong', 'Dien (kWh)', 'Tien dien', 'Nuoc', 'Dich vu', 'May giat', 'Gui xe', 'Khac', 'Giam tien phong', 'Giam khoan khac', 'Giam phong truong', 'Tong'];
   const data = rows.map(i => [i.student_name, i.student_code || '', i.room_name || '', i.month, i.days_stayed, i.room_charge, i.electric_kwh, i.electric_charge, i.water_charge, i.service_charge, i.washing_charge, i.parking_charge, i.other_charge, i.room_discount || 0, i.fee_discount || 0, i.leader_discount || 0, i.total]);
   const csv = '﻿' + [head, ...data].map(r => r.map(csvCell).join(',')).join('\r\n');

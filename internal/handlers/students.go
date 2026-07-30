@@ -36,7 +36,7 @@ func studentsIsCccdKey(v string) bool {
 }
 
 // studentsUploadCccd: resolveCccd cho tạo/sửa — trả (key mới hoặc giữ, có set cột không, xoá key cũ nào).
-// value: data:image/ -> upload; key cũ -> giữ; '' -> xoá (set NULL); khác -> bỏ qua (không đổi).
+// value: data:image/ -> upload; key cũ -> giữ; ” -> xoá (set NULL); khác -> bỏ qua (không đổi).
 // server/routes/students.routes.js:43-57
 func (h *Handlers) studentsResolveCccd(ctx context.Context, sid int, field, value, oldKey string) (setNull bool, key string, changed bool) {
 	if value == "" {
@@ -1168,12 +1168,11 @@ func (h *Handlers) CreateStudent(c *gin.Context) {
 		studentsStrOr(b["parent_phone"]),            // $28
 		studentsPct(b["room_fee_discount_pct"]),     // $29
 		facIDArg,                                    // $30
-		// Giảm % từng khoản (owner chốt 30/07/2026) — mặc định 0, chỉ đặt cho các ca miễn/giảm lẻ.
-		studentsPct(b["water_discount_pct"]),    // $31
-		studentsPct(b["electric_discount_pct"]), // $32
-		studentsPct(b["service_discount_pct"]),  // $33
-		studentsPct(b["washing_discount_pct"]),  // $34
-		studentsPct(b["parking_discount_pct"]),  // $35
+		studentsPct(b["water_discount_pct"]),        // $31
+		studentsPct(b["electric_discount_pct"]),     // $32
+		studentsPct(b["service_discount_pct"]),      // $33
+		studentsPct(b["washing_discount_pct"]),      // $34
+		studentsPct(b["parking_discount_pct"]),      // $35
 	)
 
 	if !h.studentsValidateCccd(c, b) { // 400 nếu ảnh CCCD sai chữ ký (trước khi ghi)

@@ -11,12 +11,7 @@ function _b64url(buf) { return btoa(String.fromCharCode.apply(null, new Uint8Arr
 function _randStr(n) { const a = new Uint8Array(n); crypto.getRandomValues(a); return _b64url(a); }
 async function _sha256url(s) { return _b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s))); }
 
-// Bấm "Đăng nhập bằng Microsoft" -> giao hẳn cho MÁY CHỦ.
-// Trước đây trình duyệt tự dựng yêu cầu uỷ quyền, nên phải xin tenantId + clientId qua
-// /api/auth/sso/config — mà endpoint đó mở cho khách chưa đăng nhập, tức ai cũng đọc được tenant và
-// client của công ty bằng một request. Nay máy chủ dựng yêu cầu (kèm PKCE), giữ state trong cookie
-// httpOnly rồi 302 sang Microsoft; trình duyệt không cầm tham số cấu hình nào.
-// Mọi tham số lấy từ ENV hoặc màn Cài đặt (settings), không ghi cứng ở đâu.
+// Bấm "Đăng nhập bằng Microsoft": máy chủ dựng yêu cầu uỷ quyền rồi 302 sang Microsoft.
 async function ssoLogin() {
   let cfg;
   try { cfg = await API.ssoConfig(); } catch (e) { return toast('Không lấy được cấu hình đăng nhập Microsoft', 'err'); }
@@ -442,10 +437,7 @@ const HANGS = ['A', 'B', 'C', 'D'];
 // Công suất phòng (số giường) theo hạng
 const HANG_CAP = { A: 5, B: 4, C: 4, D: 3 };
 // Loại phòng: shared=cho thuê ghép · whole=thuê nguyên phòng · security=an ninh · staff=nhân viên công tác
-// Nhãn dùng CHUNG cho cả thẻ phòng, form sửa phòng và cột xuất CSV — sửa ở đây là đổi mọi nơi.
-// "Thuê ghép" (bỏ chữ "Cho") để trùng đúng từ dùng ở phía học viên (rental_type ghep/phong), tránh
-// một nghiệp vụ hai cách gọi. Màu xám cho phòng ghép: nó là mặc định của gần hết phòng, tô xanh thì
-// 29 thẻ phòng đều sáng lên và cái nào KHÁC thường lại chìm đi.
+// Nhãn dùng chung cho thẻ phòng, form sửa phòng và cột xuất CSV.
 const ROOM_TYPE = { shared: ['Thuê ghép', 'gray'], whole: ['Thuê nguyên phòng', 'blue'], security: ['Phòng an ninh', 'amber'], staff: ['Nhân viên công tác', 'amber'] };
 const roomType = r => (ROOM_TYPE[r.room_type] ? r.room_type : 'shared');
 const roomIsShared = r => roomType(r) === 'shared';          // chỉ phòng ghép mới tính giường trống
@@ -460,12 +452,7 @@ const resiBadge = st => { const [l, c] = RESI[st] || RESI.unregistered; return `
 const CONTRACT_LABEL = { done: 'Đã hoàn tất', scanned: 'Đã scan HĐ', unsigned: 'Chưa ký HĐ', none: 'Không ký HĐ', handover: 'Đã ký phiếu bàn giao' };
 const CONTRACT_BADGE = { done: 'green', scanned: 'blue', unsigned: 'amber', none: 'gray', handover: 'blue' };
 
-// GIẢM GIÁ % THEO TỪNG KHOẢN (owner chốt 30/07/2026).
-// Owner chốt KHÔNG viết luật cứng trong code cho các ca miễn/giảm — chúng là số ít và hay đổi
-// (phòng nhân viên miễn tiền phòng, ai đó miễn tiền nước...). Mở ô % để ban quản lý tự điều chỉnh:
-// sửa luật = sửa dữ liệu, không phải sửa app rồi deploy lại.
-// Công thức tính tiền KHÔNG đổi — mấy ô này chỉ trừ bên trên kết quả, và ghi thành dòng giảm riêng.
-// [tên cột, id ô nhập, nhãn]
+// Các ô giảm giá % trong form học viên: [tên cột, id ô nhập, nhãn]
 const GIAM_O = [
   ['room_fee_discount_pct', 'f_rdisc', 'Tiền phòng'],
   ['water_discount_pct', 'f_wdisc', 'Tiền nước'],
@@ -475,17 +462,14 @@ const GIAM_O = [
   ['parking_discount_pct', 'f_pdisc', 'Gửi xe'],
 ];
 
-// THAM CHIẾU HỢP ĐỒNG (owner chốt 29/07/2026): phòng thuê trọn chỉ có MỘT hợp đồng, ký với phòng
-// trưởng; thành viên còn lại không ký riêng mà TRỎ tới hợp đồng đó. Máy chủ suy ra tại chỗ từ
-// room_leaders (contract_ref_*) — không chép số HĐ vào từng hồ sơ, nên đổi phòng trưởng là liên kết
-// tự đổi theo. Bấm vào là mở đúng hồ sơ người đứng tên.
+// Liên kết tới hợp đồng của phòng trưởng, cho thành viên phòng thuê trọn (không ký HĐ riêng).
+// Máy chủ trả contract_ref_*; day=true là bản dài dùng ở thẻ chi tiết.
 function hdThamChieu(s, day) {
   if (!s || !s.contract_ref_id || !s.contract_ref_no) return '';
   const nhan = `${IC.link} HĐ ${esc(s.contract_ref_no)}`;
   const nguoi = esc(s.contract_ref_name || '');
   const moTa = `Theo hợp đồng thuê trọn phòng, người đứng tên: ${nguoi}`;
-  // Dùng span role="button" chứ không phải <a href="#">: href="#" sẽ nhét dấu # vào URL và cuộn vọt
-  // lên đầu trang trước khi handler kịp chạy.
+  // span role="button" chứ không <a href="#">: href="#" nhét dấu # vào URL và cuộn vọt lên đầu trang.
   const link = (noiDung) => `<span class="hd-ref" role="button" tabindex="0" title="${moTa}"` +
     ` data-act="studentDetail" data-args='[${s.contract_ref_id}]'>${noiDung}</span>`;
   return day

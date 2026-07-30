@@ -2,11 +2,7 @@ package billing
 
 import "testing"
 
-// Giảm % theo TỪNG khoản — owner chốt 30/07/2026: không viết luật cứng cho các ca miễn/giảm (số ít,
-// hay đổi), mở ô % để ban quản lý tự điều chỉnh. Công thức tính tiền KHÔNG đổi; mấy ô này chỉ trừ
-// bên trên kết quả và ghi thành dòng giảm riêng.
-//
-// Bộ golden sinh từ bản Node cũ nên không biết mấy ô này — phải có test riêng.
+// Giảm % theo từng khoản: trừ bên trên kết quả công thức, ghi thành dòng giảm riêng.
 
 func feesG() Fees {
 	return Fees{
@@ -81,9 +77,7 @@ func TestGiamPct_KepNgoaiKhoang(t *testing.T) {
 	}
 }
 
-// Phòng trưởng vốn được miễn nước + dịch vụ. Nếu người đó ĐÃ được giảm % nước/dịch vụ thì phần giảm
-// của phòng trưởng phải tính trên số CÒN LẠI — không thì cùng một đồng bị giảm hai lần, tổng phiếu
-// âm và ck_invoices_no_negative chặn ngay lúc lưu.
+// Phòng trưởng đã được giảm % nước/dịch vụ -> phần giảm phòng trưởng tính trên số còn lại.
 func TestGiamPct_KhongGiamHaiLanVoiPhongTruong(t *testing.T) {
 	in := inG(Student{WaterDiscountPct: 100, ServiceDiscountPct: 100})
 	in.LeaderDays = 31

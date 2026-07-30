@@ -1,23 +1,15 @@
 package billing
 
-// Giảm giá % theo TỪNG khoản — owner chốt 30/07/2026.
-//
-// Vì sao gom vào một kiểu riêng: có BỐN đường khác nhau cùng tính tiền cho một học viên (lập phiếu
-// hàng loạt · lập một phiếu · tính lại/xem trước · lập phiếu lúc trả phòng). Mỗi đường tự đọc từng
-// cột rồi tự gán là kiểu gì cũng có ngày sót một chỗ, và sót thì CÙNG MỘT NGƯỜI ra hai số tiền khác
-// nhau tuỳ bấm nút nào — loại lỗi tiền tệ nhất vì không ai biết số nào đúng.
-//
-// Cách dùng: thêm CotSQL vào câu SELECT, scan vào 5 con trỏ của Ptr(), rồi gọi GanVao(&student).
-
-// GiamPct: 5 mức giảm % ngoài tiền phòng (tiền phòng đã có room_fee_discount_pct riêng từ trước).
+// GiamPct: 5 mức giảm % ngoài tiền phòng, đọc từ students.
+// Dùng: thêm CotSQL vào SELECT, scan vào Ptr(), rồi GanVao(&student).
 type GiamPct struct {
 	Water, Electric, Service, Washing, Parking *float64
 }
 
-// CotSQL: đoạn cột thêm vào SELECT students. Giữ ĐÚNG thứ tự với Ptr().
+// CotSQL: đoạn cột thêm vào SELECT students. Thứ tự phải khớp Ptr().
 const CotSQL = "water_discount_pct, electric_discount_pct, service_discount_pct, washing_discount_pct, parking_discount_pct"
 
-// Ptr: danh sách đích để Scan, đúng thứ tự CotSQL.
+// Ptr: đích để Scan, đúng thứ tự CotSQL.
 func (g *GiamPct) Ptr() []interface{} {
 	return []interface{}{&g.Water, &g.Electric, &g.Service, &g.Washing, &g.Parking}
 }
