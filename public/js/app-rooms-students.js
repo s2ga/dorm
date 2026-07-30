@@ -137,7 +137,7 @@ function leaderForm(roomId) {
       <div class="field"><label>Chọn phòng trưởng</label><select id="l_stu">
         ${inRoom.map(s => `<option value="${s.id}" ${cur && cur.id === s.id ? 'selected' : ''}>${esc(s.name)}${cur && cur.id === s.id ? ' — đang làm' : ''}</option>`).join('')}
       </select></div>
-      <div class="field"><label>Nhận nhiệm vụ từ ngày</label><input id="l_date" type="date" value="${today()}"></div>
+      <div class="field"><label>Nhận nhiệm vụ từ ngày</label><input id="l_date"></div>
       <div class="field"><label>Ghi chú</label><input id="l_note" placeholder="VD: cử thay bạn A xuất cảnh..."></div>
       <div class="hint">${IC.info}<span>Phòng trưởng được <strong>miễn tiền nước và phí dịch vụ</strong>, tính theo <strong>số ngày làm</strong>:
         đổi người giữa tháng thì mỗi bạn được giảm theo phần của mình, không ai được trọn cả tháng.
@@ -148,11 +148,12 @@ function leaderForm(roomId) {
       <button class="btn" data-act="closeModal">Hủy</button>
       ${inRoom.length ? `<button class="btn pri" data-act="doSetLeader" data-args='[${roomId}]'>Cử làm phòng trưởng</button>` : ''}
     </div>`);
+  attachDate(el('l_date'), today());
 }
 async function doSetLeader(roomId) {
   const student_id = el('l_stu').value;
   if (!student_id) return toast('Chọn học viên', 'err');
-  const r = await guard(() => API.setLeader(roomId, { student_id: +student_id, date: el('l_date').value, note: el('l_note').value.trim() }));
+  const r = await guard(() => API.setLeader(roomId, { student_id: +student_id, date: el('l_date').dataset.iso, note: el('l_note').value.trim() }));
   await refreshCache(); closeModal();
   const n = r && r.recalced ? r.recalced.length : 0;
   toast(r && r.already ? 'Bạn này đang là phòng trưởng rồi'
@@ -409,7 +410,7 @@ async function studentForm(id) {
           Công thức tính tiền không đổi — phiếu vẫn ghi đủ từng khoản, kèm dòng giảm riêng. Bỏ trống = thu đủ.</span></div>
       </div>
       <div class="grid2">
-        <div class="field"><label>Ngày vào (check-in)</label><input id="f_in" type="date" value="${esc((s.check_in_date || today()).slice(0, 10))}"></div>
+        <div class="field"><label>Ngày vào (check-in)</label><input id="f_in"></div>
         <div class="field"><label>Tạm trú</label><select id="f_residency">
           ${opt('unregistered', s.residency_status, 'Chưa đăng ký')}${opt('processing', s.residency_status, 'Đang xử lý')}${opt('registered', s.residency_status, 'Đã đăng ký')}</select></div>
       </div>
@@ -420,7 +421,7 @@ async function studentForm(id) {
           <div class="field" style="margin:0 0 12px"><label>Số HĐ <span class="opt">(nhập tay · ⚡ gợi ý số kế tiếp)</span></label>
             <div class="flex" style="gap:6px"><input id="f_cno" value="${esc(s.contract_no || '')}" placeholder="03/2026/HDKTX-E2" style="flex:1">
             <button type="button" class="btn sm" data-act="suggestContractNo" title="Gợi ý số HĐ kế tiếp (nối tiếp số đã có)">${IC.zap}</button></div></div>
-          <div class="field" style="margin:0 0 12px"><label>Ngày ký HĐ</label><input id="f_cdate" type="date" value="${esc((s.contract_date || '').slice(0, 10))}"></div>
+          <div class="field" style="margin:0 0 12px"><label>Ngày ký HĐ</label><input id="f_cdate"></div>
         </div>
         <div class="field" style="margin:0 0 12px"><label>Tình trạng HĐ</label><select id="f_cstatus">
           ${['done', 'scanned', 'unsigned', 'none', 'handover'].map(k => opt(k, s.contract_status || 'unsigned', CONTRACT_LABEL[k])).join('')}</select></div>
@@ -457,6 +458,8 @@ async function studentForm(id) {
   attachDate(el('f_birth'), s.birth_date, { max: today() });
   attachDate(el('f_cstart'), s.class_start_date);
   attachDate(el('f_departure'), s.expected_departure);
+  attachDate(el('f_in'), s.check_in_date || today());
+  attachDate(el('f_cdate'), s.contract_date);
   setTimeout(() => el('f_name').focus(), 50);
 }
 async function saveStudent(id) {
@@ -464,13 +467,13 @@ async function saveStudent(id) {
     name: el('f_name').value.trim(), code: el('f_code').value.trim(), class_name: el('f_class').value.trim(),
     email: el('f_email').value.trim().toLowerCase(),
     birth_date: el('f_birth').dataset.iso || null, gender: el('f_gender').value, phone: el('f_phone').value.trim(),
-    room_id: el('f_room').value || null, rental_type: el('f_rental').value, check_in_date: el('f_in').value,
+    room_id: el('f_room').value || null, rental_type: el('f_rental').value, check_in_date: el('f_in').dataset.iso,
     ...Object.fromEntries(GIAM_O.map(([k, id2]) => [k, +el(id2).value || 0])),
     // Số hiệu phiên bản đọc lúc MỞ form. Server so lại: khác nghĩa là người khác vừa sửa
     // trong lúc mình đang điền -> báo cho biết thay vì đè mất công của họ.
     _v: window._svV || undefined,
     residency_status: el('f_residency').value, contract_no: el('f_cno').value.trim(),
-    contract_date: el('f_cdate').value || null, contract_status: el('f_cstatus').value,
+    contract_date: el('f_cdate').dataset.iso || null, contract_status: el('f_cstatus').value,
     class_start_date: el('f_cstart').dataset.iso || null, expected_departure: el('f_departure').dataset.iso || null,
     parent_phone: el('f_pphone').value.trim(),
     note: el('f_note').value.trim(), uses_washing: el('f_wash').checked,
@@ -496,12 +499,12 @@ async function saveStudent(id) {
 // vì đếm/đánh lại từ đầu làm SAI số các HĐ đã có số — nhất là 97 HĐ có số nhưng chưa có ngày ký.)
 async function suggestContractNo() {
   const gender = el('f_gender') ? el('f_gender').value : 'female';
-  const date = (el('f_cdate') && el('f_cdate').value) || today();
+  const date = (el('f_cdate') && el('f_cdate').dataset.iso) || today();
   const r = await guard(() => API.contractNoNext(gender, date));
   if (r && r.contract_no) { el('f_cno').value = r.contract_no; toast('Số HĐ gợi ý: ' + r.contract_no); }
 }
 async function suggestApCno(gender) {
-  const date = (el('ap_cdate') && el('ap_cdate').value) || today();
+  const date = (el('ap_cdate') && el('ap_cdate').dataset.iso) || today();
   const r = await guard(() => API.contractNoNext(gender, date));
   if (r && r.contract_no) { el('ap_cno').value = r.contract_no; toast('Số HĐ gợi ý: ' + r.contract_no); }
 }
@@ -663,18 +666,19 @@ function transferForm(id) {
       ${chuaXep ? '' : `<p class="muted">Phòng hiện tại: <strong>${esc(s.room_name || '—')}</strong></p>`}
       <div class="grid2">
         <div class="field"><label>${chuaXep ? 'Xếp vào phòng' : 'Phòng mới'}</label><select id="t_room">${roomOptions('', s.gender)}</select></div>
-        <div class="field"><label>Ngày ${chuaXep ? 'xếp' : 'chuyển'}</label><input id="t_date" type="date" value="${today()}"></div>
+        <div class="field"><label>Ngày ${chuaXep ? 'xếp' : 'chuyển'}</label><input id="t_date"></div>
       </div>
       <div class="field"><label>Ghi chú</label><input id="t_note" placeholder="${chuaXep ? 'Ghi chú (tuỳ chọn)...' : 'Lý do chuyển...'}"></div>
       ${s.room_id ? meterField('t_meter', s.room_name, 'chuyển đi') : ''}
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="doTransfer" data-args='[${id}]'>${chuaXep ? 'Xếp phòng' : 'Chuyển'}</button></div>`);
+  attachDate(el('t_date'), today());
 }
 async function doTransfer(id) {
   const room_id = el('t_room').value; if (!room_id) return toast('Chọn phòng mới', 'err');
   const meter = el('t_meter') ? el('t_meter').value.trim() : '';
   const moved = await guard(() => withOverloadConfirm(ok =>
-    API.transfer(id, { room_id, date: el('t_date').value, note: el('t_note').value.trim(), meter_reading: meter || undefined, confirm_overload: ok })));
+    API.transfer(id, { room_id, date: el('t_date').dataset.iso, note: el('t_note').value.trim(), meter_reading: meter || undefined, confirm_overload: ok })));
   if (moved === null) return;
   await refreshCache(); closeModal();
   const n = moved.recalced ? moved.recalced.length : 0;
@@ -710,9 +714,10 @@ function refundForm(id) {
         <div class="field"><label>Số tài khoản</label><input id="r_acc" value="${esc(s.deposit_account || '')}"></div>
         <div class="field"><label>Ngân hàng</label><input id="r_bank" value="${esc(s.deposit_bank || '')}" placeholder="VIETCOMBANK - ..."></div>
       </div>
-      <div class="field"><label>Ngày hoàn</label><input id="r_date" type="date" value="${today()}"></div>
+      <div class="field"><label>Ngày hoàn</label><input id="r_date"></div>
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn green" data-act="doRefund" data-args='[${id}, ${deposit}]'>Xác nhận hoàn cọc</button></div>`, true);
+  attachDate(el('r_date'), today());
   dedCalc();
 }
 function dedCalc() {
@@ -740,7 +745,7 @@ async function doRefund(id, deposit) {
     deductions.push({ asset_id: +q.dataset.dqty, quantity: qty });
   });
   await guard(() => API.settleDeposit(id, {
-    action: 'refund', account: el('r_acc').value.trim(), bank: el('r_bank').value.trim(), date: el('r_date').value,
+    action: 'refund', account: el('r_acc').value.trim(), bank: el('r_bank').value.trim(), date: el('r_date').dataset.iso,
     deductions,
   }));
   await refreshCache(); closeModal();
@@ -852,13 +857,14 @@ function depositForm(id) {
     <div class="mb">
       <div class="grid2">
         <div class="field"><label>Số tiền cọc</label><input id="d_amt" type="number" min="0" value="${esc(s.deposit_amount || ST.settings.deposit_fee || 1200000)}"></div>
-        <div class="field"><label>Ngày đóng</label><input id="d_date" type="date" value="${(s.deposit_date || today()).slice(0, 10)}"></div>
+        <div class="field"><label>Ngày đóng</label><input id="d_date"></div>
       </div>
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveDeposit" data-args='[${id}]'>Lưu</button></div>`);
+  attachDate(el('d_date'), s.deposit_date || today());
 }
 async function saveDeposit(id) {
-  await guard(() => API.setDeposit(id, { amount: +el('d_amt').value || 0, date: el('d_date').value }));
+  await guard(() => API.setDeposit(id, { amount: +el('d_amt').value || 0, date: el('d_date').dataset.iso }));
   await refreshCache(); closeModal(); toast('Đã ghi nhận cọc'); studentDetailRefresh(id);
 }
 async function settleDeposit(id, action) {

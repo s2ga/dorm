@@ -158,19 +158,20 @@ function violationForm(studentId) {
       <div class="field"><label>Học viên *</label><select id="vf_stu" ${studentId ? 'disabled' : ''}>${sOpts}</select></div>
       <div class="grid2">
         <div class="field"><label>Loại vi phạm *</label><select id="vf_type">${tOpts || '<option value="">(Chưa có loại — thêm trong Cài đặt)</option>'}</select></div>
-        <div class="field"><label>Ngày</label><input id="vf_date" type="date" value="${today()}"></div>
+        <div class="field"><label>Ngày</label><input id="vf_date"></div>
       </div>
       <div class="field"><label>Ghi chú / diễn giải</label><textarea id="vf_note" rows="2" placeholder="Mô tả cụ thể sự việc..."></textarea></div>
       <div class="hint">${IC.info} Khi học viên vi phạm đủ <strong>${thr} lần</strong>, hệ thống sẽ gửi email cho nhà trường (nếu đã cấu hình SMTP trong Cài đặt).</div>
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveViolation" data-args='[${studentId || 0}]'>Lưu vi phạm</button></div>`);
+  attachDate(el('vf_date'), today());
 }
 async function saveViolation(studentId) {
   const sid = studentId || +el('vf_stu').value;
   const type_id = +el('vf_type').value || null;
   if (!sid) return toast('Chọn học viên', 'err');
   if (!type_id) return toast('Chọn loại vi phạm (thêm trong Cài đặt nếu chưa có)', 'err');
-  const r = await guard(() => API.createViolation({ student_id: sid, type_id, date: el('vf_date').value, note: el('vf_note').value.trim() }));
+  const r = await guard(() => API.createViolation({ student_id: sid, type_id, date: el('vf_date').dataset.iso, note: el('vf_note').value.trim() }));
   await refreshCache(); closeModal();
   if (r.mail && r.mail.queued) toast(`Đã ghi vi phạm lần ${r.level} · đang gửi mail nhà trường…`);
   else toast(`Đã ghi nhận vi phạm lần ${r.level}`);
@@ -223,7 +224,7 @@ function approveForm(id) {
       ${a.wants_washing || a.wants_parking || a.plate ? `<div class="hint">Dịch vụ đăng ký: ${a.wants_washing ? `${IC.washer} Máy giặt ` : ''}${a.wants_parking || a.plate ? `${IC.bike} Gửi xe${a.plate ? ' (' + esc(a.plate) + ')' : ''}` : ''} — sẽ tự thêm khi duyệt.</div>` : ''}
       <div class="grid2">
         <div class="field"><label>Xếp phòng</label><select id="ap_room">${roomOptions('', a.gender)}</select></div>
-        <div class="field"><label>Ngày vào</label><input id="ap_date" type="date" value="${today()}"></div>
+        <div class="field"><label>Ngày vào</label><input id="ap_date"></div>
       </div>
       <div style="background:var(--bg2);padding:12px;border-radius:10px;margin-bottom:12px">
         <div style="font-weight:600;font-size:13px;margin-bottom:10px">${IC.fileText} Hợp đồng thuê</div>
@@ -231,7 +232,7 @@ function approveForm(id) {
           <div class="field" style="margin:0 0 12px"><label>Số HĐ <span class="opt">(nhập tay · ⚡ gợi ý số kế tiếp)</span></label>
             <div class="flex" style="gap:6px"><input id="ap_cno" placeholder="03/2026/HDKTX-${legalEntity(a.gender)}" style="flex:1">
             <button type="button" class="btn sm" data-act="suggestApCno" data-args='["${a.gender}"]' title="Gợi ý số HĐ kế tiếp (nối tiếp số đã có)">${IC.zap}</button></div></div>
-          <div class="field" style="margin:0 0 12px"><label>Ngày ký HĐ</label><input id="ap_cdate" type="date" value="${today()}"></div>
+          <div class="field" style="margin:0 0 12px"><label>Ngày ký HĐ</label><input id="ap_cdate"></div>
         </div>
         <div class="field" style="margin:0"><label>Tình trạng HĐ</label><select id="ap_cstatus">
           ${['done', 'scanned', 'unsigned', 'none', 'handover'].map(k => `<option value="${k}">${CONTRACT_LABEL[k]}</option>`).join('')}
@@ -250,12 +251,14 @@ function approveForm(id) {
       </div>
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="doApprove" data-args='[${a.id}]'>Xác nhận thêm</button></div>`);
+  attachDate(el('ap_date'), today());
+  attachDate(el('ap_cdate'), today());
 }
 async function doApprove(id) {
   const body = {
-    room_id: el('ap_room').value || null, check_in_date: el('ap_date').value,
+    room_id: el('ap_room').value || null, check_in_date: el('ap_date').dataset.iso,
     deposit_paid: el('ap_dep').checked, deposit_amount: +el('ap_depamt').value || 0,
-    contract_no: el('ap_cno').value.trim(), contract_date: el('ap_cdate').value || null, contract_status: el('ap_cstatus').value,
+    contract_no: el('ap_cno').value.trim(), contract_date: el('ap_cdate').dataset.iso || null, contract_status: el('ap_cstatus').value,
   };
   if (el('ap_login').checked) { body.create_login = true; body.login_username = el('ap_user').value.trim(); body.login_password = el('ap_pass').value.trim(); }
   const r = await guard(() => withDuplicateGuide(() => withOverloadConfirm(ok => API.approveApplication(id, { ...body, confirm_overload: ok }))));
@@ -300,17 +303,18 @@ function confirmCout(id) {
   openModal(`
     <div class="mh"><h3>${IC.doorOpen} Duyệt trả phòng: ${esc(cr.student_name || (s && s.name) || '')}</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
     <div class="mb">
-      <div class="field"><label>Ngày rời thực tế</label><input id="cc_date" type="date" value="${esc(cr.desired_date ? String(cr.desired_date).slice(0, 10) : today())}"></div>
+      <div class="field"><label>Ngày rời thực tế</label><input id="cc_date"></div>
       ${hasRoom ? meterField('cc_meter', roomName, 'rời phòng') : ''}
       <div class="hint">${IC.info} Chốt công-tơ lúc rời phòng để tính đúng tiền điện kỳ cuối. App tự xét điều kiện hoàn cọc theo ngày HV gửi đơn + lý do.</div>
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn green" data-act="doConfirmCout" data-args='[${id}]'>Xác nhận trả phòng</button></div>`);
+  attachDate(el('cc_date'), cr.desired_date ? String(cr.desired_date).slice(0, 10) : today());
 }
 async function doConfirmCout(id) {
   const cr = (ST.couts || []).find(c => c.id === id) || {};
   const s = cr.student_id ? studentById(cr.student_id) : null;
   const meter = el('cc_meter') ? el('cc_meter').value.trim() : '';
-  const r = await guard(() => API.confirmCheckoutReq(id, { date: el('cc_date').value, meter_reading: meter || undefined }));
+  const r = await guard(() => API.confirmCheckoutReq(id, { date: el('cc_date').dataset.iso, meter_reading: meter || undefined }));
   await refreshCache(); closeModal();
   toast(r && r.recalced ? `Đã trả phòng · phiếu tháng tính lại ${r.recalced.days_stayed} ngày ở` : 'Đã trả phòng');
   if (s && s.deposit_status === 'held' && r && r.refund) depositSettlePrompt(cr.student_id, r.refund);
@@ -325,16 +329,17 @@ function checkInForm(id) {
     <div class="mh"><h3>${IC.key} Check-in: ${esc(s.name)}</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
     <div class="mb">
       <div class="grid2">
-        <div class="field"><label>Ngày vào</label><input id="c_date" type="date" value="${today()}"></div>
+        <div class="field"><label>Ngày vào</label><input id="c_date"></div>
         <div class="field"><label>Phòng</label><select id="c_room">${roomOptions(s.room_id, s.gender)}</select></div>
       </div>
       <div class="field"><label>Ghi chú</label><input id="c_note" placeholder="VD: quay lại ở"></div>
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn green" data-act="doCheckIn" data-args='[${id}]'>Xác nhận check-in</button></div>`);
+  attachDate(el('c_date'), today());
 }
 async function doCheckIn(id) {
   const r = await guard(() => withOverloadConfirm(ok =>
-    API.checkIn(id, { date: el('c_date').value, room_id: el('c_room').value || null, note: el('c_note').value.trim(), confirm_overload: ok })));
+    API.checkIn(id, { date: el('c_date').dataset.iso, room_id: el('c_room').value || null, note: el('c_note').value.trim(), confirm_overload: ok })));
   if (r === null) return;
   await refreshCache(); closeModal(); toast('Đã check-in'); adminGo(ST.view);
 }
@@ -344,8 +349,8 @@ function checkOutForm(id) {
     <div class="mh"><h3>${IC.doorOpen} Check-out: ${esc(s.name)}</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
     <div class="mb">
       <div class="grid2">
-        <div class="field"><label>Ngày báo trả phòng</label><input id="c_notice" type="date" value="${today()}"></div>
-        <div class="field"><label>Ngày rời thực tế</label><input id="c_date" type="date" value="${today()}"></div>
+        <div class="field"><label>Ngày báo trả phòng</label><input id="c_notice"></div>
+        <div class="field"><label>Ngày rời thực tế</label><input id="c_date"></div>
       </div>
       <div class="field"><label>Lý do trả phòng</label><select id="c_reason">
         ${CHECKOUT_REASONS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}
@@ -355,11 +360,13 @@ function checkOutForm(id) {
       <div class="hint">${IC.info} App sẽ tự xét điều kiện hoàn cọc dựa trên ngày báo và lý do.</div>
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn danger" data-act="doCheckOut" data-args='[${id}]'>Xác nhận check-out</button></div>`);
+  attachDate(el('c_notice'), today());
+  attachDate(el('c_date'), today());
 }
 async function doCheckOut(id) {
   const s = studentById(id);
   const meter = el('c_meter') ? el('c_meter').value.trim() : '';
-  const r = await guard(() => API.checkOut(id, { date: el('c_date').value, notice_date: el('c_notice').value, reason: el('c_reason').value, note: el('c_note').value.trim(), meter_reading: meter || undefined }));
+  const r = await guard(() => API.checkOut(id, { date: el('c_date').dataset.iso, notice_date: el('c_notice').dataset.iso, reason: el('c_reason').value, note: el('c_note').value.trim(), meter_reading: meter || undefined }));
   await refreshCache(); closeModal();
   const nRoom = r.recalced_roommates ? r.recalced_roommates.length : 0;
   toast(r.recalced
