@@ -7,8 +7,10 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"unicode"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/text/unicode/norm"
 	"ktx/internal/sso"
 )
 
@@ -164,6 +166,65 @@ func (h *Handlers) SSOCallback(c *gin.Context) {
 	c.Redirect(http.StatusFound, "/")
 }
 
+// chuanHoaTen: đưa họ tên về dạng so sánh được — thường hoá, BỎ DẤU, gộp khoảng trắng thừa.
+//
+// Bỏ dấu vì dữ liệu thật lệch nhau ở đúng chỗ đó: tài khoản Microsoft ghi "ĐẶNG NGUYỄN PHƯƠNG THỦY"
+// còn hồ sơ ghi "Đặng Nguyễn Phương Thuỷ" — cùng một người, khác vị trí dấu hỏi. So chặt theo dấu thì
+// luật khớp tên gần như không bao giờ nổ. Nới ở đây an toàn vì tên KHÔNG đứng một mình: nó luôn đi
+// kèm điều kiện mã học viên trùng email.
+func chuanHoaTen(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	s = strings.ReplaceAll(s, "đ", "d")
+	var b strings.Builder
+	for _, r := range norm.NFD.String(s) {
+		if unicode.Is(unicode.Mn, r) { // Mn = dấu thanh/dấu mũ tách ra sau khi phân rã
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return strings.Join(strings.Fields(b.String()), " ")
+}
+
+// ghepVaoHoSoHocVien: gắn danh tính Microsoft vào MỘT hồ sơ học viên đã xác định, rồi trả tài khoản
+// dùng được ngay (approved=true, không qua hàng chờ). Dùng chung cho mọi luật tự ghép.
+func (h *Handlers) ghepVaoHoSoHocVien(ctx context.Context, stID int, stName string, identity sso.Identity) (*ssoUser, error) {
+	// Hồ sơ đã có tài khoản (admin từng cấp mật khẩu) -> LIÊN KẾT vào đúng tài khoản đó, tuyệt đối
+	// không tạo bản thứ hai: users.student_id trùng nghĩa là học viên có 2 lối vào, thu hồi 1 cái vẫn
+	// còn cái kia.
+	var accID int
+	var accLocked bool
+	if h.pool().QueryRow(ctx, "SELECT id, (deleted_at IS NOT NULL) FROM users WHERE student_id = $1", stID).
+		Scan(&accID, &accLocked) == nil {
+		if accLocked {
+			return nil, errTaiKhoanBiKhoa
+		}
+		if _, err := h.pool().Exec(ctx,
+			`UPDATE users SET sso_subject = $1, email = $2,
+			   auth_provider = CASE WHEN password_hash IS NULL THEN 'sso' ELSE 'both' END
+			 WHERE id = $3`, identity.Subject, identity.Email, accID); err != nil {
+			return nil, err
+		}
+		return h.ssoLoadUser(ctx, "id = $1", accID), nil
+	}
+	uname := identity.Email
+	var taken int
+	if h.pool().QueryRow(ctx, "SELECT 1 FROM users WHERE lower(username) = lower($1)", uname).Scan(&taken) == nil {
+		uname = identity.Email + ":" + identity.Subject
+	}
+	ten := identity.FullName
+	if ten == "" {
+		ten = stName
+	}
+	var hvID int
+	if e := h.pool().QueryRow(ctx,
+		`INSERT INTO users (username, password_hash, role, full_name, email, student_id, sso_subject, auth_provider, approved)
+		 VALUES ($1, NULL, 'student', $2, $3, $4, $5, 'sso', true) RETURNING id`,
+		uname, ten, identity.Email, stID, identity.Subject).Scan(&hvID); e != nil {
+		return nil, e
+	}
+	return h.ssoLoadUser(ctx, "id = $1", hvID), nil
+}
+
 // ssoResolveUser: từ danh tính Microsoft -> user trong CSDL. (1) khớp sso_subject; (2) khớp email ->
 // liên kết; (3) chưa có -> tạo 'pending' chờ duyệt. Dùng chung cho callback (server-side) và verify (SPA).
 // Tài khoản ĐÃ BỊ KHOÁ ở bước (1) hoặc (2) -> errTaiKhoanBiKhoa, KHÔNG mở lại và KHÔNG tạo bản mới.
@@ -203,6 +264,41 @@ func (h *Handlers) ssoResolveUser(ctx context.Context, identity sso.Identity) (*
 		Scan(&lockedByEmail) == nil {
 		return nil, errTaiKhoanBiKhoa
 	}
+	// 2c-bis) MÔI TRƯỜNG THỬ (không phải production): mã học viên trùng phần trước @ của email VÀ họ tên
+	// trùng -> ghép thẳng, bỏ qua hàng chờ duyệt.
+	//
+	// Vì sao chỉ ở môi trường thử: hai điều kiện này suy ra từ dữ liệu SẴN CÓ, không phải thứ admin
+	// cố ý khai như students.email. Ở UAT nó tiết kiệm hàng trăm lượt bấm duyệt; ở production thì việc
+	// một tài khoản tự gắn vào hồ sơ học viên phải có người thật xác nhận.
+	//
+	// Đòi CẢ HAI: chỉ mã thì trùng mã do nhập liệu vẫn ghép nhầm; chỉ tên thì trùng tên là chuyện
+	// thường ở Việt Nam. Mã trùng nhiều hồ sơ -> BỎ QUA, không đoán (app có sẵn cảnh báo "Học viên
+	// trùng mã" ở Tình trạng dữ liệu; đoán bừa lúc đó là ghép vào nhầm người).
+	if h.Cfg == nil || !h.Cfg.LaProduction() {
+		local := strings.ToLower(strings.TrimSpace(strings.SplitN(identity.Email, "@", 2)[0]))
+		if local != "" && strings.TrimSpace(identity.FullName) != "" {
+			rows, err := h.pool().Query(ctx,
+				`SELECT id, name FROM students
+				  WHERE deleted_at IS NULL AND btrim(code) <> '' AND lower(btrim(code)) = $1 LIMIT 2`, local)
+			if err == nil {
+				type ungVien struct {
+					id  int
+					ten string
+				}
+				var ds []ungVien
+				for rows.Next() {
+					var uv ungVien
+					if rows.Scan(&uv.id, &uv.ten) == nil {
+						ds = append(ds, uv)
+					}
+				}
+				rows.Close()
+				if len(ds) == 1 && chuanHoaTen(ds[0].ten) == chuanHoaTen(identity.FullName) {
+					return h.ghepVaoHoSoHocVien(ctx, ds[0].id, ds[0].ten, identity)
+				}
+			}
+		}
+	}
 	// 2c) Email khớp một HỒ SƠ HỌC VIÊN -> vào thẳng cổng học viên, KHÔNG qua hàng chờ duyệt.
 	// Lý do students.email tồn tại: học viên đông gấp nhiều lần nhân viên, bắt admin duyệt tay từng
 	// người thì đến đợt nhập học hàng chờ ngập, ai cũng đứng ngoài cổng.
@@ -211,41 +307,7 @@ func (h *Handlers) ssoResolveUser(ctx context.Context, identity sso.Identity) (*
 	if h.pool().QueryRow(ctx,
 		"SELECT id, name FROM students WHERE email <> '' AND lower(email) = lower($1)", identity.Email).
 		Scan(&stID, &stName) == nil {
-		// Hồ sơ đã có tài khoản (admin từng cấp mật khẩu) -> LIÊN KẾT vào đúng tài khoản đó, tuyệt đối
-		// không tạo bản thứ hai: users.student_id trùng nghĩa là học viên có 2 lối vào, thu hồi 1 cái
-		// vẫn còn cái kia.
-		var accID int
-		var accLocked bool
-		if h.pool().QueryRow(ctx, "SELECT id, (deleted_at IS NOT NULL) FROM users WHERE student_id = $1", stID).
-			Scan(&accID, &accLocked) == nil {
-			if accLocked {
-				return nil, errTaiKhoanBiKhoa
-			}
-			if _, err := h.pool().Exec(ctx,
-				`UPDATE users SET sso_subject = $1, email = $2,
-				   auth_provider = CASE WHEN password_hash IS NULL THEN 'sso' ELSE 'both' END
-				 WHERE id = $3`, identity.Subject, identity.Email, accID); err != nil {
-				return nil, err
-			}
-			return h.ssoLoadUser(ctx, "id = $1", accID), nil
-		}
-		unameHV := identity.Email
-		var takenHV int
-		if h.pool().QueryRow(ctx, "SELECT 1 FROM users WHERE lower(username) = lower($1)", unameHV).Scan(&takenHV) == nil {
-			unameHV = identity.Email + ":" + identity.Subject
-		}
-		tenHV := identity.FullName
-		if tenHV == "" {
-			tenHV = stName
-		}
-		var hvID int
-		if e := h.pool().QueryRow(ctx,
-			`INSERT INTO users (username, password_hash, role, full_name, email, student_id, sso_subject, auth_provider, approved)
-			 VALUES ($1, NULL, 'student', $2, $3, $4, $5, 'sso', true) RETURNING id`,
-			unameHV, tenHV, identity.Email, stID, identity.Subject).Scan(&hvID); e != nil {
-			return nil, e
-		}
-		return h.ssoLoadUser(ctx, "id = $1", hvID), nil
+		return h.ghepVaoHoSoHocVien(ctx, stID, stName, identity)
 	}
 	// 3) Chưa có -> tạo 'pending'. Nếu username (email) đã bị một tài khoản khác dùng (kể cả đã xoá mềm)
 	// thì né bằng hậu tố để KHÔNG 500 vì trùng username.

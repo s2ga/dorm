@@ -39,6 +39,14 @@ func main() {
 	r := httpx.NewRouter(database, cfg)
 	srv := &http.Server{Addr: ":" + cfg.Port, Handler: r}
 
+	// Tiện ích chỉ dành cho môi trường thử phải NÓI RA lúc khởi động. Quên đặt APP_ENV=production là
+	// nó chạy thật trên production mà không ai biết — in ra đây để lộ ngay ở dòng log đầu tiên.
+	if !cfg.LaProduction() {
+		fmt.Printf("⚠️  APP_ENV=%s (không phải production) → BẬT tự ghép hồ sơ học viên khi đăng nhập\n"+
+			"    Microsoft lần đầu nếu mã học viên trùng email VÀ họ tên trùng, bỏ qua bước admin duyệt.\n"+
+			"    Bản production PHẢI đặt APP_ENV=production để tắt.\n", cfg.AppEnv)
+	}
+
 	go func() {
 		fmt.Printf("🚀 Ứng dụng chạy tại http://localhost:%s\n", cfg.Port)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {

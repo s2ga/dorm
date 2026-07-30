@@ -16,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"ktx/internal/auth"
+	"ktx/internal/config"
 	"ktx/internal/db"
 	"ktx/internal/sso"
 )
@@ -24,6 +25,12 @@ const hvTestPrefix = "__test_hv"
 
 // hvHandlers: Handlers có đủ DB + Auth (ApproveUserAsStudent gọi RevokeTokens), tự dọn sau test.
 func hvHandlers(t *testing.T) (*Handlers, context.Context) {
+	t.Helper()
+	return hvHandlersEnv(t, "development")
+}
+
+// hvHandlersEnv: như trên nhưng đặt được APP_ENV — luật tự ghép theo mã+tên chỉ chạy ngoài production.
+func hvHandlersEnv(t *testing.T, appEnv string) (*Handlers, context.Context) {
 	t.Helper()
 	url := "postgres://ktx:ktx_local_secret@localhost:5432/ktx"
 	ctx := context.Background()
@@ -41,7 +48,22 @@ func hvHandlers(t *testing.T) (*Handlers, context.Context) {
 	}
 	don()
 	t.Cleanup(func() { don(); pool.Close() })
-	return &Handlers{DB: &db.DB{Pool: pool}, Auth: auth.New("test-secret-du-dai-16-ky-tu", false, pool)}, ctx
+	return &Handlers{
+		DB:   &db.DB{Pool: pool},
+		Auth: auth.New("test-secret-du-dai-16-ky-tu", false, pool),
+		Cfg:  &config.Config{AppEnv: appEnv},
+	}, ctx
+}
+
+// taoHoSoHVMa: hồ sơ có MÃ (luật tự ghép UAT khớp theo mã), trả id.
+func taoHoSoHVMa(t *testing.T, h *Handlers, ctx context.Context, ten, ma string) int {
+	t.Helper()
+	var id int
+	if err := h.pool().QueryRow(ctx,
+		`INSERT INTO students (name, gender, code) VALUES ($1,'male',$2) RETURNING id`, ten, ma).Scan(&id); err != nil {
+		t.Fatalf("không tạo được hồ sơ học viên: %v", err)
+	}
+	return id
 }
 
 // taoHoSoHV: hồ sơ học viên mẫu, trả id.
@@ -230,5 +252,112 @@ func TestDuyetChanHoSoDaCoTaiKhoan(t *testing.T) {
 	}
 	if role != "pending" {
 		t.Errorf("bị từ chối mà vai vẫn đổi thành %q", role)
+	}
+}
+
+/* ---------- Luật UAT: mã học viên trùng email VÀ họ tên trùng -> ghép thẳng ----------
+   Chỉ chạy ngoài production. Đòi CẢ HAI điều kiện: trùng mã do nhập liệu vẫn ghép nhầm nếu chỉ xét
+   mã, còn trùng tên là chuyện thường ở Việt Nam. */
+
+// chuanHoaTen phải bỏ dấu + bỏ phân biệt hoa thường, vì dữ liệu thật lệch đúng ở chỗ đó.
+func TestChuanHoaTen(t *testing.T) {
+	cap := [][2]string{
+		{"ĐẶNG NGUYỄN PHƯƠNG THỦY", "Đặng Nguyễn Phương Thuỷ"}, // khác dấu hỏi + khác hoa thường
+		{"  Trần   Văn  An ", "trần văn an"},                   // thừa khoảng trắng
+		{"Đỗ Đình Đạt", "do dinh dat"},                         // chữ Đ
+	}
+	for _, c := range cap {
+		if chuanHoaTen(c[0]) != chuanHoaTen(c[1]) {
+			t.Errorf("phải coi là cùng tên: %q vs %q -> %q vs %q", c[0], c[1], chuanHoaTen(c[0]), chuanHoaTen(c[1]))
+		}
+	}
+	if chuanHoaTen("Trần Văn An") == chuanHoaTen("Trần Văn Ánh") {
+		t.Error("hai tên KHÁC nhau mà bị gộp làm một — bỏ dấu không được nới tới mức này")
+	}
+}
+
+// Mã trùng email + tên trùng (khác dấu) -> vào thẳng, không qua hàng chờ.
+func TestUATMaTrungEmailVaTenTrungThiTuGhep(t *testing.T) {
+	h, ctx := hvHandlersEnv(t, "uat")
+	ma := hvTestPrefix + "-S25090619"
+	stID := taoHoSoHVMa(t, h, ctx, hvTestPrefix+" Đặng Nguyễn Phương Thuỷ", ma)
+
+	u, err := h.ssoResolveUser(ctx, sso.Identity{
+		Subject: hvTestPrefix + "_sub_uat", Email: strings.ToLower(ma) + "@kaizen.edu.vn",
+		FullName: strings.ToUpper(hvTestPrefix + " ĐẶNG NGUYỄN PHƯƠNG THỦY")})
+	if err != nil || u == nil {
+		t.Fatalf("phải ghép được: (user=%v, err=%v)", u, err)
+	}
+	if u.Role != "student" || u.StudentID == nil || *u.StudentID != stID || !u.Approved {
+		t.Fatalf("role=%q student_id=%v approved=%v — muốn student/%d/true", u.Role, u.StudentID, u.Approved, stID)
+	}
+}
+
+// CÙNG dữ liệu đó nhưng APP_ENV=production -> KHÔNG được tự ghép, phải chờ duyệt.
+func TestProductionThiKhongTuGhepTheoMa(t *testing.T) {
+	h, ctx := hvHandlersEnv(t, "production")
+	ma := hvTestPrefix + "-S25090620"
+	taoHoSoHVMa(t, h, ctx, hvTestPrefix+" Đặng Nguyễn Phương Thuỷ", ma)
+
+	u, err := h.ssoResolveUser(ctx, sso.Identity{
+		Subject: hvTestPrefix + "_sub_prod", Email: strings.ToLower(ma) + "@kaizen.edu.vn",
+		FullName: hvTestPrefix + " ĐẶNG NGUYỄN PHƯƠNG THỦY"})
+	if err != nil || u == nil {
+		t.Fatalf("phải tạo được tài khoản chờ duyệt: (user=%v, err=%v)", u, err)
+	}
+	if u.Role != "pending" || u.Approved {
+		t.Fatalf("production mà vẫn tự ghép: role=%q approved=%v — tài khoản tự gắn vào hồ sơ học viên không ai duyệt", u.Role, u.Approved)
+	}
+}
+
+// Chỉ mã trùng, tên khác hẳn -> KHÔNG ghép (mã nhập sai vẫn xảy ra).
+func TestUATMaTrungNhungTenKhacThiKhongGhep(t *testing.T) {
+	h, ctx := hvHandlersEnv(t, "uat")
+	ma := hvTestPrefix + "-S25090621"
+	taoHoSoHVMa(t, h, ctx, hvTestPrefix+" Nguyễn Văn Một", ma)
+
+	u, err := h.ssoResolveUser(ctx, sso.Identity{
+		Subject: hvTestPrefix + "_sub_ten_khac", Email: strings.ToLower(ma) + "@kaizen.edu.vn",
+		FullName: hvTestPrefix + " Trần Thị Hai"})
+	if err != nil || u == nil {
+		t.Fatalf("phải tạo được tài khoản chờ duyệt: (user=%v, err=%v)", u, err)
+	}
+	if u.Role != "pending" {
+		t.Fatalf("tên khác hẳn mà vẫn ghép: role=%q — ghép nhầm người", u.Role)
+	}
+}
+
+// Chỉ tên trùng, mã không dính gì tới email -> KHÔNG ghép (trùng tên là chuyện thường).
+func TestUATChiTenTrungThiKhongGhep(t *testing.T) {
+	h, ctx := hvHandlersEnv(t, "uat")
+	ten := hvTestPrefix + " Lê Thị Trùng Tên"
+	taoHoSoHVMa(t, h, ctx, ten, hvTestPrefix+"-KHONG-DINH")
+
+	u, err := h.ssoResolveUser(ctx, sso.Identity{
+		Subject: hvTestPrefix + "_sub_ten", Email: hvTestPrefix + "_email_khac@kaizen.edu.vn", FullName: ten})
+	if err != nil || u == nil {
+		t.Fatalf("phải tạo được tài khoản chờ duyệt: (user=%v, err=%v)", u, err)
+	}
+	if u.Role != "pending" {
+		t.Fatalf("chỉ trùng tên mà vẫn ghép: role=%q", u.Role)
+	}
+}
+
+// Luật tự ghép theo mã dựa trên một giả định: mã học viên là DUY NHẤT. Giả định đó do CSDL giữ
+// (uq_students_code trên lower(btrim(code)), nằm trong nhóm fail-closed — dữ liệu còn trùng thì app
+// không khởi động được). Test này ghim đúng giả định ấy: mất nó thì đoạn `len(ds) == 1` trong
+// ssoResolveUser trở thành chốt chặn duy nhất, và ghép nhầm người là chuyện có thể xảy ra.
+func TestMaHocVienPhaiDuyNhat(t *testing.T) {
+	h, ctx := hvHandlersEnv(t, "uat")
+	ma := hvTestPrefix + "-DUYNHAT"
+	taoHoSoHVMa(t, h, ctx, hvTestPrefix+" Phạm Văn Một", ma)
+
+	// Khác hoa/thường vẫn phải bị coi là TRÙNG — index dựng trên lower(btrim(code)).
+	var id int
+	err := h.pool().QueryRow(ctx,
+		`INSERT INTO students (name, gender, code) VALUES ($1,'male',$2) RETURNING id`,
+		hvTestPrefix+" Phạm Văn Hai", strings.ToUpper(ma)).Scan(&id)
+	if err == nil {
+		t.Fatalf("CSDL cho phép hai hồ sơ cùng mã (#%d) — luật tự ghép theo mã không còn an toàn", id)
 	}
 }

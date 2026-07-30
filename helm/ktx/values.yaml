@@ -43,6 +43,10 @@ config:
   # BLK-5: container mặc định UTC -> lệch NGÀY (chốt công-tơ, số ngày ở, hạn hợp đồng tính theo ngày).
   TZ: "Asia/Ho_Chi_Minh"
   PORT: "3000"
+  # Môi trường đang chạy. "production" TẮT các tiện ích chỉ dành cho môi trường thử — hiện có một:
+  # đăng nhập Microsoft lần đầu mà mã học viên trùng email VÀ họ tên trùng thì tự ghép vào hồ sơ,
+  # bỏ qua bước admin duyệt. Đổi thành "staging"/"uat" nếu chart này dùng để dựng bản thử.
+  APP_ENV: "production"
   # Sau Ingress là HTTPS -> cookie phiên phải Secure. Thử qua port-forward (http) thì đặt "false",
   # không thì trình duyệt vứt cookie và cứ bị đá về màn đăng nhập.
   COOKIE_SECURE: "true"
