@@ -442,7 +442,11 @@ const HANGS = ['A', 'B', 'C', 'D'];
 // Công suất phòng (số giường) theo hạng
 const HANG_CAP = { A: 5, B: 4, C: 4, D: 3 };
 // Loại phòng: shared=cho thuê ghép · whole=thuê nguyên phòng · security=an ninh · staff=nhân viên công tác
-const ROOM_TYPE = { shared: ['Cho thuê ghép', 'green'], whole: ['Thuê nguyên phòng', 'blue'], security: ['Phòng an ninh', 'amber'], staff: ['Nhân viên công tác', 'amber'] };
+// Nhãn dùng CHUNG cho cả thẻ phòng, form sửa phòng và cột xuất CSV — sửa ở đây là đổi mọi nơi.
+// "Thuê ghép" (bỏ chữ "Cho") để trùng đúng từ dùng ở phía học viên (rental_type ghep/phong), tránh
+// một nghiệp vụ hai cách gọi. Màu xám cho phòng ghép: nó là mặc định của gần hết phòng, tô xanh thì
+// 29 thẻ phòng đều sáng lên và cái nào KHÁC thường lại chìm đi.
+const ROOM_TYPE = { shared: ['Thuê ghép', 'gray'], whole: ['Thuê nguyên phòng', 'blue'], security: ['Phòng an ninh', 'amber'], staff: ['Nhân viên công tác', 'amber'] };
 const roomType = r => (ROOM_TYPE[r.room_type] ? r.room_type : 'shared');
 const roomIsShared = r => roomType(r) === 'shared';          // chỉ phòng ghép mới tính giường trống
 const roomForRent = r => ['shared', 'whole'].includes(roomType(r)); // thuộc quỹ cho thuê (có doanh thu)

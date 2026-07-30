@@ -37,7 +37,7 @@ async function viewRooms() {
         <td><div class="flex${del ? '' : ' stu-name'}"${del ? '' : ` data-act="roomDetail" data-args='[${r.id}]' role="button" tabindex="0" title="Xem chi tiết phòng — ai đang ở"`}><div><strong>${esc(r.name)}</strong>${r.upcoming ? ` <span class="badge blue" title="Sắp vào">+${r.upcoming}</span>` : ''}
           <div class="sub2">Tầng ${r.floor || '—'}</div>${r.note ? `<div class="sub2" style="white-space:pre-wrap;margin-top:3px">${esc(r.note)}</div>` : ''}</div>
           ${del ? '' : `<span class="row-chev" aria-hidden="true">${IC.chevronRight}</span>`}</div></td>
-        <td class="ct-gon" data-label="Loại"><span>${r.gender === 'female' ? '<span class="badge sage">Nữ</span>' : '<span class="badge blue">Nam</span>'} <span class="badge gray">Hạng ${esc(r.hang || 'B')}</span>${!roomIsShared(r) ? ' ' + roomTypeBadge(r) : ''}</span></td>
+        <td class="ct-gon" data-label="Loại"><span>${r.gender === 'female' ? '<span class="badge sage">Nữ</span>' : '<span class="badge blue">Nam</span>'} <span class="badge gray">Hạng ${esc(r.hang || 'B')}</span> ${roomTypeBadge(r)}</span></td>
         <td class="num ct-gon" data-label="Đang ở">${roomIsShared(r) ? `<span class="badge ${full ? 'amber' : r.occupancy ? 'green' : 'gray'}">${r.occupancy}/${r.capacity || 0}</span>` : `<span class="badge gray">${r.occupancy} người</span>`}</td>
         ${/* data-trong: ô rỗng thì ở chế độ thẻ (điện thoại) ẩn hẳn dòng — "PHÒNG TRƯỞNG —" không
               đáng chiếm một dòng, không hiện tức là chưa cử. Máy tính vẫn giữ cột cho thẳng hàng. */''}
@@ -88,7 +88,7 @@ function roomDetail(id) {
   openModal(`
     <div class="mh"><h3>${IC.home} Phòng ${esc(r.name)}
       <span class="badge ${r.gender === 'female' ? 'sage' : 'blue'}">${genderLabel(r.gender)}</span>
-      <span class="badge gray">Hạng ${esc(r.hang || 'B')}</span>${shared ? '' : ' ' + roomTypeBadge(r)}</h3>
+      <span class="badge gray">Hạng ${esc(r.hang || 'B')}</span> ${roomTypeBadge(r)}</h3>
       <button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
     <div class="mb">
       <div class="cards" style="margin-bottom:16px">
