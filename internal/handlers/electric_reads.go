@@ -11,6 +11,7 @@ import (
 	"ktx/internal/db"
 	"ktx/internal/invoicecalc"
 	"ktx/internal/meter"
+	"ktx/internal/scope"
 	"ktx/internal/valid"
 )
 
@@ -51,19 +52,30 @@ func (h *Handlers) ListMeterReads(c *gin.Context) {
 		return
 	}
 
-	// Lượt ở KẾT THÚC trong kỳ mà chưa có chỉ số đúng ngày đó = còn thiếu.
-	cond2 := []string{"rs.to_date >= $1", "rs.to_date <= $2"}
+	// Lượt ở KẾT THÚC GIỮA kỳ mà chưa có chỉ số = còn thiếu. Luật phải KHỚP HỆT ThieuDienKy và
+	// khối thieuRoom bên GenerateInvoices, nếu không màn hình báo thiếu mà chỗ chặn bảo đủ (hoặc
+	// ngược lại) — người dùng sẽ đi nhập một chỉ số bịa vào ngày sai, đẻ thêm chặng, lệch tiền cả phòng:
+	//   · loại ngày CUỐI kỳ (số cuối tháng trong electric_readings đã là mốc đó)
+	//   · chấp nhận chỉ số ở to_date (trả phòng) HOẶC to_date+1 (chuyển phòng: lượt cũ hết D-1, đọc ghi ngày D)
+	// ngay_can_nhap = ngày mà nút Lưu phải POST lên (chuyển phòng thì là to_date+1).
+	cond2 := []string{"rs.to_date >= $1", "rs.to_date < $2"}
 	params2 := []interface{}{dau, cuoi}
 	electricFacilityFilter(c, u, &cond2, &params2)
 	rows2, err := h.pool().Query(ctx,
 		`SELECT rs.student_id, s.name AS student_name, s.code, rs.room_id, r.name AS room_name,
-		        rs.to_date, rs.from_date
+		        rs.to_date, rs.from_date,
+		        EXISTS (SELECT 1 FROM room_stays n
+		                 WHERE n.student_id = rs.student_id AND n.from_date = rs.to_date + 1) AS la_chuyen_phong,
+		        to_char(rs.to_date + (CASE WHEN EXISTS (SELECT 1 FROM room_stays n
+		                 WHERE n.student_id = rs.student_id AND n.from_date = rs.to_date + 1) THEN 1 ELSE 0 END),
+		                'YYYY-MM-DD') AS ngay_can_nhap
 		   FROM room_stays rs
 		   JOIN students s ON s.id = rs.student_id AND s.deleted_at IS NULL
 		   JOIN rooms r ON r.id = rs.room_id AND r.deleted_at IS NULL
 		  WHERE `+joinAnd(cond2)+`
 		    AND NOT EXISTS (SELECT 1 FROM meter_reads m
-		                     WHERE m.room_id = rs.room_id AND m.read_date = rs.to_date)
+		                     WHERE m.room_id = rs.room_id
+		                       AND m.read_date BETWEEN rs.to_date AND rs.to_date + 1)
 		  ORDER BY rs.to_date, r.name`, params2...)
 	if err != nil {
 		serverErr(c)
@@ -106,6 +118,20 @@ func (h *Handlers) ElectricSegments(c *gin.Context) {
 		out = append(out, gin.H{"from": sg.From, "to": sg.To, "kwh": sg.Kwh, "fallback": sg.Fellback, "roster": roster})
 	}
 	c.JSON(http.StatusOK, gin.H{"month": month, "segments": out})
+}
+
+// phongTrongPhamVi: phòng này có thuộc cơ sở người dùng phụ trách không. false = đã trả lỗi cho client.
+func (h *Handlers) phongTrongPhamVi(ctx context.Context, c *gin.Context, u *auth.User, roomID int) bool {
+	var facID *int
+	if err := h.pool().QueryRow(ctx, "SELECT facility_id FROM rooms WHERE id=$1 AND deleted_at IS NULL", roomID).Scan(&facID); err != nil {
+		notFound(c, "Không tìm thấy phòng")
+		return false
+	}
+	if fe := scope.AssertFacility(u, facID); fe != nil {
+		c.JSON(fe.Status, gin.H{"error": fe.Error})
+		return false
+	}
+	return true
 }
 
 // thieuDienCuaHV: kỳ `month` còn thiếu gì để chia điện đúng cho MỘT học viên — gom mọi phòng
@@ -187,6 +213,10 @@ func (h *Handlers) SaveMeterRead(c *gin.Context) {
 		studentID = &v
 	}
 	ctx := c.Request.Context()
+	// Đa cơ sở: quản lý cơ sở A không được đụng công-tơ phòng của cơ sở B.
+	if !h.phongTrongPhamVi(ctx, c, u, roomID) {
+		return
+	}
 
 	// Công-tơ chỉ quay tới: chặn số lùi so với đầu kỳ, cuối kỳ, và các lần chốt trước/sau.
 	msg, err := meter.CheckRead(ctx, h.pool(), roomID, b.Date, reading)
@@ -219,27 +249,34 @@ func (h *Handlers) SaveMeterRead(c *gin.Context) {
 	month := b.Date[:7]
 	tinhLai := 0
 	for _, sid := range ids {
-		if inv, e := invoicecalc.RecalcInvoice(ctx, h.DB, sid, month); e == nil && inv != nil {
-			tinhLai++
-		}
+		tinhLai += invoicecalc.RecalcQuanhKy(ctx, h.DB, sid, month)
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true, "read": row, "recalculated": tinhLai, "affected": len(ids)})
 }
 
 // DeleteMeterRead: DELETE /api/electric/reads/:id — gỡ lần chốt ghi nhầm, rồi tính lại.
 func (h *Handlers) DeleteMeterRead(c *gin.Context) {
+	u := auth.CurrentUser(c)
 	id, ok := paramInt(c, "id")
 	if !ok {
 		badRequest(c, "Mã lần chốt không hợp lệ")
 		return
 	}
 	ctx := c.Request.Context()
+	// Kiểm phạm vi cơ sở TRƯỚC khi xoá — xoá xong mới kiểm là đã mất dữ liệu.
 	var roomID int
 	var date string
 	if err := h.pool().QueryRow(ctx,
-		"DELETE FROM meter_reads WHERE id=$1 RETURNING room_id, to_char(read_date,'YYYY-MM-DD')", id).
+		"SELECT room_id, to_char(read_date,'YYYY-MM-DD') FROM meter_reads WHERE id=$1", id).
 		Scan(&roomID, &date); err != nil {
 		notFound(c, "Không tìm thấy lần chốt")
+		return
+	}
+	if !h.phongTrongPhamVi(ctx, c, u, roomID) {
+		return
+	}
+	if _, err := h.pool().Exec(ctx, "DELETE FROM meter_reads WHERE id=$1", id); err != nil {
+		serverErr(c)
 		return
 	}
 	ids, err := meter.AffectedStudents(ctx, h.pool(), roomID, date)
@@ -248,7 +285,7 @@ func (h *Handlers) DeleteMeterRead(c *gin.Context) {
 		return
 	}
 	for _, sid := range ids {
-		_, _ = invoicecalc.RecalcInvoice(ctx, h.DB, sid, date[:7])
+		invoicecalc.RecalcQuanhKy(ctx, h.DB, sid, date[:7])
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true, "affected": len(ids)})
 }

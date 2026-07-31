@@ -232,8 +232,10 @@ async function renderElectricForm(month) {
   elecMonth = month;
   modalThay(`<div class="mb"><div class="spinner"></div></div>`);   // BL-34: spinner khi đổi kỳ
   const rooms = await guard(() => API.electric(month));
-  let reads = { reads: [], missing: [] };
-  try { reads = await API.electricReads(month); } catch {}
+  // Lỗi gọi API KHÔNG được nuốt: nuốt xong bảng hiện "không có lượt rời nào" — người dùng tin là
+  // xong việc trong khi thật ra chưa đọc được gì.
+  let reads = null;
+  try { reads = await API.electricReads(month); } catch (e) { reads = { loi: (e && e.message) || 'không đọc được' }; }
   modalThay(`
     <div class="mh"><h3>${IC.zap} Chỉ số điện theo tháng</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
     <div class="mb">
@@ -248,15 +250,25 @@ async function renderElectricForm(month) {
 // không cắt chặng được -> phần của người rời đổ hết sang người ở lại. Đây là đường nhập BÙ cho
 // các lượt đã check-out rồi (số ghi trên giấy lúc bàn giao).
 function chotGiuaKyHTML(month, reads) {
-  const thieu = reads.missing || [], daCo = reads.reads || [];
-  const dongThieu = thieu.map(m => `
+  if (reads && reads.loi) {
+    return `<h4 style="margin:18px 0 6px">Chốt giữa kỳ — chỉ số hôm học viên rời phòng</h4>
+      <div class="hint">${IC.alert} <strong>Không đọc được danh sách chốt giữa kỳ</strong> (${esc(reads.loi)}).
+      Đừng tin là kỳ này không có ai rời phòng — hãy tải lại trang rồi mở lại màn này.</div>`;
+  }
+  const thieu = (reads && reads.missing) || [], daCo = (reads && reads.reads) || [];
+  // id ô nhập phải DUY NHẤT: hai HV cùng phòng rời cùng ngày thì id trùng, nút Lưu dòng dưới đọc
+  // nhầm ô dòng trên. Khoá theo chỉ số dòng, không theo phòng+ngày.
+  const dongThieu = thieu.map((m, i) => {
+    const ngay = String(m.ngay_can_nhap || m.to_date).slice(0, 10);
+    return `
     <tr>
       <td><strong>${esc(m.room_name)}</strong></td>
-      <td>${fmtDate(m.to_date)}</td>
+      <td>${fmtDate(m.to_date)}${m.la_chuyen_phong ? ' <span class="muted">(chuyển phòng — đọc ngày ' + fmtDate(ngay) + ')</span>' : ''}</td>
       <td>${esc(m.student_name || '—')}</td>
-      <td class="num"><input type="number" min="0" step="0.1" id="mr_${m.room_id}_${esc(String(m.to_date).slice(0, 10))}" placeholder="Số trên đồng hồ" style="width:110px;text-align:right"></td>
-      <td><button class="btn sm pri" data-act="luuChotGiuaKy" data-args='[${m.room_id},"${String(m.to_date).slice(0, 10)}",${m.student_id || 0}]'>Lưu</button></td>
-    </tr>`).join('');
+      <td class="num"><input type="number" min="0" step="0.1" id="mr_${i}" placeholder="Số trên đồng hồ" style="width:110px;text-align:right"></td>
+      <td><button class="btn sm pri" data-act="luuChotGiuaKy" data-args='[${i},${m.room_id},"${ngay}",${m.student_id || 0}]'>Lưu</button></td>
+    </tr>`;
+  }).join('');
   const dongDaCo = daCo.map(r => `
     <tr>
       <td><strong>${esc(r.room_name)}</strong></td>
@@ -273,25 +285,52 @@ function chotGiuaKyHTML(month, reads) {
       <tbody>${dongThieu}${dongDaCo || ''}${!thieu.length && !daCo.length ? '<tr><td colspan="5" class="muted">Kỳ này không có lượt rời/chuyển phòng nào.</td></tr>' : ''}</tbody>
     </table></div>`;
 }
-async function luuChotGiuaKy(roomId, date, studentId) {
-  const inp = el(`mr_${roomId}_${date}`);
+// Vẽ lại CẢ modal sẽ xoá sạch chỉ số đang gõ dở ở bảng trên -> giữ lại rồi đổ về sau khi vẽ.
+function giuChiSoDangGo() {
+  const m = {};
+  document.querySelectorAll('#modal input[data-room]').forEach(i => { m['end_' + i.dataset.room] = i.value; });
+  document.querySelectorAll('#modal input[data-estart]').forEach(i => { m['start_' + i.dataset.estart] = i.value; });
+  return m;
+}
+function doLaiChiSoDangGo(m) {
+  Object.entries(m || {}).forEach(([k, v]) => {
+    if (v === '' || v == null) return;
+    const [loai, rid] = k.split('_');
+    const sel = loai === 'end' ? `#modal input[data-room="${rid}"]` : `#modal input[data-estart="${rid}"]`;
+    const inp = document.querySelector(sel);
+    if (inp) { inp.value = v; ecalc(+rid); }
+  });
+}
+async function luuChotGiuaKy(idx, roomId, date, studentId) {
+  const inp = el(`mr_${idx}`);
   const v = inp ? inp.value.trim() : '';
   if (v === '' || isNaN(+v) || +v < 0) return toast('Nhập chỉ số công-tơ (số không âm)', 'err');
+  const giu = giuChiSoDangGo();
   const r = await guard(() => API.saveMeterRead({ room_id: roomId, date, reading: +v, student_id: studentId || undefined }));
-  toast(`Đã chốt chỉ số · tính lại ${r.recalculated}/${r.affected} hóa đơn liên quan`);
+  toast(`Đã chốt chỉ số · tính lại ${r.recalculated} hóa đơn của ${r.affected} học viên liên quan`);
   await renderElectricForm(el('e_month').value || elecMonth);
+  doLaiChiSoDangGo(giu);
 }
 async function xoaChotGiuaKy(id) {
   if (!confirm('Gỡ lần chốt này? Hóa đơn liên quan sẽ được tính lại.')) return;
+  const giu = giuChiSoDangGo();
   await guard(() => API.deleteMeterRead(id));
   toast('Đã gỡ lần chốt');
   await renderElectricForm(el('e_month').value || elecMonth);
+  doLaiChiSoDangGo(giu);
 }
 async function saveElectric() {
   if (badElectricRooms().length) return toast('Có phòng "số cuối < số đầu" — sửa lại chỉ số điện trước khi lưu', 'err');
+  // Ô chốt giữa kỳ KHÔNG thuộc bảng này (mỗi dòng có nút Lưu riêng). Nút này mà nuốt luôn rồi báo
+  // "Đã lưu" thì người dùng tưởng xong — đúng loại lỗi chết-im-lặng đã vấp mấy lần.
+  const goDo = [...document.querySelectorAll('#modal input[id^="mr_"]')].filter(i => i.value.trim() !== '');
+  if (goDo.length && !confirm(
+    `Còn ${goDo.length} ô chốt giữa kỳ đang gõ dở CHƯA lưu.\n\n`
+    + `Mỗi dòng chốt giữa kỳ có nút "Lưu" riêng — nút này chỉ lưu bảng chỉ số cuối kỳ phía trên.\n\n`
+    + `Vẫn đóng và bỏ những ô đó?`)) return;
   const readings = readElectricInputs();
   await guard(() => API.saveElectric({ month: el('e_month').value, readings }));
-  closeModal(); toast('Đã lưu chỉ số điện');
+  closeModal(); toast('Đã lưu chỉ số cuối kỳ');
 }
 async function runGenerate() {
   const month = el('g_month').value; if (!month) return toast('Chọn kỳ', 'err');
@@ -363,10 +402,15 @@ async function phieuBao(inv) {
   const fac = ST.facilities.find(f => f.id === room.facility_id) || {};
   const set = ST.settings;
   // Điện thu LÙI MỘT KỲ: phiếu kỳ M mang khối điện kỳ M-1 — chỉ số và các chặng đọc từ kỳ đó.
+  // Phòng phải lấy theo PHIẾU (inv.room_id), không theo phòng hiện tại của HV: người đã chuyển
+  // hoặc đã trả phòng thì s.room_id là phòng khác/null -> tra ra chỉ số của phòng không liên quan.
   const kyDien = prevKy(inv.month);
+  const phongPhieu = inv.room_id || s.room_id || null;
   let er = null, segs = [];
-  try { er = (await API.electric(kyDien)).find(x => x.room_id === s.room_id); } catch {}
-  try { segs = ((await API.electricSegments(s.room_id, kyDien)) || {}).segments || []; } catch {}
+  if (phongPhieu) {
+    try { er = (await API.electric(kyDien)).find(x => x.room_id === phongPhieu); } catch {}
+    try { segs = ((await API.electricSegments(phongPhieu, kyDien)) || {}).segments || []; } catch {}
+  }
   const unit = +set.electric_unit || 0;
   const occ = ST.students.filter(x => x.room_id === s.room_id && isOccupying(x)).length || 1;
 
@@ -408,8 +452,17 @@ async function phieuBao(inv) {
     }
   }
   // HV rời trong kỳ phiếu: phiếu này gánh thêm điện kỳ phiếu tính TỚI NGÀY RỜI (từ số chốt bàn giao).
-  if ((s.check_out_date || '').slice(0, 7) === inv.month) {
-    rows.push(`<tr class="rc-seg"><td></td><td colspan="4">· cộng phần điện ${monthLabel(inv.month)} tới ngày trả phòng ${fmtDate(s.check_out_date)} (theo số công-tơ chốt hôm bàn giao)</td></tr>`);
+  // Chỉ in khi phiếu THẬT SỰ có khoản đó — khối kỳ M-1 tính ra ít hơn tổng tiền điện trên phiếu.
+  if ((s.check_out_date || '').slice(0, 7) === inv.month && +inv.electric_charge > 0) {
+    const phanKyTruoc = segs.reduce((a, sg) => {
+      const my = (sg.roster || []).find(x => x.student_id === inv.student_id);
+      if (!my || !my.days) return a;
+      const tongNgay = (sg.roster || []).reduce((b, x) => b + x.days, 0) || 1;
+      return a + sg.kwh * my.days / tongNgay;
+    }, 0);
+    if (+inv.electric_kwh - phanKyTruoc > 0.05) {
+      rows.push(`<tr class="rc-seg"><td></td><td colspan="4">· cộng phần điện ${monthLabel(inv.month)} tới ngày trả phòng ${fmtDate(s.check_out_date)} (theo số công-tơ chốt hôm bàn giao)</td></tr>`);
+    }
   }
   row('Tiền nước', money(set.water_fee), `${suat} người`, inv.water_charge);
   row(chu('Dịch vụ', 'wifi · rác · an ninh'), money(set.service_fee), `${suat} người`, inv.service_charge);

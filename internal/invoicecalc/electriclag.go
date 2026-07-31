@@ -22,6 +22,31 @@ func PrevMonthOf(month string) string {
 	return t.AddDate(0, -1, 0).Format("2006-01")
 }
 
+// NextMonthOf: 'YYYY-MM' của kỳ liền sau.
+func NextMonthOf(month string) string {
+	t, err := time.ParseInLocation("2006-01", month, time.UTC)
+	if err != nil {
+		return month
+	}
+	return t.AddDate(0, 1, 0).Format("2006-01")
+}
+
+// RecalcQuanhKy: tính lại phiếu của HV cho CẢ HAI kỳ chịu ảnh hưởng khi chỉ số công-tơ ngày
+// trong kỳ M thay đổi:
+//   - kỳ M   — phiếu CUỐI của người rời trong M (mang phần điện M tới ngày rời)
+//   - kỳ M+1 — phiếu của người CÒN Ở (mang trọn khối điện kỳ M)
+// Chỉ tính lại kỳ M là vô nghĩa với người ở lại: phiếu M của họ mang điện kỳ M-1, không đổi.
+// Trả số phiếu THỰC SỰ được ghi lại.
+func RecalcQuanhKy(ctx context.Context, database *db.DB, studentID int, month string) int {
+	n := 0
+	for _, m := range []string{month, NextMonthOf(month)} {
+		if inv, err := RecalcInvoice(ctx, database, studentID, m); err == nil && inv != nil {
+			n++
+		}
+	}
+	return n
+}
+
 // ElectricLag: tiền điện cho phiếu kỳ `month` của một HV.
 // = trọn phần kỳ month-1 + (nếu checkOut nằm trong `month`) phần kỳ `month` tới ngày rời.
 // Luôn trả con số (0 nếu không có dữ liệu) — KHÔNG trả nil, để bên gọi không rơi về

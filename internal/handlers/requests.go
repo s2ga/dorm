@@ -444,7 +444,8 @@ func (h *Handlers) ConfirmCheckout(c *gin.Context) {
 				if sid == studentID {
 					continue
 				}
-				_, _ = invoicecalc.RecalcInvoice(ctx, h.DB, sid, date[:7]) // try/catch: bỏ qua lỗi
+				// Điện lùi kỳ: khối điện kỳ này lên phiếu kỳ SAU của người còn ở -> tính lại cả hai kỳ.
+				invoicecalc.RecalcQuanhKy(ctx, h.DB, sid, date[:7]) // try/catch: bỏ qua lỗi
 			}
 		}
 	}
@@ -739,7 +740,8 @@ func (h *Handlers) HandoverCheckout(c *gin.Context) {
 				if sid == studentID {
 					continue
 				}
-				_, _ = invoicecalc.RecalcInvoice(ctx, h.DB, sid, date[:7])
+				// Điện lùi kỳ: khối điện kỳ này lên phiếu kỳ SAU của người còn ở -> tính lại cả hai kỳ.
+				invoicecalc.RecalcQuanhKy(ctx, h.DB, sid, date[:7])
 			}
 		}
 	}

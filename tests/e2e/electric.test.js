@@ -161,6 +161,38 @@ module.exports = {
       const eD7 = await elec([D2], M);
       t.eq('Người rời trả đúng phần mình = 175.000', eD7[D2], 175000, `được ${fmt(eD7[D2])}`);
       t.eq('TỔNG hai người khớp tuyệt đối tiền điện kỳ 07', eD[D1] + eD7[D2], 300 * UNIT, `tổng ${fmt(eD[D1] + eD7[D2])}`);
+
+      // ===== SỬA chỉ số giữa kỳ SAU KHI đã phát phiếu: điện kỳ 07 nằm trên phiếu kỳ 08, nên tính
+      // lại phải chạm tới phiếu kỳ 08 — tính lại mỗi kỳ 07 là no-op, số sai nằm im.
+      const mrOld = (await t.db.query(`SELECT id FROM meter_reads WHERE room_id=$1 AND read_date='2026-07-15'`, [RD])).rows[0];
+      const rDel = await t.api('DELETE', `/api/electric/reads/${mrOld.id}`, T);
+      t.ok('Gỡ lần chốt cũ → OK', rDel.status === 200, `HTTP ${rDel.status}`);
+      const mr2 = await t.api('POST', '/api/electric/reads', T, { room_id: RD, date: '2026-07-15', reading: 200, student_id: D2 });
+      t.ok('Nhập lại chỉ số 15/07 = 200 (thay vì 100) → OK', mr2.status === 200, `HTTP ${mr2.status} — ${mr2.json && mr2.json.error}`);
+      // Chặng 1 = 200kWh = 700.000 chia đôi -> 350.000/người; chặng 2 = 100kWh = 350.000 cho D1.
+      const eDsua = await elec([D1, D2], M2);
+      t.eq('Phiếu kỳ 08 của người Ở LẠI được tính lại theo chỉ số mới = 350.000 + 350.000',
+        eDsua[D1], 700000, `được ${fmt(eDsua[D1])} · nếu vẫn 875.000 là recalc SAI KỲ`);
+      const eD7sua = await elec([D2], M);
+      t.eq('Phiếu cuối kỳ 07 của người RỜI cũng theo số mới = 350.000', eD7sua[D2], 350000, `được ${fmt(eD7sua[D2])}`);
+      t.eq('TỔNG sau khi sửa vẫn khớp tuyệt đối', eDsua[D1] + eD7sua[D2], 300 * UNIT, `tổng ${fmt(eDsua[D1] + eD7sua[D2])}`);
+
+      // ===== Chuyển phòng có chốt chỉ số: màn Điện KHÔNG được báo "còn thiếu" (lượt cũ đóng ở D-1,
+      // chỉ số ghi ở D) — báo giả sẽ mời cán bộ nhập một chỉ số bịa vào ngày sai.
+      await clean(t.db);
+      const RE1 = await mkRoom('_E1'), RE2 = await mkRoom('_E2');
+      const E1 = await mkStu('_E1a', RE1), E2 = await mkStu('_E2a', RE1);
+      for (const id of [E1, E2]) await stay(id, RE1);
+      await meter(RE1, 300); await meter(RE2, 0);
+      await t.api('POST', `/api/students/${E2}/transfer`, T, { room_id: RE2, date: '2026-07-10', meter_reading: 90 });
+      const lst = await t.api('GET', `/api/electric/reads?month=${M}`, T);
+      t.ok('Chuyển phòng đã chốt chỉ số → KHÔNG nằm trong danh sách "còn thiếu"',
+        lst.status === 200 && !(lst.json.missing || []).some(m => m.room_id === RE1),
+        JSON.stringify((lst.json.missing || []).filter(m => m.room_id === RE1)));
+      const gE = await t.api('POST', '/api/invoices/generate', T, { month: M2 });
+      t.ok('…và chỗ chặn cũng đồng ý (không cảnh báo phòng đó) — hai bên KHỚP LUẬT',
+        !(gE.json.warnings || []).some(w => w.includes(P + '_E1')),
+        JSON.stringify((gE.json.warnings || []).filter(w => w.includes(P + '_E1'))));
     } finally {
       await clean(t.db);
       if (oldUnit) await t.db.query(`UPDATE settings SET value=$1 WHERE key='electric_unit'`, [oldUnit.value]);

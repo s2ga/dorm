@@ -1820,7 +1820,8 @@ func (h *Handlers) StudentCheckout(c *gin.Context) {
 				if sid == id {
 					continue
 				}
-				if r, e2 := invoicecalc.RecalcInvoice(ctx, h.DB, sid, d[:7]); e2 == nil && r != nil {
+				// Điện lùi kỳ: khối điện kỳ d nằm trên phiếu kỳ SAU của người còn ở — phải tính lại cả hai.
+				if invoicecalc.RecalcQuanhKy(ctx, h.DB, sid, d[:7]) > 0 {
 					recalcedRoommates = append(recalcedRoommates, sid)
 				}
 			}
@@ -1999,7 +2000,8 @@ func (h *Handlers) StudentTransfer(c *gin.Context) {
 			ids = append(ids, id)
 		}
 		for _, sid := range ids {
-			if r, e2 := invoicecalc.RecalcInvoice(ctx, h.DB, sid, month); e2 == nil && r != nil {
+			// Điện lùi kỳ: chốt chỉ số lúc chuyển phòng đổi khối điện kỳ này -> phiếu kỳ SAU mới mang nó.
+			if invoicecalc.RecalcQuanhKy(ctx, h.DB, sid, month) > 0 {
 				recalced = append(recalced, sid)
 			}
 		}
