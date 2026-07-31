@@ -160,7 +160,7 @@ async function generateForm() {
   // Qua openModal chứ KHÔNG tự bật .show: openModal mới là chỗ đẩy mục lịch sử (để Back của hệ điều
   // hành / vuốt mép trái đóng được modal), khoá cuộn trang nền, và chụp ảnh form cho lá chắn "dữ liệu
   // chưa lưu". Tự bật tay là mất cả ba — đây là 1 trong 2 modal duy nhất còn đi cửa sau.
-  openModal(`<div class="mb"><div class="spinner"></div></div>`, true);
+  openModal(`<div class="mb"><div class="spinner"></div></div>`, 'x');
   await renderGenerateForm(invMonth);
 }
 async function renderGenerateForm(month) {
@@ -170,28 +170,69 @@ async function renderGenerateForm(month) {
   // Điện thu LÙI MỘT KỲ: phiếu kỳ M mang tiền điện kỳ M-1 (tiền phòng thu trước, điện phải đợi
   // số công-tơ cuối tháng). Bảng chỉ số dưới đây vì thế là của KỲ M-1.
   const kyDien = prevKy(month);
-  const rooms = await guard(() => API.electric(kyDien));
+  const [rooms, lichSu] = await Promise.all([
+    guard(() => API.electric(kyDien)),
+    API.electricHistory(kyDien, 6).catch(() => null),   // chỉ để so kỳ trước — hỏng thì bảng vẫn chạy
+  ]);
   modalThay(`
     <div class="mh"><h3>${IC.receipt} Tạo hóa đơn tháng</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
     <div class="mb">
       <div class="field"><label>Kỳ (tháng)</label><input id="g_month" type="month" value="${month}" data-change="onGenMonth"></div>
       <div class="hint">${IC.bulb} Phiếu kỳ <strong>${month}</strong> = tiền phòng/nước/dịch vụ kỳ ${month} (thu trước) + <strong>tiền điện kỳ ${kyDien}</strong>. Nhập <strong>số cuối công-tơ đọc cuối kỳ ${kyDien}</strong>; số đầu tự nối. Tiền điện = (cuối − đầu) × ${money(ST.settings.electric_unit)}, chia theo ngày ở từng chặng.</div>
-      ${electricTable(rooms)}
+      ${electricTable(rooms, lichSu)}
       <p class="muted" style="font-size:12px;margin-top:10px">Hóa đơn <strong>chưa đóng</strong> sẽ được <strong>tính lại</strong> theo điện & ngày mới; hóa đơn <strong>đã đóng</strong> được giữ nguyên. Phòng có người rời kỳ ${kyDien} mà thiếu chỉ số ngày rời sẽ bị <strong>bỏ qua</strong> — nhập bổ sung ở màn <em>Chỉ số điện</em> rồi chạy lại.</p>
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="runGenerate">Lưu số điện & tạo/cập nhật hóa đơn</button></div>`);
 }
+// kWh kỳ TRƯỚC theo phòng — để tính chênh lệch ngay khi đang gõ, không phải chờ lưu.
+let _kwhTruoc = {};
+// Điện TĂNG là tốn thêm tiền -> đỏ; GIẢM -> xanh. Cố ý ngược quy ước chứng khoán (xanh = tăng),
+// vì ở đây người đọc quan tâm "tháng này tốn hơn hay đỡ hơn", không phải "giá lên hay xuống".
+function deltaKwh(nay, truoc, dinhDang, kemPhanTram) {
+  if (truoc == null) return `<span class="delta none">chưa có kỳ trước</span>`;
+  const d = Math.round((nay - truoc) * 10) / 10;
+  if (!d) return `<span class="delta same">không đổi</span>`;
+  const tang = d > 0;
+  // Phần trăm chỉ in ở cột kWh: tiền = kWh × đơn giá nên % hai cột luôn bằng nhau, in cả hai là thừa.
+  const pct = kemPhanTram && truoc > 0 ? Math.round(Math.abs(d) / truoc * 1000) / 10 : null;
+  const p = pct == null ? '' : ` · ${tang ? '+' : '−'}${String(pct).replace('.', ',')}%`;
+  return `<span class="delta ${tang ? 'up' : 'down'}">${tang ? '▲' : '▼'} ${dinhDang(Math.abs(d))}${p}</span>`;
+}
+// Sparkline kiểu biểu đồ giá: đường + vùng tô nhạt, chấm đậm ở kỳ mới nhất.
+function sparkline(series) {
+  const v = (series || []).map(s => +s.kwh || 0);
+  if (v.length < 2) return '<span class="muted" style="font-size:11px">—</span>';
+  const W = 78, H = 26, P = 3;
+  const lo = Math.min(...v), hi = Math.max(...v), span = hi - lo || 1;
+  const X = i => (i / (v.length - 1)) * (W - P * 2) + P;
+  const Y = n => H - P - ((n - lo) / span) * (H - P * 2);
+  const pts = v.map((n, i) => `${X(i).toFixed(1)},${Y(n).toFixed(1)}`).join(' ');
+  const tip = series.map(s => `${s.month.slice(5)}/${s.month.slice(2, 4)}: ${s.kwh} kWh`).join('\n');
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Tiêu thụ ${v.length} kỳ gần nhất">
+    <title>${esc(tip)}</title>
+    <polygon class="spark-fill" points="${P},${H - P} ${pts} ${(W - P).toFixed(1)},${H - P}"/>
+    <polyline class="spark-line" points="${pts}"/>
+    <circle class="spark-dot" cx="${X(v.length - 1).toFixed(1)}" cy="${Y(v[v.length - 1]).toFixed(1)}" r="2.5"/></svg>`;
+}
 // Bảng nhập chỉ số điện (số đầu + số cuối đều sửa được)
-function electricTable(rooms) {
+function electricTable(rooms, lichSu) {
   if (!rooms.length) return `<div class="empty">Chưa có phòng nào để nhập chỉ số điện cho kỳ này.</div>`;
-  return `<div class="table-wrap" style="max-height:min(560px,62vh);overflow:auto"><table><thead><tr><th>Phòng</th><th class="num">Đang ở</th><th class="num">Số đầu</th><th class="num">Số cuối</th><th class="num">Tiêu thụ</th><th class="num">Tiền điện</th></tr></thead><tbody>
-    ${rooms.map(r => { const st = +r.reading_start || 0, en = +r.reading_end || 0; const bad = en > 0 && en < st; const kwh = Math.max(0, en - st); return `<tr>
+  const don = +ST.settings.electric_unit || 0;
+  // series của history KẾT THÚC ở kỳ đang xem -> phần tử áp chót là kỳ trước.
+  const ls = new Map(((lichSu && lichSu.rooms) || []).map(x => [x.room_id, x.series || []]));
+  _kwhTruoc = {};
+  ls.forEach((s, rid) => { if (s.length >= 2) _kwhTruoc[rid] = +s[s.length - 2].kwh || 0; });
+  return `<div class="table-wrap" style="max-height:min(560px,62vh);overflow:auto"><table><thead><tr><th>Phòng</th><th class="num">Đang ở</th><th class="num">Số đầu</th><th class="num">Số cuối</th><th class="num">Tiêu thụ</th><th class="num">Tiền điện</th><th class="num">6 kỳ gần nhất</th></tr></thead><tbody>
+    ${rooms.map(r => { const st = +r.reading_start || 0, en = +r.reading_end || 0; const bad = en > 0 && en < st; const kwh = Math.max(0, en - st); const tr = _kwhTruoc[r.room_id]; return `<tr>
       <td><strong>${esc(r.room_name)}</strong> <span class="muted">${r.gender === 'female' ? 'Nữ' : 'Nam'}</span></td>
       <td class="num">${r.occupancy}</td>
-      <td class="num"><input type="number" min="0" step="0.1" data-estart="${r.room_id}" value="${st || ''}" placeholder="0" style="width:90px;text-align:right" data-input="ecalc" data-args='[${r.room_id}]'></td>
-      <td class="num"><input type="number" min="0" step="0.1" data-room="${r.room_id}" value="${en || ''}" placeholder="0" style="width:90px;text-align:right${bad ? ';border-color:var(--red);background:var(--red-bg)' : ''}" data-input="ecalc" data-args='[${r.room_id}]'></td>
-      <td class="num" id="ek_${r.room_id}">${bad ? '<span class="err-inline" title="Số cuối nhỏ hơn số đầu — sửa lại">Số cuối &lt; số đầu</span>' : kwh}</td>
-      <td class="num" id="em_${r.room_id}">${bad ? '—' : money(kwh * (+ST.settings.electric_unit || 0))}</td></tr>`; }).join('')}
+      <td class="num"><input type="number" min="0" step="0.1" data-estart="${r.room_id}" value="${st || ''}" placeholder="0" style="width:78px;text-align:right" data-input="ecalc" data-args='[${r.room_id}]'></td>
+      <td class="num"><input type="number" min="0" step="0.1" data-room="${r.room_id}" value="${en || ''}" placeholder="0" style="width:78px;text-align:right${bad ? ';border-color:var(--red);background:var(--red-bg)' : ''}" data-input="ecalc" data-args='[${r.room_id}]'></td>
+      <td class="num" id="ek_${r.room_id}">${bad ? '<span class="err-inline" title="Số cuối nhỏ hơn số đầu — sửa lại">Số cuối &lt; số đầu</span>'
+        : `${kwh}${en ? deltaKwh(kwh, tr == null ? null : tr, n => n + ' kWh', true) : ''}`}</td>
+      <td class="num" id="em_${r.room_id}">${bad ? '—'
+        : `${money(kwh * don)}${en && tr != null ? deltaKwh(kwh * don, tr * don, money) : ''}`}</td>
+      <td class="num">${sparkline(ls.get(r.room_id))}</td></tr>`; }).join('')}
   </tbody></table></div>`;
 }
 function ecalc(rid) {
@@ -203,9 +244,11 @@ function ecalc(rid) {
   enInp.style.background = bad ? 'var(--red-bg)' : '';
   const ek = el('ek_' + rid), em = el('em_' + rid);
   if (bad) { ek.innerHTML = '<span class="err-inline" title="Số cuối nhỏ hơn số đầu — sửa lại">Số cuối &lt; số đầu</span>'; em.textContent = '—'; return; }
-  const kwh = Math.max(0, en - st);
-  ek.textContent = kwh;
-  em.textContent = money(kwh * (+ST.settings.electric_unit || 0));
+  const kwh = Math.max(0, en - st), don = +ST.settings.electric_unit || 0;
+  const tr = _kwhTruoc[rid];
+  // Chênh lệch cập nhật NGAY khi gõ — chờ tới lúc lưu mới thấy thì mất tác dụng cảnh báo.
+  ek.innerHTML = `${kwh}${en ? deltaKwh(kwh, tr == null ? null : tr, n => n + ' kWh', true) : ''}`;
+  em.innerHTML = `${money(kwh * don)}${en && tr != null ? deltaKwh(kwh * don, tr * don, money) : ''}`;
 }
 function readElectricInputs() {
   // Ô Số cuối để TRỐNG phải gửi lên là rỗng, KHÔNG phải 0: 0 nghĩa là "công-tơ chỉ 0" (server
@@ -228,13 +271,14 @@ function badElectricRooms() {
 /* Màn hình nhập chỉ số điện độc lập (lưu, không tạo hóa đơn) */
 let elecMonth = curMonth();
 async function electricForm() {
-  openModal(`<div class="mb"><div class="spinner"></div></div>`, true);   // xem ghi chú ở generateForm
+  openModal(`<div class="mb"><div class="spinner"></div></div>`, 'x');   // xem ghi chú ở generateForm
   await renderElectricForm(elecMonth);
 }
 async function renderElectricForm(month) {
   elecMonth = month;
   modalThay(`<div class="mb"><div class="spinner"></div></div>`);   // BL-34: spinner khi đổi kỳ
   const rooms = await guard(() => API.electric(month));
+  const lichSu = await API.electricHistory(month, 6).catch(() => null);
   // Lỗi gọi API KHÔNG được nuốt: nuốt xong bảng hiện "không có lượt rời nào" — người dùng tin là
   // xong việc trong khi thật ra chưa đọc được gì.
   let reads = null;
@@ -244,7 +288,7 @@ async function renderElectricForm(month) {
     <div class="mb">
       <div class="field"><label>Kỳ (tháng)</label><input id="e_month" type="month" value="${month}" data-change="onElecMonth"></div>
       <div class="hint">Nhập số đầu (lần đầu để test) và số cuối ĐỌC CUỐI KỲ. Tháng sau số đầu tự nối tiếp. Tiền điện kỳ này lên <strong>phiếu kỳ sau</strong> (tiền phòng thu trước, điện thu sau khi có số).</div>
-      ${electricTable(rooms)}
+      ${electricTable(rooms, lichSu)}
       ${chotGiuaKyHTML(month, reads)}
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Đóng</button><button class="btn pri" data-act="saveElectric">Lưu chỉ số điện</button></div>`);

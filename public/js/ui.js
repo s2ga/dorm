@@ -89,7 +89,8 @@ let _boQuaPopKe = false;     // cú popstate kế tiếp là do CHÍNH TA gọi 
 let _henTraLichSu = null;    // hẹn trả mục lịch sử (hoãn 1 tick, xem closeModalNgay)
 
 function _veModal(lop) {
-  el('modal').className = 'modal' + (lop.wide ? ' wide' : '');
+  // wide: true -> 720px · 'x' -> 1000px (bảng nhiều cột như chỉ số điện) · bỏ trống -> 560px
+  el('modal').className = 'modal' + (lop.wide === 'x' ? ' xwide' : lop.wide ? ' wide' : '');
   el('modal').removeAttribute('style');   // dọn transform còn sót của cử chỉ vuốt lần trước
   el('modal').innerHTML = lop.html;
   el('modal').scrollTop = 0;
