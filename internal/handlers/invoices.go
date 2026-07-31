@@ -398,6 +398,9 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 	for _, r := range body.Readings {
 		rid := invoiceIntID(r.RoomID)
 		ridDisp := invoiceRawDisp(r.RoomID)
+		if electricTrong(r.ReadingEnd) {
+			continue // để trống = kỳ đó chưa đọc công-tơ; khối "thiếu dữ liệu" bên dưới sẽ bỏ qua phòng này
+		}
 		end, endOK := jsNum(r.ReadingEnd)
 		if !endOK || end < 0 {
 			loi = append(loi, `phòng #`+ridDisp+`: chỉ số "`+invoiceRawDisp(r.ReadingEnd)+`" không hợp lệ`)
@@ -452,6 +455,9 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 		// Lưu chỉ số điện VÀO KỲ M-1 (số đầu = số cuối kỳ M-2 nếu không nhập). invoices.routes.js:133-146
 		for _, r := range body.Readings {
 			rid := invoiceIntID(r.RoomID)
+			if electricTrong(r.ReadingEnd) {
+				continue // chưa đọc công-tơ kỳ đó -> không ghi bừa số 0
+			}
 			var start float64
 			if invoiceStartProvided(r.ReadingStart) {
 				start, _ = jsNum(r.ReadingStart)

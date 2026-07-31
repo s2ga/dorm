@@ -155,6 +155,22 @@ func strOf(v interface{}) string {
 	return ""
 }
 
+// electricTrong: ô nhập bỏ trống? (không gửi, null, "" hoặc chuỗi toàn khoảng trắng)
+// Trống KHÁC 0: 0 là "công-tơ chỉ 0", trống là "chưa đọc".
+func electricTrong(raw json.RawMessage) bool {
+	s := strings.TrimSpace(string(raw))
+	if s == "" || s == "null" {
+		return true
+	}
+	if len(s) >= 2 && s[0] == '"' {
+		var v string
+		if json.Unmarshal(raw, &v) == nil {
+			return strings.TrimSpace(v) == ""
+		}
+	}
+	return false
+}
+
 type electricReadingItem struct {
 	RoomID       json.RawMessage `json:"room_id"`
 	ReadingEnd   json.RawMessage `json:"reading_end"`
@@ -216,9 +232,17 @@ func (h *Handlers) SaveElectricBulk(c *gin.Context) {
 	}
 	var chuan []chuanItem
 	var loi []string
+	var xoa []int // phòng để trống ô Số cuối -> xoá bản ghi kỳ này (chưa đọc công-tơ)
 	for _, r := range body.Readings {
 		ridNum, _ := jsNum(r.RoomID)
 		rid := int(ridNum)
+		// Ô "Số cuối" để TRỐNG = kỳ này CHƯA ĐỌC công-tơ -> xoá bản ghi, không ghi 0.
+		// Ghi 0 thì server chặn "cuối < đầu"; ghi bằng số đầu thì màn hình hiện một con số ở ô
+		// Số cuối, người xem tưởng đã chốt số trong khi kỳ chưa hết.
+		if electricTrong(r.ReadingEnd) {
+			xoa = append(xoa, rid)
+			continue
+		}
 		end, endOK := jsNum(r.ReadingEnd)
 		if !endOK || end < 0 {
 			loi = append(loi, "phòng #"+itoa(rid)+`: chỉ số "`+string(r.ReadingEnd)+`" không hợp lệ`)
@@ -279,13 +303,20 @@ func (h *Handlers) SaveElectricBulk(c *gin.Context) {
 				return err
 			}
 		}
+		// Để trống = chưa đọc: xoá hẳn bản ghi. Màn hình sẽ tự lấy số đầu = số cuối kỳ trước
+		// (ListElectric COALESCE prev.reading_end) và để ô Số cuối TRỐNG — đúng sự thật.
+		for _, rid := range xoa {
+			if _, err := tx.Exec(ctx, `DELETE FROM electric_readings WHERE room_id=$1 AND month=$2`, rid, body.Month); err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 	if err != nil {
 		serverErr(c)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true, "saved": len(chuan)})
+	c.JSON(http.StatusOK, gin.H{"ok": true, "saved": len(chuan), "cleared": len(xoa)})
 }
 
 // replacePhong: thay "phòng #id" bằng "phòng <tên>" như Node (regex thay thế).

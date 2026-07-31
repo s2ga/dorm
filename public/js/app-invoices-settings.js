@@ -208,9 +208,12 @@ function ecalc(rid) {
   em.textContent = money(kwh * (+ST.settings.electric_unit || 0));
 }
 function readElectricInputs() {
+  // Ô Số cuối để TRỐNG phải gửi lên là rỗng, KHÔNG phải 0: 0 nghĩa là "công-tơ chỉ 0" (server
+  // chặn vì nhỏ hơn số đầu), còn rỗng nghĩa là "kỳ này chưa đọc" -> server xoá bản ghi, màn hình
+  // hiện ô trống thay vì một con số làm người xem tưởng đã chốt số.
   return [...document.querySelectorAll('#modal input[data-room]')].map(inp => ({
     room_id: +inp.dataset.room,
-    reading_end: +inp.value || 0,
+    reading_end: inp.value.trim() === '' ? '' : (+inp.value || 0),
     reading_start: +(document.querySelector(`[data-estart="${inp.dataset.room}"]`)?.value) || 0,
   }));
 }

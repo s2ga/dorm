@@ -193,6 +193,23 @@ module.exports = {
       t.ok('…và chỗ chặn cũng đồng ý (không cảnh báo phòng đó) — hai bên KHỚP LUẬT',
         !(gE.json.warnings || []).some(w => w.includes(P + '_E1')),
         JSON.stringify((gE.json.warnings || []).filter(w => w.includes(P + '_E1'))));
+
+      // ===== Ô "Số cuối" ĐỂ TRỐNG = kỳ đó CHƯA ĐỌC công-tơ -> xoá bản ghi, KHÔNG ghi 0 và không
+      // chặn "cuối < đầu". Có vậy màn hình mới hiện ô trống thay vì một con số làm người xem
+      // tưởng kỳ chưa hết đã chốt số.
+      await clean(t.db);
+      const RF = await mkRoom('_F');
+      await t.db.query(`INSERT INTO electric_readings (room_id,month,reading_start,reading_end,kwh) VALUES ($1,'2026-08',500,640,140)`, [RF]);
+      const sv = await t.api('POST', '/api/electric/bulk', T, { month: M2, readings: [{ room_id: RF, reading_start: 500, reading_end: '' }] });
+      t.ok('Để trống Số cuối → KHÔNG bị chặn "cuối < đầu"', sv.status === 200, `HTTP ${sv.status} — ${sv.json && sv.json.error}`);
+      t.eq('…và server báo đã dọn 1 bản ghi', sv.json && sv.json.cleared, 1, JSON.stringify(sv.json));
+      const conLai = (await t.db.query(`SELECT COUNT(*)::int c FROM electric_readings WHERE room_id=$1 AND month=$2`, [RF, M2])).rows[0].c;
+      t.eq('Bản ghi kỳ đó bị XOÁ (không để lại số 0 giả)', conLai, 0, `còn ${conLai} bản ghi`);
+      await t.db.query(`INSERT INTO electric_readings (room_id,month,reading_start,reading_end,kwh) VALUES ($1,$2,300,500,200)`, [RF, M]);
+      const ls = await t.api('GET', `/api/electric?month=${M2}`, T);
+      const rowF = (ls.json || []).find(x => x.room_id === RF);
+      t.eq('Màn hình tự lấy Số đầu = số cuối kỳ trước', rowF && +rowF.reading_start, 500, JSON.stringify(rowF));
+      t.eq('…và Số cuối để TRỐNG (0 → ô rỗng)', rowF && +rowF.reading_end, 0, JSON.stringify(rowF));
     } finally {
       await clean(t.db);
       if (oldUnit) await t.db.query(`UPDATE settings SET value=$1 WHERE key='electric_unit'`, [oldUnit.value]);
