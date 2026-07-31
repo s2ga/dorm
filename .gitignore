@@ -17,6 +17,7 @@ tools/don-du-lieu.json
 # Tài liệu đã chuyển từ docs/ sang .agents/docs/ (20/07/2026) — xem AGENTS.md.
 /docs/
 .agents/
+.claude/
 AGENTS.md
 CLAUDE.md
 
