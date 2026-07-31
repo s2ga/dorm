@@ -95,6 +95,16 @@ func NguyenPhongCuaPhong(ctx context.Context, database *db.DB, roomID int, month
 			  ORDER BY from_date DESC LIMIT 1`,
 			roomID, billing.LastDay(month), billing.FirstDay(month)).Scan(&chuHD)
 	}
+	if chuHD == nil {
+		// Chưa có cả số HĐ lẫn phòng trưởng: vẫn phải có NGƯỜI đứng phiếu, không thì cả phòng
+		// thành "thành viên" và tiền phòng biến mất im lặng. Lấy người vào sớm nhất.
+		_ = database.Pool.QueryRow(ctx,
+			`SELECT id FROM students
+			  WHERE room_id=$1 AND deleted_at IS NULL
+			    AND check_in_date <= $2 AND (check_out_date IS NULL OR check_out_date >= $3)
+			  ORDER BY check_in_date, id LIMIT 1`,
+			roomID, billing.LastDay(month), billing.FirstDay(month)).Scan(&chuHD)
+	}
 	if chuHD != nil {
 		out.PhongTruongID = *chuHD
 	}

@@ -302,24 +302,40 @@ async function phieuBao(inv) {
   const unit = +set.electric_unit || 0;
   const occ = ST.students.filter(x => x.room_id === s.room_id && isOccupying(x)).length || 1;
 
+  // Phòng cho thuê TRỌN: phiếu đứng tên người ký HĐ và gánh khoản chung của cả phòng. Mô tả phải
+  // nói đúng điều đó — ghi "Thuê ghép" trong khi tiền phòng là giá nguyên phòng là đánh lừa người đọc.
+  const nguyenPhong = room.room_type === 'whole';
+  const suat = nguyenPhong ? occ : 1;
+  const giaHang = +set['room_price_' + (room.hang || 'B')] || +set.room_fee || 0;
+  const soNgayThang = new Date(+inv.month.slice(0, 4), +inv.month.slice(5, 7), 0).getDate();
+
   const rows = [];
   let stt = 0;
-  const row = (khoan, ct, tt) => rows.push(`<tr><td>${++stt}</td><td><strong>${khoan}</strong></td><td>${ct}</td><td class="n">${money(tt)}</td></tr>`);
-  row('Tiền phòng', `${inv.days_stayed} ngày ở · ${RENTAL_LABEL[s.rental_type] || 'Thuê ghép'}`, inv.room_charge);
-  row('Tiền điện', er ? `CS ${er.reading_start}→${er.reading_end} · ${inv.electric_kwh} kWh × ${money(unit)} ÷ ${occ} người` : `${inv.electric_kwh} kWh × ${money(unit)}`, inv.electric_charge);
-  row('Tiền nước', `${money(set.water_fee)}/người/tháng`, inv.water_charge);
-  row('Phí dịch vụ', 'Wifi + Rác + An ninh trật tự', inv.service_charge);
-  if (+inv.washing_charge) row('Máy giặt', `${money(set.washing_fee)}/tháng`, inv.washing_charge);
-  if (+inv.parking_charge) row('Gửi xe', `${money(set.parking_fee)}/xe`, inv.parking_charge);
-  if (+inv.other_charge) row(inv.other_note || 'Khoản khác', '', inv.other_charge);
+  // Đơn giá × Số lượng = Thành tiền: người nhận tự nhân ra kiểm được, không phải tin suông.
+  const row = (khoan, dg, sl, tt) => rows.push(
+    `<tr><td>${++stt}</td><td><strong>${khoan}</strong></td><td>${dg}</td><td>${sl}</td><td class="n">${money(tt)}</td></tr>`);
+
+  row('Tiền phòng',
+    nguyenPhong ? `${money(giaHang)} /phòng/tháng` : `${money(set.room_fee)} /người/tháng`,
+    `${inv.days_stayed}/${soNgayThang} ngày · ${nguyenPhong ? 'nguyên phòng hạng ' + esc(room.hang || '—') : 'thuê ghép'}`,
+    inv.room_charge);
+  row('Tiền điện',
+    `${money(unit)} /kWh`,
+    `${inv.electric_kwh} kWh${er ? ` · CS ${er.reading_start}→${er.reading_end}` : ''}${nguyenPhong ? ' · trọn phòng' : ` · chia ${occ} người theo ngày ở`}`,
+    inv.electric_charge);
+  row('Tiền nước', `${money(set.water_fee)} /người/tháng`, `${suat} người`, inv.water_charge);
+  row('Phí dịch vụ <span class="rc-sub">wifi · rác · an ninh</span>', `${money(set.service_fee)} /người/tháng`, `${suat} người`, inv.service_charge);
+  if (+inv.washing_charge) row('Máy giặt', `${money(set.washing_fee)} /người/tháng`, `${Math.round(inv.washing_charge / (+set.washing_fee || 1))} người`, inv.washing_charge);
+  if (+inv.parking_charge) row('Gửi xe', `${money(set.parking_fee)} /xe/tháng`, `${Math.round(inv.parking_charge / (+set.parking_fee || 1))} xe`, inv.parking_charge);
+  if (+inv.other_charge) row(inv.other_note || 'Khoản khác', '', '', inv.other_charge);
   // Các khoản GIẢM đứng riêng, ghi số âm — người đọc thấy rõ được ưu đãi gì, vì sao tổng thấp hơn
-  if (+inv.room_discount) row('Giảm tiền phòng', `Ưu đãi riêng ${+s.room_fee_discount_pct || 0}% tiền phòng`, -inv.room_discount);
+  if (+inv.room_discount) row('Giảm tiền phòng', 'Ưu đãi riêng', `${+s.room_fee_discount_pct || 0}% tiền phòng`, -inv.room_discount);
   if (+inv.fee_discount) {
     const dg = GIAM_O.filter(([k]) => k !== 'room_fee_discount_pct' && +s[k] > 0)
       .map(([k, , nhan]) => `${nhan} ${+s[k]}%`).join(' · ');
-    row('Giảm các khoản khác', dg || 'Ưu đãi riêng theo từng khoản', -inv.fee_discount);
+    row('Giảm các khoản khác', 'Ưu đãi riêng', dg || 'theo từng khoản', -inv.fee_discount);
   }
-  if (+inv.leader_discount) row('Giảm phòng trưởng', 'Miễn tiền nước + phí dịch vụ', -inv.leader_discount);
+  if (+inv.leader_discount) row('Giảm phòng trưởng', 'Miễn nước + phí dịch vụ', '1 suất', -inv.leader_discount);
 
   openModal(`
     <div class="mh rc-noprint"><h3>${IC.fileText} Phiếu báo tiền phòng</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
@@ -334,9 +350,9 @@ async function phieuBao(inv) {
         <div><b>Phòng:</b> ${esc(inv.room_name || '—')} (Hạng ${esc(room.hang || '')}) &nbsp;&nbsp; <b style="min-width:0">MSHV:</b> ${esc(s.code || '—')} &nbsp;&nbsp; <b style="min-width:0">Lớp:</b> ${esc(s.class_name || '—')}</div>
         <div><b>Ngày nhận phòng:</b> ${fmtDate(s.check_in_date)}</div>
       </div>
-      <table><thead><tr><th style="width:36px">STT</th><th>Khoản thu</th><th>Chi tiết</th><th class="n">Thành tiền (đồng)</th></tr></thead><tbody>
+      <table><thead><tr><th style="width:36px">STT</th><th>Khoản thu</th><th>Đơn giá</th><th>Số lượng</th><th class="n">Thành tiền (đồng)</th></tr></thead><tbody>
         ${rows.join('')}
-        <tr class="rc-total"><td colspan="3">TỔNG CỘNG PHẢI NỘP</td><td class="n">${money(inv.total)}</td></tr>
+        <tr class="rc-total"><td colspan="4">TỔNG CỘNG PHẢI NỘP</td><td class="n">${money(inv.total)}</td></tr>
       </tbody></table>
       <div class="rc-note">
         ${IC.creditCard} Thanh toán qua <strong>mã QR</strong> do quản lý gửi trên Zalo. Hạn đóng: <strong>ngày ${set.due_day_from || 1}–${set.due_day_to || 5}</strong> hàng tháng.<br>
