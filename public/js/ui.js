@@ -355,8 +355,10 @@ function openColFilter(table, idx, anchor) {
   const st = _tableState(table);
   const dist = _distinctCol(table, idx);
   const cur = st.cols.get(idx);
-  const label = _cellText(table.tHead.rows[0].cells[idx]) || 'Cột';
-  const useList = dist.size > 0 && dist.size <= COLFILT_MAX;
+  const th = table.tHead.rows[0].cells[idx];
+  const label = _cellText(th) || 'Cột';
+  // th có data-filt="list" -> luôn danh sách tick, dù bao nhiêu giá trị phân biệt
+  const useList = dist.size > 0 && (th.dataset.filt === 'list' || dist.size <= COLFILT_MAX);
   const pop = document.createElement('div'); pop.id = 'colPop'; pop.className = 'col-pop'; pop._ci = idx; pop._t = table;
   let html = `<div class="cp-hd">Lọc: ${esc(label)}</div>`;
   if (useList) {
