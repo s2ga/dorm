@@ -242,6 +242,7 @@ tr[data-act]:active{background:var(--bg2)}
 .todo.calm:hover{border-color:var(--line);box-shadow:none;transform:none}
 
 /* ---------- Phiếu báo tiền phòng ---------- */
+#receiptArea{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .receipt{font-family:var(--sans);color:#2a251f;max-width:620px;margin:0 auto}
 .receipt .rc-head{text-align:center;border-bottom:2px solid var(--brand);padding-bottom:16px;margin-bottom:16px}
 .receipt .rc-head h2{margin:0;font-family:var(--serif);font-size:24px;color:var(--ink);text-transform:uppercase;letter-spacing:.04em;font-weight:600}
@@ -249,10 +250,28 @@ tr[data-act]:active{background:var(--bg2)}
 .receipt .rc-title{text-align:center;font-size:15px;font-weight:700;margin:6px 0 16px;letter-spacing:.03em;text-transform:uppercase;color:var(--brand-d)}
 .receipt .rc-info{font-size:13.5px;line-height:1.95}
 .receipt .rc-info b{display:inline-block;min-width:120px;color:#4a443c}
-.receipt table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13px}
-.receipt th,.receipt td{border:1px solid #e2d8ca;padding:9px 11px;text-align:left}
+/* Bề rộng cột do hàng tiêu đề chốt, ô dài thì XUỐNG DÒNG. Để bảng tự co giãn thì cột "Số lượng"
+   (kWh · chỉ số công-tơ · cách chia) nong bảng rộng hơn khổ phiếu rồi lú ra ngoài modal. */
+.receipt table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13px;table-layout:fixed}
+/* white-space:normal ĐÈ th,td{nowrap} toàn cục ở trên — không có nó thì ô phiếu bị cấm xuống dòng. */
+.receipt th,.receipt td{border:1px solid #e2d8ca;padding:9px 11px;text-align:left;white-space:normal;overflow-wrap:anywhere}
+.receipt thead th:nth-child(1){width:52px}
+.receipt thead th:nth-child(1),.receipt tbody tr:not(.rc-total) td:nth-child(1){text-align:center;padding-left:6px;padding-right:6px}
+.receipt thead th:nth-child(2){width:23%}
+.receipt thead th:nth-child(3){width:20%}
+.receipt thead th:nth-child(4){width:27%}
 .receipt th{background:var(--brand-soft);font-size:12px;text-transform:none;color:#4a443c;letter-spacing:0}
 .receipt td.n,.receipt th.n{text-align:right;font-variant-numeric:tabular-nums}
+/* Số tiền KHÔNG được vỡ dòng: "1.200.00⏎0" đọc thành con số khác. Tiêu đề thì cho xuống dòng. */
+.receipt td.n{white-space:nowrap}
+.receipt .rc-sub{display:block;font-weight:400;font-size:11.5px;color:#8a8073;margin-top:2px}
+/* Chú thích rê chuột: thuần CSS để bản TẢI VỀ (không có JS) cũng bung được. */
+.receipt .rc-ttip{position:relative;display:inline-block;margin-left:5px;cursor:help;vertical-align:-3px}
+.receipt .rc-ttip .ic-svg{width:14px;height:14px;color:#b08c4f;float:none;margin:0}
+.receipt .rc-ttip>i{position:absolute;left:0;top:calc(100% + 6px);z-index:5;display:none;
+  font-style:normal;font-weight:400;font-size:12px;color:#4a443c;width:max-content;max-width:min(240px,60vw);
+  background:#fff;border:1px solid #e2d8ca;border-radius:10px;padding:7px 11px;box-shadow:0 8px 22px rgba(0,0,0,.15)}
+.receipt .rc-ttip:hover>i,.receipt .rc-ttip:focus>i,.receipt .rc-ttip:focus-within>i{display:block}
 .receipt .rc-total{background:#fbf4e8}
 .receipt .rc-total td{font-weight:800;font-size:15px;color:var(--brand-d)}
 .receipt .rc-note{font-size:12.5px;color:#6a6055;margin-top:14px;border-top:1px dashed #d8cdbd;padding-top:10px}
@@ -261,8 +280,10 @@ tr[data-act]:active{background:var(--bg2)}
    "Khoản thu"/"Thành tiền" bị cắt 2 bên. Trên màn hẹp: co chữ/đệm cho vừa, và cho phiếu CUỘN NGANG
    TRONG modal (#receiptArea) nếu bảng vẫn rộng, thay vì lú ra khỏi màn. KHÔNG đụng bản in (@media print). */
 @media(max-width:620px){
-  #receiptArea{overflow-x:auto;-webkit-overflow-scrolling:touch}
   .receipt{max-width:100%}
+  /* 5 cột không nhét vừa màn điện thoại — ép vừa thì chữ vỡ vụn giữa số. Giữ khổ đọc được,
+     cho cuộn ngang TRONG #receiptArea (BL-54), không để lú ra khỏi modal. */
+  .receipt table{min-width:470px}
   .receipt .rc-head h2{font-size:19px}
   .receipt .rc-info{font-size:12.5px;line-height:1.8}
   .receipt .rc-info b{min-width:84px}
@@ -273,11 +294,16 @@ tr[data-act]:active{background:var(--bg2)}
   body{background:#fff}
   body *{visibility:hidden}
   #receiptArea,#receiptArea *,#printArea,#printArea *{visibility:visible}
-  #receiptArea{position:absolute;inset:0;padding:24px;max-width:100%;box-shadow:none;border:none}
+  #receiptArea{position:absolute;inset:0;padding:24px;max-width:100%;box-shadow:none;border:none;overflow:visible}
   #printArea{position:absolute;left:0;top:0;width:100%;padding:0}
   .print-only{display:block!important}
   .panel{break-inside:avoid;box-shadow:none}
   .rc-noprint{display:none!important}
+  /* Giấy in không rê chuột được — bung chú thích ra thành chữ trong ngoặc, khỏi mất thông tin. */
+  .receipt .rc-ttip .ic-svg{display:none}
+  .receipt .rc-ttip>i{display:inline;position:static;border:none;box-shadow:none;padding:0;background:none;font-size:11.5px;color:#6a6055}
+  .receipt .rc-ttip>i::before{content:"("}
+  .receipt .rc-ttip>i::after{content:")"}
 }
 
 /* ---------- Nút ---------- */

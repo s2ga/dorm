@@ -311,31 +311,36 @@ async function phieuBao(inv) {
 
   const rows = [];
   let stt = 0;
-  // Đơn giá × Số lượng = Thành tiền: người nhận tự nhân ra kiểm được, không phải tin suông.
+  // Cột Đơn giá chỉ chứa GIÁ, cột Số lượng chỉ chứa SỐ — để người nhận nhân nhẩm ra Thành tiền mà
+  // kiểm. Mọi diễn giải xuống dòng phụ hoặc nằm trong chú thích rê-chuột, không chen vào hai cột đó.
+  const phu = t => t ? `<span class="rc-sub">${t}</span>` : '';
+  const chu = (nhan, ct) => `${nhan}<span class="rc-ttip" tabindex="0" aria-label="${esc(ct)}">${IC.info}<i>${ct}</i></span>`;
   const row = (khoan, dg, sl, tt) => rows.push(
-    `<tr><td>${++stt}</td><td><strong>${khoan}</strong></td><td>${dg}</td><td>${sl}</td><td class="n">${money(tt)}</td></tr>`);
+    `<tr><td>${++stt}</td><td><strong>${khoan}</strong></td><td class="n">${dg}</td><td>${sl}</td><td class="n">${money(tt)}</td></tr>`);
 
-  row('Tiền phòng',
-    nguyenPhong ? `${money(giaHang)} /phòng/tháng` : `${money(set.room_fee)} /người/tháng`,
-    `${inv.days_stayed}/${soNgayThang} ngày · ${nguyenPhong ? 'nguyên phòng hạng ' + esc(room.hang || '—') : 'thuê ghép'}`,
+  row('Tiền phòng' + phu(nguyenPhong ? 'nguyên phòng · hạng ' + esc(room.hang || '—') : 'thuê ghép'),
+    money(nguyenPhong ? giaHang : set.room_fee),
+    `${inv.days_stayed}/${soNgayThang} ngày`,
     inv.room_charge);
-  row('Tiền điện',
-    `${money(unit)} /kWh`,
-    `${inv.electric_kwh} kWh${er ? ` · CS ${er.reading_start}→${er.reading_end}` : ''}${nguyenPhong ? ' · trọn phòng' : ` · chia ${occ} người theo ngày ở`}`,
+  const tongKwh = er ? Math.round((+er.reading_end - +er.reading_start) * 10) / 10 : null;
+  row(chu('Tiền điện', nguyenPhong ? 'Tính trọn công-tơ phòng'
+        : `Công-tơ phòng chạy ${tongKwh == null ? '—' : tongKwh} kWh, chia cho ${occ} người theo số ngày ở`),
+    money(unit),
+    `${inv.electric_kwh} kWh` + phu(er ? `chỉ số ${er.reading_start} → ${er.reading_end}` : ''),
     inv.electric_charge);
-  row('Tiền nước', `${money(set.water_fee)} /người/tháng`, `${suat} người`, inv.water_charge);
-  row('Phí dịch vụ <span class="rc-sub">wifi · rác · an ninh</span>', `${money(set.service_fee)} /người/tháng`, `${suat} người`, inv.service_charge);
-  if (+inv.washing_charge) row('Máy giặt', `${money(set.washing_fee)} /người/tháng`, `${Math.round(inv.washing_charge / (+set.washing_fee || 1))} người`, inv.washing_charge);
-  if (+inv.parking_charge) row('Gửi xe', `${money(set.parking_fee)} /xe/tháng`, `${Math.round(inv.parking_charge / (+set.parking_fee || 1))} xe`, inv.parking_charge);
+  row('Tiền nước', money(set.water_fee), `${suat} người`, inv.water_charge);
+  row(chu('Dịch vụ', 'wifi · rác · an ninh'), money(set.service_fee), `${suat} người`, inv.service_charge);
+  if (+inv.washing_charge) row('Máy giặt', money(set.washing_fee), `${Math.round(inv.washing_charge / (+set.washing_fee || 1))} người`, inv.washing_charge);
+  if (+inv.parking_charge) row('Gửi xe', money(set.parking_fee), `${Math.round(inv.parking_charge / (+set.parking_fee || 1))} xe`, inv.parking_charge);
   if (+inv.other_charge) row(inv.other_note || 'Khoản khác', '', '', inv.other_charge);
   // Các khoản GIẢM đứng riêng, ghi số âm — người đọc thấy rõ được ưu đãi gì, vì sao tổng thấp hơn
-  if (+inv.room_discount) row('Giảm tiền phòng', 'Ưu đãi riêng', `${+s.room_fee_discount_pct || 0}% tiền phòng`, -inv.room_discount);
+  if (+inv.room_discount) row(chu('Giảm tiền phòng', 'Ưu đãi riêng cho học viên này'), '', `${+s.room_fee_discount_pct || 0}%`, -inv.room_discount);
   if (+inv.fee_discount) {
     const dg = GIAM_O.filter(([k]) => k !== 'room_fee_discount_pct' && +s[k] > 0)
       .map(([k, , nhan]) => `${nhan} ${+s[k]}%`).join(' · ');
-    row('Giảm các khoản khác', 'Ưu đãi riêng', dg || 'theo từng khoản', -inv.fee_discount);
+    row(chu('Giảm các khoản khác', dg || 'theo từng khoản'), '', '', -inv.fee_discount);
   }
-  if (+inv.leader_discount) row('Giảm phòng trưởng', 'Miễn nước + phí dịch vụ', '1 suất', -inv.leader_discount);
+  if (+inv.leader_discount) row(chu('Giảm phòng trưởng', 'Miễn tiền nước và phí dịch vụ'), '', '1 suất', -inv.leader_discount);
 
   openModal(`
     <div class="mh rc-noprint"><h3>${IC.fileText} Phiếu báo tiền phòng</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
@@ -350,7 +355,7 @@ async function phieuBao(inv) {
         <div><b>Phòng:</b> ${esc(inv.room_name || '—')} (Hạng ${esc(room.hang || '')}) &nbsp;&nbsp; <b style="min-width:0">MSHV:</b> ${esc(s.code || '—')} &nbsp;&nbsp; <b style="min-width:0">Lớp:</b> ${esc(s.class_name || '—')}</div>
         <div><b>Ngày nhận phòng:</b> ${fmtDate(s.check_in_date)}</div>
       </div>
-      <table><thead><tr><th style="width:36px">STT</th><th>Khoản thu</th><th>Đơn giá</th><th>Số lượng</th><th class="n">Thành tiền (đồng)</th></tr></thead><tbody>
+      <table><thead><tr><th>STT</th><th>Khoản thu</th><th>Đơn giá</th><th>Số lượng</th><th class="n">Thành tiền (đồng)</th></tr></thead><tbody>
         ${rows.join('')}
         <tr class="rc-total"><td colspan="4">TỔNG CỘNG PHẢI NỘP</td><td class="n">${money(inv.total)}</td></tr>
       </tbody></table>
@@ -377,10 +382,25 @@ function downloadPhieuBao(fname) {
     .receipt .rc-title{text-align:center;font-size:15px;font-weight:700;margin:6px 0 16px;letter-spacing:.03em;text-transform:uppercase;color:#8a6528}
     .receipt .rc-info{font-size:13.5px;line-height:1.95}
     .receipt .rc-info b{display:inline-block;min-width:120px;color:#4a443c}
-    .receipt table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13px}
-    .receipt th,.receipt td{border:1px solid #e2d8ca;padding:9px 11px;text-align:left}
+    .receipt table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13px;table-layout:fixed}
+    .receipt th,.receipt td{border:1px solid #e2d8ca;padding:9px 11px;text-align:left;white-space:normal;overflow-wrap:anywhere}
+    .receipt thead th:nth-child(1){width:52px}
+    .receipt thead th:nth-child(1),.receipt tbody tr:not(.rc-total) td:nth-child(1){text-align:center;padding-left:6px;padding-right:6px}
+    .receipt thead th:nth-child(2){width:23%}
+    .receipt thead th:nth-child(3){width:20%}
+    .receipt thead th:nth-child(4){width:27%}
     .receipt th{background:#f5ecd9;font-size:12px;color:#4a443c}
     .receipt td.n,.receipt th.n{text-align:right}
+    .receipt td.n{white-space:nowrap}
+    .receipt .rc-sub{display:block;font-weight:400;font-size:11.5px;color:#8a8073;margin-top:2px}
+    .receipt .rc-ttip{position:relative;display:inline-block;margin-left:5px;cursor:help;vertical-align:-3px}
+    .receipt .rc-ttip svg{width:14px;height:14px;color:#b08c4f}
+    .receipt .rc-ttip>i{position:absolute;left:0;top:calc(100% + 6px);z-index:5;display:none;font-style:normal;font-weight:400;font-size:12px;color:#4a443c;width:max-content;max-width:240px;background:#fff;border:1px solid #e2d8ca;border-radius:10px;padding:7px 11px;box-shadow:0 8px 22px rgba(0,0,0,.15)}
+    .receipt .rc-ttip:hover>i,.receipt .rc-ttip:focus-within>i{display:block}
+    @media(max-width:620px){.receipt{max-width:100%}.receipt table{min-width:470px}body{padding:12px;overflow-x:auto}}
+    @media print{.receipt .rc-ttip svg{display:none}
+      .receipt .rc-ttip>i{display:inline;position:static;border:none;box-shadow:none;padding:0;background:none;font-size:11.5px;color:#6a6055}
+      .receipt .rc-ttip>i::before{content:"("}.receipt .rc-ttip>i::after{content:")"}}
     .receipt .rc-total{background:#fbf4e8}
     .receipt .rc-total td{font-weight:800;font-size:15px;color:#8a6528}
     .receipt .rc-note{font-size:12.5px;color:#6a6055;margin-top:14px;border-top:1px dashed #d8cdbd;padding-top:10px}
