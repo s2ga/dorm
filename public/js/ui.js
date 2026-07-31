@@ -251,7 +251,10 @@ function debounce(fn, ms = 180) {
 // (trạng thái, hợp đồng…) -> danh sách tick kiểu Excel; cột nhiều giá trị (họ tên…) -> ô gõ chữ
 // "chứa". Cả hai đi qua applyRowFilters() nên HỢP với nhau, chỉ ẩn/hiện <tr> (mượt, không dựng lại
 // bảng). State gắn trên table._flt (mất khi bảng render lại — chấp nhận). CSP: chỉ addEventListener.
-const COLFILT_MAX = 12; // <= số giá trị phân biệt này -> danh sách tick; nhiều hơn -> ô gõ chữ
+// <= số giá trị phân biệt này -> danh sách tick; nhiều hơn -> ô gõ chữ.
+// Phải phủ được cột Phòng: 29 phòng vượt ngưỡng cũ (12) nên phễu rơi về ô gõ tay, người dùng phải
+// tự nhớ tên phòng. Danh sách có max-height 236px + cuộn nên dài hơn vẫn dùng được.
+const COLFILT_MAX = 60;
 const _FUNNEL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>';
 const _stripSel = '.sub2,.sub,.rowbtns,button,.col-filt,.sort-ar,.rz-handle';
 function _cellText(cell) {
