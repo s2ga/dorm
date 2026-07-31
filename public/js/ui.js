@@ -7,6 +7,7 @@ const money = n => (Number(n) || 0).toLocaleString('vi-VN');  // số tiền —
 const moneyN = money;
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const curMonth = () => today().slice(0, 7);
+const prevKy = m => { const d = new Date(m + '-15T00:00:00'); d.setMonth(d.getMonth() - 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
 const addDays = (iso, n) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 function fmtDate(d) { if (!d) return '—'; const p = String(d).slice(0, 10).split('-'); return `${p[2]}/${p[1]}/${p[0]}`; }
 // BL-95: gói phần chữ của mỗi .hint vào một lớp phủ, chỉ chừa icon. Làm ở đây thay vì sửa 63 chỗ

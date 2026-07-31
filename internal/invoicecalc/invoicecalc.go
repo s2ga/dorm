@@ -368,22 +368,21 @@ func RecalcInvoice(ctx context.Context, database *db.DB, studentID int, month st
 		return nil, err
 	}
 
+	// Điện lùi MỘT KỲ: phiếu kỳ M mang khối điện kỳ M-1 (+ phần kỳ M tới ngày rời nếu HV trả
+	// phòng trong M). Kwh hiển thị cũng là khối kỳ M-1. Roster kỳ M KHÔNG được đưa vào — chia
+	// khối M-1 cho danh sách người M là tính oan người mới vào / bỏ sót người đã rời.
 	kwh := 0.0
-	roster := []billing.RosterEntry{}
 	if roomID != nil {
 		var k *float64
-		if e := database.Pool.QueryRow(ctx, "SELECT kwh FROM electric_readings WHERE room_id=$1 AND month=$2", *roomID, month).Scan(&k); e == nil && k != nil {
+		if e := database.Pool.QueryRow(ctx, "SELECT kwh FROM electric_readings WHERE room_id=$1 AND month=$2", *roomID, PrevMonthOf(month)).Scan(&k); e == nil && k != nil {
 			kwh = *k
 		}
-		roster, err = RoomRoster(ctx, database, *roomID, month)
-		if err != nil {
-			return nil, err
-		}
 	}
-	electricCharge, err := StudentElectric(ctx, database, studentID, month, billing.Fees(fees).Num("electric_unit"))
+	ecVal, err := ElectricLag(ctx, database, studentID, month, billing.Fees(fees).Num("electric_unit"), dateStr(co))
 	if err != nil {
 		return nil, err
 	}
+	electricCharge := &ecVal
 	leaderDays, err := roomleaders.LeaderDaysInMonth(ctx, database.Pool, studentID, month)
 	if err != nil {
 		return nil, err
@@ -409,7 +408,7 @@ func RecalcInvoice(ctx context.Context, database *db.DB, studentID int, month st
 	c := billing.ComputeInvoice(billing.ComputeInput{
 		Student: hv, NguyenPhong: np.Cua(sID),
 		Room: room, Month: month, Fees: billing.Fees(fees),
-		Roster: roster, ElectricCharge: electricCharge, LeaderDays: leaderDays, Kwh: kwh, VehicleCount: &veh,
+		ElectricCharge: electricCharge, LeaderDays: leaderDays, Kwh: kwh, VehicleCount: &veh,
 	})
 
 	other := icFloat(inv["other_charge"])

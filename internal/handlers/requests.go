@@ -874,18 +874,39 @@ func (h *Handlers) BillCheckout(c *gin.Context) {
 			room = &r
 		}
 	}
-	var roster []billing.RosterEntry
+	// BẮT BUỘC có chỉ số công-tơ NGÀY TRẢ PHÒNG mới lập phiếu được (owner chốt 31/07):
+	// phần điện kỳ này của HV tính từ số bàn giao — thiếu là chia sai cho cả phòng.
+	// Ngoại lệ duy nhất: rời đúng ngày cuối kỳ VÀ kỳ đã chốt số cuối (số cuối kỳ chính là mốc).
+	coStr := co.Time.Format("2006-01-02")
 	if roomID != nil {
-		roster, err = invoicecalc.RoomRoster(ctx, h.DB, *roomID, month)
-		if err != nil {
-			serverErr(c)
-			return
+		can := true
+		if coStr == billing.LastDay(month) {
+			var one int
+			if h.pool().QueryRow(ctx, "SELECT 1 FROM electric_readings WHERE room_id=$1 AND month=$2", *roomID, month).Scan(&one) == nil {
+				can = false
+			}
+		}
+		if can {
+			var one int
+			if h.pool().QueryRow(ctx, "SELECT 1 FROM meter_reads WHERE room_id=$1 AND read_date=$2", *roomID, coStr).Scan(&one) != nil {
+				badRequest(c, "Chưa có chỉ số công-tơ ngày trả phòng ("+coStr+"). Nhập chỉ số chốt hôm bàn giao (màn Điện) rồi lập phiếu lại.")
+				return
+			}
 		}
 	}
+	// Điện kỳ TRƯỚC còn thiếu dữ liệu thì phiếu này cũng thiếu tiền -> bắt bổ sung trước.
+	if thieu, e := h.thieuDienCuaHV(ctx, sid, invoicecalc.PrevMonthOf(month)); e != nil {
+		serverErr(c)
+		return
+	} else if len(thieu) > 0 {
+		badRequest(c, "Chưa lập phiếu — điện kỳ "+invoicecalc.PrevMonthOf(month)+" còn thiếu dữ liệu:\n"+strings.Join(thieu, "\n"))
+		return
+	}
+	// Điện lùi MỘT KỲ + phần kỳ này tới ngày rời. Kwh hiển thị = khối kỳ trước của phòng hiện tại.
 	kwh := 0.0
 	if roomID != nil {
 		var k *float64
-		if e := h.pool().QueryRow(ctx, "SELECT kwh FROM electric_readings WHERE room_id=$1 AND month=$2", *roomID, month).Scan(&k); e == nil && k != nil {
+		if e := h.pool().QueryRow(ctx, "SELECT kwh FROM electric_readings WHERE room_id=$1 AND month=$2", *roomID, invoicecalc.PrevMonthOf(month)).Scan(&k); e == nil && k != nil {
 			kwh = *k
 		}
 	}
@@ -895,19 +916,12 @@ func (h *Handlers) BillCheckout(c *gin.Context) {
 		return
 	}
 	unit := billing.Fees(fees).Num("electric_unit")
-	electricCharge, err := invoicecalc.StudentElectric(ctx, h.DB, sid, month, unit)
+	ecVal, err := invoicecalc.ElectricLag(ctx, h.DB, sid, month, unit, coStr)
 	if err != nil {
 		serverErr(c)
 		return
 	}
-	// Phương án A: phòng CHƯA chốt chỉ số cuối tháng -> tính điện tới ngày bàn giao từ số bàn giao.
-	if electricCharge == nil {
-		electricCharge, err = invoicecalc.StudentElectricProvisional(ctx, h.DB, sid, month, unit)
-		if err != nil {
-			serverErr(c)
-			return
-		}
-	}
+	electricCharge := &ecVal
 	leaderDays, err := roomleaders.LeaderDaysInMonth(ctx, h.pool(), sid, month)
 	if err != nil {
 		serverErr(c)
@@ -934,7 +948,7 @@ func (h *Handlers) BillCheckout(c *gin.Context) {
 	comp := billing.ComputeInvoice(billing.ComputeInput{
 		Student: hv, NguyenPhong: np.Cua(sid),
 		Room: room, Month: month, Fees: billing.Fees(fees),
-		Roster: roster, ElectricCharge: electricCharge, LeaderDays: leaderDays, Kwh: kwh, VehicleCount: &veh,
+		ElectricCharge: electricCharge, LeaderDays: leaderDays, Kwh: kwh, VehicleCount: &veh,
 	})
 
 	// Hư hao -> "khoản khác"; tổng gồm cả khoản khác.

@@ -138,6 +138,10 @@ const API = {
   electric: month => api('/electric?month=' + month),
   electricHistory: (month, n) => api('/electric/history?month=' + month + (n ? '&n=' + n : '')),
   saveElectric: b => api('/electric/bulk', { method: 'POST', body: b }),
+  electricReads: month => api('/electric/reads?month=' + month),
+  saveMeterRead: b => api('/electric/reads', { method: 'POST', body: b }),
+  deleteMeterRead: id => api('/electric/reads/' + id, { method: 'DELETE' }),
+  electricSegments: (roomId, month) => api('/electric/segments?room_id=' + roomId + '&month=' + month),
 
   // Nhận chuỗi month (tương thích cũ: API.invoices('2026-07')) HOẶC object { month, student_id }.
   invoices: opts => {

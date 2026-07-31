@@ -140,6 +140,10 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	el.GET("", h.ListElectric)
 	el.GET("/history", h.ElectricHistory)
 	el.POST("/bulk", h.SaveElectricBulk)
+	el.GET("/reads", h.ListMeterReads)          // chỉ số chốt giữa kỳ (lúc HV rời phòng)
+	el.POST("/reads", h.SaveMeterRead)
+	el.DELETE("/reads/:id", h.DeleteMeterRead)
+	el.GET("/segments", h.ElectricSegments)     // chặng chia điện của phòng trong kỳ (phiếu thu in chi tiết)
 
 	// Admin
 	adm := api.Group("/admin", a.RequireAuth(), a.RequireRole("admin"))

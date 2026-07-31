@@ -167,14 +167,17 @@ async function renderGenerateForm(month) {
   // modalThay: vẽ lại CHÍNH lớp này (đổi kỳ vẽ lại nhiều lần). Ghi thẳng innerHTML thì ngăn xếp
   // modal vẫn giữ HTML cũ -> vuốt quay lại trả về đúng cái spinner của lần vẽ đầu.
   modalThay(`<div class="mb"><div class="spinner"></div></div>`);   // BL-34: spinner khi đổi kỳ
-  const rooms = await guard(() => API.electric(month));
+  // Điện thu LÙI MỘT KỲ: phiếu kỳ M mang tiền điện kỳ M-1 (tiền phòng thu trước, điện phải đợi
+  // số công-tơ cuối tháng). Bảng chỉ số dưới đây vì thế là của KỲ M-1.
+  const kyDien = prevKy(month);
+  const rooms = await guard(() => API.electric(kyDien));
   modalThay(`
     <div class="mh"><h3>${IC.receipt} Tạo hóa đơn tháng</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
     <div class="mb">
       <div class="field"><label>Kỳ (tháng)</label><input id="g_month" type="month" value="${month}" data-change="onGenMonth"></div>
-      <div class="hint">${IC.bulb} Nhập <strong>số cuối công-tơ</strong>. Số đầu tự lấy = số cuối tháng trước (sửa được để test). Tiền điện = (cuối − đầu) × ${money(ST.settings.electric_unit)}, chia đều theo số người ở.</div>
+      <div class="hint">${IC.bulb} Phiếu kỳ <strong>${month}</strong> = tiền phòng/nước/dịch vụ kỳ ${month} (thu trước) + <strong>tiền điện kỳ ${kyDien}</strong>. Nhập <strong>số cuối công-tơ đọc cuối kỳ ${kyDien}</strong>; số đầu tự nối. Tiền điện = (cuối − đầu) × ${money(ST.settings.electric_unit)}, chia theo ngày ở từng chặng.</div>
       ${electricTable(rooms)}
-      <p class="muted" style="font-size:12px;margin-top:10px">Hóa đơn <strong>chưa đóng</strong> sẽ được <strong>tính lại</strong> theo điện & ngày mới; hóa đơn <strong>đã đóng</strong> được giữ nguyên.</p>
+      <p class="muted" style="font-size:12px;margin-top:10px">Hóa đơn <strong>chưa đóng</strong> sẽ được <strong>tính lại</strong> theo điện & ngày mới; hóa đơn <strong>đã đóng</strong> được giữ nguyên. Phòng có người rời kỳ ${kyDien} mà thiếu chỉ số ngày rời sẽ bị <strong>bỏ qua</strong> — nhập bổ sung ở màn <em>Chỉ số điện</em> rồi chạy lại.</p>
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="runGenerate">Lưu số điện & tạo/cập nhật hóa đơn</button></div>`);
 }
@@ -229,14 +232,60 @@ async function renderElectricForm(month) {
   elecMonth = month;
   modalThay(`<div class="mb"><div class="spinner"></div></div>`);   // BL-34: spinner khi đổi kỳ
   const rooms = await guard(() => API.electric(month));
+  let reads = { reads: [], missing: [] };
+  try { reads = await API.electricReads(month); } catch {}
   modalThay(`
     <div class="mh"><h3>${IC.zap} Chỉ số điện theo tháng</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
     <div class="mb">
       <div class="field"><label>Kỳ (tháng)</label><input id="e_month" type="month" value="${month}" data-change="onElecMonth"></div>
-      <div class="hint">Nhập số đầu (lần đầu để test) và số cuối. Tháng sau số đầu sẽ tự nối tiếp. Bấm Lưu để ghi lại — dùng khi tạo hóa đơn.</div>
+      <div class="hint">Nhập số đầu (lần đầu để test) và số cuối ĐỌC CUỐI KỲ. Tháng sau số đầu tự nối tiếp. Tiền điện kỳ này lên <strong>phiếu kỳ sau</strong> (tiền phòng thu trước, điện thu sau khi có số).</div>
       ${electricTable(rooms)}
+      ${chotGiuaKyHTML(month, reads)}
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Đóng</button><button class="btn pri" data-act="saveElectric">Lưu chỉ số điện</button></div>`);
+}
+// Chốt giữa kỳ: chỉ số công-tơ ghi HÔM học viên rời/chuyển phòng. Thiếu nó thì khối điện của kỳ
+// không cắt chặng được -> phần của người rời đổ hết sang người ở lại. Đây là đường nhập BÙ cho
+// các lượt đã check-out rồi (số ghi trên giấy lúc bàn giao).
+function chotGiuaKyHTML(month, reads) {
+  const thieu = reads.missing || [], daCo = reads.reads || [];
+  const dongThieu = thieu.map(m => `
+    <tr>
+      <td><strong>${esc(m.room_name)}</strong></td>
+      <td>${fmtDate(m.to_date)}</td>
+      <td>${esc(m.student_name || '—')}</td>
+      <td class="num"><input type="number" min="0" step="0.1" id="mr_${m.room_id}_${esc(String(m.to_date).slice(0, 10))}" placeholder="Số trên đồng hồ" style="width:110px;text-align:right"></td>
+      <td><button class="btn sm pri" data-act="luuChotGiuaKy" data-args='[${m.room_id},"${String(m.to_date).slice(0, 10)}",${m.student_id || 0}]'>Lưu</button></td>
+    </tr>`).join('');
+  const dongDaCo = daCo.map(r => `
+    <tr>
+      <td><strong>${esc(r.room_name)}</strong></td>
+      <td>${fmtDate(r.read_date)}</td>
+      <td>${esc(r.student_name || '—')}</td>
+      <td class="num">${esc(String(r.reading))}</td>
+      <td><button class="btn sm" data-act="xoaChotGiuaKy" data-args='[${r.id}]' title="Gỡ lần chốt ghi nhầm">${IC.trash} Gỡ</button></td>
+    </tr>`).join('');
+  return `
+    <h4 style="margin:18px 0 6px">Chốt giữa kỳ — chỉ số hôm học viên rời phòng</h4>
+    ${thieu.length ? `<div class="hint">${IC.alert} <strong>${thieu.length} lượt rời phòng CHƯA có chỉ số.</strong> Không nhập thì phần điện của người rời đổ sang người ở lại, và phòng bị bỏ qua khi tạo hóa đơn kỳ sau.</div>` : ''}
+    <div class="table-wrap" style="max-height:300px;overflow:auto"><table>
+      <thead><tr><th>Phòng</th><th>Ngày</th><th>Học viên rời</th><th class="num">Chỉ số</th><th></th></tr></thead>
+      <tbody>${dongThieu}${dongDaCo || ''}${!thieu.length && !daCo.length ? '<tr><td colspan="5" class="muted">Kỳ này không có lượt rời/chuyển phòng nào.</td></tr>' : ''}</tbody>
+    </table></div>`;
+}
+async function luuChotGiuaKy(roomId, date, studentId) {
+  const inp = el(`mr_${roomId}_${date}`);
+  const v = inp ? inp.value.trim() : '';
+  if (v === '' || isNaN(+v) || +v < 0) return toast('Nhập chỉ số công-tơ (số không âm)', 'err');
+  const r = await guard(() => API.saveMeterRead({ room_id: roomId, date, reading: +v, student_id: studentId || undefined }));
+  toast(`Đã chốt chỉ số · tính lại ${r.recalculated}/${r.affected} hóa đơn liên quan`);
+  await renderElectricForm(el('e_month').value || elecMonth);
+}
+async function xoaChotGiuaKy(id) {
+  if (!confirm('Gỡ lần chốt này? Hóa đơn liên quan sẽ được tính lại.')) return;
+  await guard(() => API.deleteMeterRead(id));
+  toast('Đã gỡ lần chốt');
+  await renderElectricForm(el('e_month').value || elecMonth);
 }
 async function saveElectric() {
   if (badElectricRooms().length) return toast('Có phòng "số cuối < số đầu" — sửa lại chỉ số điện trước khi lưu', 'err');
@@ -250,17 +299,32 @@ async function runGenerate() {
   const readings = readElectricInputs();
   // Bước 1: xem trước (dry-run) — tính nhưng KHÔNG lưu
   const pv = await guard(() => API.generateInvoices({ month, readings, preview: true }));
-  const msg = `Kỳ ${month} — ${pv.total} học viên ở trong kỳ:\n`
+  let msg = `Kỳ ${month} — ${pv.total} học viên ở trong kỳ:\n`
     + `• Tạo mới: ${pv.created}\n`
     + `• Cập nhật (chưa thu): ${pv.updated}\n`
-    + `• Bỏ qua (đã đóng, khóa): ${pv.skipped}\n\n`
-    + `Tiếp tục lập hóa đơn? (Chạy lại bao nhiêu lần cũng được — HV mới vào giữa tháng sẽ được tạo bù, hóa đơn đã thu không bị đụng.)`;
+    + `• Bỏ qua (đã đóng, khóa): ${pv.skipped}\n`;
+  if (pv.skipped_missing) {
+    msg += `• ⚠ BỎ QUA ${pv.skipped_missing} HV — kỳ điện ${prevKy(month)} thiếu dữ liệu:\n`
+      + (pv.warnings || []).map(w => `    - ${w}`).join('\n') + '\n';
+  }
+  msg += `\nTiếp tục lập hóa đơn? (Chạy lại bao nhiêu lần cũng được — HV mới vào giữa tháng sẽ được tạo bù, hóa đơn đã thu không bị đụng.)`;
   if (!confirm(msg)) return;
   // Bước 2: lập thật
   const r = await guard(() => API.generateInvoices({ month, readings }));
   await refreshCache(); closeModal(); invMonth = month; invFilter = 'all';
-  toast(`Đã tạo ${r.created} · cập nhật ${r.updated || 0}${r.skipped ? ` · bỏ qua ${r.skipped} (đã đóng)` : ''} hóa đơn`);
+  toast(`Đã tạo ${r.created} · cập nhật ${r.updated || 0}${r.skipped ? ` · bỏ qua ${r.skipped} (đã đóng)` : ''}${r.skipped_missing ? ` · ⚠ ${r.skipped_missing} thiếu điện` : ''} hóa đơn`, r.skipped_missing ? 'err' : undefined);
   viewInvoices();
+  // Cảnh báo phải ĐẬP VÀO MẮT, không được chết im trong toast (bài học 2 nút chết im lặng).
+  if (r.skipped_missing) {
+    openModal(`
+      <div class="mh"><h3>${IC.alert} ${r.skipped_missing} học viên CHƯA có hóa đơn</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+      <div class="mb">
+        <p>Kỳ điện <strong>${prevKy(month)}</strong> còn thiếu dữ liệu — các phòng sau bị bỏ qua, chưa lập hóa đơn:</p>
+        <ul style="margin:10px 0 14px 20px;line-height:1.9">${(r.warnings || []).map(w => `<li>${esc(w)}</li>`).join('')}</ul>
+        <p class="muted">Vào <strong>Chỉ số điện</strong> → mục <em>Chốt giữa kỳ</em> để nhập chỉ số ngày học viên rời (số đã ghi lúc bàn giao), rồi bấm <strong>Tạo hóa đơn theo tháng</strong> lần nữa.</p>
+      </div>
+      <div class="mf"><button class="btn pri" data-act="closeModal">Đã hiểu</button></div>`);
+  }
 }
 function invoiceForm(id) {
   let i = _invAll.find(x => x.id === id) || { student_id: '', month: invMonth, days_stayed: 0, room_charge: 0, electric_kwh: 0, electric_charge: 0, water_charge: 0, service_charge: 0, washing_charge: 0, parking_charge: 0, other_charge: 0, other_note: '' };
@@ -298,7 +362,11 @@ async function phieuBao(inv) {
   const room = roomById(s.room_id) || {};
   const fac = ST.facilities.find(f => f.id === room.facility_id) || {};
   const set = ST.settings;
-  let er = null; try { er = (await API.electric(inv.month)).find(x => x.room_id === s.room_id); } catch {}
+  // Điện thu LÙI MỘT KỲ: phiếu kỳ M mang khối điện kỳ M-1 — chỉ số và các chặng đọc từ kỳ đó.
+  const kyDien = prevKy(inv.month);
+  let er = null, segs = [];
+  try { er = (await API.electric(kyDien)).find(x => x.room_id === s.room_id); } catch {}
+  try { segs = ((await API.electricSegments(s.room_id, kyDien)) || {}).segments || []; } catch {}
   const unit = +set.electric_unit || 0;
   const occ = ST.students.filter(x => x.room_id === s.room_id && isOccupying(x)).length || 1;
 
@@ -323,11 +391,26 @@ async function phieuBao(inv) {
     `${inv.days_stayed}/${soNgayThang} ngày`,
     inv.room_charge);
   const tongKwh = er ? Math.round((+er.reading_end - +er.reading_start) * 10) / 10 : null;
-  row(chu('Tiền điện', nguyenPhong ? 'Tính trọn công-tơ phòng'
-        : `Công-tơ phòng chạy ${tongKwh == null ? '—' : tongKwh} kWh, chia cho ${occ} người theo số ngày ở`),
+  row(chu('Tiền điện' + phu('kỳ ' + monthLabel(kyDien)), nguyenPhong ? `Tính trọn công-tơ phòng kỳ ${monthLabel(kyDien)}`
+        : `Điện thu sau một kỳ: công-tơ kỳ ${monthLabel(kyDien)} chạy ${tongKwh == null ? '—' : tongKwh} kWh, chia theo ngày ở từng chặng`),
     money(unit),
     `${inv.electric_kwh} kWh` + phu(er ? `chỉ số ${er.reading_start} → ${er.reading_end}` : ''),
     inv.electric_charge);
+  // Từng CHẶNG của kỳ điện (cắt tại mỗi lần chốt công-tơ lúc có người rời/chuyển): người nhận
+  // thấy rõ ngày nào→ngày nào, phòng chạy bao nhiêu kWh, chia mấy người, phần mình bao nhiêu.
+  if (!nguyenPhong && segs.length > 1) {
+    for (const sg of segs) {
+      const my = (sg.roster || []).find(x => x.student_id === inv.student_id);
+      if (!my || !my.days) continue;
+      const tongNgay = (sg.roster || []).reduce((a, x) => a + x.days, 0) || 1;
+      const phanKwh = Math.round(sg.kwh * my.days / tongNgay * 10) / 10;
+      rows.push(`<tr class="rc-seg"><td></td><td colspan="2">· ${fmtDate(sg.from)} → ${fmtDate(sg.to)} — phòng chạy ${Math.round(sg.kwh * 10) / 10} kWh, ${(sg.roster || []).length} người ở</td><td colspan="2">phần bạn ≈ ${phanKwh} kWh (${my.days} ngày)</td></tr>`);
+    }
+  }
+  // HV rời trong kỳ phiếu: phiếu này gánh thêm điện kỳ phiếu tính TỚI NGÀY RỜI (từ số chốt bàn giao).
+  if ((s.check_out_date || '').slice(0, 7) === inv.month) {
+    rows.push(`<tr class="rc-seg"><td></td><td colspan="4">· cộng phần điện ${monthLabel(inv.month)} tới ngày trả phòng ${fmtDate(s.check_out_date)} (theo số công-tơ chốt hôm bàn giao)</td></tr>`);
+  }
   row('Tiền nước', money(set.water_fee), `${suat} người`, inv.water_charge);
   row(chu('Dịch vụ', 'wifi · rác · an ninh'), money(set.service_fee), `${suat} người`, inv.service_charge);
   if (+inv.washing_charge) row('Máy giặt', money(set.washing_fee), `${Math.round(inv.washing_charge / (+set.washing_fee || 1))} người`, inv.washing_charge);
@@ -393,6 +476,7 @@ function downloadPhieuBao(fname) {
     .receipt td.n,.receipt th.n{text-align:right}
     .receipt td.n{white-space:nowrap}
     .receipt .rc-sub{display:block;font-weight:400;font-size:11.5px;color:#8a8073;margin-top:2px}
+    .receipt tr.rc-seg td{font-size:11.5px;color:#6a6055;padding-top:5px;padding-bottom:5px;background:#fdfbf6}
     .receipt .rc-ttip{position:relative;display:inline-block;margin-left:5px;cursor:help;vertical-align:-3px}
     .receipt .rc-ttip svg{width:14px;height:14px;color:#b08c4f}
     .receipt .rc-ttip>i{position:absolute;left:0;top:calc(100% + 6px);z-index:5;display:none;font-style:normal;font-weight:400;font-size:12px;color:#4a443c;width:max-content;max-width:240px;background:#fff;border:1px solid #e2d8ca;border-radius:10px;padding:7px 11px;box-shadow:0 8px 22px rgba(0,0,0,.15)}

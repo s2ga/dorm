@@ -48,7 +48,11 @@ module.exports = {
     t.ok('BLK-7: total KHÔNG bị ghi âm', +totAfter >= 0, `total=${totAfter}`);
 
     // ---- BLK-1: duyệt đơn trả phòng phải ĐÓNG room_stays + phòng trưởng + DỌN phiếu kỳ sau ----
-    await t.api('POST', '/api/invoices/generate-one', T, { student_id: sL, month: '2026-08' }); // phiếu kỳ sau
+    // Phiếu kỳ sau dựng thẳng bằng SQL: generate-one giờ CHẶN khi kỳ điện trước chưa chốt (đúng
+    // thiết kế điện-lùi-một-kỳ) — ở đây chỉ cần TỒN TẠI một phiếu 2026-08 để kiểm việc dọn.
+    await t.db.query(
+      `INSERT INTO invoices (student_id, room_id, month, days_stayed, room_charge, total, status)
+       VALUES ($1,$2,'2026-08',31,1200000,1200000,'pending')`, [sL, rmL]);
     const cr = (await t.db.query(`INSERT INTO checkout_requests (student_id, status, desired_date, reason, created_at) VALUES ($1,'pending','2026-07-20','normal',now()) RETURNING id`, [sL])).rows[0].id;
     const rc = await t.api('POST', `/api/requests/checkout/${cr}/confirm`, T, { date: '2026-07-20' });
     t.ok('BLK-1: duyệt đơn trả phòng thành công', rc.status === 200, `HTTP ${rc.status}`);

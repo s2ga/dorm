@@ -388,7 +388,10 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 		serverErr(c)
 		return
 	}
-	pmonth0 := prevMonth(body.Month) // tháng liền trước (invoices.routes.js:114)
+	// Điện lùi MỘT KỲ: phiếu kỳ M mang khối điện kỳ M-1. Chỉ số nhập kèm lúc phát phiếu là số
+	// ĐỌC CUỐI KỲ M-1 -> lưu vào kỳ M-1 (số đầu mặc định = số cuối kỳ M-2).
+	pmonth0 := prevMonth(body.Month) // kỳ điện của phiếu này
+	pmonth1 := prevMonth(pmonth0)    // kỳ lấy số đầu mặc định
 
 	// TP-17: KIỂM chỉ số TRƯỚC transaction — báo 400 liệt kê phòng cần sửa. invoices.routes.js:115-128
 	var loi []string
@@ -406,7 +409,7 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 			start, startOK = jsNum(r.ReadingStart)
 		} else {
 			var pe *float64
-			_ = h.pool().QueryRow(ctx, "SELECT reading_end FROM electric_readings WHERE room_id=$1 AND month=$2", rid, pmonth0).Scan(&pe)
+			_ = h.pool().QueryRow(ctx, "SELECT reading_end FROM electric_readings WHERE room_id=$1 AND month=$2", rid, pmonth1).Scan(&pe)
 			if pe != nil {
 				start = *pe
 			}
@@ -443,9 +446,10 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 		return
 	}
 
-	var created, updated, skipped, totalStudents int
+	var created, updated, skipped, skippedThieu, totalStudents int
+	var warnings []string
 	txErr := h.DB.WithTx(ctx, func(tx pgx.Tx) error {
-		// Lưu chỉ số điện (số đầu = số cuối tháng trước nếu không nhập). invoices.routes.js:133-146
+		// Lưu chỉ số điện VÀO KỲ M-1 (số đầu = số cuối kỳ M-2 nếu không nhập). invoices.routes.js:133-146
 		for _, r := range body.Readings {
 			rid := invoiceIntID(r.RoomID)
 			var start float64
@@ -453,7 +457,7 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 				start, _ = jsNum(r.ReadingStart)
 			} else {
 				var pe *float64
-				_ = tx.QueryRow(ctx, "SELECT reading_end FROM electric_readings WHERE room_id=$1 AND month=$2", rid, pmonth0).Scan(&pe)
+				_ = tx.QueryRow(ctx, "SELECT reading_end FROM electric_readings WHERE room_id=$1 AND month=$2", rid, pmonth1).Scan(&pe)
 				if pe != nil {
 					start = *pe
 				}
@@ -466,7 +470,7 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 			if _, err := tx.Exec(ctx,
 				`INSERT INTO electric_readings (room_id, month, reading_start, reading_end, kwh) VALUES ($1,$2,$3,$4,$5)
 				 ON CONFLICT (room_id, month) DO UPDATE SET reading_start=EXCLUDED.reading_start, reading_end=EXCLUDED.reading_end, kwh=EXCLUDED.kwh`,
-				rid, body.Month, start, end, kwh); err != nil {
+				rid, pmonth0, start, end, kwh); err != nil {
 				return err
 			}
 		}
@@ -508,8 +512,9 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 		}
 		totalStudents = len(students)
 
-		// Chỉ số điện theo phòng (thấy cả bản vừa ghi trong tx). invoices.routes.js:167-168
-		erRows, err := tx.Query(ctx, "SELECT room_id, reading_start, reading_end, kwh FROM electric_readings WHERE month=$1", body.Month)
+		// Chỉ số điện KỲ M-1 theo phòng (thấy cả bản vừa ghi trong tx). invoices.routes.js:167-168
+		eStart, eEnd := billing.FirstDay(pmonth0), billing.LastDay(pmonth0)
+		erRows, err := tx.Query(ctx, "SELECT room_id, reading_start, reading_end, kwh FROM electric_readings WHERE month=$1", pmonth0)
 		if err != nil {
 			return err
 		}
@@ -533,9 +538,9 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 			return err
 		}
 
-		// Chốt chỉ số giữa kỳ + lượt ở -> cắt chặng chia điện qua MỌI phòng. invoices.routes.js:174-182
+		// Chốt chỉ số giữa KỲ M-1 + lượt ở -> cắt chặng chia điện qua MỌI phòng. invoices.routes.js:174-182
 		readsByRoom := map[int][]billing.MeterRead{}
-		mrRows, err := tx.Query(ctx, "SELECT room_id, read_date AS date, reading FROM meter_reads WHERE read_date >= $1 AND read_date <= $2 ORDER BY read_date", mStart, mEnd)
+		mrRows, err := tx.Query(ctx, "SELECT room_id, read_date AS date, reading FROM meter_reads WHERE read_date >= $1 AND read_date <= $2 ORDER BY read_date", eStart, eEnd)
 		if err != nil {
 			return err
 		}
@@ -557,7 +562,7 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 		rsRows, err := tx.Query(ctx,
 			`SELECT rs.room_id, rs.student_id, rs.from_date AS from, rs.to_date AS to
 			   FROM room_stays rs JOIN students s ON s.id = rs.student_id
-			  WHERE s.deleted_at IS NULL AND rs.from_date <= $1 AND (rs.to_date IS NULL OR rs.to_date >= $2)`, mEnd, mStart)
+			  WHERE s.deleted_at IS NULL AND rs.from_date <= $1 AND (rs.to_date IS NULL OR rs.to_date >= $2)`, eEnd, eStart)
 		if err != nil {
 			return err
 		}
@@ -576,13 +581,13 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 		}
 
 		unit := billing.Fees(fees).Num("electric_unit")
-		elec := map[int]float64{} // student_id -> tiền điện đã cộng qua mọi phòng
+		elec := map[int]float64{} // student_id -> tiền điện KỲ M-1 đã cộng qua mọi phòng
 		for _, e := range er {
 			stays := staysByRoom[e.roomID]
 			if len(stays) == 0 {
 				continue
 			}
-			segs := billing.BuildSegments(body.Month, e.readingStart, e.readingEnd, readsByRoom[e.roomID], stays)
+			segs := billing.BuildSegments(pmonth0, e.readingStart, e.readingEnd, readsByRoom[e.roomID], stays)
 			bsegs := make([]billing.Segment, len(segs))
 			for i, sg := range segs {
 				bsegs[i] = billing.Segment{Electric: sg.Kwh * unit, Roster: sg.Roster}
@@ -599,40 +604,35 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 			}
 		}
 
-		// Danh sách người ở mỗi phòng KÈM SỐ NGÀY Ở. invoices.routes.js:198-203
-		rosterByRoom := map[int][]billing.RosterEntry{}
-		for _, s := range students {
-			if s.roomID == nil {
-				continue
-			}
-			d := billing.DaysStayedInMonth(s.checkIn, s.checkOut, body.Month)
-			if d > 0 {
-				rosterByRoom[*s.roomID] = append(rosterByRoom[*s.roomID], billing.RosterEntry{StudentID: s.id, Days: d})
-			}
-		}
+		// (roster tháng M KHÔNG dùng cho điện nữa — điện lùi kỳ đã chia xong trong `elec`.)
 
 		// Cache phòng (capacity chọn ở Node nhưng không dùng -> bỏ). invoices.routes.js:206-207
 		type genRoom struct {
+			name       string
 			hang       string
 			monthlyFee float64
 			roomType   string
 		}
 		roomsCache := map[int]genRoom{}
-		roomRows, err := tx.Query(ctx, "SELECT id, hang, monthly_fee, capacity, room_type FROM rooms")
+		roomRows, err := tx.Query(ctx, "SELECT id, name, hang, monthly_fee, capacity, room_type FROM rooms")
 		if err != nil {
 			return err
 		}
 		for roomRows.Next() {
 			var id int
+			var name *string
 			var hang *string
 			var mf *float64
 			var capCol *int
 			var rt *string
-			if err := roomRows.Scan(&id, &hang, &mf, &capCol, &rt); err != nil {
+			if err := roomRows.Scan(&id, &name, &hang, &mf, &capCol, &rt); err != nil {
 				roomRows.Close()
 				return err
 			}
 			g := genRoom{}
+			if name != nil {
+				g.name = *name
+			}
 			if hang != nil {
 				g.hang = *hang
 			}
@@ -647,6 +647,48 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 		roomRows.Close()
 		if err := roomRows.Err(); err != nil {
 			return err
+		}
+
+		// KỲ M-1 còn thiếu dữ liệu điện ở phòng nào -> BỎ QUA học viên liên quan, trả cảnh báo
+		// (owner chốt 31/07: phòng thiếu thì bỏ qua, phòng khác vẫn ra phiếu, kèm alert).
+		erSet := map[int]bool{}
+		for _, e := range er {
+			erSet[e.roomID] = true
+		}
+		thieuRoom := map[int][]string{}
+		for rid, stays := range staysByRoom {
+			var t []string
+			if !erSet[rid] {
+				t = append(t, "chưa chốt chỉ số cuối kỳ "+pmonth0)
+			}
+			daCo := map[string]bool{}
+			for _, m := range readsByRoom[rid] {
+				daCo[m.Date] = true
+			}
+			// Chỉ số hợp lệ ở to_date (trả phòng) hoặc to_date+1 (chuyển phòng: lượt cũ hết D-1, đọc ghi ngày D).
+			for _, st := range stays {
+				if st.To != "" && st.To >= eStart && st.To < eEnd && !daCo[st.To] && !daCo[billing.AddDays(st.To, 1)] {
+					t = append(t, "thiếu chỉ số ngày "+st.To+" (HV rời giữa kỳ)")
+				}
+			}
+			if len(t) > 0 {
+				thieuRoom[rid] = t
+			}
+		}
+		prevRooms := map[int][]int{} // student_id -> các phòng đã ở trong kỳ M-1
+		for rid, stays := range staysByRoom {
+			for _, st := range stays {
+				prevRooms[st.StudentID] = append(prevRooms[st.StudentID], rid)
+			}
+		}
+		for rid, t := range thieuRoom {
+			ten := roomsCache[rid].name
+			if ten == "" {
+				ten = "#" + itoa(rid)
+			}
+			for _, m := range t {
+				warnings = append(warnings, "phòng "+ten+": "+m)
+			}
 		}
 
 		// Số xe theo HV CỦA THÁNG lập hoá đơn. invoices.routes.js:210
@@ -705,6 +747,18 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 
 		// invoices.routes.js:230-267
 		for _, s := range students {
+			// Phòng kỳ M-1 của HV còn thiếu dữ liệu điện -> bỏ qua, chờ nhập xong phát lại.
+			boQua := false
+			for _, rid := range prevRooms[s.id] {
+				if _, ok := thieuRoom[rid]; ok {
+					boQua = true
+					break
+				}
+			}
+			if boQua {
+				skippedThieu++
+				continue
+			}
 			dup, hasDup := existing[s.id]
 			if hasDup && dup.status == "paid" {
 				skipped++ // đã đóng -> khóa, không sửa
@@ -716,15 +770,24 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 					room = &billing.Room{Hang: rc.hang, MonthlyFee: rc.monthlyFee, RoomType: rc.roomType}
 				}
 			}
-			var roster []billing.RosterEntry
-			if s.roomID != nil {
-				roster = rosterByRoom[*s.roomID]
+			// Điện = trọn phần kỳ M-1; HV rời trong M thì cộng thêm phần kỳ M tới ngày rời.
+			// Không có phần nào -> 0 rõ ràng (KHÔNG rơi về chia roster tháng M cho khối M-1).
+			vv := elec[s.id]
+			if len(s.checkOut) >= 7 && s.checkOut[:7] == body.Month {
+				cur, e := invoicecalc.StudentElectric(ctx, h.DB, s.id, body.Month, unit)
+				if e != nil {
+					return e
+				}
+				if cur == nil {
+					if cur, e = invoicecalc.StudentElectricProvisional(ctx, h.DB, s.id, body.Month, unit); e != nil {
+						return e
+					}
+				}
+				if cur != nil {
+					vv += *cur
+				}
 			}
-			var ec *float64
-			if v, ok := elec[s.id]; ok {
-				vv := v
-				ec = &vv
-			}
+			ec := &vv
 			kwh := 0.0
 			if s.roomID != nil {
 				kwh = kwhByRoom[*s.roomID]
@@ -742,7 +805,7 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 			inv := billing.ComputeInvoice(billing.ComputeInput{
 				Student: hv, NguyenPhong: np.Cua(s.id),
 				Room: room, Month: body.Month, Fees: billing.Fees(fees),
-				Roster: roster, ElectricCharge: ec, LeaderDays: leaderDays[s.id], Kwh: kwh, VehicleCount: &vc,
+				ElectricCharge: ec, LeaderDays: leaderDays[s.id], Kwh: kwh, VehicleCount: &vc,
 			})
 			if hasDup {
 				total := billing.InvoiceTotal(map[string]float64{
@@ -785,11 +848,16 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 		serverErr(c)
 		return
 	}
+	if warnings == nil {
+		warnings = []string{}
+	}
 	if preview {
-		c.JSON(http.StatusOK, gin.H{"preview": true, "created": created, "updated": updated, "skipped": skipped, "total": totalStudents})
+		c.JSON(http.StatusOK, gin.H{"preview": true, "created": created, "updated": updated, "skipped": skipped,
+			"skipped_missing": skippedThieu, "warnings": warnings, "total": totalStudents})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"created": created, "updated": updated, "skipped": skipped, "total": totalStudents})
+	c.JSON(http.StatusOK, gin.H{"created": created, "updated": updated, "skipped": skipped,
+		"skipped_missing": skippedThieu, "warnings": warnings, "total": totalStudents})
 }
 
 // GenerateOneInvoice: POST /api/invoices/generate-one (admin,staff). invoices.routes.js:283-336.
@@ -877,18 +945,20 @@ func (h *Handlers) GenerateOneInvoice(c *gin.Context) {
 			room = &r
 		}
 	}
-	var roster []billing.RosterEntry
-	if roomID != nil {
-		roster, err = invoicecalc.RoomRoster(ctx, h.DB, *roomID, monthStr)
-		if err != nil {
-			serverErr(c)
-			return
-		}
+	// Điện lùi MỘT KỲ: phiếu kỳ M mang khối điện kỳ M-1. Chặn nếu kỳ M-1 của các phòng HV
+	// từng ở còn thiếu chỉ số — lập phiếu lúc đó là chia sai người, thà bắt nhập xong mới lập.
+	pmonth := invoicecalc.PrevMonthOf(monthStr)
+	if thieu, e := h.thieuDienCuaHV(ctx, sid, pmonth); e != nil {
+		serverErr(c)
+		return
+	} else if len(thieu) > 0 {
+		badRequest(c, "Chưa lập phiếu — điện kỳ "+pmonth+" còn thiếu dữ liệu:\n"+strings.Join(thieu, "\n"))
+		return
 	}
 	kwh := 0.0
 	if roomID != nil {
 		var k *float64
-		if e := h.pool().QueryRow(ctx, "SELECT kwh FROM electric_readings WHERE room_id=$1 AND month=$2", *roomID, monthStr).Scan(&k); e == nil && k != nil {
+		if e := h.pool().QueryRow(ctx, "SELECT kwh FROM electric_readings WHERE room_id=$1 AND month=$2", *roomID, pmonth).Scan(&k); e == nil && k != nil {
 			kwh = *k
 		}
 	}
@@ -897,11 +967,12 @@ func (h *Handlers) GenerateOneInvoice(c *gin.Context) {
 		serverErr(c)
 		return
 	}
-	electricCharge, err := invoicecalc.StudentElectric(ctx, h.DB, sid, monthStr, billing.Fees(fees).Num("electric_unit"))
+	ecVal, err := invoicecalc.ElectricLag(ctx, h.DB, sid, monthStr, billing.Fees(fees).Num("electric_unit"), invDateStr(co))
 	if err != nil {
 		serverErr(c)
 		return
 	}
+	electricCharge := &ecVal
 	leaderDays, err := roomleaders.LeaderDaysInMonth(ctx, h.pool(), sid, monthStr)
 	if err != nil {
 		serverErr(c)
@@ -927,7 +998,7 @@ func (h *Handlers) GenerateOneInvoice(c *gin.Context) {
 	inv := billing.ComputeInvoice(billing.ComputeInput{
 		Student: hv, NguyenPhong: np.Cua(sID),
 		Room: room, Month: monthStr, Fees: billing.Fees(fees),
-		Roster: roster, ElectricCharge: electricCharge, LeaderDays: leaderDays, Kwh: kwh, VehicleCount: &vehicleCnt,
+		ElectricCharge: electricCharge, LeaderDays: leaderDays, Kwh: kwh, VehicleCount: &vehicleCnt,
 	})
 
 	if hasDup {
