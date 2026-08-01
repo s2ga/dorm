@@ -210,6 +210,7 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	rs.GET("/contract-no/next", h.ContractNoNext)
 	rs.POST("/contract-no/renumber", h.ContractNoRenumber)
 	rs.GET("/:id", h.GetStudent)
+	rs.GET("/:id/stays", h.StudentStays) // lịch sử ở (room_stays) — nguồn sự thật về ở/rời
 	rs.POST("", h.CreateStudent)
 	rs.PUT("/:id", h.UpdateStudent)
 	rs.DELETE("/:id", h.DeleteStudent)

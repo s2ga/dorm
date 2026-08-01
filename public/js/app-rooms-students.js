@@ -517,10 +517,10 @@ async function suggestApCno(gender) {
 }
 async function studentDetail(id) {
   const s = await guard(() => API.student(id));
-  let invs = [], logs = [];
+  let invs = [], stays = null;
   // BL-11: server lọc theo student_id (không kéo 500 dòng nhật ký / toàn bộ hoá đơn mọi kỳ rồi .filter).
   try { invs = await API.invoices({ student_id: id }); } catch {}
-  try { logs = (await API.logs({ student_id: id })).slice(0, 12); } catch {}
+  try { stays = ((await API.stays(id)) || {}).stays || []; } catch {}
   const vehicles = s.vehicles || [];
   window._detailVehicles = vehicles;
   const vios = s.violations || [];
@@ -587,10 +587,8 @@ async function studentDetail(id) {
       ${invs.length ? `<div class="table-wrap"><table><thead><tr><th>Kỳ</th><th class="num">Tổng tiền phiếu</th></tr></thead><tbody>
         ${invs.map(i => `<tr><td>${monthLabel(i.month)}</td><td class="num"><strong>${money(i.total)}</strong></td></tr>`).join('')}
       </tbody></table></div>` : '<p class="muted">Chưa có phiếu báo.</p>'}
-      <h4 style="margin:18px 0 8px">${IC.history} Lịch sử ra/vào</h4>
-      ${logs.length ? `<div class="table-wrap"><table><thead><tr><th>Ngày</th><th>Hoạt động</th><th>Ghi chú</th></tr></thead><tbody>
-        ${logs.map(l => `<tr><td>${fmtDate(l.date)}</td><td>${l.type === 'in' ? '<span class="badge green">Check-in</span>' : '<span class="badge red">Check-out</span>'}</td><td class="muted">${esc(l.note || '')}</td></tr>`).join('')}
-      </tbody></table></div>` : '<p class="muted">Chưa có.</p>'}
+      <h4 style="margin:18px 0 8px">${IC.history} Lịch sử ở (ra/vào)</h4>
+      ${lichSuOHTML(stays)}
     </div>
     <div class="mf">
       <button class="btn" data-act="studentForm" data-args='[${s.id}]'>${IC.pencil} Sửa</button>
@@ -598,6 +596,21 @@ async function studentDetail(id) {
       ${isOccupying(s) ? `<button class="btn danger" data-act="checkOutForm" data-args='[${s.id}]'>Check-out</button>` : `<button class="btn green" data-act="checkInForm" data-args='[${s.id}]'>Check-in lại</button>`}
       <button class="btn danger" data-act="delStudent" data-args='[${s.id}]'>${IC.trash} Xóa</button>
     </div>`, true);
+}
+// Lịch sử ở đọc từ room_stays — nguồn sự thật về ở/rời (thứ tính tiền dùng). Nhật ký chỉ bổ sung
+// ghi chú; mốc không có nhật ký được gắn nhãn "ghi từ hồ sơ" thay vì im lặng bỏ trống.
+function lichSuOHTML(stays) {
+  if (stays == null) return `<div class="hint">${IC.alert} Không đọc được lịch sử ở — tải lại trang rồi thử lại.</div>`;
+  if (!stays.length) return '<p class="muted">Chưa có.</p>';
+  const tuHoSo = '<span class="badge gray" title="Mốc này ghi thẳng vào hồ sơ, không qua nút Check-in/Check-out nên không có nhật ký thao tác">ghi từ hồ sơ</span>';
+  const moc = (ngay, log) => `${fmtDate(ngay)}${log == null ? ' ' + tuHoSo : (log ? `<div class="sub2">${esc(log)}</div>` : '')}`;
+  return `<div class="table-wrap"><table><thead><tr><th>Phòng</th><th>Vào</th><th>Rời</th></tr></thead><tbody>
+    ${stays.map(t => `<tr>
+      <td>${t.room_id ? `<span class="hd-ref" data-act="roomDetail" data-args='[${t.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng">${esc(t.room_name || '—')}</span>` : esc(t.room_name || '—')}</td>
+      <td>${moc(t.from_date, t.log_vao)}</td>
+      <td>${t.to_date ? moc(t.to_date, t.log_ra) : '<span class="badge green">đang ở</span>'}</td>
+    </tr>`).join('')}
+  </tbody></table></div>`;
 }
 /* Xe */
 function vehicleForm(vid, studentId) {

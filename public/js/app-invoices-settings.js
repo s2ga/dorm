@@ -404,7 +404,7 @@ async function runGenerate() {
   // Bước 2: lập thật
   const r = await guard(() => API.generateInvoices({ month, readings }));
   await refreshCache(); closeModal(); invMonth = month; invFilter = 'all';
-  toast(`Đã tạo ${r.created} · cập nhật ${r.updated || 0}${r.skipped ? ` · bỏ qua ${r.skipped} (đã đóng)` : ''}${r.skipped_missing ? ` · ⚠ ${r.skipped_missing} thiếu điện` : ''} hóa đơn`, r.skipped_missing ? 'err' : undefined);
+  toast(`Đã tạo ${r.created} · cập nhật ${r.updated || 0}${r.skipped ? ` · bỏ qua ${r.skipped} (đã đóng)` : ''}${r.cleaned ? ` · dọn ${r.cleaned} phiếu rác (người đã rời)` : ''}${r.skipped_missing ? ` · ⚠ ${r.skipped_missing} thiếu điện` : ''} hóa đơn`, r.skipped_missing ? 'err' : undefined);
   viewInvoices();
   // Cảnh báo phải ĐẬP VÀO MẮT, không được chết im trong toast (bài học 2 nút chết im lặng).
   if (r.skipped_missing) {

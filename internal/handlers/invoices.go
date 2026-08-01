@@ -449,7 +449,7 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 		return
 	}
 
-	var created, updated, skipped, skippedThieu, totalStudents int
+	var created, updated, skipped, skippedThieu, daDon, totalStudents int
 	var warnings []string
 	txErr := h.DB.WithTx(ctx, func(tx pgx.Tx) error {
 		// Lưu chỉ số điện VÀO KỲ M-1 (số đầu = số cuối kỳ M-2 nếu không nhập). invoices.routes.js:133-146
@@ -727,6 +727,30 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 			return err
 		}
 
+		// Dọn phiếu rác của kỳ: người đã trả phòng TRƯỚC khi kỳ bắt đầu thì không được có phiếu.
+		// Chỉ dọn phiếu CHƯA THU; phiếu đã thu là tiền thật, để data-health chỉ mặt, người xử lý.
+		dRows, err := tx.Query(ctx,
+			`UPDATE invoices i SET deleted_at = now()
+			   FROM students s
+			  WHERE s.id = i.student_id AND i.month = $1 AND i.deleted_at IS NULL AND i.status <> 'paid'
+			    AND s.check_out_date IS NOT NULL AND s.check_out_date < $2
+			  RETURNING i.id`, body.Month, mStart)
+		if err != nil {
+			return err
+		}
+		for dRows.Next() {
+			var did int
+			if err := dRows.Scan(&did); err != nil {
+				dRows.Close()
+				return err
+			}
+			daDon++
+		}
+		dRows.Close()
+		if err := dRows.Err(); err != nil {
+			return err
+		}
+
 		// Nạp sẵn hoá đơn hiện có của kỳ (diệt N+1). invoices.routes.js:226-228
 		type genExisting struct {
 			id     int
@@ -861,11 +885,11 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 	}
 	if preview {
 		c.JSON(http.StatusOK, gin.H{"preview": true, "created": created, "updated": updated, "skipped": skipped,
-			"skipped_missing": skippedThieu, "warnings": warnings, "total": totalStudents})
+			"skipped_missing": skippedThieu, "cleaned": daDon, "warnings": warnings, "total": totalStudents})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"created": created, "updated": updated, "skipped": skipped,
-		"skipped_missing": skippedThieu, "warnings": warnings, "total": totalStudents})
+		"skipped_missing": skippedThieu, "cleaned": daDon, "warnings": warnings, "total": totalStudents})
 }
 
 // GenerateOneInvoice: POST /api/invoices/generate-one (admin,staff). invoices.routes.js:283-336.

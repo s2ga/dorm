@@ -138,6 +138,7 @@ const API = {
   electric: month => api('/electric?month=' + month),
   electricHistory: (month, n) => api('/electric/history?month=' + month + (n ? '&n=' + n : '')),
   saveElectric: b => api('/electric/bulk', { method: 'POST', body: b }),
+  stays: id => api('/students/' + id + '/stays'),
   electricReads: month => api('/electric/reads?month=' + month),
   saveMeterRead: b => api('/electric/reads', { method: 'POST', body: b }),
   deleteMeterRead: id => api('/electric/reads/' + id, { method: 'DELETE' }),
