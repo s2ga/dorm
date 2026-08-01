@@ -69,7 +69,7 @@ func (h *Handlers) Login(c *gin.Context) {
 	}
 	now := time.Now().UnixMilli()
 
-	if khoa, conLai := h.Guard.TruocKhiThu(username, now); khoa {
+	if khoa, conLai := h.Guard.TruocKhiThu(c.Request.Context(), username, now); khoa {
 		phut := (conLai + 59) / 60
 		loginLog(h, c, nil, trimSpace(username), "", "bị khoá (đang trong thời gian khoá)")
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": fmt.Sprintf("Tài khoản tạm khoá do đăng nhập sai quá nhiều lần. Vui lòng thử lại sau %d phút.", phut)})
@@ -84,14 +84,14 @@ func (h *Handlers) Login(c *gin.Context) {
 
 	// SSO thuần (không có mật khẩu) -> câu lỗi CHUNG với sai mật khẩu (không lộ tài khoản dùng SSO)
 	if user != nil && user.PasswordHash == nil {
-		h.Guard.GhiNhanKetQua(username, false, now)
+		h.Guard.GhiNhanKetQua(c.Request.Context(), username, false, now)
 		loginLog(h, c, &user.ID, user.Username, user.Role, "tài khoản chỉ đăng nhập bằng Microsoft (không có mật khẩu)")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Sai tên đăng nhập hoặc mật khẩu"})
 		return
 	}
 
 	if user == nil || bcrypt.CompareHashAndPassword([]byte(*user.PasswordHash), []byte(password)) != nil {
-		khoaMoi := h.Guard.GhiNhanKetQua(username, false, now)
+		khoaMoi := h.Guard.GhiNhanKetQua(c.Request.Context(), username, false, now)
 		var uid *int
 		var uname, urole string
 		if user != nil {
@@ -116,7 +116,7 @@ func (h *Handlers) Login(c *gin.Context) {
 	// máy dò "tài khoản nào có thật" (mật khẩu sai vẫn là 401 chung như mọi trường hợp khác).
 	// Mật khẩu ĐÚNG nên KHÔNG tính là lần thử sai -> đừng cộng vào bộ đếm chống dò mật khẩu.
 	if user.Locked {
-		h.Guard.GhiNhanKetQua(username, true, now)
+		h.Guard.GhiNhanKetQua(c.Request.Context(), username, true, now)
 		loginLog(h, c, &user.ID, user.Username, user.Role, "tài khoản đã bị KHOÁ")
 		c.JSON(http.StatusForbidden, gin.H{"error": msgTaiKhoanBiKhoa})
 		return
@@ -126,7 +126,7 @@ func (h *Handlers) Login(c *gin.Context) {
 	if user.Role == "student" && user.StudentID != nil {
 		var one int
 		if h.pool().QueryRow(c.Request.Context(), "SELECT 1 FROM students WHERE id=$1 AND deleted_at IS NULL", *user.StudentID).Scan(&one) != nil {
-			h.Guard.GhiNhanKetQua(username, true, now)
+			h.Guard.GhiNhanKetQua(c.Request.Context(), username, true, now)
 			loginLog(h, c, &user.ID, user.Username, user.Role, "hồ sơ học viên đã bị KHOÁ")
 			c.JSON(http.StatusForbidden, gin.H{"error": msgTaiKhoanBiKhoa})
 			return
@@ -135,13 +135,13 @@ func (h *Handlers) Login(c *gin.Context) {
 
 	// SSO tự tạo, chưa duyệt
 	if !user.Approved {
-		h.Guard.GhiNhanKetQua(username, true, now)
+		h.Guard.GhiNhanKetQua(c.Request.Context(), username, true, now)
 		loginLog(h, c, &user.ID, user.Username, user.Role, "tài khoản chờ admin duyệt")
 		c.JSON(http.StatusForbidden, gin.H{"error": "Tài khoản đang chờ quản trị viên duyệt. Vui lòng liên hệ ban quản lý."})
 		return
 	}
 
-	h.Guard.GhiNhanKetQua(username, true, now)
+	h.Guard.GhiNhanKetQua(c.Request.Context(), username, true, now)
 	loginLog(h, c, &user.ID, user.Username, user.Role, "đăng nhập thành công")
 	token, err := h.Auth.SignToken(user.ID, user.Username, user.Role, user.StudentID, user.TokenEpoch)
 	if err != nil {

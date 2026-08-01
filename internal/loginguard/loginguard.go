@@ -1,96 +1,89 @@
-// Package loginguard — chống dò mật khẩu theo TÀI KHOẢN (không chỉ theo IP), lưu RAM.
-// Port từ server/login-guard.js. Khác Node: Go đa luồng nên PHẢI có mutex (Node đơn luồng không cần).
+// Package loginguard — chống dò mật khẩu theo TÀI KHOẢN (không chỉ theo IP).
+// Trạng thái nằm ở bảng login_guard: khoá là lớp BẢO VỆ, không được bay hơi khi tiến trình
+// khởi động lại (Render ngủ dậy, deploy) hay khi chạy nhiều instance.
 package loginguard
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
-	"sync"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (
-	MaxFail = 10                 // số lần sai liên tiếp trước khi khoá
-	CuaSoMs = 15 * 60 * 1000     // đếm trong cửa sổ 15 phút
-	KhoaMs  = 15 * 60 * 1000     // khoá 15 phút
+	MaxFail = 10             // số lần sai liên tiếp trước khi khoá
+	CuaSoMs = 15 * 60 * 1000 // đếm trong cửa sổ 15 phút
+	KhoaMs  = 15 * 60 * 1000 // khoá 15 phút
 )
 
-type entry struct {
-	fails   []int64 // mốc thời gian (ms) các lần sai
-	khoaDen int64   // ms; > now nghĩa là đang khoá
-}
+type Guard struct{ pool *pgxpool.Pool }
 
-type Guard struct {
-	mu sync.Mutex
-	m  map[string]*entry
-}
-
-func New() *Guard { return &Guard{m: map[string]*entry{}} }
+func New(pool *pgxpool.Pool) *Guard { return &Guard{pool: pool} }
 
 func key(username string) string { return strings.ToLower(strings.TrimSpace(username)) }
 
-func (g *Guard) donRac(now int64) {
-	for k, v := range g.m {
-		kept := v.fails[:0]
-		for _, t := range v.fails {
-			if now-t < CuaSoMs {
-				kept = append(kept, t)
-			}
-		}
-		v.fails = kept
-		if len(v.fails) == 0 && (v.khoaDen == 0 || v.khoaDen < now) {
-			delete(g.m, k)
-		}
+// TruocKhiThu: gọi TRƯỚC khi thử mật khẩu. Trả (đang khoá?, số giây còn lại).
+func (g *Guard) TruocKhiThu(ctx context.Context, username string, now int64) (bool, int) {
+	k := key(username)
+	if k == "" || g.pool == nil {
+		return false, 0
 	}
-}
-
-// TruocKhiThu: gọi TRƯỚC khi thử mật khẩu. Trả (đang khoá?, số giây còn lại). server/login-guard.js:26-31
-func (g *Guard) TruocKhiThu(username string, now int64) (bool, int) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	v := g.m[key(username)]
-	if v != nil && v.khoaDen > now {
-		conLai := int((v.khoaDen - now + 999) / 1000) // Math.ceil
-		return true, conLai
+	var khoaDen int64
+	err := g.pool.QueryRow(ctx, "SELECT locked_until_ms FROM login_guard WHERE username=$1", k).Scan(&khoaDen)
+	if err != nil {
+		if !errors.Is(err, pgx.ErrNoRows) {
+			println("[login-guard] không đọc được trạng thái khoá:", err.Error())
+		}
+		return false, 0
+	}
+	if khoaDen > now {
+		return true, int((khoaDen - now + 999) / 1000) // Math.ceil
 	}
 	return false, 0
 }
 
 // GhiNhanKetQua: gọi SAU khi thử. success -> xoá lịch sử; sai -> cộng 1, đủ ngưỡng thì khoá.
-// Trả khoaMoi = true nếu vừa CHUYỂN sang trạng thái khoá. server/login-guard.js:34-46
-func (g *Guard) GhiNhanKetQua(username string, success bool, now int64) bool {
+// Trả khoaMoi = true nếu vừa CHUYỂN sang trạng thái khoá.
+func (g *Guard) GhiNhanKetQua(ctx context.Context, username string, success bool, now int64) bool {
 	k := key(username)
-	if k == "" {
+	if k == "" || g.pool == nil {
 		return false
 	}
-	g.mu.Lock()
-	defer g.mu.Unlock()
 	if success {
-		delete(g.m, k)
+		// Dọn luôn hàng nguội của tài khoản khác — bảng này không cần giữ lịch sử.
+		if _, err := g.pool.Exec(ctx,
+			"DELETE FROM login_guard WHERE username=$1 OR updated_at < now() - interval '1 day'", k); err != nil {
+			println("[login-guard] không xoá được lịch sử sai:", err.Error())
+		}
 		return false
 	}
-	v := g.m[k]
-	if v == nil {
-		v = &entry{}
+	// Lọc mốc quá cửa sổ rồi thêm mốc mới trong MỘT câu: hai request đồng thời không ghi đè nhau.
+	var soLan int
+	err := g.pool.QueryRow(ctx, `
+		INSERT INTO login_guard (username, fails_ms, locked_until_ms, updated_at)
+		VALUES ($1, ARRAY[$2::bigint], 0, now())
+		ON CONFLICT (username) DO UPDATE SET
+		  fails_ms = (SELECT COALESCE(array_agg(x), '{}'::bigint[])
+		              FROM unnest(login_guard.fails_ms) x WHERE $2::bigint - x < $3::bigint) || $2::bigint,
+		  updated_at = now()
+		RETURNING cardinality(fails_ms)`, k, now, int64(CuaSoMs)).Scan(&soLan)
+	if err != nil {
+		println("[login-guard] không ghi được lần sai:", err.Error())
+		return false
 	}
-	kept := v.fails[:0]
-	for _, t := range v.fails {
-		if now-t < CuaSoMs {
-			kept = append(kept, t)
-		}
+	if soLan < MaxFail {
+		return false
 	}
-	v.fails = append(kept, now)
-	khoaMoi := false
-	if len(v.fails) >= MaxFail {
-		v.khoaDen = now + KhoaMs
-		v.fails = nil
-		khoaMoi = true
+	if _, err := g.pool.Exec(ctx,
+		"UPDATE login_guard SET locked_until_ms=$2, fails_ms='{}'::bigint[], updated_at=now() WHERE username=$1",
+		k, now+int64(KhoaMs)); err != nil {
+		println("[login-guard] không đặt được mốc khoá:", err.Error())
+		return false
 	}
-	g.m[k] = v
-	g.donRac(now)
-	return khoaMoi
+	return true
 }
 
 // LogEntry: dữ liệu ghi nhật ký đăng nhập.

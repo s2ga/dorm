@@ -28,7 +28,7 @@ type Server struct {
 // NewRouter dựng engine đầy đủ.
 func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	a := auth.New(cfg.JWTSecret, cfg.CookieSecure, database.Pool)
-	guard := loginguard.New()
+	guard := loginguard.New(database.Pool)
 	// S3 tuỳ chọn: thiếu cấu hình -> nil, các endpoint ảnh/CCCD trả 501 thay vì chặn boot.
 	store, err := storage.New(context.Background(), cfg)
 	if err != nil {

@@ -343,6 +343,17 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 CREATE INDEX IF NOT EXISTS idx_audit_at ON audit_log(at DESC);
 
+-- BL-79: chống dò mật khẩu theo TÊN ĐĂNG NHẬP. Khoá là lớp bảo vệ nên phải sống qua restart/deploy
+-- và dùng chung giữa các instance — để trong RAM là mất sạch mỗi lần Render ngủ dậy.
+-- Khoá theo tên chứ không theo user_id: kẻ dò gõ cả tên tài khoản không tồn tại.
+CREATE TABLE IF NOT EXISTS login_guard (
+  username        TEXT PRIMARY KEY,                   -- lower(trim(username))
+  fails_ms        BIGINT[] NOT NULL DEFAULT '{}',     -- mốc các lần sai còn trong cửa sổ đếm
+  locked_until_ms BIGINT NOT NULL DEFAULT 0,          -- > now = đang khoá
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_login_guard_updated ON login_guard(updated_at);
+
 CREATE INDEX IF NOT EXISTS idx_students_status ON students(status);
 CREATE INDEX IF NOT EXISTS idx_invoices_month  ON invoices(month);
 CREATE INDEX IF NOT EXISTS idx_logs_student    ON logs(student_id);

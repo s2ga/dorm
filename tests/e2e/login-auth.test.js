@@ -8,6 +8,8 @@ const P = '__test_auth';
 const clean = async db => {
   await db.query(`DELETE FROM users WHERE username LIKE '${P}%'`);
   await db.query(`DELETE FROM students WHERE name LIKE '${P}%'`);
+  // BL-79: bộ đếm sai giờ nằm ở CSDL nên sống qua các lần chạy — không dọn thì lần sau cộng dồn vào.
+  await db.query(`DELETE FROM login_guard WHERE username LIKE '${P}%'`);
 };
 
 // Gọi thẳng /login để đọc được set-cookie — t.login() của harness chỉ trả token.
