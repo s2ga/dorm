@@ -27,6 +27,8 @@ COPY server/migrations ./server/migrations
 
 ENV PORT=3000
 ENV TZ=Asia/Ho_Chi_Minh
+# Gin mặc định chạy debug: in cả bảng định tuyến ra log lúc boot.
+ENV GIN_MODE=release
 EXPOSE 3000
 # UID bằng SỐ: scratch không có /etc/passwd nên tên "nobody" không tra ra được.
 USER 65534:65534
