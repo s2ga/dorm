@@ -1067,7 +1067,7 @@ func (h *Handlers) CreateStudent(c *gin.Context) {
 			return
 		}
 		var one int
-		if h.pool().QueryRow(ctx, "SELECT 1 FROM users WHERE lower(username)=lower($1)", uname).Scan(&one) == nil {
+		if h.pool().QueryRow(ctx, "SELECT 1 FROM users WHERE lower(username)=lower($1) AND deleted_at IS NULL", uname).Scan(&one) == nil {
 			badRequest(c, `Tên đăng nhập "`+uname+`" đã tồn tại`)
 			return
 		}
@@ -2224,7 +2224,7 @@ func (h *Handlers) StudentAccount(c *gin.Context) {
 		return
 	}
 	var one int
-	if h.pool().QueryRow(ctx, "SELECT 1 FROM users WHERE lower(username)=lower($1)", uname).Scan(&one) == nil {
+	if h.pool().QueryRow(ctx, "SELECT 1 FROM users WHERE lower(username)=lower($1) AND deleted_at IS NULL", uname).Scan(&one) == nil {
 		badRequest(c, `Tên đăng nhập "`+uname+`" đã tồn tại`)
 		return
 	}

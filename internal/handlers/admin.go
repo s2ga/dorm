@@ -326,12 +326,13 @@ func (h *Handlers) UnlockUser(c *gin.Context) {
 	orig := uname
 	if i := strings.LastIndex(uname, "#da-xoa-"); i > 0 { // di sản bản cũ
 		orig = uname[:i]
-		var one int
-		if h.pool().QueryRow(ctx,
-			"SELECT 1 FROM users WHERE lower(username)=lower($1) AND deleted_at IS NULL AND id<>$2", orig, id).Scan(&one) == nil {
-			badRequest(c, `Tên đăng nhập "`+orig+`" hiện đã có người khác dùng — không mở khoá lại được. Hãy đổi tên tài khoản kia trước.`)
-			return
-		}
+	}
+	// Tên có thể đã được cấp lại cho người khác trong lúc tài khoản này bị khoá.
+	var one int
+	if h.pool().QueryRow(ctx,
+		"SELECT 1 FROM users WHERE lower(username)=lower($1) AND deleted_at IS NULL AND id<>$2", orig, id).Scan(&one) == nil {
+		badRequest(c, `Tên đăng nhập "`+orig+`" hiện đã có người khác dùng — không mở khoá lại được. Hãy đổi tên tài khoản kia trước.`)
+		return
 	}
 	// approved: chỉ vai 'pending' mới có nghĩa "chờ duyệt". Vai thật mà approved=false là DI SẢN của lỗi
 	// cũ (đăng nhập Microsoft lại sau khi bị khoá thì tự hạ approved=false) — mở khoá xong người ta vẫn

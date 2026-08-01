@@ -108,7 +108,9 @@ CREATE TABLE IF NOT EXISTS vehicles (
 
 CREATE TABLE IF NOT EXISTS users (
   id            SERIAL PRIMARY KEY,
-  username      TEXT UNIQUE NOT NULL,
+  -- KHÔNG đặt UNIQUE trần ở đây: xoá tài khoản là xoá mềm nên tên sẽ bị giữ chỗ vĩnh viễn.
+  -- Ràng buộc duy nhất do uq_users_username_ci lo (lower(username) WHERE deleted_at IS NULL).
+  username      TEXT NOT NULL,
   password_hash TEXT NOT NULL,
   role          TEXT NOT NULL DEFAULT 'student', -- 'admin' | 'student'
   full_name     TEXT DEFAULT '',

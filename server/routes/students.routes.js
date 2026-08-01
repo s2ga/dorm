@@ -259,7 +259,7 @@ router.post('/', requireRole('admin', 'staff'), async (req, res, next) => {
       pass = (b.login_password || '').trim();
       if (!uname) return res.status(400).json({ error: 'Cần tên đăng nhập (hoặc mã HV) để tạo tài khoản' });
       if (pass.length < INITIAL_PASSWORD_MIN) return res.status(400).json({ error: `Mật khẩu tài khoản tối thiểu ${INITIAL_PASSWORD_MIN} ký tự` });
-      const dup = await query('SELECT 1 FROM users WHERE lower(username)=lower($1)', [uname]);
+      const dup = await query('SELECT 1 FROM users WHERE lower(username)=lower($1) AND deleted_at IS NULL', [uname]);
       if (dup.rows.length) return res.status(400).json({ error: `Tên đăng nhập "${uname}" đã tồn tại` });
     }
 
@@ -681,7 +681,7 @@ router.post('/:id/account', requireRole('admin', 'staff'), async (req, res, next
     } else {
       const uname = (username || st.rows[0].code || '').trim();
       if (!uname) return res.status(400).json({ error: 'Cần tên đăng nhập' });
-      const dup = await query('SELECT 1 FROM users WHERE lower(username)=lower($1)', [uname]);
+      const dup = await query('SELECT 1 FROM users WHERE lower(username)=lower($1) AND deleted_at IS NULL', [uname]);
       if (dup.rows.length) return res.status(400).json({ error: `Tên đăng nhập "${uname}" đã tồn tại` });
       // must_change_password=true: mật khẩu cấp nhanh yếu (≥6) chỉ chấp nhận được vì BẮT BUỘC đổi ngay
       await query(`INSERT INTO users (username, password_hash, role, full_name, student_id, must_change_password) VALUES ($1,$2,'student',$3,$4,true)`,
