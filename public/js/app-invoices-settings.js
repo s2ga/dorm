@@ -184,21 +184,19 @@ async function renderGenerateForm(month) {
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="runGenerate">Lưu số điện & tạo/cập nhật hóa đơn</button></div>`);
 }
-// kWh kỳ TRƯỚC theo phòng — để tính chênh lệch ngay khi đang gõ, không phải chờ lưu.
-let _kwhTruoc = {};
-// Điện TĂNG là tốn thêm tiền -> đỏ; GIẢM -> xanh. Cố ý ngược quy ước chứng khoán (xanh = tăng),
-// vì ở đây người đọc quan tâm "tháng này tốn hơn hay đỡ hơn", không phải "giá lên hay xuống".
+let _kwhTruoc = {};   // room_id -> kWh kỳ trước, để tính chênh lệch ngay khi đang gõ
+// Tăng -> đỏ, giảm -> xanh (ngược quy ước chứng khoán: ở đây tăng là tốn thêm tiền).
 function deltaKwh(nay, truoc, dinhDang, kemPhanTram) {
   if (truoc == null) return `<span class="delta none">chưa có kỳ trước</span>`;
   const d = Math.round((nay - truoc) * 10) / 10;
   if (!d) return `<span class="delta same">không đổi</span>`;
   const tang = d > 0;
-  // Phần trăm chỉ in ở cột kWh: tiền = kWh × đơn giá nên % hai cột luôn bằng nhau, in cả hai là thừa.
+  // % chỉ in ở cột kWh: tiền = kWh × đơn giá nên hai cột luôn bằng nhau.
   const pct = kemPhanTram && truoc > 0 ? Math.round(Math.abs(d) / truoc * 1000) / 10 : null;
   const p = pct == null ? '' : ` · ${tang ? '+' : '−'}${String(pct).replace('.', ',')}%`;
   return `<span class="delta ${tang ? 'up' : 'down'}">${tang ? '▲' : '▼'} ${dinhDang(Math.abs(d))}${p}</span>`;
 }
-// Sparkline kiểu biểu đồ giá: đường + vùng tô nhạt, chấm đậm ở kỳ mới nhất.
+// Sparkline: đường + vùng tô, chấm đậm ở kỳ mới nhất.
 function sparkline(series) {
   const v = (series || []).map(s => +s.kwh || 0);
   if (v.length < 2) return '<span class="muted" style="font-size:11px">—</span>';
@@ -218,14 +216,12 @@ function sparkline(series) {
 function electricTable(rooms, lichSu) {
   if (!rooms.length) return `<div class="empty">Chưa có phòng nào để nhập chỉ số điện cho kỳ này.</div>`;
   const don = +ST.settings.electric_unit || 0;
-  // series của history KẾT THÚC ở kỳ đang xem -> phần tử áp chót là kỳ trước.
+  // series kết thúc ở kỳ đang xem -> phần tử áp chót là kỳ trước.
   const ls = new Map(((lichSu && lichSu.rooms) || []).map(x => [x.room_id, x.series || []]));
   _kwhTruoc = {};
   ls.forEach((s, rid) => { if (s.length >= 2) _kwhTruoc[rid] = +s[s.length - 2].kwh || 0; });
   return `<div class="table-wrap" style="max-height:min(560px,62vh);overflow:auto"><table><thead><tr><th>Phòng</th><th class="num">Số đầu</th><th class="num">Số cuối</th><th class="num">Tiêu thụ</th><th class="num">Tiền điện</th><th class="num">6 kỳ gần nhất</th></tr></thead><tbody>
     ${rooms.map(r => { const st = +r.reading_start || 0, en = +r.reading_end || 0; const bad = en > 0 && en < st; const kwh = Math.max(0, en - st); const tr = _kwhTruoc[r.room_id]; return `<tr>
-      ${''/* Số người ở gộp vào ô Phòng làm thông tin phụ (như nhãn Nam/Nữ) — nhường chỗ cho cột
-             sparkline. Bấm vào mở chi tiết phòng, y như ở màn Phòng. */}
       <td><div class="flex stu-name" data-act="roomDetail" data-args='[${r.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng — ai đang ở">
         <div><strong>${esc(r.room_name)}</strong>
           <div class="sub2">${r.gender === 'female' ? 'Nữ' : 'Nam'} · ${r.occupancy ? r.occupancy + ' người ở' : 'trống'}</div></div>
@@ -250,14 +246,11 @@ function ecalc(rid) {
   if (bad) { ek.innerHTML = '<span class="err-inline" title="Số cuối nhỏ hơn số đầu — sửa lại">Số cuối &lt; số đầu</span>'; em.textContent = '—'; return; }
   const kwh = Math.max(0, en - st), don = +ST.settings.electric_unit || 0;
   const tr = _kwhTruoc[rid];
-  // Chênh lệch cập nhật NGAY khi gõ — chờ tới lúc lưu mới thấy thì mất tác dụng cảnh báo.
   ek.innerHTML = `${kwh}${en ? deltaKwh(kwh, tr == null ? null : tr, n => n + ' kWh', true) : ''}`;
   em.innerHTML = `${money(kwh * don)}${en && tr != null ? deltaKwh(kwh * don, tr * don, money) : ''}`;
 }
 function readElectricInputs() {
-  // Ô Số cuối để TRỐNG phải gửi lên là rỗng, KHÔNG phải 0: 0 nghĩa là "công-tơ chỉ 0" (server
-  // chặn vì nhỏ hơn số đầu), còn rỗng nghĩa là "kỳ này chưa đọc" -> server xoá bản ghi, màn hình
-  // hiện ô trống thay vì một con số làm người xem tưởng đã chốt số.
+  // Ô trống gửi lên rỗng, KHÔNG phải 0 — server hiểu là chưa đọc và xoá bản ghi.
   return [...document.querySelectorAll('#modal input[data-room]')].map(inp => ({
     room_id: +inp.dataset.room,
     reading_end: inp.value.trim() === '' ? '' : (+inp.value || 0),
@@ -283,8 +276,7 @@ async function renderElectricForm(month) {
   modalThay(`<div class="mb"><div class="spinner"></div></div>`);   // BL-34: spinner khi đổi kỳ
   const rooms = await guard(() => API.electric(month));
   const lichSu = await API.electricHistory(month, 6).catch(() => null);
-  // Lỗi gọi API KHÔNG được nuốt: nuốt xong bảng hiện "không có lượt rời nào" — người dùng tin là
-  // xong việc trong khi thật ra chưa đọc được gì.
+  // Không nuốt lỗi: nuốt thì bảng hiện "không có lượt rời nào" trong khi chưa đọc được gì.
   let reads = null;
   try { reads = await API.electricReads(month); } catch (e) { reads = { loi: (e && e.message) || 'không đọc được' }; }
   modalThay(`
@@ -297,9 +289,7 @@ async function renderElectricForm(month) {
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Đóng</button><button class="btn pri" data-act="saveElectric">Lưu chỉ số điện</button></div>`);
 }
-// Chốt giữa kỳ: chỉ số công-tơ ghi HÔM học viên rời/chuyển phòng. Thiếu nó thì khối điện của kỳ
-// không cắt chặng được -> phần của người rời đổ hết sang người ở lại. Đây là đường nhập BÙ cho
-// các lượt đã check-out rồi (số ghi trên giấy lúc bàn giao).
+// Chốt giữa kỳ: chỉ số công-tơ hôm HV rời/chuyển phòng, nhập bù được cho lượt đã check-out.
 function chotGiuaKyHTML(month, reads) {
   if (reads && reads.loi) {
     return `<h4 style="margin:18px 0 6px">Chốt giữa kỳ — chỉ số hôm học viên rời phòng</h4>
@@ -307,8 +297,7 @@ function chotGiuaKyHTML(month, reads) {
       Đừng tin là kỳ này không có ai rời phòng — hãy tải lại trang rồi mở lại màn này.</div>`;
   }
   const thieu = (reads && reads.missing) || [], daCo = (reads && reads.reads) || [];
-  // id ô nhập phải DUY NHẤT: hai HV cùng phòng rời cùng ngày thì id trùng, nút Lưu dòng dưới đọc
-  // nhầm ô dòng trên. Khoá theo chỉ số dòng, không theo phòng+ngày.
+  // id khoá theo chỉ số dòng, không theo phòng+ngày (hai HV có thể rời cùng phòng cùng ngày).
   const dongThieu = thieu.map((m, i) => {
     const ngay = String(m.ngay_can_nhap || m.to_date).slice(0, 10);
     return `
@@ -336,7 +325,7 @@ function chotGiuaKyHTML(month, reads) {
       <tbody>${dongThieu}${dongDaCo || ''}${!thieu.length && !daCo.length ? '<tr><td colspan="5" class="muted">Kỳ này không có lượt rời/chuyển phòng nào.</td></tr>' : ''}</tbody>
     </table></div>`;
 }
-// Vẽ lại CẢ modal sẽ xoá sạch chỉ số đang gõ dở ở bảng trên -> giữ lại rồi đổ về sau khi vẽ.
+// Giữ chỉ số đang gõ dở qua lần vẽ lại modal.
 function giuChiSoDangGo() {
   const m = {};
   document.querySelectorAll('#modal input[data-room]').forEach(i => { m['end_' + i.dataset.room] = i.value; });
@@ -372,8 +361,7 @@ async function xoaChotGiuaKy(id) {
 }
 async function saveElectric() {
   if (badElectricRooms().length) return toast('Có phòng "số cuối < số đầu" — sửa lại chỉ số điện trước khi lưu', 'err');
-  // Ô chốt giữa kỳ KHÔNG thuộc bảng này (mỗi dòng có nút Lưu riêng). Nút này mà nuốt luôn rồi báo
-  // "Đã lưu" thì người dùng tưởng xong — đúng loại lỗi chết-im-lặng đã vấp mấy lần.
+  // Ô chốt giữa kỳ có nút Lưu riêng, không thuộc bảng này -> cảnh báo trước khi bỏ.
   const goDo = [...document.querySelectorAll('#modal input[id^="mr_"]')].filter(i => i.value.trim() !== '');
   if (goDo.length && !confirm(
     `Còn ${goDo.length} ô chốt giữa kỳ đang gõ dở CHƯA lưu.\n\n`
@@ -452,9 +440,7 @@ async function phieuBao(inv) {
   const room = roomById(s.room_id) || {};
   const fac = ST.facilities.find(f => f.id === room.facility_id) || {};
   const set = ST.settings;
-  // Điện thu LÙI MỘT KỲ: phiếu kỳ M mang khối điện kỳ M-1 — chỉ số và các chặng đọc từ kỳ đó.
-  // Phòng phải lấy theo PHIẾU (inv.room_id), không theo phòng hiện tại của HV: người đã chuyển
-  // hoặc đã trả phòng thì s.room_id là phòng khác/null -> tra ra chỉ số của phòng không liên quan.
+  // Điện lùi một kỳ: chỉ số và chặng đọc từ kỳ M-1, phòng lấy theo PHIẾU (HV có thể đã chuyển/trả).
   const kyDien = prevKy(inv.month);
   const phongPhieu = inv.room_id || s.room_id || null;
   let er = null, segs = [];
@@ -474,8 +460,7 @@ async function phieuBao(inv) {
 
   const rows = [];
   let stt = 0;
-  // Cột Đơn giá chỉ chứa GIÁ, cột Số lượng chỉ chứa SỐ — để người nhận nhân nhẩm ra Thành tiền mà
-  // kiểm. Mọi diễn giải xuống dòng phụ hoặc nằm trong chú thích rê-chuột, không chen vào hai cột đó.
+  // Đơn giá chỉ giá, Số lượng chỉ số; diễn giải xuống dòng phụ hoặc vào chú thích rê chuột.
   const phu = t => t ? `<span class="rc-sub">${t}</span>` : '';
   const chu = (nhan, ct) => `${nhan}<span class="rc-ttip" tabindex="0" aria-label="${esc(ct)}">${IC.info}<i>${ct}</i></span>`;
   const row = (khoan, dg, sl, tt) => rows.push(
@@ -491,8 +476,7 @@ async function phieuBao(inv) {
     money(unit),
     `${inv.electric_kwh} kWh` + phu(er ? `chỉ số ${er.reading_start} → ${er.reading_end}` : ''),
     inv.electric_charge);
-  // Từng CHẶNG của kỳ điện (cắt tại mỗi lần chốt công-tơ lúc có người rời/chuyển): người nhận
-  // thấy rõ ngày nào→ngày nào, phòng chạy bao nhiêu kWh, chia mấy người, phần mình bao nhiêu.
+  // Từng chặng của kỳ điện, cắt tại mỗi lần chốt công-tơ.
   if (!nguyenPhong && segs.length > 1) {
     for (const sg of segs) {
       const my = (sg.roster || []).find(x => x.student_id === inv.student_id);
@@ -503,7 +487,7 @@ async function phieuBao(inv) {
     }
   }
   // HV rời trong kỳ phiếu: phiếu này gánh thêm điện kỳ phiếu tính TỚI NGÀY RỜI (từ số chốt bàn giao).
-  // Chỉ in khi phiếu THẬT SỰ có khoản đó — khối kỳ M-1 tính ra ít hơn tổng tiền điện trên phiếu.
+  // Chỉ in khi phiếu thật sự có khoản đó.
   if ((s.check_out_date || '').slice(0, 7) === inv.month && +inv.electric_charge > 0) {
     const phanKyTruoc = segs.reduce((a, sg) => {
       const my = (sg.roster || []).find(x => x.student_id === inv.student_id);

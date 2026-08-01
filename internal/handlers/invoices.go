@@ -688,34 +688,7 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 			}
 		}
 
-		// HV rời TRONG kỳ M: phiếu này còn gánh phần điện kỳ M tới ngày rời, lấy từ chỉ số chốt hôm
-		// bàn giao. Thiếu chỉ số đó thì phần ấy âm thầm = 0 — phải bỏ qua + cảnh báo y như kỳ M-1,
-		// không được lặng lẽ thu thiếu. Ngoại lệ: rời đúng ngày cuối kỳ VÀ kỳ M đã chốt số cuối.
-		thieuKyNay := map[int]bool{}
-		for _, s := range students {
-			if s.roomID == nil || len(s.checkOut) < 7 || s.checkOut[:7] != body.Month {
-				continue
-			}
-			co := s.checkOut[:10]
-			if co == mEnd {
-				var one int
-				if tx.QueryRow(ctx, "SELECT 1 FROM electric_readings WHERE room_id=$1 AND month=$2", *s.roomID, body.Month).Scan(&one) == nil {
-					continue
-				}
-			}
-			var one int
-			if tx.QueryRow(ctx,
-				"SELECT 1 FROM meter_reads WHERE room_id=$1 AND read_date BETWEEN $2::date AND $2::date + 1",
-				*s.roomID, co).Scan(&one) == nil {
-				continue
-			}
-			thieuKyNay[s.id] = true
-			ten := roomsCache[*s.roomID].name
-			if ten == "" {
-				ten = "#" + itoa(*s.roomID)
-			}
-			warnings = append(warnings, "phòng "+ten+": thiếu chỉ số ngày "+co+" (HV rời trong kỳ "+body.Month+")")
-		}
+		// Chỉ kiểm kỳ M-1. Phần điện kỳ M tới ngày rời do BillCheckout lo lúc bàn giao.
 		for rid, t := range thieuRoom {
 			ten := roomsCache[rid].name
 			if ten == "" {
@@ -782,9 +755,8 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 
 		// invoices.routes.js:230-267
 		for _, s := range students {
-			// Phòng kỳ M-1 của HV còn thiếu dữ liệu điện, HOẶC chính HV rời trong kỳ M mà chưa có
-			// chỉ số ngày rời -> bỏ qua, chờ nhập xong phát lại.
-			boQua := thieuKyNay[s.id]
+			// Phòng kỳ M-1 thiếu dữ liệu điện -> bỏ qua HV này, chờ nhập xong phát lại.
+			boQua := false
 			for _, rid := range prevRooms[s.id] {
 				if _, ok := thieuRoom[rid]; ok {
 					boQua = true

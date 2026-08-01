@@ -155,8 +155,7 @@ func strOf(v interface{}) string {
 	return ""
 }
 
-// electricTrong: ô nhập bỏ trống? (không gửi, null, "" hoặc chuỗi toàn khoảng trắng)
-// Trống KHÁC 0: 0 là "công-tơ chỉ 0", trống là "chưa đọc".
+// electricTrong: ô nhập bỏ trống (không gửi, null, "" hoặc toàn khoảng trắng). Khác 0.
 func electricTrong(raw json.RawMessage) bool {
 	s := strings.TrimSpace(string(raw))
 	if s == "" || s == "null" {
@@ -236,9 +235,7 @@ func (h *Handlers) SaveElectricBulk(c *gin.Context) {
 	for _, r := range body.Readings {
 		ridNum, _ := jsNum(r.RoomID)
 		rid := int(ridNum)
-		// Ô "Số cuối" để TRỐNG = kỳ này CHƯA ĐỌC công-tơ -> xoá bản ghi, không ghi 0.
-		// Ghi 0 thì server chặn "cuối < đầu"; ghi bằng số đầu thì màn hình hiện một con số ở ô
-		// Số cuối, người xem tưởng đã chốt số trong khi kỳ chưa hết.
+		// Ô Số cuối để trống = kỳ này chưa đọc công-tơ -> xoá bản ghi.
 		if electricTrong(r.ReadingEnd) {
 			xoa = append(xoa, rid)
 			continue
@@ -303,8 +300,7 @@ func (h *Handlers) SaveElectricBulk(c *gin.Context) {
 				return err
 			}
 		}
-		// Để trống = chưa đọc: xoá hẳn bản ghi. Màn hình sẽ tự lấy số đầu = số cuối kỳ trước
-		// (ListElectric COALESCE prev.reading_end) và để ô Số cuối TRỐNG — đúng sự thật.
+		// Xoá bản ghi -> ListElectric tự lấy số đầu = số cuối kỳ trước, ô Số cuối để trống.
 		for _, rid := range xoa {
 			if _, err := tx.Exec(ctx, `DELETE FROM electric_readings WHERE room_id=$1 AND month=$2`, rid, body.Month); err != nil {
 				return err

@@ -210,6 +210,28 @@ module.exports = {
       const rowF = (ls.json || []).find(x => x.room_id === RF);
       t.eq('Màn hình tự lấy Số đầu = số cuối kỳ trước', rowF && +rowF.reading_start, 500, JSON.stringify(rowF));
       t.eq('…và Số cuối để TRỐNG (0 → ô rỗng)', rowF && +rowF.reading_end, 0, JSON.stringify(rowF));
+
+      // ===== HV BÁO TRƯỚC sẽ rời GIỮA kỳ đang lập phiếu: ngày đó chưa tới nên không thể có chỉ số
+      // công-tơ. Không được vì thế mà bỏ qua họ — phiếu kỳ này chỉ cần điện kỳ TRƯỚC.
+      // Phần điện kỳ này tới ngày rời do phiếu thanh toán lúc bàn giao lo.
+      await clean(t.db);
+      const RG = await mkRoom('_G');
+      const G1 = await mkStu('_G1', RG), G2 = await mkStu('_G2', RG);
+      for (const id of [G1, G2]) await stay(id, RG);
+      await meter(RG, 300);                                   // kỳ 07 chốt đủ
+      await t.db.query(`UPDATE students SET check_out_date='2026-08-20' WHERE id=$1`, [G2]);
+      await t.db.query(`UPDATE room_stays SET to_date='2026-08-20' WHERE student_id=$1`, [G2]);
+
+      const gG = await t.api('POST', '/api/invoices/generate', T, { month: M2 });
+      t.ok('Lập phiếu kỳ 08 chạy được', gG.status === 200, `HTTP ${gG.status}`);
+      t.ok('KHÔNG cảnh báo thiếu chỉ số của ngày rời TRONG kỳ đang lập (ngày đó chưa tới)',
+        !(gG.json.warnings || []).some(w => w.includes('2026-08-20')),
+        JSON.stringify((gG.json.warnings || []).filter(w => w.includes(P + '_G'))));
+      const eG = await elec([G1, G2], M2);
+      t.ok('HV báo trước rời 20/08 VẪN có phiếu kỳ 08', eG[G2] !== undefined, `G2 = ${eG[G2]}`);
+      t.ok('…và bạn cùng phòng cũng có', eG[G1] !== undefined, `G1 = ${eG[G1]}`);
+      t.eq('Tổng hai phiếu = trọn tiền điện kỳ 07, không thiếu không thừa',
+        (eG[G1] || 0) + (eG[G2] || 0), 300 * UNIT, `tổng ${fmt((eG[G1] || 0) + (eG[G2] || 0))}`);
     } finally {
       await clean(t.db);
       if (oldUnit) await t.db.query(`UPDATE settings SET value=$1 WHERE key='electric_unit'`, [oldUnit.value]);

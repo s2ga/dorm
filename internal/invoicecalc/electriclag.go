@@ -8,10 +8,7 @@ import (
 	"ktx/internal/db"
 )
 
-// Điện thu LÙI MỘT KỲ (owner chốt 31/07/2026): phiếu tháng M = tiền phòng/nước/dịch vụ tháng M
-// (thu trước) + tiền điện kỳ M-1 (phải đợi số công-tơ cuối tháng mới tính được).
-// Riêng HV RỜI trong tháng M: phiếu thu lúc trả phòng gánh thêm phần điện tháng M
-// tính tới ngày rời (từ số công-tơ chốt hôm bàn giao) — vì họ không còn phiếu M+1 nữa.
+// Điện thu lùi một kỳ: phiếu tháng M = phòng/nước/dịch vụ tháng M + tiền điện kỳ M-1.
 
 // PrevMonthOf: 'YYYY-MM' của kỳ liền trước.
 func PrevMonthOf(month string) string {
@@ -31,12 +28,8 @@ func NextMonthOf(month string) string {
 	return t.AddDate(0, 1, 0).Format("2006-01")
 }
 
-// RecalcQuanhKy: tính lại phiếu của HV cho CẢ HAI kỳ chịu ảnh hưởng khi chỉ số công-tơ ngày
-// trong kỳ M thay đổi:
-//   - kỳ M   — phiếu CUỐI của người rời trong M (mang phần điện M tới ngày rời)
-//   - kỳ M+1 — phiếu của người CÒN Ở (mang trọn khối điện kỳ M)
-// Chỉ tính lại kỳ M là vô nghĩa với người ở lại: phiếu M của họ mang điện kỳ M-1, không đổi.
-// Trả số phiếu THỰC SỰ được ghi lại.
+// RecalcQuanhKy: chỉ số kỳ M đổi -> tính lại phiếu kỳ M (người rời) và kỳ M+1 (người ở lại).
+// Trả số phiếu thực sự được ghi lại.
 func RecalcQuanhKy(ctx context.Context, database *db.DB, studentID int, month string) int {
 	n := 0
 	for _, m := range []string{month, NextMonthOf(month)} {
@@ -47,10 +40,8 @@ func RecalcQuanhKy(ctx context.Context, database *db.DB, studentID int, month st
 	return n
 }
 
-// ElectricLag: tiền điện cho phiếu kỳ `month` của một HV.
-// = trọn phần kỳ month-1 + (nếu checkOut nằm trong `month`) phần kỳ `month` tới ngày rời.
-// Luôn trả con số (0 nếu không có dữ liệu) — KHÔNG trả nil, để bên gọi không rơi về
-// đường chia-theo-roster cũ (roster tháng M chia khối điện tháng M-1 là sai người).
+// ElectricLag: tiền điện phiếu kỳ `month` = phần kỳ month-1, cộng phần kỳ `month` tới ngày rời
+// nếu checkOut nằm trong kỳ đó. Luôn trả số (0 khi thiếu dữ liệu), không trả nil.
 func ElectricLag(ctx context.Context, database *db.DB, studentID int, month string, unit float64, checkOut string) (float64, error) {
 	sum := 0.0
 	prev, err := StudentElectric(ctx, database, studentID, PrevMonthOf(month), unit)

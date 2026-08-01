@@ -96,9 +96,8 @@ function _veModal(lop) {
   el('modal').scrollTop = 0;
   const mb = el('modal').querySelector('.mb'); if (mb) mb.scrollTop = 0;
 }
-// Ngăn xếp modal lưu HTML của từng lớp. Nhưng thứ người dùng GÕ nằm ở property của ô nhập, không
-// phải attribute — innerHTML không chứa nó. Mở lớp con rồi lùi về là mất trắng, im lặng.
-// Đồng bộ property -> attribute rồi mới chụp, để lùi lớp về còn nguyên những gì đang nhập dở.
+// Chốt lớp đang hiện trước khi bị lớp con che: đồng bộ giá trị ô nhập từ property sang attribute
+// rồi chụp lại HTML, để lùi lớp về còn nguyên những gì đang nhập dở.
 function _chotLopHienTai() {
   if (!_lopModal.length) return;
   const m = el('modal');

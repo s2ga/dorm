@@ -15,9 +15,8 @@ import (
 	"ktx/internal/valid"
 )
 
-// Chốt chỉ số công-tơ GIỮA KỲ (lúc học viên rời phòng / chuyển phòng).
-// Trước đây chỉ ghi được ngay lúc bấm Check-out; ai đã trả phòng rồi thì số đọc trên giấy
-// không có đường nào vào app -> phần điện của họ rơi hết sang người ở lại.
+// Chốt chỉ số công-tơ giữa kỳ (lúc học viên rời phòng / chuyển phòng), nhập bù được cho các
+// lượt đã check-out.
 
 // ListMeterReads: GET /api/electric/reads?month=YYYY-MM
 // Trả cả lần chốt ĐÃ ghi lẫn lượt rời phòng CÒN THIẾU chỉ số, để biết còn nợ chỗ nào.
@@ -52,12 +51,9 @@ func (h *Handlers) ListMeterReads(c *gin.Context) {
 		return
 	}
 
-	// Lượt ở KẾT THÚC GIỮA kỳ mà chưa có chỉ số = còn thiếu. Luật phải KHỚP HỆT ThieuDienKy và
-	// khối thieuRoom bên GenerateInvoices, nếu không màn hình báo thiếu mà chỗ chặn bảo đủ (hoặc
-	// ngược lại) — người dùng sẽ đi nhập một chỉ số bịa vào ngày sai, đẻ thêm chặng, lệch tiền cả phòng:
-	//   · loại ngày CUỐI kỳ (số cuối tháng trong electric_readings đã là mốc đó)
-	//   · chấp nhận chỉ số ở to_date (trả phòng) HOẶC to_date+1 (chuyển phòng: lượt cũ hết D-1, đọc ghi ngày D)
-	// ngay_can_nhap = ngày mà nút Lưu phải POST lên (chuyển phòng thì là to_date+1).
+	// Lượt ở kết thúc GIỮA kỳ mà chưa có chỉ số. Luật khớp ThieuDienKy: bỏ ngày cuối kỳ, nhận
+	// chỉ số ở to_date (trả phòng) hoặc to_date+1 (chuyển phòng).
+	// ngay_can_nhap = ngày nút Lưu phải POST lên.
 	cond2 := []string{"rs.to_date >= $1", "rs.to_date < $2"}
 	params2 := []interface{}{dau, cuoi}
 	electricFacilityFilter(c, u, &cond2, &params2)
