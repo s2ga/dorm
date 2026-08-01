@@ -39,6 +39,12 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	s := &Server{Pub: envOr("PUBLIC_DIR", "public")}
 
 	r := gin.New()
+	// BL-76: Gin mặc định tin MỌI proxy nên client tự khai X-Forwarded-For là tự đổi IP mỗi request,
+	// vô hiệu hoá sạch phần đếm theo IP. Chỉ tin dải khai ở TRUSTED_PROXIES.
+	if err := r.SetTrustedProxies(trustedProxies()); err != nil {
+		fmt.Println("Không khởi động được: TRUSTED_PROXIES sai định dạng:", err)
+		os.Exit(1)
+	}
 	r.Use(gin.Recovery())
 	r.Use(middleware.RequestLog())  // log mỗi request /api (+ thông điệp lỗi) ra stderr -> Render/Docker
 	r.Use(middleware.Security()) // helmet/CSP cho MỌI response (kể cả index.html)
@@ -293,4 +299,16 @@ func envOr(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// Dải proxy tin cậy, đọc TRUSTED_PROXIES (IP hoặc CIDR, cách nhau dấu phẩy).
+// Để trống = không tin proxy nào, lấy thẳng IP kết nối — đúng cho chạy local.
+func trustedProxies() []string {
+	var out []string
+	for _, p := range strings.Split(os.Getenv("TRUSTED_PROXIES"), ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }

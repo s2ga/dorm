@@ -16,6 +16,8 @@ services:
         value: Asia/Ho_Chi_Minh
       - key: COOKIE_SECURE           # Render phục vụ HTTPS -> cookie Secure
         value: "true"
+      - key: TRUSTED_PROXIES         # BL-76: chỉ tin X-Forwarded-For từ edge của Render (dải nội bộ);
+        value: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16   # ngoài dải này dùng IP kết nối thật
       - key: DATABASE_URL            # Supabase session pooler (port 5432) — điền trong Dashboard
         sync: false
       - key: JWT_SECRET
