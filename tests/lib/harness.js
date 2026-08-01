@@ -38,7 +38,14 @@ async function login(username, password) {
     body: JSON.stringify({ username, password }),
   });
   const m = (r.headers.get('set-cookie') || '').match(/ktx_token=([^;]+)/);
-  if (!m) throw new Error(`Không đăng nhập được "${username}" (HTTP ${r.status}). Đặt biến ADMIN_P?`);
+  if (!m) {
+    // Nói đúng nguyên nhân: 429 là do net chống dò (20 lần/15 phút theo IP|tên) — chạy bộ test hai
+    // lần liền nhau là dính, chứ không phải thiếu mật khẩu. Đoán nhầm ở đây tốn cả buổi đi mò.
+    const vi = r.status === 429
+      ? 'bị chặn vì thử quá nhiều lần. Đợi hết 15 phút, hoặc khởi động lại máy chủ để xoá bộ đếm trong RAM'
+      : `HTTP ${r.status}. Đặt biến ADMIN_P?`;
+    throw new Error(`Không đăng nhập được "${username}" — ${vi}`);
+  }
   return m[1];
 }
 

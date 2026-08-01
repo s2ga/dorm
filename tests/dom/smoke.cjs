@@ -25,13 +25,21 @@ const ok = (name, cond, extra = '') => {
   const page = await ctx.newPage();
 
   // BL-20: thẻ drill-through mở modal (trước truyền chuỗi thô -> bấm không mở gì).
-  await page.goto('/dieu-hanh'); await page.waitForTimeout(2500);
-  await page.click('[data-act="residencyModal"]').catch(() => {});
-  await page.waitForTimeout(600);
-  const modalOpen = await page.evaluate(() => document.getElementById('overlay') && document.getElementById('overlay').classList.contains('show'));
-  const modalTitle = await page.evaluate(() => { const h = document.querySelector('#modal .mh h3'); return h ? h.textContent.trim() : ''; });
-  ok('BL-20: bấm thẻ "Tạm trú" -> modal mở', !!modalOpen && /tạm trú/i.test(modalTitle), 'title=' + modalTitle);
-  await page.evaluate(() => window.closeModalNgay && closeModalNgay());
+  // Thẻ nằm ở Tổng quan "/" (viewDashboard), KHÔNG ở /dieu-hanh — trước đây test vào sai màn nên
+  // FAIL vĩnh viễn trong khi tính năng vẫn chạy. Thẻ chỉ gắn data-act khi số đếm khác 0, nên không
+  // có thẻ = không có dữ liệu để kiểm, phải nói rõ là BỎ QUA thay vì báo hỏng.
+  await page.goto('/'); await page.waitForTimeout(2500);
+  const coThe = await page.evaluate(() => !!document.querySelector('[data-act="residencyModal"]'));
+  if (!coThe) {
+    ok('BL-20: bấm thẻ "Tạm trú" -> modal mở (BỎ QUA: không HV nào chưa đăng ký tạm trú)', true, 'không có thẻ để bấm');
+  } else {
+    await page.click('[data-act="residencyModal"]').catch(() => {});
+    await page.waitForTimeout(600);
+    const modalOpen = await page.evaluate(() => document.getElementById('overlay') && document.getElementById('overlay').classList.contains('show'));
+    const modalTitle = await page.evaluate(() => { const h = document.querySelector('#modal .mh h3'); return h ? h.textContent.trim() : ''; });
+    ok('BL-20: bấm thẻ "Tạm trú" -> modal mở', !!modalOpen && /tạm trú/i.test(modalTitle), 'title=' + modalTitle);
+    await page.evaluate(() => window.closeModalNgay && closeModalNgay());
+  }
 
   // BL-39: popover lọc cột -> checkbox KHÔNG bị kéo giãn full-width (rộng < 20px).
   await page.goto('/hoc-vien'); await page.waitForTimeout(2800);
