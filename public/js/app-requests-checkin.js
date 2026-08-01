@@ -132,7 +132,7 @@ async function saveNote(type, id) {
   if (type === 'app') await guard(() => API.setAppNote(id, note));
   else if (type === 'cout') await guard(() => API.setCoutNote(id, note));
   else { const d = ST.damage.find(x => x.id === id) || {}; await guard(() => API.updateDamage(id, { status: d.status || 'new', admin_note: note })); }
-  await refreshCache(); closeModal(); toast('Đã lưu ghi chú'); viewRequests();
+  await napLai('applications', 'couts', 'damage'); closeModal(); toast('Đã lưu ghi chú'); viewRequests();
 }
 const noteLine = n => n ? `<div class="sub2" style="color:var(--brand-d);white-space:pre-wrap;margin-top:3px">${IC.filePen} ${esc(n)}</div>` : '';
 
@@ -179,7 +179,7 @@ async function saveViolation(studentId) {
 }
 async function delViolation(id, studentId) {
   if (!confirm('Xóa vi phạm này?')) return;
-  await guard(() => API.deleteViolation(id)); await refreshCache(); toast('Đã xóa vi phạm');
+  await guard(() => API.deleteViolation(id)); await napLai('students', 'vstats'); toast('Đã xóa vi phạm');
   if (studentId && el('overlay').classList.contains('show')) studentDetail(studentId);
   else adminGo(ST.view);
 }

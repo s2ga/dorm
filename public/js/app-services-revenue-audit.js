@@ -60,7 +60,7 @@ async function toggleWashing(id, on) {
   if (!id) return;
   if (!on && !confirm('Ngưng dịch vụ máy giặt cho học viên này?')) return;
   await guard(() => API.setWashing(id, on));
-  await refreshCache(); closeModal();
+  await napLai('students'); closeModal();
   toast(on ? 'Đã thêm HV dùng máy giặt' : 'Đã ngưng máy giặt');
   if (ST.view === 'services') viewServices();
 }

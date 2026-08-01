@@ -131,6 +131,25 @@ async function refreshCache() {
   updateNavBadges();
   renderFacilitySelector();
 }
+// BL-77: nạp lại ĐÚNG nhóm dữ liệu vừa đổi. refreshCache() kéo 12 request / ~260 KB, riêng danh
+// sách học viên đã 184 KB — lưu một nhãn ảnh không đáng phải tải lại chừng đó, mà lại tải ngay lúc
+// người dùng đang chờ sau khi bấm Lưu.
+const NAP_NHOM = {
+  settings: async () => { ST.settings = await API.settings(); },
+  students: async () => { ST.students = await API.students(); },
+  rooms: async () => { ST.rooms = await API.rooms(); },
+  assets: async () => { ST.assets = await API.assets(); },
+  vtypes: async () => { ST.vtypes = await API.violationTypes(); },
+  applications: async () => { ST.applications = await API.applications(); },
+  damage: async () => { ST.damage = await API.damageAll(); },
+  couts: async () => { ST.couts = await API.checkoutReqs(); },
+  logs: async () => { ST.logs = await API.logs(); },
+  vstats: async () => { ST.vstats = await API.violationStats(); },
+};
+async function napLai(...nhom) {
+  await Promise.all(nhom.map(n => NAP_NHOM[n]()));
+  updateNavBadges();
+}
 // Đa cơ sở: bộ chọn cơ sở toàn cục — CHỈ cho ĐIỀU HÀNH (admin) và khi có >1 cơ sở. Quản lý/bảo trì đã
 // bị backend bó theo cơ sở nên không hiện. Đổi cơ sở -> nạp lại toàn bộ dữ liệu (API.setFacility) rồi vẽ lại.
 function renderFacilitySelector() {

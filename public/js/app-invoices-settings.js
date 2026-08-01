@@ -142,7 +142,7 @@ async function delInvoice(id) {
   const i = (_invAll || []).find(x => x.id === id) || {};   // BL-30: nêu tên/tổng để tránh xóa nhầm
   const who = [i.student_name, i.room_name].filter(Boolean).join(' · ');
   if (!confirm(`Xóa hóa đơn${who ? ' của ' + who : ''}${i.total != null ? ' (tổng ' + money(i.total) + ')' : ''}?`)) return;
-  await guard(() => API.deleteInvoice(id)); await refreshCache(); toast('Đã xóa'); viewInvoices();
+  await guard(() => API.deleteInvoice(id)); toast('Đã xóa'); viewInvoices();   // hoá đơn không nằm trong ST -> viewInvoices tự nạp lại
 }
 
 /* Tạo hóa đơn tự tính cho 1 học viên (VD học viên mới vào giữa tháng) */
@@ -165,7 +165,7 @@ async function saveOneInvoice() {
   if (!student_id) return toast('Chọn học viên', 'err');
   if (!month) return toast('Chọn kỳ', 'err');
   const r = await guard(() => API.generateOneInvoice({ student_id, month }));
-  await refreshCache(); closeModal(); invMonth = month; invFilter = 'all';
+  closeModal(); invMonth = month; invFilter = 'all';
   toast(r.created ? 'Đã tạo hóa đơn cho học viên' : 'Đã cập nhật hóa đơn');
   viewInvoices();
   if (r.invoice) { r.invoice.room_name = (roomById(r.invoice.room_id) || {}).name || ''; setTimeout(() => phieuBao(r.invoice), 150); }
@@ -403,7 +403,7 @@ async function runGenerate() {
   if (!confirm(msg)) return;
   // Bước 2: lập thật
   const r = await guard(() => API.generateInvoices({ month, readings }));
-  await refreshCache(); closeModal(); invMonth = month; invFilter = 'all';
+  closeModal(); invMonth = month; invFilter = 'all';
   toast(`Đã tạo ${r.created} · cập nhật ${r.updated || 0}${r.skipped ? ` · bỏ qua ${r.skipped} (đã đóng)` : ''}${r.cleaned ? ` · dọn ${r.cleaned} phiếu rác (người đã rời)` : ''}${r.skipped_missing ? ` · ⚠ ${r.skipped_missing} thiếu điện` : ''} hóa đơn`, r.skipped_missing ? 'err' : undefined);
   viewInvoices();
   // Cảnh báo phải ĐẬP VÀO MẮT, không được chết im trong toast (bài học 2 nút chết im lặng).
@@ -445,7 +445,7 @@ async function saveInvoice(id) {
     other_charge: g('other_charge'), other_note: el('i_other_note').value.trim() };
   if (!body.student_id) return toast('Chọn học viên', 'err');
   await guard(() => id ? API.updateInvoice(id, body) : API.createInvoice(body));
-  await refreshCache(); closeModal(); invMonth = body.month; toast('Đã lưu hóa đơn'); viewInvoices();
+  closeModal(); invMonth = body.month; toast('Đã lưu hóa đơn'); viewInvoices();
 }
 function toggleThanhVienNP() { invHienThanhVienNP = !invHienThanhVienNP; viewInvoices(); }
 async function phieuBao(inv) {
@@ -1119,7 +1119,7 @@ async function saveApprove(id) {
   if (!sid && !body.new_student.name) return toast('Nhập họ tên để tạo hồ sơ học viên', 'err');
   await guard(() => API.approveUserAsStudent(id, body));
   closeModal(); toast('Đã duyệt — tài khoản học viên');
-  await refreshCache(); // hồ sơ mới -> danh sách học viên phải nạp lại
+  await napLai('students'); // hồ sơ mới -> danh sách học viên phải nạp lại
   loadAdminUsers(); loadStudentAccounts();
 }
 function userForm(id) {
@@ -1345,13 +1345,13 @@ async function saveIntro() {
   const body = {};
   INTRO_FIELDS.forEach(([k]) => body[k] = el('set_' + k).value);
   await guard(() => API.updateSettings(body));
-  await refreshCache(); toast('Đã lưu nội dung trang giới thiệu'); // BL-24: không re-render, giữ input panel khác
+  await napLai('settings'); toast('Đã lưu nội dung trang giới thiệu'); // BL-24: không re-render, giữ input panel khác
 }
 async function saveImgCaptions() {
   const body = {};
   INTRO_MEDIA.forEach(([key]) => { const inp = el('set_imgcap_' + key); if (inp) body['imgcap_' + key] = inp.value; });
   await guard(() => API.updateSettings(body));
-  await refreshCache(); toast('Đã lưu nhãn ảnh'); viewSettings();
+  await napLai('settings'); toast('Đã lưu nhãn ảnh'); viewSettings();
 }
 function vtypeForm(id) {
   const t = id ? (ST.vtypes || []).find(x => x.id === id) : { name: '', severity: 'minor', active: true };
@@ -1372,9 +1372,9 @@ async function saveVtype(id) {
   const body = { name: el('vt_name').value.trim(), severity: el('vt_sev').value, active: id ? el('vt_active').value === '1' : true };
   if (!body.name) return toast('Nhập tên loại vi phạm', 'err');
   await guard(() => id ? API.updateVType(id, body) : API.createVType(body));
-  await refreshCache(); closeModal(); toast('Đã lưu loại vi phạm'); viewSettings();
+  await napLai('vtypes'); closeModal(); toast('Đã lưu loại vi phạm'); viewSettings();
 }
-async function delVtype(id) { if (!confirm('Xóa loại vi phạm này?')) return; await guard(() => API.deleteVType(id)); await refreshCache(); toast('Đã xóa'); viewSettings(); }
+async function delVtype(id) { if (!confirm('Xóa loại vi phạm này?')) return; await guard(() => API.deleteVType(id)); await napLai('vtypes'); toast('Đã xóa'); viewSettings(); }
 async function saveSsoSettings() {
   const body = {
     sso_enabled: el('set_sso_enabled').value,
@@ -1390,7 +1390,7 @@ async function saveSsoSettings() {
     return toast('Bật SSO cần ít nhất Tenant ID + Client ID', 'err');
   }
   await guard(() => API.updateSettings(body));
-  await refreshCache(); toast('Đã lưu cấu hình đăng nhập Microsoft'); // BL-24: không re-render, giữ input panel khác
+  await napLai('settings'); toast('Đã lưu cấu hình đăng nhập Microsoft'); // BL-24: không re-render, giữ input panel khác
   // Badge "Đang bật/Đang tắt" do máy chủ tính -> vẽ lại riêng nó cho khớp, không re-render cả màn.
   const badge = el('ssoStateBadge');
   if (badge) badge.innerHTML = ST.settings.sso_effective
@@ -1409,7 +1409,7 @@ async function saveMailSettings() {
     smtp_from: el('set_smtp_from').value.trim(),
   };
   await guard(() => API.updateSettings(body));
-  await refreshCache(); toast('Đã lưu cấu hình email'); // BL-24: không re-render, giữ input panel khác
+  await napLai('settings'); toast('Đã lưu cấu hình email'); // BL-24: không re-render, giữ input panel khác
 }
 async function testSmtpConnection() {
   const btn = el('smtpTestBtn'), out = el('smtpTestResult');
@@ -1454,14 +1454,14 @@ async function saveAsset(id) {
   const body = { name: el('as_name').value.trim(), category: el('as_cat').value, unit: el('as_unit').value.trim() || 'Cái', quantity: +el('as_qty').value || 0, fee: +el('as_fee').value || 0 };
   if (!body.name) return toast('Nhập tên tài sản', 'err');
   await guard(() => id ? API.updateAsset(id, body) : API.createAsset(body));
-  await refreshCache(); closeModal(); toast('Đã lưu tài sản'); viewSettings();
+  await napLai('assets'); closeModal(); toast('Đã lưu tài sản'); viewSettings();
 }
-async function delAsset(id) { if (!confirm('Xóa tài sản này?')) return; await guard(() => API.deleteAsset(id)); await refreshCache(); toast('Đã xóa'); viewSettings(); }
+async function delAsset(id) { if (!confirm('Xóa tài sản này?')) return; await guard(() => API.deleteAsset(id)); await napLai('assets'); toast('Đã xóa'); viewSettings(); }
 async function saveBravo() {
   const keys = ['bravo_fee_type', 'bravo_room', 'bravo_electric', 'bravo_water', 'bravo_service', 'bravo_parking', 'bravo_washing'];
   const body = {}; keys.forEach(k => body[k] = el('set_' + k).value.trim());
   await guard(() => API.updateSettings(body));
-  await refreshCache(); toast('Đã lưu mã Bravo'); // BL-24: không re-render, giữ input panel khác
+  await napLai('settings'); toast('Đã lưu mã Bravo'); // BL-24: không re-render, giữ input panel khác
 }
 function feeHint(key) { const h = el('hint_' + key), i = el('set_' + key); if (h && i) h.textContent = money(i.value || 0); }
 async function saveSettings() {
@@ -1479,7 +1479,7 @@ async function saveSettings() {
   await guard(() => API.updateSettings(body));
   // BL-24: KHÔNG re-render toàn trang sau khi lưu — giữ input đang gõ ở các panel khác (mọi panel
   // đều nằm trong DOM). Giá trị hiển thị đã là giá trị vừa gõ = giá trị đã lưu, không cần vẽ lại.
-  await refreshCache(); toast('Đã lưu cài đặt');
+  await napLai('settings'); toast('Đã lưu cài đặt');
 }
 function facilityForm(id) {
   const f = id ? ST.facilities.find(x => x.id === id) : { name: '', address: '' };

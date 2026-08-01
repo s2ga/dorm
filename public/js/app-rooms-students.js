@@ -220,18 +220,18 @@ async function saveRoom(id) {
     gender: el('f_gender').value, hang: el('f_hang').value, capacity: +el('f_cap').value || 0, monthly_fee: +el('f_mfee').value || 0, note: el('f_note').value.trim(), room_type: el('f_rtype').value };
   if (!body.name) return toast('Nhập tên phòng', 'err');
   await guard(() => id ? API.updateRoom(id, body) : API.createRoom(body));
-  await refreshCache(); closeModal(); toast('Đã lưu phòng'); viewRooms();
+  await napLai('rooms', 'students'); closeModal(); toast('Đã lưu phòng'); viewRooms();
 }
 // GỌI TÊN phòng trong câu hỏi: trên điện thoại việc này phát từ CỬ CHỈ (giữ / kéo ngang) nên người
 // ta cần thấy mình đang xoá đúng phòng nào, chứ "phòng này" thì không đối chiếu được với cái gì.
 async function delRoom(id) {
   const r = roomById(id);
   if (!confirm(`Xoá phòng ${r ? r.name : ''}?\n\n(Có thể khôi phục lại trong mục "Đã xóa")`)) return;
-  await guard(() => API.deleteRoom(id)); await refreshCache();
+  await guard(() => API.deleteRoom(id)); await napLai('rooms', 'students');
   closeModal();   // khi xoá từ card Chi tiết phòng: đóng card lại, không để nó đứng đó tả phòng vừa xoá
   toast('Đã xóa phòng'); viewRooms();
 }
-async function restoreRoom(id) { await guard(() => API.restoreRoom(id)); await refreshCache(); toast('Đã khôi phục phòng'); viewRooms(); }
+async function restoreRoom(id) { await guard(() => API.restoreRoom(id)); await napLai('rooms', 'students'); toast('Đã khôi phục phòng'); viewRooms(); }
 const roomFloorOf = n => { const m = String(n || '').match(/\d/); return m ? m[0] : '—'; };
 
 /* ---------- HỌC VIÊN ---------- */
