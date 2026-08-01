@@ -464,13 +464,15 @@ async function phieuBao(inv) {
     try { segs = ((await API.electricSegments(phongPhieu, kyDien)) || {}).segments || []; } catch {}
   }
   const unit = +set.electric_unit || 0;
-  const occ = ST.students.filter(x => x.room_id === s.room_id && isOccupying(x)).length || 1;
 
   // Phòng cho thuê TRỌN: phiếu đứng tên người ký HĐ và gánh khoản chung của cả phòng. Mô tả phải
   // nói đúng điều đó — ghi "Thuê ghép" trong khi tiền phòng là giá nguyên phòng là đánh lừa người đọc.
   const nguyenPhong = room.room_type === 'whole';
-  const suat = nguyenPhong ? occ : 1;
   const giaHang = +set['room_price_' + (room.hang || 'B')] || +set.room_fee || 0;
+  // Số lượng suy NGƯỢC từ thành tiền để mọi dòng nhân ra khớp: ở nửa kỳ là nửa suất, nguyên phòng
+  // là tổng suất cả phòng — đếm đầu người đang ở thì lệch cả hai ca.
+  const suatCua = (tien, dg) => (+dg ? (Math.round((+tien / +dg) * 100) / 100).toLocaleString('vi-VN') : '0');
+  const SUAT_CT = 'Một suất = một người ở đủ kỳ; ở nửa kỳ tính nửa suất. Thuê nguyên phòng thì gộp suất của cả phòng.';
   const soNgayThang = new Date(+inv.month.slice(0, 4), +inv.month.slice(5, 7), 0).getDate();
 
   const rows = [];
@@ -514,8 +516,8 @@ async function phieuBao(inv) {
       rows.push(`<tr class="rc-seg"><td></td><td colspan="4">· cộng phần điện ${monthLabel(inv.month)} tới ngày trả phòng ${fmtDate(s.check_out_date)} (theo số công-tơ chốt hôm bàn giao)</td></tr>`);
     }
   }
-  row('Tiền nước', money(set.water_fee), `${suat} người`, inv.water_charge);
-  row(chu('Dịch vụ', 'wifi · rác · an ninh'), money(set.service_fee), `${suat} người`, inv.service_charge);
+  row(chu('Tiền nước', SUAT_CT), money(set.water_fee), `${suatCua(inv.water_charge, set.water_fee)} suất`, inv.water_charge);
+  row(chu('Dịch vụ', 'wifi · rác · an ninh. ' + SUAT_CT), money(set.service_fee), `${suatCua(inv.service_charge, set.service_fee)} suất`, inv.service_charge);
   if (+inv.washing_charge) row('Máy giặt', money(set.washing_fee), `${Math.round(inv.washing_charge / (+set.washing_fee || 1))} người`, inv.washing_charge);
   if (+inv.parking_charge) row('Gửi xe', money(set.parking_fee), `${Math.round(inv.parking_charge / (+set.parking_fee || 1))} xe`, inv.parking_charge);
   if (+inv.other_charge) row(inv.other_note || 'Khoản khác', '', '', inv.other_charge);
