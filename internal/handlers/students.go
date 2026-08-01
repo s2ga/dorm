@@ -85,12 +85,15 @@ func (h *Handlers) studentsValidateCccd(c *gin.Context, b map[string]interface{}
 // CHƯA port S3: POST/PUT bỏ phần upload ảnh CCCD (vẫn tạo/sửa bản ghi); GET /:id/cccd/:side -> 501.
 
 // LIST_SELECT — danh sách (không kèm ảnh CCCD). students.routes.js:78-94
+// BL-78: KHÔNG trả CCCD, ngày sinh, SĐT phụ huynh, số tài khoản ngân hàng, ghi chú. Bảng danh sách
+// không cần tới chúng, mà danh sách thì về trình duyệt sau mỗi thao tác và nằm thường trực trong bộ
+// nhớ JS suốt phiên. Cần đủ trường thì mở GET /students/:id.
 const studentsListSelect = `
-  SELECT s.id, s.code, s.name, s.gender, s.phone, s.id_card, s.room_id, s.check_in_date, s.check_out_date,
-    s.status, s.note, s.uses_washing, s.deposit_amount, s.deposit_status, s.deposit_date, s.deposit_refund_date,
-    s.checkout_notice_date, s.checkout_reason, s.birth_date, s.class_name, s.email, s.rental_type, s.residency_status,
-    s.contract_no, s.contract_date, s.contract_status, s.deposit_bank, s.deposit_account,
-    s.class_start_date, s.expected_departure, s.parent_phone, s.room_fee_discount_pct, s.facility_id,
+  SELECT s.id, s.code, s.name, s.gender, s.phone, s.room_id, s.check_in_date, s.check_out_date,
+    s.status, s.uses_washing, s.deposit_amount, s.deposit_status, s.deposit_date, s.deposit_refund_date,
+    s.checkout_notice_date, s.checkout_reason, s.class_name, s.email, s.rental_type, s.residency_status,
+    s.contract_no, s.contract_date, s.contract_status,
+    s.class_start_date, s.expected_departure, s.room_fee_discount_pct, s.facility_id,
     s.water_discount_pct, s.electric_discount_pct, s.service_discount_pct, s.washing_discount_pct, s.parking_discount_pct,
     EXISTS (SELECT 1 FROM room_leaders rl WHERE rl.student_id=s.id AND rl.to_date IS NULL) AS is_leader,
     (s.cccd_front IS NOT NULL OR s.cccd_back IS NOT NULL OR s.cccd_image IS NOT NULL) AS has_cccd,
@@ -997,6 +1000,18 @@ func (h *Handlers) CreateStudent(c *gin.Context) {
 			}
 		}
 	}
+	// BL-78: lớp chặn XSS thứ hai, ở tầng ghi. esc() phía frontend là lớp duy nhất và nó nằm rải
+	// trong hàng trăm template viết tay — sót một chỗ là hút được cả khối dữ liệu.
+	if e := valid.KhongChoHTML(func(k string) (string, bool) {
+		v, ok := b[k]
+		if !ok || v == nil {
+			return "", false
+		}
+		return studentsJSString(v), true
+	}, []string{"name", "code", "class_name", "note", "deposit_bank", "deposit_account", "checkout_reason"}); e != "" {
+		badRequest(c, e)
+		return
+	}
 	ciCheck := studentsJSString(b["check_in_date"])
 	coCheck := studentsJSString(b["check_out_date"])
 	if valid.IsValidYmd(ciCheck) && valid.IsValidYmd(coCheck) && coCheck < ciCheck {
@@ -1257,6 +1272,17 @@ func (h *Handlers) UpdateStudent(c *gin.Context) {
 				return
 			}
 		}
+	}
+	// BL-78: lớp chặn XSS thứ hai, xét ĐÚNG những trường lần này gửi lên.
+	if e := valid.KhongChoHTML(func(k string) (string, bool) {
+		v, ok := raw[k]
+		if !ok || v == nil {
+			return "", false
+		}
+		return studentsJSString(v), true
+	}, []string{"name", "code", "class_name", "note", "deposit_bank", "deposit_account", "checkout_reason"}); e != "" {
+		badRequest(c, e)
+		return
 	}
 	ciM := studentsJSString(b["check_in_date"])
 	coM := studentsJSString(b["check_out_date"])

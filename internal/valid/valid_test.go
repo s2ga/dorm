@@ -165,6 +165,54 @@ func TestIsValidPortVaEmail(t *testing.T) {
 	}
 }
 
+// BL-78: lớp chặn XSS thứ hai ở tầng ghi. Phải bắt được payload thật, và KHÔNG được đụng tên/ghi
+// chú tiếng Việt bình thường — chặn nhầm là người dùng không lưu nổi hồ sơ.
+func TestCoTheLaHTML(t *testing.T) {
+	xau := []string{
+		`<img src=x onerror=alert(1)>Nguyen Van A`,
+		`<script>alert(1)</script>`,
+		`<SCRIPT SRC=//x.y></SCRIPT>`,
+		`<svg/onload=alert(1)>`,
+		`<!--[if IE]>`,
+		`&lt;script&gt;`,
+		`&#60;script&#62;`,
+		`</div>`,
+	}
+	for _, s := range xau {
+		if !CoTheLaHTML(s) {
+			t.Errorf("phải bị coi là HTML: %q", s)
+		}
+	}
+	lanh := []string{
+		"Nguyễn Văn A", "Phạm Thị Bích Ngọc", "Esu684", "TXCC-S2509",
+		"VIETCOMBANK - 0123456789", "Ở nửa tháng, tính 1/2 suất",
+		// "<" có khoảng trắng hoặc đứng trước số thì trình duyệt hiện thành chữ, không phải thẻ.
+		"Phòng 201 < 202 về số người", "a < b và b > c", "5<6", "< script>",
+		"", "Trả phòng do hết hạn HĐ (26/07)",
+	}
+	for _, s := range lanh {
+		if CoTheLaHTML(s) {
+			t.Errorf("chữ tiếng Việt bình thường KHÔNG được chặn: %q", s)
+		}
+	}
+}
+
+func TestKhongChoHTMLChiXetTruongDuocKhai(t *testing.T) {
+	data := map[string]string{"name": "Nguyễn Văn A", "note": "<b>x</b>", "phone": "0900000000"}
+	get := func(k string) (string, bool) { v, ok := data[k]; return v, ok }
+	if e := KhongChoHTML(get, []string{"name", "phone"}); e != "" {
+		t.Errorf("không xét note thì phải sạch, lỗi: %s", e)
+	}
+	e := KhongChoHTML(get, []string{"name", "note"})
+	if e == "" || !strings.Contains(e, "note") {
+		t.Errorf("phải chặn và nêu đúng tên trường, được %q", e)
+	}
+	// Trường không có trong body = không đụng tới, không được báo lỗi.
+	if e := KhongChoHTML(get, []string{"khong_ton_tai"}); e != "" {
+		t.Errorf("trường vắng mặt không được báo lỗi: %s", e)
+	}
+}
+
 func TestNormalizeBool(t *testing.T) {
 	for _, v := range []string{"true", "TRUE", " 1 ", "yes", "on"} {
 		if !NormalizeBool(v) {

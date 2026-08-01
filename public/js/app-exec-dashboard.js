@@ -111,13 +111,20 @@ function residencyModal() {
 
 // Tự gom CCCD 2 mặt của HV đang ở CHƯA đăng ký tạm trú -> danh sách in gửi công an.
 // Ảnh lấy trực tiếp qua proxy /api/students/:id/cccd/... (cookie phiên admin tự gửi -> ảnh hiện khi in).
-function tamTruSheet() {
+async function tamTruSheet() {
   closeModal();
   const S = ST.settings || {};
   const occ = ST.students.filter(isOccupying);
   const targets = occ.filter(s => s.residency_status === 'unregistered')
     .sort((a, b) => String(a.room_name || '').localeCompare(String(b.room_name || ''), 'vi') || String(a.name).localeCompare(String(b.name), 'vi'));
-  const ready = targets.filter(s => s.has_cccd_front && s.has_cccd_back);   // đủ 2 mặt -> đưa vào bản in
+  let ready = targets.filter(s => s.has_cccd_front && s.has_cccd_back);   // đủ 2 mặt -> đưa vào bản in
+  // BL-78: CCCD và ngày sinh không còn nằm trong danh sách — lấy hồ sơ chi tiết cho ĐÚNG số người
+  // sắp in. Hỏng một hồ sơ thì vẫn in phần còn lại, ô thiếu để "—" chứ không chết cả bản in.
+  if (ready.length) {
+    el('content').innerHTML = '<div class="spinner"></div>';
+    const chiTiet = await Promise.all(ready.map(s => API.student(s.id).catch(() => null)));
+    ready = ready.map((s, i) => Object.assign({}, s, chiTiet[i] || {}));
+  }
   const missing = targets.filter(s => !(s.has_cccd_front && s.has_cccd_back)); // thiếu ảnh -> cảnh báo, chưa in
   const missSide = s => [!s.has_cccd_front ? 'mặt trước' : null, !s.has_cccd_back ? 'mặt sau' : null].filter(Boolean).join(' + ') || 'chưa có ảnh';
 

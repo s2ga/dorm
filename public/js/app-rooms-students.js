@@ -706,8 +706,9 @@ async function doTransfer(id) {
   adminGo(ST.view);
 }
 /* Hoàn cọc kèm khấu trừ hư hao tài sản + STK */
-function refundForm(id) {
-  const s = studentById(id) || {};
+async function refundForm(id) {
+  // BL-78: số tài khoản hoàn cọc không còn nằm trong danh sách -> lấy từ hồ sơ chi tiết.
+  const s = (await guard(() => API.student(id))) || {};
   const deposit = +s.deposit_amount || 0;
   const assetRow = a => `<tr>
     <td>${esc(a.name)} <span class="muted" style="font-size:11px">(${esc(a.unit)})</span></td>

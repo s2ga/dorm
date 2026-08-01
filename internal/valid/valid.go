@@ -21,6 +21,9 @@ var (
 	rePriv172 = regexp.MustCompile(`^172\.(1[6-9]|2\d|3[01])\.`)
 	rePrivV6U = regexp.MustCompile(`^(fc|fd)[0-9a-f]{2}:`)
 	rePrivV6L = regexp.MustCompile(`^fe80:`)
+	// Thẻ HTML phải là "<" DÍNH LIỀN chữ cái — "a < b" trình duyệt hiện thành chữ, không phải thẻ,
+	// nên không được chặn (chặn nhầm là người dùng không lưu nổi ghi chú bình thường).
+	reTagHTML = regexp.MustCompile(`(?i)<[a-z!/?]|&#?[a-z0-9]{2,8};`)
 )
 
 // IsValidYmd: 'YYYY-MM-DD' phải là ngày có thật. server/valid.js:4-11
@@ -161,6 +164,22 @@ const InitialPasswordMin = 6
 type TooLongField struct {
 	Key string
 	Max int
+}
+
+// CoTheLaHTML: chuỗi có dấu hiệu thẻ/entity HTML. Lớp chặn THỨ HAI cho XSS — lớp thứ nhất là esc()
+// ở frontend, nằm rải trong hàng trăm template viết tay nên sót một chỗ là thủng.
+// Tên người, lớp, ghi chú tiếng Việt không bao giờ chứa các dạng này.
+func CoTheLaHTML(s string) bool { return reTagHTML.MatchString(s) }
+
+// KhongChoHTML: chặn HTML ở tầng GHI cho các trường văn bản tự do. Trả chuỗi lỗi hoặc "".
+func KhongChoHTML(get func(string) (string, bool), keys []string) string {
+	for _, k := range keys {
+		v, ok := get(k)
+		if ok && CoTheLaHTML(v) {
+			return `Trường "` + k + `" chứa mã HTML — nhập lại bằng chữ thường, bỏ các dấu < > và &...;`
+		}
+	}
+	return ""
 }
 
 // TooLong: chặn độ dài trường TEXT tự do. Trả chuỗi lỗi hoặc "". server/valid.js:135-142
