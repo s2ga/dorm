@@ -97,7 +97,7 @@ function roomDetail(id) {
       </div>
       <p><strong>Tầng:</strong> ${r.floor || roomFloorOf(r.name)} &nbsp;•&nbsp; <strong>Sức chứa:</strong> ${cap || '—'} giường &nbsp;•&nbsp; <strong>Pháp nhân:</strong> ${esc(legalEntity(r.gender))}${showFacilityUI() ? ` &nbsp;•&nbsp; <strong>Cơ sở:</strong> ${esc(facilityName(r.facility_id))}` : ''}</p>
       ${r.note ? `<p style="white-space:pre-wrap"><strong>Ghi chú:</strong> ${esc(r.note)}</p>` : ''}
-      ${vuot ? `<div class="hint" style="background:var(--amber-bg);border-color:var(--amber-ink);color:var(--amber-ink)">${IC.alert}
+      ${vuot ? `<div class="bang-tin" style="background:var(--amber-bg);border-color:var(--amber-ink);color:var(--amber-ink)">${IC.alert}
         <span><strong>Đang vượt sức chứa</strong> (${dsDangO.length} người / ${cap} giường). Nghiệp vụ CHO PHÉP việc này —
         thường là xếp người vào chờ bạn cũ xuất cảnh — nên đây chỉ là nhắc để bạn biết, không phải lỗi.</span></div>` : ''}
 
@@ -528,7 +528,7 @@ async function studentDetail(id) {
   openModal(`
     <div class="mh"><h3>${esc(s.name)} <span class="badge ${s.gender === 'female' ? 'sage' : 'blue'}">${genderLabel(s.gender)}</span> ${statusBadge(s)}${s.deleted_at ? ` <span class="badge red">${IC.lock} Đã khoá</span>` : ''}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      ${s.deleted_at ? `<div class="hint" style="margin-top:0;border-color:var(--red-ink)">${IC.lock} <span>Hồ sơ này <strong>đang bị khoá</strong> từ ${fmtDate(String(s.deleted_at).slice(0, 10))} — bị ẩn khỏi danh sách và tài khoản không đăng nhập được. Dữ liệu vẫn còn nguyên.
+      ${s.deleted_at ? `<div class="bang-tin" style="margin-top:0;border-color:var(--red-ink)">${IC.lock} <span>Hồ sơ này <strong>đang bị khoá</strong> từ ${fmtDate(String(s.deleted_at).slice(0, 10))} — bị ẩn khỏi danh sách và tài khoản không đăng nhập được. Dữ liệu vẫn còn nguyên.
         <div class="rowbtns" style="margin-top:10px"><button class="btn sm green" data-act="restoreStudentAndReload" data-args='[${s.id}]'>${IC.undo} Mở khoá hồ sơ này</button></div></span></div>` : ''}
       <div class="cards" style="margin-bottom:16px">
         <div class="stat"><div class="l">Phòng</div><div class="v sm">${s.room_id ? `<span class="hd-ref" data-act="roomDetail" data-args='[${s.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng — ai đang ở">${esc(s.room_name || '—')}</span>` : esc(s.room_name || '—')}${s.room_hang ? ` <span class="badge gray">${s.room_hang}</span>` : ''}</div></div>
@@ -545,8 +545,8 @@ async function studentDetail(id) {
       <div class="panel" style="margin-top:12px"><div class="hd"><h2 style="font-size:14px">${IC.fileText} Hợp đồng</h2></div><div class="pad">
         <p style="margin:0">Số HĐ: <strong>${esc(s.contract_no || '—')}</strong> · Ngày ký: ${fmtDate(s.contract_date)} · <span class="badge ${CONTRACT_BADGE[s.contract_status] || 'gray'}">${CONTRACT_LABEL[s.contract_status] || '—'}</span></p>
         ${s.contract_no ? '' : hdThamChieu(s, true)}
-        ${contractPending(s) ? `<div class="hint" style="margin:10px 0 0;background:var(--amber-bg);border-color:var(--amber-ink);color:var(--amber-ink)">${IC.alert} <strong>Chưa ký HĐ:</strong> thuê trên ${shortTermMaxDays()} ngày — cần ký <strong>hợp đồng thuê phòng</strong>.</div>`
-          : handoverPending(s) ? `<div class="hint" style="margin:10px 0 0">${IC.info} Cần <strong>ký phiếu đăng ký & bàn giao phòng</strong> (thuê ngắn hạn hoặc nhân viên công tác) — đặt tình trạng HĐ = "Đã ký phiếu bàn giao".</div>` : ''}
+        ${contractPending(s) ? `<div class="bang-tin" style="margin:10px 0 0;background:var(--amber-bg);border-color:var(--amber-ink);color:var(--amber-ink)">${IC.alert} <strong>Chưa ký HĐ:</strong> thuê trên ${shortTermMaxDays()} ngày — cần ký <strong>hợp đồng thuê phòng</strong>.</div>`
+          : handoverPending(s) ? `<div class="bang-tin" style="margin:10px 0 0">${IC.info} Cần <strong>ký phiếu đăng ký & bàn giao phòng</strong> (thuê ngắn hạn hoặc nhân viên công tác) — đặt tình trạng HĐ = "Đã ký phiếu bàn giao".</div>` : ''}
         ${(s.cccd_front || s.cccd_back || s.cccd_image) ? `<div style="margin-top:10px"><div class="muted" style="font-size:12px;margin-bottom:4px">Ảnh CCCD:</div><div style="display:flex;gap:8px;flex-wrap:wrap">
           ${s.cccd_front ? `<img src="${s.cccd_front}" title="Mặt trước" style="max-width:48%;max-height:180px;border-radius:8px;border:1px solid var(--line)">` : ''}
           ${s.cccd_back ? `<img src="${s.cccd_back}" title="Mặt sau" style="max-width:48%;max-height:180px;border-radius:8px;border:1px solid var(--line)">` : ''}
@@ -577,7 +577,7 @@ async function studentDetail(id) {
           ${vios.length >= vthr && !vios.some(v => v.notified_school) ? `<button class="btn sm danger" data-act="notifySchool" data-args='[${s.id}]'>${IC.inbox} Gửi mail nhà trường</button>` : ''}
           <button class="btn sm pri" data-act="violationForm" data-args='[${s.id}]'>${IC.plus} Ghi nhận</button>
         </div></div><div class="pad">
-        ${vios.length >= vthr ? `<div class="hint" style="background:var(--red-bg);border-color:#e3b8ad;color:var(--red-ink)">${IC.alert} Học viên đã vi phạm <strong>${vios.length} lần</strong> (≥ ${vthr})${vios.some(v => v.notified_school) ? ' — đã gửi mail nhà trường' : ' — cần thông báo nhà trường'}.</div>` : ''}
+        ${vios.length >= vthr ? `<div class="bang-tin" style="background:var(--red-bg);border-color:#e3b8ad;color:var(--red-ink)">${IC.alert} Học viên đã vi phạm <strong>${vios.length} lần</strong> (≥ ${vthr})${vios.some(v => v.notified_school) ? ' — đã gửi mail nhà trường' : ' — cần thông báo nhà trường'}.</div>` : ''}
         ${vios.length ? `<div class="table-wrap"><table><thead><tr><th>Ngày</th><th>Loại vi phạm</th><th>Mức độ</th><th class="num">Lần</th><th></th></tr></thead><tbody>
           ${vios.map(v => `<tr><td>${fmtDate(v.date)}</td><td><strong>${esc(v.type_name)}</strong>${v.note ? `<div class="muted" style="font-size:12px">${esc(v.note)}</div>` : ''}</td><td>${vioSevBadge(v.severity)}</td><td class="num"><span class="badge ${v.level >= vthr ? 'red' : 'gray'}">${v.level}</span></td><td class="num"><button class="btn sm ghost" data-act="delViolation" data-args='[${v.id}, ${s.id}]'>${IC.trash}</button></td></tr>`).join('')}
         </tbody></table></div>` : '<p class="muted" style="margin:0">Chưa có vi phạm.</p>'}
@@ -600,7 +600,7 @@ async function studentDetail(id) {
 // Lịch sử ở đọc từ room_stays — nguồn sự thật về ở/rời (thứ tính tiền dùng). Nhật ký chỉ bổ sung
 // ghi chú; mốc không có nhật ký được gắn nhãn "ghi từ hồ sơ" thay vì im lặng bỏ trống.
 function lichSuOHTML(stays) {
-  if (stays == null) return `<div class="hint">${IC.alert} Không đọc được lịch sử ở — tải lại trang rồi thử lại.</div>`;
+  if (stays == null) return `<div class="bang-tin">${IC.alert} Không đọc được lịch sử ở — tải lại trang rồi thử lại.</div>`;
   if (!stays.length) return '<p class="muted">Chưa có.</p>';
   const tuHoSo = '<span class="badge gray" title="Mốc này ghi thẳng vào hồ sơ, không qua nút Check-in/Check-out nên không có nhật ký thao tác">ghi từ hồ sơ</span>';
   const moc = (ngay, log) => `${fmtDate(ngay)}${log == null ? ' ' + tuHoSo : (log ? `<div class="sub2">${esc(log)}</div>` : '')}`;
@@ -649,7 +649,7 @@ function duplicateModal(d) {
   openModal(`
     <div class="mh"><h3>${IC.alert} Bạn này đã có hồ sơ</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <div class="hint" style="margin:0 0 16px"><span>${esc(d.error)}</span></div>
+      <div class="bang-tin" style="margin:0 0 16px"><span>${esc(d.error)}</span></div>
       <div class="asset-item" style="padding:14px">
         <div>${s.id ? `<div class="hd-ref" style="font-weight:700" data-close data-act="studentDetail" data-args='[${s.id}]' role="button" tabindex="0" title="Xem chi tiết hồ sơ">${esc(s.name || '')}</div>` : `<div style="font-weight:700">${esc(s.name || '')}</div>`}
           <div class="sub2">${s.code ? 'Mã HV: ' + esc(s.code) : ''}${(() => { if (!s.room_name) return ''; const r = ST.rooms.find(x => x.name === s.room_name); return r ? ` · Phòng <span class="hd-ref" data-close data-act="roomDetail" data-args='[${r.id}]' role="button" tabindex="0" title="Xem chi tiết phòng">${esc(s.room_name)}</span>` : ' · Phòng ' + esc(s.room_name); })()}</div></div>
@@ -916,7 +916,7 @@ function quyCoc() {
         <div class="kpi"><span class="ic ic-gray">${IC.users}</span><div><div class="v">${held.length}</div><div class="l">Học viên đang giữ cọc</div></div></div>
         <div class="kpi"><span class="ic ic-red">${IC.handCoins}</span><div><div class="v">${pending.length}</div><div class="l">Cần hoàn cọc ${pendAmt ? '(' + money(pendAmt) + ')' : ''}</div></div></div>
       </div>
-      ${pending.length ? `<div class="hint" style="background:var(--red-bg);border-color:#fca5a5;color:#b91c1c">${IC.handCoins} <strong>${pending.length} học viên đã trả phòng</strong> đang chờ hoàn cọc — hãy xử lý sớm.</div>
+      ${pending.length ? `<div class="bang-tin" style="background:var(--red-bg);border-color:#fca5a5;color:#b91c1c">${IC.handCoins} <strong>${pending.length} học viên đã trả phòng</strong> đang chờ hoàn cọc — hãy xử lý sớm.</div>
         <div class="table-wrap" style="margin-bottom:18px"><table><thead><tr><th>Học viên</th><th class="num">Cọc</th><th>Ngày đóng</th><th>Trạng thái</th><th></th></tr></thead><tbody>${pending.map(rowFor).join('')}</tbody></table></div>` : `<div class="hint">${IC.checkCircle} Không có khoản cọc nào chờ hoàn.</div>`}
       <h4 style="margin:6px 0 8px">Đang giữ cọc (${staying.length})</h4>
       ${staying.length ? `<div class="table-wrap"><table><thead><tr><th>Học viên</th><th class="num">Cọc</th><th>Ngày đóng</th><th>Trạng thái</th><th></th></tr></thead><tbody>${staying.map(rowFor).join('')}</tbody></table></div>` : '<p class="muted">Chưa có.</p>'}

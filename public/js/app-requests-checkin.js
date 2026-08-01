@@ -91,7 +91,7 @@ async function viewRequests() {
     hd = `${IC.alert} Danh sách vi phạm (${vios.length})`;
     actions = `<button class="btn sm" data-act="violationStatsModal">${IC.trendingUp} Thống kê</button>
       <button class="btn sm pri" data-act="violationForm">${IC.plus} Ghi nhận vi phạm</button>`;
-    banner = (vstats && vstats.needMail) ? `<div class="hint" style="background:var(--red-bg);border-color:#e3b8ad;color:var(--red-ink)">${IC.alert} <strong>${vstats.needMail} học viên</strong> vi phạm ≥ ${threshold} lần cần báo nhà trường. Cấu hình SMTP trong <a href="#" data-act="adminGo" data-args='["settings"]'>Cài đặt</a> để gửi email tự động, hoặc bấm <strong>Gửi mail</strong> ở từng dòng.</div>` : '';
+    banner = (vstats && vstats.needMail) ? `<div class="bang-tin" style="background:var(--red-bg);border-color:#e3b8ad;color:var(--red-ink)">${IC.alert} <strong>${vstats.needMail} học viên</strong> vi phạm ≥ ${threshold} lần cần báo nhà trường. Cấu hình SMTP trong <a href="#" data-act="adminGo" data-args='["settings"]'>Cài đặt</a> để gửi email tự động, hoặc bấm <strong>Gửi mail</strong> ở từng dòng.</div>` : '';
     body = vios.length ? `<div class="table-wrap"><table><thead><tr><th>Ngày</th><th>Học viên</th><th>Loại vi phạm</th><th>Mức độ</th><th class="num">Lần</th><th>Nhà trường</th><th></th></tr></thead><tbody>${vioRows}</tbody></table></div>` : '<div class="empty">Chưa ghi nhận vi phạm nào. Bấm <strong>Ghi nhận vi phạm</strong> hoặc mở chi tiết học viên.</div>';
   } else {
     // Hộp thư góp ý: học viên báo vi phạm / cần hỗ trợ khác (category violation, other)
@@ -221,7 +221,7 @@ function approveForm(id) {
     <div class="mh"><h3>${IC.plus} Thêm vào phòng: ${esc(a.name)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <p class="muted">${esc(a.phone)} · ${genderLabel(a.gender)} · ${RENTAL_LABEL[a.rental_type] || 'Thuê ghép'}${a.pref ? ' · NV: ' + esc(a.pref) : ''}</p>
-      ${a.wants_washing || a.wants_parking || a.plate ? `<div class="hint">Dịch vụ đăng ký: ${a.wants_washing ? `${IC.washer} Máy giặt ` : ''}${a.wants_parking || a.plate ? `${IC.bike} Gửi xe${a.plate ? ' (' + esc(a.plate) + ')' : ''}` : ''} — sẽ tự thêm khi duyệt.</div>` : ''}
+      ${a.wants_washing || a.wants_parking || a.plate ? `<div class="bang-tin">Dịch vụ đăng ký: ${a.wants_washing ? `${IC.washer} Máy giặt ` : ''}${a.wants_parking || a.plate ? `${IC.bike} Gửi xe${a.plate ? ' (' + esc(a.plate) + ')' : ''}` : ''} — sẽ tự thêm khi duyệt.</div>` : ''}
       <div class="grid2">
         <div class="field"><label>Xếp phòng</label><select id="ap_room">${roomOptions('', a.gender)}</select></div>
         <div class="field"><label>Ngày vào</label><input id="ap_date"></div>
@@ -273,7 +273,7 @@ function credentialModal(username, password) {
   openModal(`
     <div class="mh"><h3>${IC.key} Tài khoản đăng nhập học viên</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <div class="hint">${IC.checkCircle} Đã thêm học viên & tạo tài khoản. Gửi thông tin này cho học viên — <strong>đóng hộp là không xem lại được</strong> (phải vào Sửa hồ sơ để đặt lại mật khẩu).</div>
+      <div class="bang-tin">${IC.checkCircle} Đã thêm học viên & tạo tài khoản. Gửi thông tin này cho học viên — <strong>đóng hộp là không xem lại được</strong> (phải vào Sửa hồ sơ để đặt lại mật khẩu).</div>
       <div class="field"><label>Tên đăng nhập</label>
         <div class="flex" style="gap:6px"><input id="cred_user" value="${esc(username)}" readonly style="flex:1">
         <button type="button" class="btn sm" data-act="copyCred" data-args='["cred_user"]'>${IC.clipboard} Sao chép</button></div></div>
@@ -379,7 +379,7 @@ function depositSettlePrompt(id, refund) {
   openModal(`
     <div class="mh"><h3>${IC.lock} Xử lý tiền cọc</h3><button class="x" data-act="reloadView">×</button></div>
     <div class="mb">
-      <div class="hint" style="background:${refund.eligible ? 'var(--green-bg)' : 'var(--red-bg)'};border-color:${refund.eligible ? 'var(--green)' : 'var(--red)'};color:${refund.eligible ? 'var(--green-ink)' : 'var(--red-ink)'}">
+      <div class="bang-tin" style="background:${refund.eligible ? 'var(--green-bg)' : 'var(--red-bg)'};border-color:${refund.eligible ? 'var(--green)' : 'var(--red)'};color:${refund.eligible ? 'var(--green-ink)' : 'var(--red-ink)'}">
         ${refund.eligible ? IC.checkCircle+' Đủ điều kiện hoàn cọc' : IC.alert+' Chưa đủ điều kiện hoàn cọc'} — ${esc(refund.reason)}
       </div>
       <p>Bạn muốn xử lý tiền cọc thế nào?</p>

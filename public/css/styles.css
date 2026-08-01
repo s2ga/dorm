@@ -396,13 +396,22 @@ input[type=checkbox],input[type=radio]{width:auto;flex:none;accent-color:var(--b
 .pager:empty{display:none}
 /* Menu gom trang Cài đặt cho đỡ dài — thanh chọn nhóm ở đầu, mỗi lần hiện 1 nhóm panel */
 .set-nav{border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:22px}
-/* BL-95: note thu về một icon ⓘ; rê chuột, chạm hoặc tab tới mới bung nội dung. */
-.hint{position:relative;display:inline-flex;align-items:center;justify-content:center;
-  width:26px;height:26px;padding:0;margin:0 0 10px;border:1px solid var(--line);border-radius:50%;
-  background:var(--bg2);color:var(--ink2);font-size:13.5px;line-height:1.55;cursor:help;overflow:visible}
-.hint:hover,.hint:focus{border-color:var(--brand-d);outline:none}
-.hint>.hint-noi-dung{position:absolute;left:0;top:calc(100% + 7px);z-index:60;display:none;
+/* Bảng tin: thông báo trạng thái / kết quả / lỗi — hiện thẳng, KHÔNG thu gọn như note. */
+.bang-tin{background:var(--bg2);border:1px solid var(--line);color:var(--ink2);padding:13px 16px;
+  border-radius:13px;font-size:13.5px;margin-bottom:18px;line-height:1.55;overflow:hidden}
+.bang-tin .ic-svg{float:left;width:17px;height:17px;margin:1px 9px 0 0;color:var(--brand-d)}
+.bang-tin>span{display:block;overflow:hidden}
+/* BL-95: note thu về một nút "Ghi chú" nhỏ; rê chuột, chạm hoặc tab tới mới bung nội dung.
+   Mặt nút do gonNote() (ui.js) dựng nên luôn là ⓘ + chữ, cao 24px, không phụ thuộc note viết gì. */
+.hint{position:relative;display:inline-flex;align-items:center;gap:5px;vertical-align:middle;
+  padding:3px 11px 3px 9px;margin:0 0 10px;border:1px solid var(--line);border-radius:999px;
+  background:var(--bg2);color:var(--ink2);font-size:12.5px;line-height:1.5;cursor:help}
+.hint:hover,.hint:focus{border-color:var(--brand-d);color:var(--brand-d);outline:none}
+.hint>.hint-nhan{display:inline;font-weight:500;white-space:nowrap}
+/* fixed chứ không absolute: .panel{overflow:hidden} cắt cụt lớp phủ. Toạ độ do datViTriNote() đặt. */
+.hint>.hint-noi-dung{position:fixed;left:0;top:0;z-index:60;display:none;
   width:max-content;max-width:min(340px,78vw);text-align:left;
+  font-size:13.5px;line-height:1.55;font-weight:400;color:var(--ink2);
   background:var(--bg2);border:1px solid var(--line);border-radius:13px;padding:12px 15px;
   box-shadow:0 10px 28px rgba(0,0,0,.16)}
 .hint:hover>.hint-noi-dung,.hint:focus>.hint-noi-dung,.hint:focus-within>.hint-noi-dung{display:block}
@@ -460,11 +469,13 @@ input[type=checkbox],input[type=radio]{width:auto;flex:none;accent-color:var(--b
 .auth-chip .ic-svg{width:15px;height:15px}
 .auth-card .ac-ico .ic-svg{width:20px;height:20px;color:var(--brand-d)}
 .auth-amen span .ic-svg{width:14px;height:14px;vertical-align:-.16em;margin-right:3px;color:var(--gold-line)}
-.hint .ic-svg{float:none;width:17px;height:17px;margin:0;color:var(--brand-d);flex:none}
-/* .hint KHÔNG dùng flex nữa: flex làm MỖI <strong>/<a> chèn thẳng thành 1 CỘT -> chữ vỡ, đọc không nổi.
-   Nay icon float trái, chữ (kể cả <strong>/<a> chèn thẳng) chảy quanh icon -> luôn liền mạch.
-   overflow:hidden ở .hint để chứa float; <span> (nếu có) tạo BFC nằm gọn bên phải icon. */
-.hint>span{display:block;overflow:hidden}
+.hint>.ic-svg{width:15px;height:15px;margin:0;color:var(--brand-d);flex:none}
+/* gonNote() dời note lên cạnh tiêu đề panel: giữ dáng nút, đừng ăn theo cỡ chữ serif của h2 */
+.panel .hd h2 .hint{margin:0 0 0 10px;font-family:var(--sans);font-size:12px;font-weight:400}
+.panel .hd h2 .hint>.ic-svg{width:14px;height:14px;color:var(--brand-d)}
+/* Trong lớp phủ giữ chữ chảy liền mạch: icon inline, KHÔNG flex — flex làm mỗi <strong>/<a>
+   chèn thẳng thành 1 cột, chữ vỡ, đọc không nổi. */
+.hint-noi-dung .ic-svg{float:none;width:17px;height:17px;margin:0;color:var(--brand-d);vertical-align:-.16em}
 .stat .l .ic-svg{width:15px;height:15px}
 .login-card .brand .ic .ic-svg{width:38px;height:38px;color:var(--brand-d)}
 .dot-svg{width:11px;height:11px;display:inline-block;vertical-align:-.05em}
@@ -843,8 +854,11 @@ td .hd-ref{position:relative;z-index:1}   /* nổi trên vùng bấm của cả 
   .panel{margin-bottom:14px;border-radius:14px}
   .panel .hd{padding:10px 12px;gap:6px}
   .panel .hd h2{font-size:15.5px}
-  .hint{padding:9px 12px;font-size:12.5px;line-height:1.45;margin-bottom:12px;border-radius:10px}
-  .hint .ic-svg{width:15px;height:15px;margin:0}
+  .bang-tin{padding:9px 12px;font-size:12.5px;line-height:1.45;margin-bottom:12px;border-radius:10px}
+  .bang-tin .ic-svg{width:15px;height:15px;margin:1px 7px 0 0}
+  .hint{font-size:12px;margin-bottom:10px}
+  .hint>.ic-svg{width:14px;height:14px}
+  .hint>.hint-noi-dung{font-size:12.5px;line-height:1.45;padding:10px 12px;border-radius:10px}
   /* Thẻ hàng: bớt khoảng thở thừa (mỗi ô đang ăn 4px trên + 4px dưới cho một dòng chữ 13px) */
   .card-tbl tr{padding:8px 12px;margin-bottom:8px}
   .card-tbl td{padding:2px 0}

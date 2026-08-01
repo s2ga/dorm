@@ -10,20 +10,35 @@ const curMonth = () => today().slice(0, 7);
 const prevKy = m => { const d = new Date(m + '-15T00:00:00'); d.setMonth(d.getMonth() - 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
 const addDays = (iso, n) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 function fmtDate(d) { if (!d) return '—'; const p = String(d).slice(0, 10).split('-'); return `${p[2]}/${p[1]}/${p[0]}`; }
-// BL-95: gói phần chữ của mỗi .hint vào một lớp phủ, chỉ chừa icon. Làm ở đây thay vì sửa 63 chỗ
-// dựng HTML, và note viết sau này cũng tự có hành vi đó.
+// BL-95: gói TOÀN BỘ nội dung mỗi .hint vào một lớp phủ, thay bằng đúng một nút "Ghi chú". Làm ở đây
+// thay vì sửa 68 chỗ dựng HTML. Mặt nút dựng mới, không lấy icon có sẵn trong note.
 function gonNote(goc) {
   (goc || document).querySelectorAll('.hint:not([data-gon])').forEach(h => {
     h.dataset.gon = '1';
     h.tabIndex = 0;                                  // chạm/tab được -> điện thoại và bàn phím vẫn mở được
+    h.setAttribute('role', 'button');
+    h.setAttribute('aria-label', 'Ghi chú — rê chuột, chạm hoặc tab tới để xem');
     const boc = document.createElement('span');
     boc.className = 'hint-noi-dung';
-    [...h.childNodes].forEach(n => {
-      if (n.nodeType === 1 && n.classList.contains('ic-svg')) return;   // giữ icon ở ngoài làm nút bấm
-      boc.appendChild(n);
-    });
+    [...h.childNodes].forEach(n => boc.appendChild(n));
+    h.innerHTML = `${IC.info}<span class="hint-nhan">Ghi chú</span>`;
     h.appendChild(boc);
+    // Note ngay dưới tiêu đề panel: dời lên đứng cạnh tiêu đề, khỏi chiếm nguyên một hàng trống.
+    const tren = h.parentElement && h.parentElement.classList.contains('panel') && h.previousElementSibling;
+    if (tren && tren.classList.contains('hd')) { h.style.margin = ''; (tren.querySelector('h2') || tren).appendChild(h); }
+    h.addEventListener('pointerenter', () => datViTriNote(h));
+    h.addEventListener('focus', () => datViTriNote(h));
   });
+}
+// Lớp phủ dùng position:fixed nên phải tự tính chỗ: treo dưới nút, lệch vào nếu chạm mép phải,
+// lật lên trên nếu chạm mép dưới.
+function datViTriNote(h) {
+  const p = h.lastElementChild; if (!p) return;
+  p.style.cssText = 'display:block;visibility:hidden';
+  const rong = p.offsetWidth, cao = p.offsetHeight, b = h.getBoundingClientRect();
+  p.style.cssText = '';
+  p.style.left = Math.max(8, Math.min(b.left, innerWidth - 8 - rong)) + 'px';
+  p.style.top = (b.bottom + 7 + cao > innerHeight - 8 ? Math.max(8, b.top - 7 - cao) : b.bottom + 7) + 'px';
 }
 let _henGonNote = 0;
 new MutationObserver(() => {

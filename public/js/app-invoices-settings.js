@@ -307,7 +307,7 @@ async function renderElectricForm(month) {
 function chotGiuaKyHTML(month, reads) {
   if (reads && reads.loi) {
     return `<h4 style="margin:18px 0 6px">Chốt giữa kỳ — chỉ số hôm học viên rời phòng</h4>
-      <div class="hint">${IC.alert} <strong>Không đọc được danh sách chốt giữa kỳ</strong> (${esc(reads.loi)}).
+      <div class="bang-tin">${IC.alert} <strong>Không đọc được danh sách chốt giữa kỳ</strong> (${esc(reads.loi)}).
       Đừng tin là kỳ này không có ai rời phòng — hãy tải lại trang rồi mở lại màn này.</div>`;
   }
   const thieu = (reads && reads.missing) || [], daCo = (reads && reads.reads) || [];
@@ -333,7 +333,7 @@ function chotGiuaKyHTML(month, reads) {
     </tr>`).join('');
   return `
     <h4 style="margin:18px 0 6px">Chốt giữa kỳ — chỉ số hôm học viên rời phòng</h4>
-    ${thieu.length ? `<div class="hint">${IC.alert} <strong>${thieu.length} lượt rời phòng CHƯA có chỉ số.</strong> Không nhập thì phần điện của người rời đổ sang người ở lại, và phòng bị bỏ qua khi tạo hóa đơn kỳ sau.</div>` : ''}
+    ${thieu.length ? `<div class="bang-tin">${IC.alert} <strong>${thieu.length} lượt rời phòng CHƯA có chỉ số.</strong> Không nhập thì phần điện của người rời đổ sang người ở lại, và phòng bị bỏ qua khi tạo hóa đơn kỳ sau.</div>` : ''}
     <div class="table-wrap" style="max-height:300px;overflow:auto"><table>
       <thead><tr><th>Phòng</th><th>Ngày</th><th>Học viên rời</th><th class="num">Chỉ số</th><th></th></tr></thead>
       <tbody>${dongThieu}${dongDaCo || ''}${!thieu.length && !daCo.length ? '<tr><td colspan="5" class="muted">Kỳ này không có lượt rời/chuyển phòng nào.</td></tr>' : ''}</tbody>
@@ -912,13 +912,13 @@ function settingsGo(t) {
   window.scrollTo({ top: 0 });
   syncFilterUrl(); // KHÔNG vẽ lại viewSettings -> phải tự đồng bộ URL ở đây
 }
-// Bấm thông báo "N tài khoản Microsoft chờ duyệt" -> vào Cài đặt và CUỘN THẲNG tới mục Người dùng
-// (không phải scroll tay). viewSettings dựng #usersPanel đồng bộ nên chỉ cần đợi 1-2 frame cho vẽ xong.
+// Bấm thông báo "N tài khoản Microsoft chờ duyệt" -> vào Cài đặt và CUỘN THẲNG tới bảng Chờ duyệt —
+// đó mới là việc đang gọi; bảng nhân viên bên dưới chỉ để tra cứu.
 function gotoUsers() {
   settingsTab = 'nguoidung'; // mục Người dùng nay là nhóm riêng
   adminGo('settings');
   requestAnimationFrame(() => requestAnimationFrame(() => {
-    const p = el('usersPanel'); if (!p) return;
+    const p = el('pendingPanel') || el('usersPanel'); if (!p) return;
     p.scrollIntoView({ behavior: 'smooth', block: 'start' });
     p.classList.add('flash'); setTimeout(() => p.classList.remove('flash'), 1600);
   }));
@@ -1051,7 +1051,7 @@ function duyetTaiKhoanForm(id) {
   openModal(`
     <div class="mh"><h3>Duyệt tài khoản</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <div class="hint">${IC.info} Tài khoản này do <strong>đăng nhập Microsoft</strong> tự tạo — app chưa biết là ai.
+      <div class="bang-tin">${IC.info} Tài khoản này do <strong>đăng nhập Microsoft</strong> tự tạo — app chưa biết là ai.
         <br><strong>${esc(u.full_name || '—')}</strong> · ${esc(u.email || u.username)}</div>
       <div class="field"><label>Người này là *</label><select id="ap_kind" data-change="apToggle">
         <option value="staff">Nhân viên</option>
@@ -1132,7 +1132,7 @@ function userForm(id) {
         ${(ST.facilities || []).map(f => `<option value="${f.id}" ${u.facility_id === f.id ? 'selected' : ''}>${esc(f.name)}</option>`).join('')}
       </select><div class="sub2" style="margin-top:4px">Để "Tất cả cơ sở" = điều hành, thấy &amp; quản lý mọi cơ sở. Chọn một cơ sở = chỉ thấy dữ liệu cơ sở đó.</div></div>
       ${id ? '' : `<div class="field"><label>Mật khẩu *</label><input id="u_pass" type="text" placeholder="Tối thiểu 6 ký tự"></div>`}
-      ${id === Auth.user.id ? `<div class="hint">${IC.info} Bạn không thể tự hạ quyền chính mình.</div>` : ''}
+      ${id === Auth.user.id ? `<div class="bang-tin">${IC.info} Bạn không thể tự hạ quyền chính mình.</div>` : ''}
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveUser" data-args='[${id || 0}]'>Lưu</button></div>`);
 }
@@ -1276,13 +1276,13 @@ async function loadDataHealth() {
   let d; try { d = await API.dataHealth(); } catch (e) { box.innerHTML = `<span class="muted">Không kiểm tra được: ${esc(e.message)}</span>`; return; }
 
   if (d.sach) {
-    box.innerHTML = `<div class="hint" style="margin:0">${IC.checkCircle}<span><strong>Dữ liệu sạch.</strong>
+    box.innerHTML = `<div class="bang-tin" style="margin:0">${IC.checkCircle}<span><strong>Dữ liệu sạch.</strong>
       Toàn bộ ràng buộc bảo vệ đang hoạt động — không rác nào lọt vào được, kể cả gọi thẳng API.</span></div>`;
     return;
   }
   const loi = d.checks.filter(c => c.so_luong > 0);
   box.innerHTML = `
-    ${d.guards.length ? `<div class="hint" style="margin:0 0 16px;border-color:var(--red);background:var(--red-bg)">${IC.alert}<span>
+    ${d.guards.length ? `<div class="bang-tin" style="margin:0 0 16px;border-color:var(--red);background:var(--red-bg)">${IC.alert}<span>
       <strong>${d.guards.length} ràng buộc bảo vệ đang TẮT</strong> vì dữ liệu bên dưới còn vi phạm:
       ${d.guards.map(g => `<code>${esc(g.ten)}</code>`).join(' · ')}.
       Sửa xong các mục bên dưới thì ràng buộc <strong>tự bật lại</strong> — không cần báo em.</span></div>` : ''}
@@ -1294,7 +1294,7 @@ async function loadDataHealth() {
           ${c.rows.map(r => `<tr><td><strong>${esc(r.khoa || '—')}</strong></td><td>${esc(r.chi_tiet || '')}</td></tr>`).join('')}
         </tbody></table></div>
       </div>`).join('')}
-    ${!loi.length ? `<div class="hint" style="margin:0">${IC.checkCircle}<span>Không tìm thấy dữ liệu vi phạm nào ở các mục đang kiểm.</span></div>` : ''}`;
+    ${!loi.length ? `<div class="bang-tin" style="margin:0">${IC.checkCircle}<span>Không tìm thấy dữ liệu vi phạm nào ở các mục đang kiểm.</span></div>` : ''}`;
 }
 
 // viewSettings() là hàm đồng bộ, không đợi API được -> vẽ khung trước, hỏi trạng thái file sau.

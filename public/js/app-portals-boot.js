@@ -47,14 +47,14 @@ function myInvoiceDetail(id) {
 async function loadStudentPortal() {
   let profile, invs, damage, coutReqs, myVios = [], mates = [], assets = [], chores = [], myLogs = [];
   try { [profile, invs, damage, coutReqs, myVios, mates, assets, chores, myLogs] = await Promise.all([API.meProfile(), API.meInvoices(), API.meDamage(), API.meCheckoutReq(), API.meViolations().catch(() => []), API.meRoommates().catch(() => []), API.meAssets().catch(() => []), API.meChores().catch(() => []), API.meLogs().catch(() => [])]); }
-  catch (e) { el('content').innerHTML = `<div class="hint">${IC.alert} ${esc(e.message)}</div>`; return; }
+  catch (e) { el('content').innerHTML = `<div class="bang-tin">${IC.alert} ${esc(e.message)}</div>`; return; }
   window._myInvs = invs; // BL-16: để myInvoiceDetail() tra cứu chi tiết khi bấm hàng
   const billNow = invs.filter(i => i.month === curMonth()).reduce((a, i) => a + (+i.total || 0), 0);
   const depTxt = { held: 'Đang giữ', refunded: 'Đã hoàn', forfeited: 'Không hoàn', none: '—' }[profile.deposit_status] || '—';
   const pendingCout = coutReqs.find(c => c.status === 'pending');
   const notMovedIn = profile.check_in_date && String(profile.check_in_date).slice(0, 10) > today();
   el('content').innerHTML = `
-    ${notMovedIn ? `<div class="hint">${IC.hourglass} Bạn sẽ nhận phòng vào <strong>${fmtDate(profile.check_in_date)}</strong> — vui lòng đến đúng hẹn để bàn giao phòng. Hiện chưa thể gửi đơn trả phòng.</div>` : ''}
+    ${notMovedIn ? `<div class="bang-tin">${IC.hourglass} Bạn sẽ nhận phòng vào <strong>${fmtDate(profile.check_in_date)}</strong> — vui lòng đến đúng hẹn để bàn giao phòng. Hiện chưa thể gửi đơn trả phòng.</div>` : ''}
     <div class="cards">
       <div class="stat"><div class="l">${IC.doorOpen} Phòng của tôi</div><div class="v sm">${esc(profile.room_name || 'Chưa xếp')}</div></div>
       <div class="stat"><div class="l">${IC.receipt} Phiếu tháng này</div><div class="v sm">${money(billNow)}</div></div>
@@ -116,7 +116,7 @@ async function loadStudentPortal() {
     </div></div>
 
     <div class="panel"><div class="hd"><h2>${IC.logOut} Đăng ký trả phòng</h2>${!pendingCout && profile.status === 'in' && !notMovedIn ? '<button class="btn sm danger" data-act="checkoutReqForm">Xin trả phòng</button>' : ''}</div><div class="pad">
-      ${pendingCout ? `<div class="hint">${IC.hourglass} Bạn đã gửi đơn trả phòng ngày <strong>${fmtDate(pendingCout.desired_date)}</strong> — đang chờ quản lý duyệt.</div>` :
+      ${pendingCout ? `<div class="bang-tin">${IC.hourglass} Bạn đã gửi đơn trả phòng ngày <strong>${fmtDate(pendingCout.desired_date)}</strong> — đang chờ quản lý duyệt.</div>` :
       notMovedIn ? '<p class="muted" style="margin:0">Bạn chưa tới ngày nhận phòng nên chưa thể gửi đơn trả phòng.</p>' :
       profile.status !== 'in' ? '<p class="muted" style="margin:0">Bạn đã trả phòng.</p>' :
       `<p class="muted" style="margin:0">Cần báo trước 1 tháng để được hoàn cọc (trừ trường hợp xuất cảnh đột xuất).</p>`}
@@ -191,12 +191,12 @@ async function submitCheckoutReq() {
    không thì họ mở trang lên thấy phòng mình "chưa có phòng trưởng". */
 function leaderNote(profile, mates) {
   if (profile.is_leader) {
-    return `<div class="hint" style="margin:14px 0 0">${IC.star}<span><strong>Bạn là phòng trưởng</strong> của phòng này —
+    return `<div class="bang-tin" style="margin:14px 0 0">${IC.star}<span><strong>Bạn là phòng trưởng</strong> của phòng này —
       giúp Ban quản lý theo dõi tình hình trong phòng. Bạn được <strong>miễn tiền nước và phí dịch vụ</strong> hằng tháng
       (vẫn hiện trên phiếu báo, kèm dòng "Giảm phòng trưởng").</span></div>`;
   }
   if (mates.some(m => m.is_leader)) return '';  // huy hiệu trên danh sách đã nói rõ rồi
-  return `<div class="hint" style="margin:14px 0 0">${IC.info}<span>Phòng chưa có phòng trưởng. Ban quản lý sẽ cử một bạn trong phòng.</span></div>`;
+  return `<div class="bang-tin" style="margin:14px 0 0">${IC.info}<span>Phòng chưa có phòng trưởng. Ban quản lý sẽ cử một bạn trong phòng.</span></div>`;
 }
 
 /* Lịch trực nhật — xoay vòng theo tuần, app tự tính (không ai phải nhập).
@@ -300,7 +300,7 @@ function startMaintPolling() {
 async function loadMaintenance() {
   let tasks = [];
   try { tasks = await API.maintenanceTasks(); }
-  catch (e) { el('content').innerHTML = `<div class="hint">${IC.alert} ${esc(e.message)}</div>`; return; }
+  catch (e) { el('content').innerHTML = `<div class="bang-tin">${IC.alert} ${esc(e.message)}</div>`; return; }
   const pending = tasks.filter(t => t.status !== 'done');
   const done = tasks.filter(t => t.status === 'done');
   el('content').innerHTML = `
@@ -309,7 +309,7 @@ async function loadMaintenance() {
       <div class="stat"><div class="l">${IC.checkCircle} Đã hoàn thành</div><div class="v sm">${done.length}</div></div>
     </div>
     <div id="handoverArea"><div class="spinner"></div></div>
-    ${pending.length ? `<div class="hint" style="border-color:var(--amber-ink)">${IC.bell} Bạn có <strong>${pending.length}</strong> công việc bảo trì cần xử lý.</div>` : ''}
+    ${pending.length ? `<div class="bang-tin" style="border-color:var(--amber-ink)">${IC.bell} Bạn có <strong>${pending.length}</strong> công việc bảo trì cần xử lý.</div>` : ''}
     <div class="panel"><div class="hd"><h2>${IC.wrench} Công việc cần xử lý</h2></div><div class="table-wrap card-tbl">
       ${pending.length ? `<table><thead><tr><th>Chuyển lúc</th><th>Phòng</th><th>Nội dung</th><th>Người báo</th><th>Trạng thái</th><th></th></tr></thead><tbody>
         ${pending.map(t => `<tr>
@@ -339,7 +339,7 @@ async function loadHandovers(month) {
   const area = el('handoverArea'); if (!area) return;
   let d;
   try { d = await API.handovers(hoMonth); }
-  catch (e) { area.innerHTML = `<div class="hint">${IC.alert} ${esc(e.message)}</div>`; return; }
+  catch (e) { area.innerHTML = `<div class="bang-tin">${IC.alert} ${esc(e.message)}</div>`; return; }
   hoMonth = d.month;
   const pIn = d.checkins.filter(x => !x.checkin_confirmed_at).length;
   const pOut = d.checkouts.filter(x => !x.checkout_confirmed_at).length;
@@ -360,7 +360,7 @@ async function loadHandovers(month) {
   area.innerHTML = `
     <div class="panel"><div class="hd"><h2>${IC.key} Bàn giao phòng</h2>
       <select data-change="onHandoverMonth" style="font-weight:600;padding:6px 8px;border-radius:8px">${monthOpts}</select></div>
-      <div class="pad"><div class="hint">${IC.info} <strong>${monthLabel(hoMonth)}</strong>: ${d.checkins.length} nhận phòng (<strong>${pIn}</strong> chưa xác nhận) · ${d.checkouts.length} trả phòng (<strong>${pOut}</strong> chưa xác nhận). Xác nhận thực tế + kiểm tra tài sản, thu chìa khóa.</div></div>
+      <div class="pad"><div class="bang-tin">${IC.info} <strong>${monthLabel(hoMonth)}</strong>: ${d.checkins.length} nhận phòng (<strong>${pIn}</strong> chưa xác nhận) · ${d.checkouts.length} trả phòng (<strong>${pOut}</strong> chưa xác nhận). Xác nhận thực tế + kiểm tra tài sản, thu chìa khóa.</div></div>
       <div class="grid2" style="align-items:start;padding:0 16px 16px;gap:16px">
         <div><h4 style="margin:0 0 8px"><span class="dot-svg dot-green">${IC.dot}</span> Nhận phòng (${d.checkins.length})</h4>
           <div class="table-wrap card-tbl">${d.checkins.length ? `<table><thead><tr><th>Học viên</th><th>Phòng</th><th>Ngày</th><th></th></tr></thead><tbody>${d.checkins.map(inRow).join('')}</tbody></table>` : '<div class="empty">Không có ai nhận phòng tháng này.</div>'}</div></div>
