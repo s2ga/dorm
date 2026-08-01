@@ -214,7 +214,6 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	rs := st.Group("", a.RequireRole("admin", "staff"))
 	rs.GET("", h.ListStudents)
 	rs.GET("/contract-no/next", h.ContractNoNext)
-	rs.POST("/contract-no/renumber", h.ContractNoRenumber)
 	rs.GET("/:id", h.GetStudent)
 	rs.GET("/:id/stays", h.StudentStays) // lịch sử ở (room_stays) — nguồn sự thật về ở/rời
 	rs.POST("", h.CreateStudent)

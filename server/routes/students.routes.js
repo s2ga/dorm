@@ -189,34 +189,6 @@ router.get('/contract-no/next', requireRole('admin', 'staff'), async (req, res, 
   } catch (e) { next(e); }
 });
 
-// Đánh số lại toàn bộ HĐ theo ngày ký (ban thư ký chủ động bấm); dry=true chỉ xem trước, không ghi
-router.post('/contract-no/renumber', requireRole('admin', 'staff'), async (req, res, next) => {
-  try {
-    const st = await getSettings();
-    const dry = !!req.body.dry;
-    const { rows } = await query(
-      `SELECT id, name, gender, contract_no, contract_date FROM students
-       WHERE deleted_at IS NULL AND contract_date IS NOT NULL AND contract_status IN ('done','scanned')
-       ORDER BY contract_date, id`);
-    const counter = {};
-    const plan = rows.map(r => {
-      const entity = entityOf(r.gender, st);
-      const year = String(r.contract_date).slice(0, 4);
-      const key = entity + '|' + year;
-      counter[key] = (counter[key] || 0) + 1;
-      const nn = fmtContractNo(counter[key], year, entity);
-      return { id: r.id, name: r.name, date: String(r.contract_date).slice(0, 10), entity, old: r.contract_no || '', new: nn, changed: (r.contract_no || '') !== nn };
-    });
-    if (!dry) {
-      const changed = plan.filter(p => p.changed);
-      await withTransaction(async (client) => {
-        for (const p of changed) await client.query('UPDATE students SET contract_no=$1 WHERE id=$2', [p.new, p.id]);
-      });
-    }
-    res.json({ total: plan.length, changed: plan.filter(p => p.changed).length, plan });
-  } catch (e) { next(e); }
-});
-
 router.get('/:id', requireRole('admin', 'staff'), async (req, res, next) => {
   try {
     const { rows } = await query(`
@@ -700,12 +672,9 @@ router.post('/:id/account', requireRole('admin', 'staff'), async (req, res, next
     const existing = await query('SELECT * FROM users WHERE student_id=$1', [req.params.id]);
     const hash = bcrypt.hashSync(password, 10);
     if (existing.rows[0]) {
-      // BL-08: khớp đúng đường của NHÂN VIÊN (admin.routes.js) — thiếu 2 chốt này thì thao tác
-      // "đặt lại mật khẩu" KHÔNG đạt được mục đích duy nhất của nó:
-      //  · must_change_password: mật khẩu cấp nhanh (thường là SĐT, ≥6 ký tự) buộc phải đổi ở lần
-      //    đăng nhập kế — nếu không thì mật khẩu yếu sống vĩnh viễn, mà SĐT thì cả app đều thấy.
-      //  · revokeTokens: KHÔNG gọi thì vé cũ (JWT trong cookie, hạn 30 ngày) vẫn sống — người bị
-      //    lộ mật khẩu báo đổi, kẻ xem trộm vẫn dùng tiếp. Chính là ca mà đặt lại mật khẩu sinh ra để chặn.
+      // BL-08: khớp đường của NHÂN VIÊN (admin.routes.js) — hai chốt bắt buộc của "đặt lại mật khẩu":
+      // must_change_password buộc đổi mật khẩu cấp nhanh ở lần đăng nhập kế;
+      // revokeTokens giết vé cũ (JWT hạn 30 ngày) để kẻ xem trộm không dùng tiếp.
       await query('UPDATE users SET password_hash=$1, must_change_password=true WHERE id=$2', [hash, existing.rows[0].id]);
       await revokeTokens(existing.rows[0].id);   // đá mọi phiên đang mở của tài khoản đó
       res.json({ ok: true, username: existing.rows[0].username });

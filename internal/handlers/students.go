@@ -424,9 +424,8 @@ func studentsSignCccd(row map[string]interface{}) {
 }
 
 // studentsMeterVal: mô phỏng Node cho meter_reading trên giá trị đã decode.
-//
-//	hasMeter = mr != null && String(mr).trim() !== ''  (students.routes.js:497)
-//	finite   = Number.isFinite(Number(reading))         (meter.js:14)
+// hasMeter = mr != null && String(mr).trim() !== '' (students.routes.js:497);
+// finite = Number.isFinite(Number(reading)) (meter.js:14).
 func studentsMeterVal(v interface{}) (hasMeter bool, reading float64, finite bool) {
 	switch x := v.(type) {
 	case nil:
@@ -903,73 +902,6 @@ func (h *Handlers) ContractNoNext(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"contract_no": studentsFmtContractNo(n+1, year, entity), "entity": entity, "seq": n + 1, "year": year})
-}
-
-// ContractNoRenumber: POST /contract-no/renumber (admin,staff). dry=true chỉ xem trước. students.routes.js:192-217
-func (h *Handlers) ContractNoRenumber(c *gin.Context) {
-	ctx := c.Request.Context()
-	st, err := h.DB.GetSettings(ctx)
-	if err != nil {
-		serverErr(c)
-		return
-	}
-	_, b := studentsReadBody(c)
-	dry := studentsJSTruthy(b["dry"])
-	rows, err := h.pool().Query(ctx,
-		`SELECT id, name, gender, contract_no, contract_date FROM students
-       WHERE deleted_at IS NULL AND contract_date IS NOT NULL AND contract_status IN ('done','scanned')
-       ORDER BY contract_date, id`)
-	if err != nil {
-		serverErr(c)
-		return
-	}
-	list, err := db.RowsToMaps(rows)
-	if err != nil {
-		serverErr(c)
-		return
-	}
-	counter := map[string]int{}
-	plan := make([]gin.H, 0, len(list))
-	type change struct {
-		id int
-		nn string
-	}
-	var changes []change
-	for _, r := range list {
-		entity := studentsEntityOf(studentsJSString(r["gender"]), st)
-		cdate := studentsJSString(r["contract_date"])
-		year := cdate
-		if len(year) > 4 {
-			year = year[:4]
-		}
-		key := entity + "|" + year
-		counter[key] = counter[key] + 1
-		nn := studentsFmtContractNo(counter[key], year, entity)
-		old := studentsStrOr(r["contract_no"])
-		changed := old != nn
-		plan = append(plan, gin.H{
-			"id": intFromDB(r["id"]), "name": studentsJSString(r["name"]), "date": studentsSlice10(cdate),
-			"entity": entity, "old": old, "new": nn, "changed": changed,
-		})
-		if changed {
-			changes = append(changes, change{id: intFromDB(r["id"]), nn: nn})
-		}
-	}
-	if !dry {
-		err := h.DB.WithTx(ctx, func(tx pgx.Tx) error {
-			for _, p := range changes {
-				if _, err := tx.Exec(ctx, "UPDATE students SET contract_no=$1 WHERE id=$2", p.nn, p.id); err != nil {
-					return err
-				}
-			}
-			return nil
-		})
-		if err != nil {
-			serverErr(c)
-			return
-		}
-	}
-	c.JSON(http.StatusOK, gin.H{"total": len(plan), "changed": len(changes), "plan": plan})
 }
 
 // GetStudent: GET /:id (admin,staff). Kèm vehicles, violations, _v (xmin). students.routes.js:219-241
