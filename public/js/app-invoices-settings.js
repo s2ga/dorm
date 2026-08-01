@@ -44,7 +44,13 @@ async function viewInvoices() {
         <td>${deltaTag(cur, prev)}</td>
       </tr>`; }).join('')}
     </tbody></table></div></div>` : '';
+  // Phòng thuê nguyên phòng: chỉ người ký HĐ chịu tiền, các thành viên có phiếu 0 đồng.
+  // Ẩn phiếu 0 đồng đó cho đỡ rối, nhưng ĐẾM và cho bật lại — ẩn im lặng thì mất dấu vết.
+  const laNguyenPhong = i => (roomById(i.room_id) || {}).room_type === 'whole';
+  const laThanhVienNP = i => laNguyenPhong(i) && !(+i.total);
   let list = all.slice();
+  const soAn = list.filter(laThanhVienNP).length;
+  if (!invHienThanhVienNP) list = list.filter(i => !laThanhVienNP(i));
   if (invFilter === 'paid') list = list.filter(i => i.status === 'paid');
   if (invFilter === 'unpaid') list = list.filter(i => i.status !== 'paid');
   // Tìm kiếm áp dụng bằng ẩn/hiện hàng (attachRowSearch)
@@ -78,15 +84,19 @@ async function viewInvoices() {
       <div class="toolbar">
         <div class="search"><span class="i">${IC.search}</span><input id="invs" placeholder="Tìm tên HV / số phòng..." value="${esc(invSearch)}"></div>
         ${all.length ? `<button class="btn sm" data-act="exportCSV">${IC.download} Xuất Excel (CSV)</button>` : ''}</div></div>
+      ${soAn ? `<div class="pad muted" style="font-size:12.5px;padding-bottom:0">${IC.info}
+        ${invHienThanhVienNP ? `Đang hiện <strong>${soAn}</strong> phiếu 0 đồng của thành viên phòng thuê nguyên phòng (tiền đã gộp vào phiếu người ký hợp đồng).`
+          : `Đã ẩn <strong>${soAn}</strong> phiếu 0 đồng của thành viên phòng thuê nguyên phòng — tiền gộp vào phiếu người ký hợp đồng.`}
+        <button class="btn sm ghost" data-act="toggleThanhVienNP">${invHienThanhVienNP ? 'Ẩn đi' : 'Hiện ra'}</button></div>` : ''}
       <div class="table-wrap card-tbl">
       ${all.length === 0 ? `<div class="empty">Chưa có hóa đơn nào cho kỳ này.<br><br><button class="btn pri" data-act="generateForm">${IC.receipt} Tạo hóa đơn</button></div>` :
       list.length ? `<table><thead><tr><th>Học viên</th><th>Phòng</th><th class="num">Ngày ở</th><th class="num">Tiền phòng</th><th class="num">Điện</th><th class="num">Nước</th><th class="num">DV</th><th class="num">Giặt</th><th class="num">Xe</th><th class="num">Giảm</th><th class="num">Tổng</th><th></th></tr></thead><tbody>
-        ${list.map(i => `<tr data-s="${esc(((i.student_name || '') + ' ' + (i.student_code || '') + ' ' + (i.room_name || '')).toLowerCase())}">
+        ${list.map(i => `<tr class="${laNguyenPhong(i) && +i.total ? 'inv-np' : ''}" data-s="${esc(((i.student_name || '') + ' ' + (i.student_code || '') + ' ' + (i.room_name || '')).toLowerCase())}">
           <td><div class="flex stu-name" data-act="studentDetail" data-args='[${i.student_id}]' role="button" tabindex="0" title="Xem chi tiết học viên">
             <div><strong>${esc(i.student_name)}</strong>${i.student_code ? `<div class="sub2">${esc(i.student_code)}</div>` : ''}</div>
             <span class="row-chev">${IC.chevronRight}</span></div></td>
           <td data-label="Phòng">${i.room_id
-            ? `<div class="flex stu-name" data-act="roomDetail" data-args='[${i.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng"><strong>${esc(i.room_name || '—')}</strong><span class="row-chev">${IC.chevronRight}</span></div>`
+            ? `<div class="flex stu-name" data-act="roomDetail" data-args='[${i.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng"><div><strong>${esc(i.room_name || '—')}</strong>${laNguyenPhong(i) ? `<div class="sub2"><span class="badge amber">${IC.home} Nguyên phòng</span></div>` : ''}</div><span class="row-chev">${IC.chevronRight}</span></div>`
             : esc(i.room_name || '—')}</td>
           <td class="num" data-label="Ngày ở">${i.days_stayed}</td>
           <td class="num" data-label="Tiền phòng">${moneyN(i.room_charge)}</td>
@@ -437,6 +447,7 @@ async function saveInvoice(id) {
   await guard(() => id ? API.updateInvoice(id, body) : API.createInvoice(body));
   await refreshCache(); closeModal(); invMonth = body.month; toast('Đã lưu hóa đơn'); viewInvoices();
 }
+function toggleThanhVienNP() { invHienThanhVienNP = !invHienThanhVienNP; viewInvoices(); }
 async function phieuBao(inv) {
   if (typeof inv !== 'object') inv = _invAll.find(x => x.id === +inv);  // nut truyen id; noi khac (sau khi sinh HD) truyen thang object
   if (!inv) return toast('Không tìm thấy hóa đơn', 'err');

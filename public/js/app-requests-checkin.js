@@ -422,3 +422,4 @@ function quickPick(type) {
 
 /* ---------- TIỀN PHÒNG / HÓA ĐƠN ---------- */
 let invMonth = curMonth(), invFilter = 'all', invSearch = '';
+let invHienThanhVienNP = false;   // hiện cả phiếu 0đ của thành viên phòng thuê nguyên phòng

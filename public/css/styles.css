@@ -241,6 +241,10 @@ tr[data-act]:active{background:var(--bg2)}
 .todo.calm{cursor:default}
 .todo.calm:hover{border-color:var(--line);box-shadow:none;transform:none}
 
+/* Phiếu của người ký HĐ phòng THUÊ NGUYÊN PHÒNG — gánh tiền cả phòng, khác hẳn thuê ghép. */
+tr.inv-np > td{background:var(--amber-bg)}
+tr.inv-np > td:first-child{box-shadow:inset 3px 0 0 var(--amber)}
+
 /* ---------- So sánh kỳ trước: chênh lệch + sparkline ---------- */
 /* Điện TĂNG là tốn thêm -> đỏ; GIẢM -> xanh. Ngược quy ước chứng khoán một cách CỐ Ý:
    người đọc bảng này hỏi "tháng này tốn hơn hay đỡ hơn", không phải "giá lên hay xuống". */
