@@ -25,7 +25,7 @@ function myInvoiceDetail(id) {
   const opt = (label, val, sub) => (+val) ? line(label, val, sub) : '';
   const leaderD = +i.leader_discount || 0, roomD = +i.room_discount || 0;
   openModal(`
-    <div class="mh"><h3>${IC.receipt} Chi tiết phiếu ${monthLabel(i.month)}</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${IC.receipt} Chi tiết phiếu ${monthLabel(i.month)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <p class="muted" style="margin:0 0 12px">Số ngày ở trong kỳ: <strong>${i.days_stayed || 0}</strong> ngày</p>
       <div class="table-wrap"><table><tbody>
@@ -139,7 +139,7 @@ function damageForm(cat) {
   const sel = v => cat === v ? ' selected' : '';
   const tieuDe = cat === 'damage' ? `${IC.wrench} Báo hư hỏng trong phòng` : `${IC.handCoins} Gửi yêu cầu hỗ trợ`;
   openModal(`
-    <div class="mh"><h3>${tieuDe}</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${tieuDe}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="field"><label>Loại yêu cầu *</label><select id="dm_cat" data-change="dmCatHint">
         <option value="damage"${sel('damage')}>Báo hư hỏng trong phòng</option>
@@ -168,7 +168,7 @@ async function submitDamage() {
 }
 function checkoutReqForm() {
   openModal(`
-    <div class="mh"><h3>${IC.logOut} Đăng ký trả phòng</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${IC.logOut} Đăng ký trả phòng</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="field"><label>Ngày dự kiến trả phòng</label><input id="co_date"></div>
       <div class="field"><label>Lý do</label><select id="co_reason">
@@ -371,7 +371,7 @@ async function loadHandovers(month) {
 }
 function handoverCheckinForm(id, name) {
   openModal(`
-    <div class="mh"><h3>${IC.check} Xác nhận đã nhận phòng</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${IC.check} Xác nhận đã nhận phòng</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <p class="muted" style="margin:0 0 10px">Học viên: <strong>${esc(name)}</strong></p>
       <div class="field"><label>Ghi chú bàn giao <span class="opt">(tình trạng phòng, đã giao chìa khóa...)</span></label><textarea id="ho_note" rows="3" placeholder="VD: Phòng sạch, đã giao 1 chìa khóa phòng + 1 chìa tủ locker..."></textarea></div>
@@ -384,7 +384,7 @@ async function submitHandoverCheckin(id) {
 }
 function handoverCheckoutForm(id, name, planDate) {
   openModal(`
-    <div class="mh"><h3>${IC.check} Xác nhận đã trả phòng</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${IC.check} Xác nhận đã trả phòng</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <p class="muted" style="margin:0 0 10px">Học viên: <strong>${esc(name)}</strong>${planDate ? ` · đăng ký trả: ${fmtDate(planDate)}` : ''}</p>
       <div class="field"><label>Ngày trả phòng THỰC TẾ *</label><input id="ho_date"></div>
@@ -403,7 +403,7 @@ async function submitHandoverCheckout(id) {
 async function maintDo(id, status) { await guard(() => API.maintenanceTaskStatus(id, status)); toast('Đã cập nhật'); loadMaintenance(); }
 function maintDoneForm(id) {
   openModal(`
-    <div class="mh"><h3>${IC.check} Hoàn thành công việc</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${IC.check} Hoàn thành công việc</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb"><div class="field"><label>Ghi chú bảo trì (đã làm gì)</label><textarea id="mt_note" rows="3" placeholder="VD: Đã thay vòi nước mới, kiểm tra lại..."></textarea></div></div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="submitMaintDone" data-args='[${id}]'>Xác nhận đã xong</button></div>`);
 }
@@ -413,7 +413,7 @@ async function submitMaintDone(id) {
 }
 function maintBlockForm(id) {
   openModal(`
-    <div class="mh"><h3>${IC.alert} Chưa xử lý được</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${IC.alert} Chưa xử lý được</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb"><div class="field"><label>Lý do chưa xử lý được *</label>
       <textarea id="mt_reason" rows="3" placeholder="VD: Cần thay linh kiện, đang đặt hàng · Ngoài khả năng, cần thợ ngoài · Chờ học viên có mặt..."></textarea></div>
       <div class="hint" style="font-size:12px">${IC.info} Công việc vẫn nằm trong danh sách "Cần xử lý"; quản lý & học viên sẽ thấy lý do này.</div>

@@ -38,7 +38,7 @@ async function viewInvoices() {
   const elecPanel = ehist.rooms.length ? `<div class="panel"><div class="hd"><h2>${IC.zap} Tiêu thụ điện theo phòng — so với tháng trước</h2><span class="muted" style="font-size:12px">${ehist.months.length} tháng gần nhất · cột cam = tháng này</span></div>
     <div class="table-wrap"><table><thead><tr><th>Phòng</th><th>Xu hướng</th><th class="num">Tháng này</th><th>Chênh lệch</th></tr></thead><tbody>
       ${ehist.rooms.map(r => { const cur = r.series[r.series.length - 1].kwh; const prev = r.series.length > 1 ? r.series[r.series.length - 2].kwh : 0; return `<tr>
-        <td><strong>${esc(r.room_name)}</strong></td>
+        <td><div class="flex stu-name" data-act="roomDetail" data-args='[${r.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng — ai đang ở"><div><strong>${esc(r.room_name)}</strong></div><span class="row-chev" aria-hidden="true">${IC.chevronRight}</span></div></td>
         <td>${sparkBars(r.series)}</td>
         <td class="num"><strong>${cur}</strong> kWh</td>
         <td>${deltaTag(cur, prev)}</td>
@@ -82,8 +82,12 @@ async function viewInvoices() {
       ${all.length === 0 ? `<div class="empty">Chưa có hóa đơn nào cho kỳ này.<br><br><button class="btn pri" data-act="generateForm">${IC.receipt} Tạo hóa đơn</button></div>` :
       list.length ? `<table><thead><tr><th>Học viên</th><th>Phòng</th><th class="num">Ngày ở</th><th class="num">Tiền phòng</th><th class="num">Điện</th><th class="num">Nước</th><th class="num">DV</th><th class="num">Giặt</th><th class="num">Xe</th><th class="num">Giảm</th><th class="num">Tổng</th><th></th></tr></thead><tbody>
         ${list.map(i => `<tr data-s="${esc(((i.student_name || '') + ' ' + (i.student_code || '') + ' ' + (i.room_name || '')).toLowerCase())}">
-          <td><strong>${esc(i.student_name)}</strong>${i.student_code ? `<div class="muted" style="font-size:11px">${esc(i.student_code)}</div>` : ''}</td>
-          <td data-label="Phòng">${esc(i.room_name || '—')}</td>
+          <td><div class="flex stu-name" data-act="studentDetail" data-args='[${i.student_id}]' role="button" tabindex="0" title="Xem chi tiết học viên">
+            <div><strong>${esc(i.student_name)}</strong>${i.student_code ? `<div class="sub2">${esc(i.student_code)}</div>` : ''}</div>
+            <span class="row-chev">${IC.chevronRight}</span></div></td>
+          <td data-label="Phòng">${i.room_id
+            ? `<div class="flex stu-name" data-act="roomDetail" data-args='[${i.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng"><strong>${esc(i.room_name || '—')}</strong><span class="row-chev">${IC.chevronRight}</span></div>`
+            : esc(i.room_name || '—')}</td>
           <td class="num" data-label="Ngày ở">${i.days_stayed}</td>
           <td class="num" data-label="Tiền phòng">${moneyN(i.room_charge)}</td>
           <td class="num" data-label="Điện">${moneyN(i.electric_charge)}<div class="muted" style="font-size:10px">${i.electric_kwh || 0} kWh</div></td>
@@ -136,7 +140,7 @@ function oneInvoiceForm() {
   const opts = ST.students.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'vi'))
     .map(s => `<option value="${s.id}">${esc(s.name)}${s.code ? ' (' + esc(s.code) + ')' : ''}${s.room_name ? ' · ' + esc(s.room_name) : ''}</option>`).join('');
   openModal(`
-    <div class="mh"><h3>${IC.plus} Tạo hóa đơn cho 1 học viên</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${IC.plus} Tạo hóa đơn cho 1 học viên</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="hint">${IC.info} Dùng khi có học viên mới vào giữa tháng. Hệ thống <strong>tự tính</strong> theo phòng, số ngày ở và chỉ số điện đã lưu — không ảnh hưởng hóa đơn người khác (người đã đóng sẽ bị khóa).</div>
       <div class="grid2">
@@ -175,7 +179,7 @@ async function renderGenerateForm(month) {
     API.electricHistory(kyDien, 6).catch(() => null),   // chỉ để so kỳ trước — hỏng thì bảng vẫn chạy
   ]);
   modalThay(`
-    <div class="mh"><h3>${IC.receipt} Tạo hóa đơn tháng</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${IC.receipt} Tạo hóa đơn tháng</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="field"><label>Kỳ (tháng)</label><input id="g_month" type="month" value="${month}" data-change="onGenMonth"></div>
       <div class="hint">${IC.bulb} Phiếu kỳ <strong>${month}</strong> = tiền phòng/nước/dịch vụ kỳ ${month} (thu trước) + <strong>tiền điện kỳ ${kyDien}</strong>. Nhập <strong>số cuối công-tơ đọc cuối kỳ ${kyDien}</strong>; số đầu tự nối. Tiền điện = (cuối − đầu) × ${money(ST.settings.electric_unit)}, chia theo ngày ở từng chặng.</div>
@@ -280,7 +284,7 @@ async function renderElectricForm(month) {
   let reads = null;
   try { reads = await API.electricReads(month); } catch (e) { reads = { loi: (e && e.message) || 'không đọc được' }; }
   modalThay(`
-    <div class="mh"><h3>${IC.zap} Chỉ số điện theo tháng</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${IC.zap} Chỉ số điện theo tháng</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="field"><label>Kỳ (tháng)</label><input id="e_month" type="month" value="${month}" data-change="onElecMonth"></div>
       <div class="hint">Nhập số đầu (lần đầu để test) và số cuối ĐỌC CUỐI KỲ. Tháng sau số đầu tự nối tiếp. Tiền điện kỳ này lên <strong>phiếu kỳ sau</strong> (tiền phòng thu trước, điện thu sau khi có số).</div>
@@ -302,18 +306,18 @@ function chotGiuaKyHTML(month, reads) {
     const ngay = String(m.ngay_can_nhap || m.to_date).slice(0, 10);
     return `
     <tr>
-      <td><strong>${esc(m.room_name)}</strong></td>
+      <td><div class="flex stu-name" data-act="roomDetail" data-args='[${m.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng — ai đang ở"><div><strong>${esc(m.room_name)}</strong></div><span class="row-chev" aria-hidden="true">${IC.chevronRight}</span></div></td>
       <td>${fmtDate(m.to_date)}${m.la_chuyen_phong ? ' <span class="muted">(chuyển phòng — đọc ngày ' + fmtDate(ngay) + ')</span>' : ''}</td>
-      <td>${esc(m.student_name || '—')}</td>
+      <td>${m.student_id ? `<span class="stu-name" data-act="studentDetail" data-args='[${m.student_id}]' role="button" tabindex="0" title="Xem chi tiết học viên"><strong>${esc(m.student_name || '—')}</strong></span>` : esc(m.student_name || '—')}</td>
       <td class="num"><input type="number" min="0" step="0.1" id="mr_${i}" placeholder="Số trên đồng hồ" style="width:110px;text-align:right"></td>
       <td><button class="btn sm pri" data-act="luuChotGiuaKy" data-args='[${i},${m.room_id},"${ngay}",${m.student_id || 0}]'>Lưu</button></td>
     </tr>`;
   }).join('');
   const dongDaCo = daCo.map(r => `
     <tr>
-      <td><strong>${esc(r.room_name)}</strong></td>
+      <td><div class="flex stu-name" data-act="roomDetail" data-args='[${r.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng — ai đang ở"><div><strong>${esc(r.room_name)}</strong></div><span class="row-chev" aria-hidden="true">${IC.chevronRight}</span></div></td>
       <td>${fmtDate(r.read_date)}</td>
-      <td>${esc(r.student_name || '—')}</td>
+      <td>${r.student_id ? `<span class="stu-name" data-act="studentDetail" data-args='[${r.student_id}]' role="button" tabindex="0" title="Xem chi tiết học viên"><strong>${esc(r.student_name || '—')}</strong></span>` : esc(r.student_name || '—')}</td>
       <td class="num">${esc(String(r.reading))}</td>
       <td><button class="btn sm" data-act="xoaChotGiuaKy" data-args='[${r.id}]' title="Gỡ lần chốt ghi nhầm">${IC.trash} Gỡ</button></td>
     </tr>`).join('');
@@ -395,7 +399,7 @@ async function runGenerate() {
   // Cảnh báo phải ĐẬP VÀO MẮT, không được chết im trong toast (bài học 2 nút chết im lặng).
   if (r.skipped_missing) {
     openModal(`
-      <div class="mh"><h3>${IC.alert} ${r.skipped_missing} học viên CHƯA có hóa đơn</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+      <div class="mh"><h3>${IC.alert} ${r.skipped_missing} học viên CHƯA có hóa đơn</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
       <div class="mb">
         <p>Kỳ điện <strong>${prevKy(month)}</strong> còn thiếu dữ liệu — các phòng sau bị bỏ qua, chưa lập hóa đơn:</p>
         <ul style="margin:10px 0 14px 20px;line-height:1.9">${(r.warnings || []).map(w => `<li>${esc(w)}</li>`).join('')}</ul>
@@ -409,7 +413,7 @@ function invoiceForm(id) {
   const opts = ST.students.map(s => `<option value="${s.id}" ${i.student_id === s.id ? 'selected' : ''}>${esc(s.name)}${s.code ? ' (' + esc(s.code) + ')' : ''}</option>`).join('');
   const f = (lbl, key, extra = '') => `<div class="field"><label>${lbl}</label><input id="i_${key}" type="number" min="0" value="${esc(i[key] || 0)}" ${extra}></div>`;
   openModal(`
-    <div class="mh"><h3>${id ? 'Sửa hóa đơn' : 'Thêm hóa đơn lẻ'}</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${id ? 'Sửa hóa đơn' : 'Thêm hóa đơn lẻ'}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="grid2">
         <div class="field"><label>Học viên *</label><select id="i_stu" ${id ? 'disabled' : ''}>${opts}</select></div>
@@ -514,7 +518,7 @@ async function phieuBao(inv) {
   if (+inv.leader_discount) row(chu('Giảm phòng trưởng', 'Miễn tiền nước và phí dịch vụ'), '', '1 suất', -inv.leader_discount);
 
   openModal(`
-    <div class="mh rc-noprint"><h3>${IC.fileText} Phiếu báo tiền phòng</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh rc-noprint"><h3>${IC.fileText} Phiếu báo tiền phòng</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb"><div id="receiptArea"><div class="receipt">
       <div class="rc-head">
         <h2>${esc(set.dorm_name || 'Ký túc xá')}</h2>
@@ -1034,7 +1038,7 @@ function duyetTaiKhoanForm(id) {
   _apHV = hv;
   _apGY = apGoiY(u, hv);
   openModal(`
-    <div class="mh"><h3>Duyệt tài khoản</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>Duyệt tài khoản</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="hint">${IC.info} Tài khoản này do <strong>đăng nhập Microsoft</strong> tự tạo — app chưa biết là ai.
         <br><strong>${esc(u.full_name || '—')}</strong> · ${esc(u.email || u.username)}</div>
@@ -1107,7 +1111,7 @@ function userForm(id) {
   if (id && !u) return;
   const roleOpt = (v, l) => `<option value="${v}" ${u.role === v ? 'selected' : ''}>${l}</option>`;
   openModal(`
-    <div class="mh"><h3>${id ? 'Sửa tài khoản' : 'Thêm nhân viên'}</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${id ? 'Sửa tài khoản' : 'Thêm nhân viên'}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="field"><label>Tên đăng nhập *</label><input id="u_username" value="${esc(u.username)}" ${id ? 'disabled' : ''} placeholder="vd: nhanvien01"></div>
       <div class="field"><label>Họ tên</label><input id="u_full" value="${esc(u.full_name || '')}" placeholder="Nguyễn Văn A"></div>
@@ -1147,7 +1151,7 @@ async function loadStudentAccounts() {
         ${u.auth_provider && u.auth_provider !== 'local' ? `<span class="badge blue" style="font-size:10px" title="Đã liên kết Microsoft">Microsoft</span>` : ''}
         ${u.must_change_password ? '<span class="badge amber" style="font-size:10px" title="Lần đăng nhập tới sẽ bị bắt đổi mật khẩu">Phải đổi MK</span>' : ''}
         ${u.email ? `<div class="muted" style="font-size:11px">${esc(u.email)}</div>` : ''}</td>
-      <td>${esc(u.student_name || u.full_name || '—')}${u.student_code ? `<div class="muted" style="font-size:11px">${esc(u.student_code)}</div>` : ''}</td>
+      <td>${u.student_id ? `<div class="flex stu-name" data-act="studentDetail" data-args='[${u.student_id}]' role="button" tabindex="0" title="Xem chi tiết học viên"><div><strong>${esc(u.student_name || u.full_name || '—')}</strong>${u.student_code ? `<div class="muted" style="font-size:11px">${esc(u.student_code)}</div>` : ''}</div><span class="row-chev" aria-hidden="true">${IC.chevronRight}</span></div>` : `${esc(u.student_name || u.full_name || '—')}${u.student_code ? `<div class="muted" style="font-size:11px">${esc(u.student_code)}</div>` : ''}`}</td>
       <td>${esc(u.room_name || '—')}</td>
       <td>${dsxoa ? '<span class="badge red" title="Hồ sơ học viên đã xoá nhưng tài khoản vẫn đăng nhập được">Hồ sơ đã xoá</span>'
         : dangO ? '<span class="badge green">Đang ở</span>' : '<span class="badge gray">Đã trả phòng</span>'}</td>
@@ -1163,7 +1167,7 @@ async function loadStudentAccounts() {
 function stuAccPwForm(id) {
   const u = (window._stuAccCache || []).find(x => x.id === id); if (!u) return;
   openModal(`
-    <div class="mh"><h3>Đặt lại mật khẩu học viên</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>Đặt lại mật khẩu học viên</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <p class="muted" style="margin-top:0">Học viên: <strong>${esc(u.student_name || '')}</strong> · Tài khoản: <strong>${esc(u.username)}</strong></p>
       <div class="field"><label>Mật khẩu mới *</label><input id="sa_newpass" type="text" placeholder="Tối thiểu 6 ký tự"></div>
@@ -1188,7 +1192,7 @@ async function revokeStuSession(id) {
 function resetUserPwForm(id) {
   const u = (window._usrCache || []).find(x => x.id === id);
   openModal(`
-    <div class="mh"><h3>Đặt lại mật khẩu</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>Đặt lại mật khẩu</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <p class="muted" style="margin-top:0">Tài khoản: <strong>${esc(u ? u.username : '')}</strong></p>
       <div class="field"><label>Mật khẩu mới *</label><input id="u_newpass" type="text" placeholder="Tối thiểu 6 ký tự"></div>
@@ -1337,7 +1341,7 @@ function vtypeForm(id) {
   const t = id ? (ST.vtypes || []).find(x => x.id === id) : { name: '', severity: 'minor', active: true };
   const sevOpt = (v, l) => `<option value="${v}" ${t.severity === v ? 'selected' : ''}>${l}</option>`;
   openModal(`
-    <div class="mh"><h3>${id ? 'Sửa loại vi phạm' : 'Thêm loại vi phạm'}</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${id ? 'Sửa loại vi phạm' : 'Thêm loại vi phạm'}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="field"><label>Tên loại vi phạm *</label><input id="vt_name" value="${esc(t.name)}" placeholder="VD: Về trễ giờ quy định"></div>
       <div class="grid2">
@@ -1415,7 +1419,7 @@ async function testSmtpConnection() {
 function assetForm(id) {
   const a = id ? ST.assets.find(x => x.id === id) : { name: '', unit: 'Cái', category: 'fixed', quantity: 1, fee: 0, note: '' };
   openModal(`
-    <div class="mh"><h3>${id ? 'Sửa tài sản' : 'Thêm tài sản'}</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${id ? 'Sửa tài sản' : 'Thêm tài sản'}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="field"><label>Tên tài sản *</label><input id="as_name" value="${esc(a.name)}" placeholder="VD: Remote máy lạnh"></div>
       <div class="grid2">
@@ -1464,7 +1468,7 @@ async function saveSettings() {
 function facilityForm(id) {
   const f = id ? ST.facilities.find(x => x.id === id) : { name: '', address: '' };
   openModal(`
-    <div class="mh"><h3>${id ? 'Sửa cơ sở' : 'Thêm cơ sở'}</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${id ? 'Sửa cơ sở' : 'Thêm cơ sở'}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="field"><label>Tên cơ sở *</label><input id="fc_name" value="${esc(f.name)}" placeholder="VD: Cơ sở 2"></div>
       <div class="field"><label>Địa chỉ</label><input id="fc_addr" value="${esc(f.address || '')}"></div>
@@ -1487,7 +1491,7 @@ async function delFacility(id) {
 /* ---------- ĐỔI MẬT KHẨU ---------- */
 function changePwd() {
   openModal(`
-    <div class="mh"><h3>${IC.key} Đổi mật khẩu</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${IC.key} Đổi mật khẩu</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="field"><label>Mật khẩu mới <span class="opt">(tối thiểu 6 ký tự)</span></label><input id="cp_new" type="password"></div>
       <div class="field"><label>Nhập lại mật khẩu mới</label><input id="cp_new2" type="password"></div>

@@ -93,7 +93,7 @@ function roomDetail(id) {
           ? `<span class="badge ${vuot ? 'amber' : dsDangO.length ? 'green' : 'gray'}">${dsDangO.length}/${cap}</span>${conTrong ? `<div class="sub2">còn ${conTrong} giường trống</div>` : ''}`
           : `<span class="badge gray">${dsDangO.length} người</span>`}</div></div>
         <div class="stat"><div class="l">Giá thuê${shared ? ' / người' : ''}</div><div class="v sm">${money(giaGhep)}${roomType(r) === 'whole' ? `<div class="sub2">Nguyên phòng: ${money(ST.settings['room_price_' + (r.hang || 'B')])}</div>` : ''}</div></div>
-        <div class="stat"><div class="l">Phòng trưởng</div><div class="v sm">${L ? `${IC.star} ${esc(L.name)}` : '<span class="muted">Chưa cử</span>'}</div></div>
+        <div class="stat"><div class="l">Phòng trưởng</div><div class="v sm">${L ? `<span class="hd-ref" data-act="studentDetail" data-args='[${L.id}]' role="button" tabindex="0" title="Xem chi tiết học viên">${IC.star} ${esc(L.name)}</span>` : '<span class="muted">Chưa cử</span>'}</div></div>
       </div>
       <p><strong>Tầng:</strong> ${r.floor || roomFloorOf(r.name)} &nbsp;•&nbsp; <strong>Sức chứa:</strong> ${cap || '—'} giường &nbsp;•&nbsp; <strong>Pháp nhân:</strong> ${esc(legalEntity(r.gender))}${showFacilityUI() ? ` &nbsp;•&nbsp; <strong>Cơ sở:</strong> ${esc(facilityName(r.facility_id))}` : ''}</p>
       ${r.note ? `<p style="white-space:pre-wrap"><strong>Ghi chú:</strong> ${esc(r.note)}</p>` : ''}
@@ -132,7 +132,7 @@ function leaderForm(roomId) {
   const cur = leaderOf(roomId);
   const inRoom = ST.students.filter(s => s.room_id === roomId && isOccupying(s));
   openModal(`
-    <div class="mh"><h3>${IC.star} Phòng trưởng: ${esc(r.name || '')}</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${IC.star} Phòng trưởng: ${esc(r.name || '')}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       ${!inRoom.length ? '<p class="muted">Phòng này chưa có ai ở — chưa cử phòng trưởng được.</p>' : `
       <div class="field"><label>Chọn phòng trưởng</label><select id="l_stu">
@@ -177,7 +177,7 @@ function roomForm(id) {
   // đổi theo, thay vì bị ghim ngay từ lúc tạo). Ô nhập vẫn cho gõ số nếu muốn giá riêng.
   const r = id ? roomById(id) : { name: '', floor: 1, gender: 'female', hang: 'B', capacity: HANG_CAP.B, monthly_fee: 0, note: '', facility_id: (ST.facilities[0] || {}).id };
   openModal(`
-    <div class="mh"><h3>${id ? 'Sửa phòng' : 'Thêm phòng'}</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${id ? 'Sửa phòng' : 'Thêm phòng'}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="grid2">
         <div class="field"><label>Tên / số phòng *</label><input id="f_name" value="${esc(r.name)}" placeholder="VD: 104" data-input="onFloorDisp"></div>
@@ -314,7 +314,7 @@ function viewStudents() {
           <strong>${esc(s.name)}</strong> <span class="badge ${s.gender === 'female' ? 'sage' : 'blue'}">${genderLabel(s.gender)}</span>${s.login_username ? ` <span title="Có tài khoản">${IC.key}</span>` : ''}
           <div class="sub2">${esc(s.code || '—')}${s.class_name ? ' · ' + esc(s.class_name) : ''}${showFacilityUI() && s.facility_id ? ` · <span class="badge gray" style="font-size:10px">${esc(facilityName(s.facility_id))}</span>` : ''}${flags}</div>
         </div><span class="row-chev" aria-hidden="true">${IC.chevronRight}</span></div></td>
-        <td class="ct-gon" data-label="Phòng">${s.room_name ? `<strong>${esc(s.room_name)}</strong>` : `<button class="btn sm" style="white-space:nowrap" title="Xếp phòng cho học viên này" data-act="transferForm" data-args='[${s.id}]'>${IC.transfer} Xếp phòng</button>`}${s.rental_type === 'phong' ? '<div class="sub2">Thuê nguyên phòng</div>' : ''}</td>
+        <td class="ct-gon" data-label="Phòng">${s.room_name ? `<span class="hd-ref" data-act="roomDetail" data-args='[${s.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng — ai đang ở"><strong>${esc(s.room_name)}</strong></span>` : `<button class="btn sm" style="white-space:nowrap" title="Xếp phòng cho học viên này" data-act="transferForm" data-args='[${s.id}]'>${IC.transfer} Xếp phòng</button>`}${s.rental_type === 'phong' ? '<div class="sub2">Thuê nguyên phòng</div>' : ''}</td>
         <td class="ct-gon" data-label="Trạng thái">${statusBadge(s)}</td>
         <td data-label="Hợp đồng"><span class="badge ${CONTRACT_BADGE[s.contract_status] || 'gray'}">${CONTRACT_LABEL[s.contract_status] || '—'}</span>${s.contract_no ? `<div class="sub2">${esc(s.contract_no)}</div>` : hdThamChieu(s)}</td>
         <td data-label="Cọc">${depositBadge(s)}${s.deposit_status === 'none' && isOccupying(s) ? ` <button class="btn sm ghost" style="white-space:nowrap" title="Ghi nhận đóng cọc" data-act="depositForm" data-args='[${s.id}]'>＋ Thu cọc</button>` : ''}</td>
@@ -375,7 +375,7 @@ async function studentForm(id) {
   const coHienTai = (s.check_out_date || '').slice(0, 10);
   const daRoi = !!coHienTai && coHienTai <= today();
   openModal(`
-    <div class="mh"><h3>${id ? 'Sửa học viên' : 'Thêm học viên'}</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${id ? 'Sửa học viên' : 'Thêm học viên'}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="grid2">
         <div class="field"><label>Họ tên *</label><input id="f_name" value="${esc(s.name)}" placeholder="Nguyễn Văn A"></div>
@@ -526,12 +526,12 @@ async function studentDetail(id) {
   const vios = s.violations || [];
   const vthr = (ST.settings && +ST.settings.violation_mail_threshold) || 3;
   openModal(`
-    <div class="mh"><h3>${esc(s.name)} <span class="badge ${s.gender === 'female' ? 'sage' : 'blue'}">${genderLabel(s.gender)}</span> ${statusBadge(s)}${s.deleted_at ? ` <span class="badge red">${IC.lock} Đã khoá</span>` : ''}</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${esc(s.name)} <span class="badge ${s.gender === 'female' ? 'sage' : 'blue'}">${genderLabel(s.gender)}</span> ${statusBadge(s)}${s.deleted_at ? ` <span class="badge red">${IC.lock} Đã khoá</span>` : ''}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       ${s.deleted_at ? `<div class="hint" style="margin-top:0;border-color:var(--red-ink)">${IC.lock} <span>Hồ sơ này <strong>đang bị khoá</strong> từ ${fmtDate(String(s.deleted_at).slice(0, 10))} — bị ẩn khỏi danh sách và tài khoản không đăng nhập được. Dữ liệu vẫn còn nguyên.
         <div class="rowbtns" style="margin-top:10px"><button class="btn sm green" data-act="restoreStudentAndReload" data-args='[${s.id}]'>${IC.undo} Mở khoá hồ sơ này</button></div></span></div>` : ''}
       <div class="cards" style="margin-bottom:16px">
-        <div class="stat"><div class="l">Phòng</div><div class="v sm">${esc(s.room_name || '—')}${s.room_hang ? ` <span class="badge gray">${s.room_hang}</span>` : ''}</div></div>
+        <div class="stat"><div class="l">Phòng</div><div class="v sm">${s.room_id ? `<span class="hd-ref" data-act="roomDetail" data-args='[${s.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng — ai đang ở">${esc(s.room_name || '—')}</span>` : esc(s.room_name || '—')}${s.room_hang ? ` <span class="badge gray">${s.room_hang}</span>` : ''}</div></div>
         <div class="stat"><div class="l">Hình thức</div><div class="v sm">${RENTAL_LABEL[s.rental_type] || 'Thuê ghép'}</div></div>
         <div class="stat"><div class="l">Tạm trú</div><div class="v sm">${resiBadge(s.residency_status)}</div></div>
       </div>
@@ -634,12 +634,12 @@ function duplicateModal(d) {
   const s = d.existing || {};
   const dangO = s.status === 'in';
   openModal(`
-    <div class="mh"><h3>${IC.alert} Bạn này đã có hồ sơ</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${IC.alert} Bạn này đã có hồ sơ</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="hint" style="margin:0 0 16px"><span>${esc(d.error)}</span></div>
       <div class="asset-item" style="padding:14px">
-        <div><div style="font-weight:700">${esc(s.name || '')}</div>
-          <div class="sub2">${s.code ? 'Mã HV: ' + esc(s.code) : ''}${s.room_name ? ' · Phòng ' + esc(s.room_name) : ''}</div></div>
+        <div>${s.id ? `<div class="hd-ref" style="font-weight:700" data-close data-act="studentDetail" data-args='[${s.id}]' role="button" tabindex="0" title="Xem chi tiết hồ sơ">${esc(s.name || '')}</div>` : `<div style="font-weight:700">${esc(s.name || '')}</div>`}
+          <div class="sub2">${s.code ? 'Mã HV: ' + esc(s.code) : ''}${(() => { if (!s.room_name) return ''; const r = ST.rooms.find(x => x.name === s.room_name); return r ? ` · Phòng <span class="hd-ref" data-close data-act="roomDetail" data-args='[${r.id}]' role="button" tabindex="0" title="Xem chi tiết phòng">${esc(s.room_name)}</span>` : ' · Phòng ' + esc(s.room_name); })()}</div></div>
         ${dangO ? '<span class="badge green">Đang ở</span>' : '<span class="badge gray">Đã trả phòng</span>'}
       </div>
     </div>
@@ -668,9 +668,9 @@ function transferForm(id) {
   const s = studentById(id);
   const chuaXep = !s.room_id; // BL-87: HV chưa có phòng -> "Xếp phòng" (lần đầu), không phải "Chuyển phòng"
   openModal(`
-    <div class="mh"><h3>${IC.transfer} ${chuaXep ? 'Xếp phòng' : 'Chuyển phòng'}: ${esc(s.name)}</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${IC.transfer} ${chuaXep ? 'Xếp phòng' : 'Chuyển phòng'}: ${esc(s.name)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      ${chuaXep ? '' : `<p class="muted">Phòng hiện tại: <strong>${esc(s.room_name || '—')}</strong></p>`}
+      ${chuaXep ? '' : `<p class="muted">Phòng hiện tại: <span class="hd-ref" data-act="roomDetail" data-args='[${s.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng — ai đang ở"><strong>${esc(s.room_name || '—')}</strong></span></p>`}
       <div class="grid2">
         <div class="field"><label>${chuaXep ? 'Xếp vào phòng' : 'Phòng mới'}</label><select id="t_room">${roomOptions('', s.gender)}</select></div>
         <div class="field"><label>Ngày ${chuaXep ? 'xếp' : 'chuyển'}</label><input id="t_date"></div>
@@ -705,7 +705,7 @@ function refundForm(id) {
   const person = ST.assets.filter(a => a.category === 'person');
   const fixed = ST.assets.filter(a => a.category === 'fixed');
   openModal(`
-    <div class="mh"><h3>${IC.handCoins} Hoàn cọc: ${esc(s.name || '')}</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${IC.handCoins} Hoàn cọc: ${esc(s.name || '')}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="hint">Tick số lượng tài sản <strong>hư hao / mất / không vệ sinh</strong> để khấu trừ vào cọc. Có thể sửa đơn giá bồi hoàn.</div>
       <div class="table-wrap" style="max-height:280px;overflow:auto"><table><thead><tr><th>Tài sản</th><th class="num">SL hư/mất</th><th class="num">Đơn giá</th><th class="num">Thành tiền</th></tr></thead><tbody>
@@ -775,13 +775,13 @@ async function delStudent(id) {
 async function showDeletedStudents() {
   const list = await guard(() => API.students(true));
   openModal(`
-    <div class="mh"><h3>${IC.lock} Học viên đã khoá (${list.length})</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${IC.lock} Học viên đã khoá (${list.length})</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       ${list.length ? `<div class="hint" style="margin-top:0">${IC.info} Bấm vào một dòng để xem <strong>chi tiết hồ sơ</strong> (phòng, hợp đồng, cọc, ngày ở, vi phạm…) rồi mở khoá ngay trong đó.</div>
       <div class="table-wrap"><table><thead><tr><th>Học viên</th><th>Mã</th><th>Phòng</th><th></th></tr></thead><tbody>
         ${list.map(s => `<tr style="cursor:pointer" title="Xem chi tiết hồ sơ" data-act="studentDetail" data-args='[${s.id}]'>
           <td><strong>${esc(s.name)}</strong>${s.class_name ? ` <span class="muted">· ${esc(s.class_name)}</span>` : ''}</td>
-          <td>${esc(s.code || '—')}</td><td>${esc(s.room_name || '—')}</td>
+          <td>${esc(s.code || '—')}</td><td>${s.room_id ? `<span class="hd-ref" data-act="roomDetail" data-args='[${s.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng">${esc(s.room_name || '—')}</span>` : '—'}</td>
           <td class="num"><div class="rowbtns" style="justify-content:flex-end">
             <button class="btn sm" data-act="studentDetail" data-args='[${s.id}]'>Chi tiết</button>
             <button class="btn sm green" data-act="restoreStudentAndReload" data-args='[${s.id}]'>${IC.undo} Mở khoá</button>
@@ -800,7 +800,7 @@ async function restoreStudentAndReload(id) {
 function appForm() {
   const facOpts = (ST.facilities || []).map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join('');
   openModal(`
-    <div class="mh"><h3>${IC.filePen} Tạo đơn đăng ký</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${IC.filePen} Tạo đơn đăng ký</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="hint">${IC.info} Đơn tạo ở đây vào danh sách <strong>Đăng ký ở nội trú</strong> ở trạng thái <strong>Chờ duyệt</strong>. Bấm <strong>“Thêm vào phòng”</strong> để duyệt & tạo học viên.</div>
       <div class="grid2">
@@ -844,7 +844,7 @@ async function saveApp() {
 }
 function accountForm(id, code) {
   openModal(`
-    <div class="mh"><h3>Tài khoản đăng nhập học viên</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>Tài khoản đăng nhập học viên</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="field"><label>Tên đăng nhập <span class="opt">(bỏ trống nếu đã có)</span></label><input id="a_user" value="${esc(code || '')}"></div>
       <div class="field"><label>Mật khẩu mới</label><input id="a_pass" type="text" placeholder="tối thiểu 6 ký tự"></div>
@@ -860,7 +860,7 @@ async function saveAccount(id) {
 function depositForm(id) {
   const s = studentById(id) || {};
   openModal(`
-    <div class="mh"><h3>${IC.lock} Ghi nhận đóng cọc</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${IC.lock} Ghi nhận đóng cọc</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="grid2">
         <div class="field"><label>Số tiền cọc</label><input id="d_amt" type="number" min="0" value="${esc(s.deposit_amount || ST.settings.deposit_fee || 1200000)}"></div>
@@ -889,14 +889,14 @@ function quyCoc() {
   const total = held.reduce((a, s) => a + (+s.deposit_amount || 0), 0);
   const pendAmt = pending.reduce((a, s) => a + (+s.deposit_amount || 0), 0);
   const rowFor = s => `<tr>
-    <td><strong>${esc(s.name)}</strong><div class="sub2">${esc(s.room_name || 'Chưa xếp')} · ${esc(s.code || '')}</div></td>
+    <td><span class="hd-ref" data-act="studentDetail" data-args='[${s.id}]' role="button" tabindex="0" title="Xem chi tiết học viên"><strong>${esc(s.name)}</strong></span><div class="sub2">${s.room_id ? `<span class="hd-ref" data-act="roomDetail" data-args='[${s.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng">${esc(s.room_name || '')}</span>` : 'Chưa xếp'} · ${esc(s.code || '')}</div></td>
     <td class="num">${money(s.deposit_amount)}</td>
     <td>${fmtDate(s.deposit_date)}</td>
     <td>${statusBadge(s)}</td>
     <td class="num">${liveStatus(s) === 'left' ? `<button class="btn sm green" data-close data-act="refundForm" data-args='[${s.id}]'>Hoàn cọc</button>` : ''}</td>
   </tr>`;
   openModal(`
-    <div class="mh"><h3>${IC.lock} Quỹ cọc</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${IC.lock} Quỹ cọc</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="kpis" style="margin-bottom:16px">
         <div class="kpi"><span class="ic ic-brand">${IC.lock}</span><div><div class="v">${money(total)}</div><div class="l">Tổng quỹ cọc đang giữ</div></div></div>

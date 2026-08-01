@@ -31,7 +31,7 @@ async function viewRequests() {
     body = pills + (shown.length ? `<div class="table-wrap"><table><thead><tr><th>Ngày gửi</th><th>Họ tên</th><th>SĐT</th><th>GT</th><th>Hình thức</th><th>Nguyện vọng</th><th>Trạng thái</th><th></th></tr></thead><tbody>
       ${shown.map(a => `<tr>
         <td>${fmtDate(String(a.created_at).slice(0, 10))}</td>
-        <td><strong>${esc(a.name)}</strong>${a.class_name ? `<div class="muted" style="font-size:11px">${esc(a.class_name)}</div>` : ''}${a.facility_name ? `<div class="sub2">${IC.building} ${esc(a.facility_name)}</div>` : ''}</td>
+        <td>${a.student_id ? `<a href="#" data-act="studentDetail" data-args='[${a.student_id}]' title="Xem chi tiết học viên"><strong>${esc(a.name)}</strong></a>` : `<strong>${esc(a.name)}</strong>`}${a.class_name ? `<div class="muted" style="font-size:11px">${esc(a.class_name)}</div>` : ''}${a.facility_name ? `<div class="sub2">${IC.building} ${esc(a.facility_name)}</div>` : ''}</td>
         <td>${esc(a.phone)}</td><td>${genderLabel(a.gender)}</td>
         <td class="muted" style="font-size:12px">${RENTAL_LABEL[a.rental_type] || 'Thuê ghép'}</td>
         <td style="font-size:12px">${a.pref ? esc(a.pref) : (a.wants_washing || a.wants_parking || a.plate || a.note || a.admin_note ? '' : '<span class="muted">—</span>')}${a.wants_washing || a.wants_parking || a.plate ? `<div style="margin-top:3px">${a.wants_washing ? `<span class="badge gray">${IC.washer} Máy giặt</span> ` : ''}${a.wants_parking || a.plate ? `<span class="badge gray">${IC.bike} Gửi xe${a.plate ? ' · ' + esc(a.plate) : ''}</span>` : ''}</div>` : ''}${a.note ? `<div class="muted" style="margin-top:3px">${esc(a.note)}</div>` : ''}${noteLine(a.admin_note)}</td>
@@ -47,7 +47,7 @@ async function viewRequests() {
     body = couts.length ? `<div class="table-wrap"><table><thead><tr><th>Ngày gửi</th><th>Học viên</th><th>Phòng</th><th>Ngày muốn trả</th><th>Lý do</th><th>Trạng thái</th><th></th></tr></thead><tbody>
       ${couts.map(c => `<tr>
         <td>${fmtDate(String(c.created_at).slice(0, 10))}</td>
-        <td>${esc(c.student_name || '—')}</td><td>${esc(c.room_name || '—')}</td>
+        <td>${c.student_id ? `<a href="#" data-act="studentDetail" data-args='[${c.student_id}]' title="Xem chi tiết học viên">${esc(c.student_name || '—')}</a>` : esc(c.student_name || '—')}</td><td>${(studentById(c.student_id) || {}).room_id ? `<a href="#" data-act="roomDetail" data-args='[${(studentById(c.student_id) || {}).room_id}]' title="Xem chi tiết phòng">${esc(c.room_name || '—')}</a>` : esc(c.room_name || '—')}</td>
         <td>${fmtDate(c.desired_date)}</td>
         <td>${REASON_LABEL[c.reason] || 'Khác'}${c.note ? `<div class="muted" style="font-size:12px">${esc(c.note)}</div>` : ''}${noteLine(c.admin_note)}</td>
         <td>${c.status === 'done' ? '<span class="badge green">Đã trả phòng</span>' : c.status === 'rejected' ? '<span class="badge gray">Từ chối</span>' : '<span class="badge amber">Chờ duyệt</span>'}</td>
@@ -62,7 +62,7 @@ async function viewRequests() {
     const tbl = ds.length ? `<div class="table-wrap"><table><thead><tr><th>Ngày</th><th>Học viên</th><th>Phòng</th><th>Nội dung</th><th>Trạng thái</th><th></th></tr></thead><tbody>
       ${ds.map(d => `<tr>
         <td>${fmtDate(String(d.created_at).slice(0, 10))}</td>
-        <td>${esc(d.student_name || '—')}</td><td>${esc(d.room_name || '—')}</td>
+        <td>${d.student_id ? `<a href="#" data-act="studentDetail" data-args='[${d.student_id}]' title="Xem chi tiết học viên">${esc(d.student_name || '—')}</a>` : esc(d.student_name || '—')}</td><td>${d.room_id ? `<a href="#" data-act="roomDetail" data-args='[${d.room_id}]' title="Xem chi tiết phòng">${esc(d.room_name || '—')}</a>` : esc(d.room_name || '—')}</td>
         <td><strong>${esc(d.title)}</strong>${d.description ? `<div class="muted" style="font-size:12px">${esc(d.description)}</div>` : ''}${noteLine(d.admin_note)}</td>
         <td>${d.status === 'done' ? '<span class="badge green">Đã xử lý</span>'
           : d.status === 'blocked' ? `<span class="badge red">Bảo trì: chưa xử lý được</span>${d.admin_note ? `<div style="font-size:11px;color:var(--red-ink)">Lý do: ${esc(d.admin_note)}</div>` : ''}`
@@ -79,7 +79,7 @@ async function viewRequests() {
   } else if (view === 'violations') {
     const vioRows = vios.map(v => `<tr>
       <td>${fmtDate(v.date)}</td>
-      <td><a href="#" data-act="studentDetail" data-args='[${v.student_id}]'><strong>${esc(v.student_name)}</strong></a>${v.student_code ? `<div class="muted" style="font-size:11px">${esc(v.student_code)}</div>` : ''}${v.room_name ? `<div class="muted" style="font-size:11px">${esc(v.room_name)}</div>` : ''}</td>
+      <td><a href="#" data-act="studentDetail" data-args='[${v.student_id}]'><strong>${esc(v.student_name)}</strong></a>${v.student_code ? `<div class="muted" style="font-size:11px">${esc(v.student_code)}</div>` : ''}${v.room_name ? `<div class="muted" style="font-size:11px">${(studentById(v.student_id) || {}).room_id ? `<a href="#" data-act="roomDetail" data-args='[${(studentById(v.student_id) || {}).room_id}]' title="Xem chi tiết phòng">${esc(v.room_name)}</a>` : esc(v.room_name)}</div>` : ''}</td>
       <td>${esc(v.type_name)}${v.note ? `<div class="muted" style="font-size:12px">${esc(v.note)}</div>` : ''}</td>
       <td>${vioSevBadge(v.severity)}</td>
       <td class="num"><span class="badge ${v.level >= threshold ? 'red' : 'gray'}">Lần ${v.level}</span></td>
@@ -100,7 +100,7 @@ async function viewRequests() {
       ${fb.map(d => `<tr>
         <td>${fmtDate(String(d.created_at).slice(0, 10))}</td>
         <td>${supCatBadge(d.category)}</td>
-        <td>${esc(d.student_name || '—')}</td><td>${esc(d.room_name || '—')}</td>
+        <td>${d.student_id ? `<a href="#" data-act="studentDetail" data-args='[${d.student_id}]' title="Xem chi tiết học viên">${esc(d.student_name || '—')}</a>` : esc(d.student_name || '—')}</td><td>${d.room_id ? `<a href="#" data-act="roomDetail" data-args='[${d.room_id}]' title="Xem chi tiết phòng">${esc(d.room_name || '—')}</a>` : esc(d.room_name || '—')}</td>
         <td><strong>${esc(d.title)}</strong>${d.description ? `<div class="muted" style="font-size:12px">${esc(d.description)}</div>` : ''}${noteLine(d.admin_note)}</td>
         <td>${d.status === 'done' ? '<span class="badge green">Đã xử lý</span>' : d.status === 'processing' ? '<span class="badge blue">Đang xử lý</span>' : '<span class="badge amber">Mới</span>'}</td>
         <td class="num"><div class="rowbtns" style="justify-content:flex-end">
@@ -122,7 +122,7 @@ function noteForm(type, id) {
     : type === 'cout' ? (ST.couts.find(c => c.id === id) || {}).admin_note
       : (ST.damage.find(d => d.id === id) || {}).admin_note) || '';
   openModal(`
-    <div class="mh"><h3>${IC.filePen} Ghi chú xử lý</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${IC.filePen} Ghi chú xử lý</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb"><div class="field"><label>Ghi chú nội bộ <span class="opt">(chỉ quản lý thấy)</span></label><textarea id="nf_note" rows="4" placeholder="VD: đã gọi điện, hẹn xử lý...">${esc(cur || '')}</textarea></div></div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveNote" data-args='["${type}", ${id}]'>Lưu ghi chú</button></div>`);
   setTimeout(() => el('nf_note').focus(), 50);
@@ -153,7 +153,7 @@ function violationForm(studentId) {
   const tOpts = types.map(t => `<option value="${t.id}">${esc(t.name)} — ${VIO_SEV[t.severity] ? VIO_SEV[t.severity][0] : ''}</option>`).join('');
   const thr = (ST.settings && ST.settings.violation_mail_threshold) || 3;
   openModal(`
-    <div class="mh"><h3>${IC.alert} Ghi nhận vi phạm</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${IC.alert} Ghi nhận vi phạm</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="field"><label>Học viên *</label><select id="vf_stu" ${studentId ? 'disabled' : ''}>${sOpts}</select></div>
       <div class="grid2">
@@ -195,7 +195,7 @@ async function violationStatsModal() {
   const st = await guard(() => API.violationStats(curMonth().slice(0, 4)));
   const sev = k => (st.bySeverity.find(x => x.severity === k) || { c: 0 }).c;
   openModal(`
-    <div class="mh"><h3>${IC.trendingUp} Thống kê vi phạm</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${IC.trendingUp} Thống kê vi phạm</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="kpis" style="margin-bottom:16px">
         <div class="kpi"><span class="ic ic-gray">${IC.alert}</span><div><div class="v">${st.total}</div><div class="l">Tổng lượt vi phạm</div></div></div>
@@ -204,7 +204,7 @@ async function violationStatsModal() {
       </div>
       <h4 style="margin:6px 0 8px">Học viên vi phạm nhiều nhất</h4>
       ${st.byStudent.length ? `<div class="table-wrap"><table><thead><tr><th>Học viên</th><th>Phòng</th><th class="num">Số lần</th><th>Lần cuối</th><th>Nhà trường</th></tr></thead><tbody>
-        ${st.byStudent.slice(0, 20).map(x => `<tr><td><a href="#" data-close data-act="studentDetail" data-args='[${x.id}]'><strong>${esc(x.name)}</strong></a>${x.code ? `<div class="muted" style="font-size:11px">${esc(x.code)}</div>` : ''}</td><td>${esc(x.room_name || '—')}</td><td class="num"><span class="badge ${x.cnt >= st.threshold ? 'red' : 'gray'}">${x.cnt}</span></td><td>${fmtDate(x.last_date)}</td><td>${x.notified ? '<span class="badge green">Đã báo</span>' : (x.cnt >= st.threshold ? '<span class="badge amber">Cần báo</span>' : '—')}</td></tr>`).join('')}
+        ${st.byStudent.slice(0, 20).map(x => `<tr><td><a href="#" data-close data-act="studentDetail" data-args='[${x.id}]'><strong>${esc(x.name)}</strong></a>${x.code ? `<div class="muted" style="font-size:11px">${esc(x.code)}</div>` : ''}</td><td>${(studentById(x.id) || {}).room_id ? `<a href="#" data-close data-act="roomDetail" data-args='[${(studentById(x.id) || {}).room_id}]' title="Xem chi tiết phòng">${esc(x.room_name || '—')}</a>` : esc(x.room_name || '—')}</td><td class="num"><span class="badge ${x.cnt >= st.threshold ? 'red' : 'gray'}">${x.cnt}</span></td><td>${fmtDate(x.last_date)}</td><td>${x.notified ? '<span class="badge green">Đã báo</span>' : (x.cnt >= st.threshold ? '<span class="badge amber">Cần báo</span>' : '—')}</td></tr>`).join('')}
       </tbody></table></div>` : '<p class="muted">Chưa có dữ liệu.</p>'}
       <h4 style="margin:16px 0 8px">Theo loại vi phạm</h4>
       ${st.byType.length ? `<div class="table-wrap"><table><thead><tr><th>Loại vi phạm</th><th class="num">Số lượt</th></tr></thead><tbody>
@@ -218,7 +218,7 @@ function approveForm(id) {
   const a = (ST.applications || []).find(x => x.id === id);   // viewRequests da dong bo ST.applications
   if (!a) return toast('Không tìm thấy đơn', 'err');
   openModal(`
-    <div class="mh"><h3>${IC.plus} Thêm vào phòng: ${esc(a.name)}</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${IC.plus} Thêm vào phòng: ${esc(a.name)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <p class="muted">${esc(a.phone)} · ${genderLabel(a.gender)} · ${RENTAL_LABEL[a.rental_type] || 'Thuê ghép'}${a.pref ? ' · NV: ' + esc(a.pref) : ''}</p>
       ${a.wants_washing || a.wants_parking || a.plate ? `<div class="hint">Dịch vụ đăng ký: ${a.wants_washing ? `${IC.washer} Máy giặt ` : ''}${a.wants_parking || a.plate ? `${IC.bike} Gửi xe${a.plate ? ' (' + esc(a.plate) + ')' : ''}` : ''} — sẽ tự thêm khi duyệt.</div>` : ''}
@@ -271,7 +271,7 @@ async function doApprove(id) {
 // BL-30: hộp tài khoản có nút Sao chép thay alert() (alert không copy được, dễ gõ sai khi gửi HV).
 function credentialModal(username, password) {
   openModal(`
-    <div class="mh"><h3>${IC.key} Tài khoản đăng nhập học viên</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${IC.key} Tài khoản đăng nhập học viên</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="hint">${IC.checkCircle} Đã thêm học viên & tạo tài khoản. Gửi thông tin này cho học viên — <strong>đóng hộp là không xem lại được</strong> (phải vào Sửa hồ sơ để đặt lại mật khẩu).</div>
       <div class="field"><label>Tên đăng nhập</label>
@@ -301,7 +301,7 @@ function confirmCout(id) {
   const roomName = (s && s.room_name) || cr.room_name || '';
   const hasRoom = !!((s && s.room_id) || roomName);
   openModal(`
-    <div class="mh"><h3>${IC.doorOpen} Duyệt trả phòng: ${esc(cr.student_name || (s && s.name) || '')}</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${IC.doorOpen} Duyệt trả phòng: ${esc(cr.student_name || (s && s.name) || '')}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="field"><label>Ngày rời thực tế</label><input id="cc_date"></div>
       ${hasRoom ? meterField('cc_meter', roomName, 'rời phòng') : ''}
@@ -326,7 +326,7 @@ async function rejectCout(id) { if (!confirm('Từ chối đơn trả phòng?'))
 function checkInForm(id) {
   const s = studentById(id);
   openModal(`
-    <div class="mh"><h3>${IC.key} Check-in: ${esc(s.name)}</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${IC.key} Check-in: ${esc(s.name)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="grid2">
         <div class="field"><label>Ngày vào</label><input id="c_date"></div>
@@ -346,7 +346,7 @@ async function doCheckIn(id) {
 function checkOutForm(id) {
   const s = studentById(id);
   openModal(`
-    <div class="mh"><h3>${IC.doorOpen} Check-out: ${esc(s.name)}</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${IC.doorOpen} Check-out: ${esc(s.name)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="grid2">
         <div class="field"><label>Ngày báo trả phòng</label><input id="c_notice"></div>
@@ -414,7 +414,7 @@ function quickPick(type) {
   const pool = type === 'in' ? ST.students.filter(s => s.status !== 'in') : ST.students.filter(isOccupying);
   if (!pool.length) return toast(type === 'in' ? 'Không có học viên nào đang ở ngoài' : 'Không có học viên nào đang ở', 'err');
   openModal(`
-    <div class="mh"><h3>${type === 'in' ? IC.check+' Check-in nhanh' : IC.undo+' Check-out nhanh'}</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${type === 'in' ? IC.check+' Check-in nhanh' : IC.undo+' Check-out nhanh'}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb"><div class="field"><label>Chọn học viên</label>
       <select id="q_stu">${pool.map(s => `<option value="${s.id}">${esc(s.name)} ${s.code ? '(' + esc(s.code) + ')' : ''}</option>`).join('')}</select></div></div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="quickPickGo" data-args='["${type}"]'>Tiếp tục</button></div>`);

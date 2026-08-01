@@ -97,7 +97,7 @@ function residencyModal() {
   const reg = occ.filter(s => s.residency_status === 'registered').length;
   const row = (ico, label, n, filter, cls) => `<div class="todo ${n ? cls : 'calm'}" ${n ? actAttr('stuGoAdmin', filter) : ''}><span class="ic">${ico}</span><span class="tx">${label}</span><span class="n">${n}</span></div>`;
   openModal(`
-    <div class="mh"><h3>${IC.flag} Đăng ký tạm trú</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${IC.flag} Đăng ký tạm trú</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="hint">${IC.info} Tình trạng đăng ký tạm trú của học viên đang ở. Bấm từng nhóm để xem danh sách.</div>
       <div class="todo-grid" style="grid-template-columns:1fr;margin-top:10px">
@@ -158,7 +158,7 @@ function tamTruSheet() {
   </style>
   ${missing.length ? `<div class="rc-noprint" style="background:#fff6f2;border:1px solid #e9c9c0;border-radius:10px;padding:12px 14px;margin-bottom:14px">
       <strong style="color:var(--red-ink,#b4432b)">${IC.alert} ${missing.length} học viên chưa đủ ảnh CCCD — CHƯA đưa vào bản in:</strong>
-      <ul style="margin:8px 0 0 18px;font-size:13px;line-height:1.7">${missing.map(s => `<li>${esc(s.name)} — ${esc(s.room_name || '—')} <span style="color:var(--red-ink,#b4432b)">(thiếu ${missSide(s)})</span> · <a href="#" data-act="studentForm" data-args='[${s.id}]'>bổ sung ảnh</a></li>`).join('')}</ul>
+      <ul style="margin:8px 0 0 18px;font-size:13px;line-height:1.7">${missing.map(s => `<li>${esc(s.name)} — ${s.room_id ? `<a href="#" data-act="roomDetail" data-args='[${s.room_id}]'>${esc(s.room_name || '—')}</a>` : esc(s.room_name || '—')} <span style="color:var(--red-ink,#b4432b)">(thiếu ${missSide(s)})</span> · <a href="#" data-act="studentForm" data-args='[${s.id}]'>bổ sung ảnh</a></li>`).join('')}</ul>
     </div>` : ''}
   <div id="printArea"><div class="tt-doc">
     <div class="tt-title">
@@ -178,7 +178,7 @@ function contractIssuesModal() {
   const ho = occ.filter(handoverPending).length;
   const row = (ico, label, n, filter, cls) => `<div class="todo ${n ? cls : 'calm'}" ${n ? actAttr('stuGoAdmin', filter) : ''}><span class="ic">${ico}</span><span class="tx">${label}</span><span class="n">${n}</span></div>`;
   openModal(`
-    <div class="mh"><h3>${IC.fileText} Hợp đồng chưa hoàn thiện</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${IC.fileText} Hợp đồng chưa hoàn thiện</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="hint">${IC.info} Các nhóm cần hoàn thiện hợp đồng / bàn giao. Bấm từng nhóm để xem danh sách học viên.</div>
       <div class="todo-grid" style="grid-template-columns:1fr;margin-top:10px">
@@ -195,7 +195,7 @@ function depositModal() {
   const noDep = ST.students.filter(s => isOccupying(s) && s.deposit_status === 'none').length;
   const row = (ico, label, n, act, cls) => `<div class="todo ${n ? cls : 'calm'}" ${n ? `data-close ${act}` : ''}><span class="ic">${ico}</span><span class="tx">${label}</span><span class="n">${n}</span></div>`;
   openModal(`
-    <div class="mh"><h3>${IC.handCoins} Tiền cọc</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mh"><h3>${IC.handCoins} Tiền cọc</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="hint">${IC.info} Các việc liên quan tiền cọc. Bấm từng mục để xem danh sách.</div>
       <div class="todo-grid" style="grid-template-columns:1fr;margin-top:10px">
@@ -294,9 +294,9 @@ async function viewDashboard() {
 function logsTable(logs) {
   if (!logs.length) return `<div class="empty">Chưa có hoạt động nào.</div>`;
   return `<table><thead><tr><th>Ngày</th><th>Học viên</th><th>Hoạt động</th><th>Phòng</th><th>Nguồn</th><th>Ghi chú</th></tr></thead><tbody>
-    ${logs.map(l => `<tr><td>${fmtDate(l.date)}${String(l.date).slice(0, 10) > today() ? ' <span class="badge blue" style="font-size:10px">sắp tới</span>' : ''}</td><td>${esc(l.student_name)}</td>
+    ${logs.map(l => `<tr><td>${fmtDate(l.date)}${String(l.date).slice(0, 10) > today() ? ' <span class="badge blue" style="font-size:10px">sắp tới</span>' : ''}</td><td><a href="#" data-act="studentDetail" data-args='[${l.student_id}]'>${esc(l.student_name)}</a></td>
       <td>${l.type === 'in' ? '<span class="badge green">Check-in</span>' : '<span class="badge red">Check-out</span>'}</td>
-      <td>${esc(l.room_name || '—')}</td>
+      <td>${l.room_id ? `<a href="#" data-act="roomDetail" data-args='[${l.room_id}]'>${esc(l.room_name || '—')}</a>` : esc(l.room_name || '—')}</td>
       <td>${l.source === 'self' ? '<span class="badge blue">Học viên</span>' : '<span class="badge gray">Quản lý</span>'}</td>
       <td class="muted">${esc(l.note || '')}</td></tr>`).join('')}
   </tbody></table>`;
