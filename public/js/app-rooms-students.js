@@ -540,7 +540,7 @@ async function studentDetail(id) {
       <p><strong>Khai giảng:</strong> ${fmtDate(s.class_start_date)} &nbsp;•&nbsp; <strong>Dự kiến xuất cảnh:</strong> ${fmtDate(s.expected_departure)}</p>
       <p><strong>Ngày vào:</strong> ${fmtDate(s.check_in_date)} ${s.check_out_date ? ` &nbsp;•&nbsp; <strong>Ngày trả:</strong> ${fmtDate(s.check_out_date)}` : ''}</p>
       <p><strong>Tài khoản:</strong> ${s.login_username ? `<span class="badge blue">${IC.key} ${esc(s.login_username)}</span>` : '<span class="muted">Chưa có</span>'}
-        <button class="btn sm" style="margin-left:8px" data-act="accountForm" data-args='[${s.id}, ${JSON.stringify(s.code || "")}]'>${s.login_username ? 'Đặt lại MK' : 'Tạo tài khoản'}</button></p>
+        <button class="btn sm" style="margin-left:8px" data-act="accountForm" data-args='[${s.id}, ${JSON.stringify(s.code || s.phone || "")}]'>${s.login_username ? 'Đặt lại MK' : 'Tạo tài khoản'}</button></p>
 
       <div class="panel" style="margin-top:12px"><div class="hd"><h2 style="font-size:14px">${IC.fileText} Hợp đồng</h2></div><div class="pad">
         <p style="margin:0">Số HĐ: <strong>${esc(s.contract_no || '—')}</strong> · Ngày ký: ${fmtDate(s.contract_date)} · <span class="badge ${CONTRACT_BADGE[s.contract_status] || 'gray'}">${CONTRACT_LABEL[s.contract_status] || '—'}</span></p>
@@ -859,7 +859,8 @@ function accountForm(id, code) {
   openModal(`
     <div class="mh"><h3>Tài khoản đăng nhập học viên</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <div class="field"><label>Tên đăng nhập <span class="opt">(bỏ trống nếu đã có)</span></label><input id="a_user" value="${esc(code || '')}"></div>
+      <div class="field"><label>Tên đăng nhập <span class="opt">${code ? 'gợi ý sẵn — sửa được' : 'hồ sơ chưa có mã HV lẫn SĐT, phải tự đặt'}</span></label>
+        <input id="a_user" value="${esc(code || '')}" placeholder="vd mã học viên hoặc số điện thoại"></div>
       <div class="field"><label>Mật khẩu mới</label><input id="a_pass" type="text" placeholder="tối thiểu 6 ký tự"></div>
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveAccount" data-args='[${id}]'>Lưu</button></div>`);

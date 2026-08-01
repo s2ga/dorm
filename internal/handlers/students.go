@@ -2212,15 +2212,19 @@ func (h *Handlers) StudentAccount(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"ok": true, "username": studentsJSString(existing["username"])})
 		return
 	}
+	// Cùng thứ tự lùi với đường duyệt đơn (applications.go): hồ sơ vào từ đơn đăng ký chưa có mã HV,
+	// không lùi về SĐT thì đường này tắc còn đường kia chạy.
 	uname := ""
-	if studentsJSTruthy(b["username"]) {
-		uname = studentsJSString(b["username"])
-	} else if studentsJSTruthy(st["code"]) {
-		uname = studentsJSString(st["code"])
+	for _, v := range []interface{}{b["username"], st["code"], st["phone"]} {
+		if studentsJSTruthy(v) {
+			uname = strings.TrimSpace(studentsJSString(v))
+			if uname != "" {
+				break
+			}
+		}
 	}
-	uname = strings.TrimSpace(uname)
 	if uname == "" {
-		badRequest(c, "Cần tên đăng nhập")
+		badRequest(c, "Hồ sơ chưa có mã học viên lẫn số điện thoại — nhập tên đăng nhập để tạo tài khoản.")
 		return
 	}
 	var one int
