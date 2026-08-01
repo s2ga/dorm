@@ -222,10 +222,14 @@ function electricTable(rooms, lichSu) {
   const ls = new Map(((lichSu && lichSu.rooms) || []).map(x => [x.room_id, x.series || []]));
   _kwhTruoc = {};
   ls.forEach((s, rid) => { if (s.length >= 2) _kwhTruoc[rid] = +s[s.length - 2].kwh || 0; });
-  return `<div class="table-wrap" style="max-height:min(560px,62vh);overflow:auto"><table><thead><tr><th>Phòng</th><th class="num">Đang ở</th><th class="num">Số đầu</th><th class="num">Số cuối</th><th class="num">Tiêu thụ</th><th class="num">Tiền điện</th><th class="num">6 kỳ gần nhất</th></tr></thead><tbody>
+  return `<div class="table-wrap" style="max-height:min(560px,62vh);overflow:auto"><table><thead><tr><th>Phòng</th><th class="num">Số đầu</th><th class="num">Số cuối</th><th class="num">Tiêu thụ</th><th class="num">Tiền điện</th><th class="num">6 kỳ gần nhất</th></tr></thead><tbody>
     ${rooms.map(r => { const st = +r.reading_start || 0, en = +r.reading_end || 0; const bad = en > 0 && en < st; const kwh = Math.max(0, en - st); const tr = _kwhTruoc[r.room_id]; return `<tr>
-      <td><strong>${esc(r.room_name)}</strong> <span class="muted">${r.gender === 'female' ? 'Nữ' : 'Nam'}</span></td>
-      <td class="num">${r.occupancy}</td>
+      ${''/* Số người ở gộp vào ô Phòng làm thông tin phụ (như nhãn Nam/Nữ) — nhường chỗ cho cột
+             sparkline. Bấm vào mở chi tiết phòng, y như ở màn Phòng. */}
+      <td><div class="flex stu-name" data-act="roomDetail" data-args='[${r.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng — ai đang ở">
+        <div><strong>${esc(r.room_name)}</strong>
+          <div class="sub2">${r.gender === 'female' ? 'Nữ' : 'Nam'} · ${r.occupancy ? r.occupancy + ' người ở' : 'trống'}</div></div>
+        <span class="row-chev">${IC.chevronRight}</span></div></td>
       <td class="num"><input type="number" min="0" step="0.1" data-estart="${r.room_id}" value="${st || ''}" placeholder="0" style="width:78px;text-align:right" data-input="ecalc" data-args='[${r.room_id}]'></td>
       <td class="num"><input type="number" min="0" step="0.1" data-room="${r.room_id}" value="${en || ''}" placeholder="0" style="width:78px;text-align:right${bad ? ';border-color:var(--red);background:var(--red-bg)' : ''}" data-input="ecalc" data-args='[${r.room_id}]'></td>
       <td class="num" id="ek_${r.room_id}">${bad ? '<span class="err-inline" title="Số cuối nhỏ hơn số đầu — sửa lại">Số cuối &lt; số đầu</span>'

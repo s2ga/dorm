@@ -96,6 +96,20 @@ function _veModal(lop) {
   el('modal').scrollTop = 0;
   const mb = el('modal').querySelector('.mb'); if (mb) mb.scrollTop = 0;
 }
+// Ngăn xếp modal lưu HTML của từng lớp. Nhưng thứ người dùng GÕ nằm ở property của ô nhập, không
+// phải attribute — innerHTML không chứa nó. Mở lớp con rồi lùi về là mất trắng, im lặng.
+// Đồng bộ property -> attribute rồi mới chụp, để lùi lớp về còn nguyên những gì đang nhập dở.
+function _chotLopHienTai() {
+  if (!_lopModal.length) return;
+  const m = el('modal');
+  m.querySelectorAll('input,select,textarea').forEach(e => {
+    if (e.type === 'checkbox' || e.type === 'radio') e.toggleAttribute('checked', e.checked);
+    else if (e.tagName === 'TEXTAREA') e.textContent = e.value;
+    else if (e.tagName === 'SELECT') [...e.options].forEach(o => o.toggleAttribute('selected', o.selected));
+    else e.setAttribute('value', e.value);
+  });
+  _lopModal[_lopModal.length - 1].html = m.innerHTML;
+}
 function openModal(html, wide) {
   const dangMo = el('overlay').classList.contains('show');
   if (!dangMo) {
@@ -116,7 +130,8 @@ function openModal(html, wide) {
       } catch (e) { _modalCoLichSu = false; }
     }
   }
-  _lopModal.push({ html, wide: !!wide });
+  else _chotLopHienTai();   // mở lớp CON -> chốt những gì đang gõ ở lớp dưới trước khi bị che
+  _lopModal.push({ html, wide: wide === 'x' ? 'x' : !!wide });
   _veModal(_lopModal[_lopModal.length - 1]);
   el('overlay').classList.add('show');
   _formLucMo = _chupForm();

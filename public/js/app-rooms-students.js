@@ -85,7 +85,9 @@ function roomDetail(id) {
     <div class="mh"><h3>${IC.home} Phòng ${esc(r.name)}
       <span class="badge ${r.gender === 'female' ? 'sage' : 'blue'}">${genderLabel(r.gender)}</span>
       <span class="badge gray">Hạng ${esc(r.hang || 'B')}</span> ${roomTypeBadge(r)}</h3>
-      <button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+      ${''/* modalBack, KHÔNG phải closeModal: màn này mở được từ bảng Chỉ số điện như một lớp con —
+            đóng sạch cả chồng là mất số công-tơ đang gõ dở. Là lớp duy nhất thì modalBack tự đóng hẳn. */}
+      <button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="cards" style="margin-bottom:16px">
         <div class="stat"><div class="l">Đang ở</div><div class="v sm">${shared
