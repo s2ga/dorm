@@ -259,6 +259,10 @@ function washAdd() { toggleWashing(+el('wash_stu').value, true); }
 function delUserRow(id) { delUser(id, (this && this.dataset && this.dataset.uname) || ''); } // ten doc tu data-uname (delUser = KHOA tai khoan)
 function unlockUserRow(id) { unlockUser(id, (this && this.dataset && this.dataset.uname) || ''); }
 function logout() { Auth.logout(); }
+// BL-80: cây búa cũ (thu hồi vé cấp tài khoản) nay là một nút riêng, tường minh.
+function logoutMoiThietBi() {
+  if (confirm('Thoát khỏi MỌI thiết bị đang đăng nhập tài khoản này?\n\nDùng khi nghi lộ mật khẩu hoặc quên đăng xuất ở máy khác.')) Auth.logout(true);
+}
 function doPrint() { window.print(); }
 function reloadPage() { location.reload(); } // BL-22: nút "Tải lại" trang công khai (CSP chặn inline onclick)
 function handoverCheckinRow(id) { handoverCheckinForm(id, (this && this.dataset && this.dataset.hname) || ''); }     // ten doc tu data-hname (tranh nhet ten vao JSON)

@@ -4,8 +4,14 @@
 const Auth = {
   get user() { try { return JSON.parse(localStorage.getItem('ktx_user')); } catch { return null; } },
   set user(v) { v ? localStorage.setItem('ktx_user', JSON.stringify(v)) : localStorage.removeItem('ktx_user'); },
-  async logout() {
-    try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }); } catch {}
+  // moiThietBi=true: thu hồi vé ở cấp tài khoản, đá cả máy khác. Mặc định chỉ thoát máy này.
+  async logout(moiThietBi) {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ all: !!moiThietBi }),
+      });
+    } catch {}
     this.user = null; location.reload();
   },
 };

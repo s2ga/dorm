@@ -152,11 +152,18 @@ func (h *Handlers) Login(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
-// Logout: POST /api/auth/logout — THU HỒI vé rồi xoá cookie. server/routes/auth.routes.js:86-93
+// Logout: POST /api/auth/logout — chỉ xoá cookie của THIẾT BỊ NÀY. Truyền all=true để thu hồi vé
+// ở cấp tài khoản (đá mọi thiết bị). server/routes/auth.routes.js:86-93
 func (h *Handlers) Logout(c *gin.Context) {
-	if t := h.Auth.ReadToken(c); t != "" {
-		if id, ok := h.Auth.TokenUserID(t); ok {
-			_ = h.Auth.RevokeTokens(c.Request.Context(), id)
+	var b struct {
+		All *bool `json:"all"`
+	}
+	_ = c.ShouldBindJSON(&b)
+	if b.All != nil && *b.All {
+		if t := h.Auth.ReadToken(c); t != "" {
+			if id, ok := h.Auth.TokenUserID(t); ok {
+				_ = h.Auth.RevokeTokens(c.Request.Context(), id)
+			}
 		}
 	}
 	h.Auth.ClearAuthCookie(c)

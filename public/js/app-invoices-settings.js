@@ -894,6 +894,9 @@ function viewSettings() {
       ${dungMatKhau()
         ? `<button class="btn" data-act="changePwd">${IC.key} Đổi mật khẩu</button>`
         : `<div class="muted">${IC.shield} Bạn đăng nhập bằng <strong>tài khoản Microsoft</strong> — mật khẩu do Microsoft quản lý, đổi ở trang tài khoản Microsoft của bạn.</div>`}
+      <div class="rowbtns" style="margin-top:12px"><button class="btn ghost" data-act="logoutMoiThietBi">${IC.logOut} Thoát khỏi mọi thiết bị</button></div>
+      <div class="hint">${IC.shield} Nút <strong>Đăng xuất</strong> ở thanh bên chỉ thoát máy đang dùng. Nút này thu hồi mọi phiên
+        trên mọi thiết bị — dùng khi nghi lộ mật khẩu hoặc quên đăng xuất ở máy khác.</div>
     </div></div>
     </div>
 

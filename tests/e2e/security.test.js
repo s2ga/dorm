@@ -57,12 +57,18 @@ module.exports = {
       t.ok('TC-15 · tài khoản ĐÃ XOÁ vẫn đọc được danh sách học viên? → phải 401',
         cAfter.status === 401, `HTTP ${cAfter.status} — ${cAfter.json && cAfter.json.error}`);
 
-      // ===== TC-15b: ĐĂNG XUẤT rồi mà vé cũ vẫn chạy
+      // ===== TC-15b: ĐĂNG XUẤT (BL-80) — thoát thường chỉ kết thúc phiên của THIẾT BỊ NÀY: xoá
+      // cookie httpOnly, KHÔNG tăng token_epoch. Đánh đổi có chủ ý: đổi lại việc bấm Thoát trên
+      // điện thoại không đá luôn máy văn phòng. Muốn giết sạch thì có nút riêng, kiểm ở TC-15c.
       const d1 = await mkUser('_d', 'admin');
       await t.api('POST', '/api/auth/logout', d1);
       const dAfter = await t.api('GET', '/api/students', d1);
-      t.ok('TC-15b · đăng xuất rồi, vé cũ vẫn dùng được? → phải 401',
-        dAfter.status === 401, `HTTP ${dAfter.status} — ${dAfter.json && dAfter.json.error}`);
+      t.ok('TC-15b · thoát thường KHÔNG thu hồi vé cấp tài khoản (thiết bị khác vẫn đăng nhập)',
+        dAfter.status === 200, `HTTP ${dAfter.status} — ${dAfter.json && dAfter.json.error}`);
+      await t.api('POST', '/api/auth/logout', d1, { all: true });
+      const dAll = await t.api('GET', '/api/students', d1);
+      t.ok('TC-15c · "Thoát khỏi mọi thiết bị" thu hồi THẬT → 401',
+        dAll.status === 401, `HTTP ${dAll.status} — ${dAll.json && dAll.json.error}`);
 
       // ===== TC-13: bắt đổi mật khẩu nhưng vẫn xem được mọi thứ
       await t.api('POST', '/api/admin/users', T, { username: P + '_e', password: 'test1234', role: 'admin', full_name: 'Test E' });
