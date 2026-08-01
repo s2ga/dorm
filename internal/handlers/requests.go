@@ -852,7 +852,9 @@ func (h *Handlers) BillCheckout(c *gin.Context) {
 		return
 	}
 	if hasDup && dStatus == "paid" {
-		badRequest(c, "Hóa đơn kỳ này đã đóng — không sửa.")
+		badRequest(c, `Phiếu kỳ `+month+` đã thu tiền — không lập lại được, nên đơn trả phòng đang dừng ở bước `+
+			`"đã bàn giao" và chưa hoàn cọc được. Mở màn Tiền phòng, chuyển phiếu #`+itoa(dID)+` về "chưa thu" `+
+			`rồi bấm lập phiếu lại (thao tác này được ghi nhật ký).`)
 		return
 	}
 
