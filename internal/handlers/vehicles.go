@@ -15,6 +15,7 @@ import (
 	"ktx/internal/db"
 	"ktx/internal/scope"
 	"ktx/internal/timeutil"
+	"ktx/internal/valid"
 )
 
 // Handler xe (vehicles). Port từ server/routes/vehicles.routes.js.
@@ -37,6 +38,50 @@ func vehicleChuanBien(p string) string {
 func vehicleIsDup(err error) bool {
 	var pe *pgconn.PgError
 	return errors.As(err, &pe) && pe.Code == "23505"
+}
+
+// vehicleNgay: đọc ô ngày hiệu lực. Vắng khoá = không đổi · null/"" = để trống · "YYYY-MM-DD" = đặt.
+func vehicleNgay(raw json.RawMessage, ten string) (bool, *string, string) {
+	if len(raw) == 0 {
+		return false, nil, ""
+	}
+	var s *string
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return true, nil, ten + " không hợp lệ"
+	}
+	if s == nil {
+		return true, nil, ""
+	}
+	v := strings.TrimSpace(*s)
+	if v == "" {
+		return true, nil, ""
+	}
+	if len(v) > 10 {
+		v = v[:10]
+	}
+	if !valid.IsValidYmd(v) {
+		return true, nil, ten + ` không hợp lệ: "` + v + `"`
+	}
+	return true, &v, ""
+}
+
+// vehicleKhoangNgay: xe phải ngừng SAU hoặc ĐÚNG ngày bắt đầu.
+func vehicleKhoangNgay(from, to *string) string {
+	if from == nil || to == nil {
+		return ""
+	}
+	if *to < *from {
+		return "Ngày ngừng (" + *to + ") trước ngày bắt đầu (" + *from + ")"
+	}
+	return ""
+}
+
+func vehicleNgayCua(t *time.Time) *string {
+	if t == nil {
+		return nil
+	}
+	s := t.Format("2006-01-02")
+	return &s
 }
 
 // vehicleNum: mô phỏng +value của JS — số hoặc chuỗi số; 0/NaN/rỗng -> không hợp lệ (!sid).
@@ -127,6 +172,8 @@ type vehicleCreateBody struct {
 	VehicleType string          `json:"vehicle_type"`
 	Sticker     string          `json:"sticker"`
 	Note        string          `json:"note"`
+	FromDate    json.RawMessage `json:"from_date"`
+	ToDate      json.RawMessage `json:"to_date"`
 }
 
 // CreateVehicle: POST /api/vehicles (admin,staff). vehicles.routes.js:49-88
@@ -185,9 +232,31 @@ func (h *Handlers) CreateVehicle(c *gin.Context) {
 		badRequest(c, "Biển số này đã đăng ký cho học viên "+dupName)
 		return
 	}
+	// Khoảng hiệu lực: không gửi thì lấy theo lượt ở của chủ xe (nhận phòng -> trả phòng),
+	// trả phòng còn bỏ ngỏ thì to_date để trống = còn hiệu lực.
+	coFrom, from, e1 := vehicleNgay(b.FromDate, "Ngày bắt đầu")
+	coTo, to, e2 := vehicleNgay(b.ToDate, "Ngày ngừng")
+	if e1 != "" || e2 != "" {
+		badRequest(c, e1+e2)
+		return
+	}
+	if !coFrom || from == nil {
+		if from = vehicleNgayCua(stCheckIn); from == nil {
+			t := today
+			from = &t
+		}
+	}
+	if !coTo {
+		to = vehicleNgayCua(stCheckOut)
+	}
+	if e := vehicleKhoangNgay(from, to); e != "" {
+		badRequest(c, e)
+		return
+	}
 	rows, err := h.pool().Query(ctx,
-		`INSERT INTO vehicles (student_id, plate, vehicle_type, sticker, note, from_date) VALUES ($1,$2,$3,$4,$5,CURRENT_DATE) RETURNING *`,
-		sid, strings.TrimSpace(b.Plate), b.VehicleType, b.Sticker, b.Note)
+		`INSERT INTO vehicles (student_id, plate, vehicle_type, sticker, note, from_date, to_date)
+		 VALUES ($1,$2,$3,$4,$5,$6::date,$7::date) RETURNING *`,
+		sid, strings.TrimSpace(b.Plate), b.VehicleType, b.Sticker, b.Note, from, to)
 	if err != nil {
 		if vehicleIsDup(err) { // vehicles.routes.js:84
 			badRequest(c, "Biển số này đã tồn tại")
@@ -205,10 +274,12 @@ func (h *Handlers) CreateVehicle(c *gin.Context) {
 }
 
 type vehicleUpdateBody struct {
-	Plate       *string `json:"plate"`
-	VehicleType *string `json:"vehicle_type"`
-	Sticker     *string `json:"sticker"`
-	Note        *string `json:"note"`
+	Plate       *string         `json:"plate"`
+	VehicleType *string         `json:"vehicle_type"`
+	Sticker     *string         `json:"sticker"`
+	Note        *string         `json:"note"`
+	FromDate    json.RawMessage `json:"from_date"`
+	ToDate      json.RawMessage `json:"to_date"`
 }
 
 // UpdateVehicle: PUT /api/vehicles/:id (admin,staff). vehicles.routes.js:90-121
@@ -254,14 +325,42 @@ func (h *Handlers) UpdateVehicle(c *gin.Context) {
 	if b.Note != nil {
 		pNote = *b.Note
 	}
+	// Ngày cần BA trạng thái nên đi kèm cờ "có gửi": null là XOÁ ngày, khác hẳn "không gửi".
+	coFrom, from, e1 := vehicleNgay(b.FromDate, "Ngày bắt đầu")
+	coTo, to, e2 := vehicleNgay(b.ToDate, "Ngày ngừng")
+	if e1 != "" || e2 != "" {
+		badRequest(c, e1+e2)
+		return
+	}
+	if coFrom || coTo {
+		var curFrom, curTo *time.Time
+		if h.pool().QueryRow(ctx, "SELECT from_date, to_date FROM vehicles WHERE id=$1 AND deleted_at IS NULL", id).
+			Scan(&curFrom, &curTo) != nil {
+			notFound(c, "Không tìm thấy xe")
+			return
+		}
+		hlFrom, hlTo := from, to
+		if !coFrom {
+			hlFrom = vehicleNgayCua(curFrom)
+		}
+		if !coTo {
+			hlTo = vehicleNgayCua(curTo)
+		}
+		if e := vehicleKhoangNgay(hlFrom, hlTo); e != "" {
+			badRequest(c, e)
+			return
+		}
+	}
 	rows, err := h.pool().Query(ctx,
 		`UPDATE vehicles SET
 		   plate = CASE WHEN $1::text IS NULL THEN plate ELSE $1 END,
 		   vehicle_type = CASE WHEN $2::text IS NULL THEN vehicle_type ELSE $2 END,
 		   sticker = CASE WHEN $3::text IS NULL THEN sticker ELSE $3 END,
-		   note = CASE WHEN $4::text IS NULL THEN note ELSE $4 END
+		   note = CASE WHEN $4::text IS NULL THEN note ELSE $4 END,
+		   from_date = CASE WHEN $6::bool THEN $7::date ELSE from_date END,
+		   to_date   = CASE WHEN $8::bool THEN $9::date ELSE to_date END
 		 WHERE id=$5 AND deleted_at IS NULL RETURNING *`,
-		pPlate, pType, pSticker, pNote, id)
+		pPlate, pType, pSticker, pNote, id, coFrom, from, coTo, to)
 	if err != nil {
 		if vehicleIsDup(err) { // vehicles.routes.js:117
 			badRequest(c, "Biển số này đã tồn tại")
@@ -294,8 +393,9 @@ func (h *Handlers) DeleteVehicle(c *gin.Context) {
 	if !h.vehicleFacilityGuard(c, u, id) {
 		return
 	}
+	// Ngày ngừng đã đặt tay thì GIỮ — gỡ xe không được đè lên khoảng hiệu lực người dùng khai.
 	if _, err := h.pool().Exec(c.Request.Context(),
-		"UPDATE vehicles SET deleted_at=now(), to_date=CURRENT_DATE WHERE id=$1", id); err != nil {
+		"UPDATE vehicles SET deleted_at=now(), to_date=COALESCE(to_date, CURRENT_DATE) WHERE id=$1", id); err != nil {
 		serverErr(c)
 		return
 	}

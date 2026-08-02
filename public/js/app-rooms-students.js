@@ -523,6 +523,7 @@ async function studentDetail(id) {
   try { stays = ((await API.stays(id)) || {}).stays || []; } catch {}
   const vehicles = s.vehicles || [];
   window._detailVehicles = vehicles;
+  window._detailStudent = s;   // form xe lấy ngày nhận/trả phòng làm khoảng hiệu lực mặc định
   const vios = s.violations || [];
   const vthr = (ST.settings && +ST.settings.violation_mail_threshold) || 3;
   openModal(`
@@ -556,7 +557,8 @@ async function studentDetail(id) {
 
       <div class="panel"><div class="hd"><h2 style="font-size:14px">${IC.bike} Xe (${vehicles.length})</h2><button class="btn sm" data-act="vehicleForm" data-args='[0, ${s.id}]'>${IC.plus} Thêm xe</button></div><div class="pad">
         ${vehicles.length ? vehicles.map(v => `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--line)">
-          <div><strong>${esc(v.plate || '—')}</strong> <span class="muted">${esc(v.vehicle_type || '')}</span>${v.sticker ? ` · mã dán: ${esc(v.sticker)}` : ''}</div>
+          <div><strong>${esc(v.plate || '—')}</strong> <span class="muted">${esc(v.vehicle_type || '')}</span>${v.sticker ? ` · mã dán: ${esc(v.sticker)}` : ''}
+            <div class="sub2">${IC.calendar} ${fmtDate(v.from_date)} → ${v.to_date ? fmtDate(v.to_date) : 'còn gửi'}${v.note ? ' · ' + esc(v.note) : ''}</div></div>
           <div class="rowbtns"><button class="btn sm ghost" data-act="vehicleForm" data-args='[${v.id}, ${s.id}]'>${IC.pencil}</button><button class="btn sm ghost" data-act="delVehicle" data-args='[${v.id}, ${s.id}]'>${IC.trash}</button></div>
         </div>`).join('') : '<p class="muted" style="margin:0">Chưa có xe.</p>'}
       </div></div>
@@ -614,7 +616,8 @@ function lichSuOHTML(stays) {
 }
 /* Xe */
 function vehicleForm(vid, studentId) {
-  let v = { plate: '', vehicle_type: '', sticker: '', note: '' };
+  const s = window._detailStudent || {};
+  let v = { plate: '', vehicle_type: '', sticker: '', note: '', from_date: s.check_in_date, to_date: s.check_out_date };
   if (vid) { const d = (window._detailVehicles || []).find(x => x.id === vid); if (d) v = d; }
   openModal(`
     <div class="mh"><h3>${vid ? 'Sửa xe' : 'Thêm xe'}</h3><button class="x" data-act="studentDetail" data-args='[${studentId}]'>×</button></div>
@@ -627,12 +630,24 @@ function vehicleForm(vid, studentId) {
         <div class="field"><label>Mã dán xe</label><input id="v_sticker" value="${esc(v.sticker || '')}" placeholder="201.1"></div>
         <div class="field"><label>Ghi chú</label><input id="v_note" value="${esc(v.note || '')}"></div>
       </div>
-      <div class="hint">${IC.bulb} Phí gửi xe (${money(ST.settings.parking_fee)}/xe/tháng) sẽ tự tính vào hóa đơn theo số xe.</div>
+      <div class="grid2">
+        <div class="field"><label>Hiệu lực từ</label><input id="v_from"></div>
+        <div class="field"><label>Đến ngày <span class="opt">(để trống = còn gửi)</span></label><input id="v_to"></div>
+      </div>
+      <div class="hint">${IC.bulb} Phí gửi xe (${money(ST.settings.parking_fee)}/xe/tháng) tính cho THÁNG NÀO khoảng hiệu lực chạm tới.
+        Mặc định lấy theo ngày nhận phòng${s.check_out_date ? ' và ngày trả phòng' : ' (chưa trả phòng nên để ngỏ)'} của học viên — sửa được nếu xe đăng ký muộn hơn hoặc ngừng gửi sớm hơn.</div>
     </div>
     <div class="mf"><button class="btn" data-act="studentDetail" data-args='[${studentId}]'>Hủy</button><button class="btn pri" data-act="saveVehicle" data-args='[${vid || 0}, ${studentId}]'>Lưu</button></div>`);
+  attachDate(el('v_from'), (v.from_date || '').slice(0, 10));
+  attachDate(el('v_to'), (v.to_date || '').slice(0, 10));
 }
 async function saveVehicle(vid, studentId) {
-  const body = { student_id: studentId, plate: el('v_plate').value.trim(), vehicle_type: el('v_type').value.trim(), sticker: el('v_sticker').value.trim(), note: el('v_note').value.trim() };
+  const from = el('v_from').dataset.iso || null, to = el('v_to').dataset.iso || null;
+  if (from && to && to < from) return toast('Ngày ngừng gửi trước ngày bắt đầu', 'err');
+  const body = {
+    student_id: studentId, plate: el('v_plate').value.trim(), vehicle_type: el('v_type').value.trim(),
+    sticker: el('v_sticker').value.trim(), note: el('v_note').value.trim(), from_date: from, to_date: to,
+  };
   await guard(() => vid ? API.updateVehicle(vid, body) : API.createVehicle(body));
   await refreshCache(); toast('Đã lưu xe'); studentDetail(studentId);
 }

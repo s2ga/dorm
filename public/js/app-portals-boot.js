@@ -670,6 +670,7 @@ function chongBam2Lan(fn) {
   'settleDepositAndClose', 'submitCheckoutReq', 'submitDamage', 'submitHandoverCheckin',
   'submitHandoverCheckout', 'submitMaintBlock', 'submitMaintDone', 'toggleWashing',
   'toggleMyWashing', 'uploadRulesDoc', 'removeRulesDoc', 'luuChotGiuaKy', 'xoaChotGiuaKy',
+  'luuTatCaChotGiuaKy',
 ].forEach(ten => {
   if (typeof window[ten] === 'function') window[ten] = chongBam2Lan(window[ten]);
   else console.warn('[chống bấm 2 lần] không thấy hàm:', ten); // đổi tên hàm mà quên sửa đây -> báo ngay
