@@ -147,18 +147,32 @@ async function delInvoice(id) {
 
 /* Tạo hóa đơn tự tính cho 1 học viên (VD học viên mới vào giữa tháng) */
 function oneInvoiceForm() {
-  const opts = ST.students.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'vi'))
-    .map(s => `<option value="${s.id}">${esc(s.name)}${s.code ? ' (' + esc(s.code) + ')' : ''}${s.room_name ? ' · ' + esc(s.room_name) : ''}</option>`).join('');
   openModal(`
     <div class="mh"><h3>${IC.plus} Tạo hóa đơn cho 1 học viên</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="hint">${IC.info} Dùng khi có học viên mới vào giữa tháng. Hệ thống <strong>tự tính</strong> theo phòng, số ngày ở và chỉ số điện đã lưu — không ảnh hưởng hóa đơn người khác (người đã đóng sẽ bị khóa).</div>
-      <div class="grid2">
-        <div class="field"><label>Học viên *</label><select id="oi_stu">${opts}</select></div>
-        <div class="field"><label>Kỳ (tháng)</label><input id="oi_month" type="month" value="${invMonth}"></div>
+      <div class="field"><label>Học viên *</label>
+        <div class="search"><span class="i">${IC.search}</span><input id="oi_q" placeholder="Tìm tên, mã HV hoặc số phòng..." autocomplete="off" data-input="locHVHoaDon"></div>
+        <select id="oi_stu" size="7" style="margin-top:8px"></select>
+        <div class="muted" id="oi_dem" style="font-size:12px;margin-top:6px"></div>
       </div>
+      <div class="field"><label>Kỳ (tháng)</label><input id="oi_month" type="month" value="${invMonth}"></div>
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveOneInvoice">Tạo &amp; xem phiếu báo</button></div>`);
+  locHVHoaDon();
+}
+// Ô chọn học viên gần 200 dòng: lọc theo tên/mã/số phòng, giữ nguyên người đang chọn nếu còn khớp.
+function locHVHoaDon() {
+  const o = el('oi_stu'); if (!o) return;
+  const q = ((el('oi_q') || {}).value || '').trim().toLowerCase();
+  const dangChon = o.value;
+  const ds = ST.students.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'vi'))
+    .filter(s => !q || `${s.name} ${s.code || ''} ${s.room_name || ''}`.toLowerCase().includes(q));
+  o.innerHTML = ds.map(s => `<option value="${s.id}"${String(s.id) === dangChon ? ' selected' : ''}>${esc(s.name)}${s.code ? ' (' + esc(s.code) + ')' : ''}${s.room_name ? ' · ' + esc(s.room_name) : ''}</option>`).join('');
+  if (!o.value && ds.length) o.selectedIndex = 0;
+  el('oi_dem').textContent = ds.length
+    ? `${ds.length}/${ST.students.length} học viên${q ? ' khớp' : ''}`
+    : 'Không có học viên nào khớp';
 }
 async function saveOneInvoice() {
   const student_id = +el('oi_stu').value, month = el('oi_month').value;

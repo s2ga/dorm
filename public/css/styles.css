@@ -366,6 +366,9 @@ input[type=checkbox],input[type=radio]{width:auto;flex:none;accent-color:var(--b
 .search{position:relative}
 .search input{padding-left:37px;min-width:210px}
 .search .i{position:absolute;left:13px;top:11px;color:var(--muted)}
+/* select[size] = hộp danh sách mở sẵn (thay dropdown khi lựa chọn quá nhiều để cuộn tay). */
+select[size]{height:auto;padding:6px}
+select[size] option{padding:8px 9px;border-radius:8px}
 .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 
 /* ---------- Modal ---------- */
