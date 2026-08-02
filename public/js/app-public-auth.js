@@ -458,6 +458,10 @@ const roomTypeBadge = r => { const [l, c] = ROOM_TYPE[roomType(r)]; return `<spa
 const availBedsOf = rooms => rooms.filter(roomIsShared).reduce((a, r) => a + Math.max(0, (+r.capacity || 0) - (+r.occupancy || 0)), 0);
 const rentCapOf = rooms => rooms.filter(roomForRent).reduce((a, r) => a + (+r.capacity || 0), 0);
 const RENTAL_LABEL = { ghep: 'Thuê ghép', phong: 'Thuê nguyên phòng' };
+// Hình thức thuê của một hồ sơ do LOẠI PHÒNG quyết định — rooms.room_type cũng chính là thứ công thức
+// tính tiền dùng. Cột rental_type của hồ sơ chỉ còn nghĩa khi chưa xếp phòng.
+const thueNguyenPhong = s => s.room_id ? roomType(roomById(s.room_id) || {}) === 'whole' : s.rental_type === 'phong';
+const rentalLabelOf = s => thueNguyenPhong(s) ? RENTAL_LABEL.phong : RENTAL_LABEL.ghep;
 const RESI = { registered: ['Đã đăng ký', 'green'], processing: ['Đang xử lý', 'amber'], unregistered: ['Chưa đăng ký', 'gray'] };
 const resiBadge = st => { const [l, c] = RESI[st] || RESI.unregistered; return `<span class="badge ${c}">${l}</span>`; };
 const CONTRACT_LABEL = { done: 'Đã hoàn tất', scanned: 'Đã scan HĐ', unsigned: 'Chưa ký HĐ', none: 'Không ký HĐ', handover: 'Đã ký phiếu bàn giao' };

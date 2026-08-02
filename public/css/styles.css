@@ -369,6 +369,9 @@ input[type=checkbox],input[type=radio]{width:auto;flex:none;accent-color:var(--b
 /* select[size] = hộp danh sách mở sẵn (thay dropdown khi lựa chọn quá nhiều để cuộn tay). */
 select[size]{height:auto;padding:6px}
 select[size] option{padding:8px 9px;border-radius:8px}
+/* Ô chỉ đọc: trông như input nhưng giá trị suy ra từ nơi khác, không sửa tại chỗ được. */
+.ro-in{padding:11px 13px;border:1px solid var(--line2);border-radius:11px;background:var(--bg2);color:var(--ink2);font-size:14.5px}
+.ro-in .muted{font-size:13px}
 .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 
 /* ---------- Modal ---------- */

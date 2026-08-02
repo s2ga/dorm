@@ -314,7 +314,7 @@ function viewStudents() {
           <strong>${esc(s.name)}</strong> <span class="badge ${s.gender === 'female' ? 'sage' : 'blue'}">${genderLabel(s.gender)}</span>${s.login_username ? ` <span title="Có tài khoản">${IC.key}</span>` : ''}
           <div class="sub2">${esc(s.code || '—')}${s.class_name ? ' · ' + esc(s.class_name) : ''}${showFacilityUI() && s.facility_id ? ` · <span class="badge gray" style="font-size:10px">${esc(facilityName(s.facility_id))}</span>` : ''}${flags}</div>
         </div><span class="row-chev" aria-hidden="true">${IC.chevronRight}</span></div></td>
-        <td class="ct-gon" data-label="Phòng">${s.room_name ? `<span class="hd-ref" data-act="roomDetail" data-args='[${s.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng — ai đang ở"><strong>${esc(s.room_name)}</strong></span>` : `<button class="btn sm" style="white-space:nowrap" title="Xếp phòng cho học viên này" data-act="transferForm" data-args='[${s.id}]'>${IC.transfer} Xếp phòng</button>`}${s.rental_type === 'phong' ? '<div class="sub2">Thuê nguyên phòng</div>' : ''}</td>
+        <td class="ct-gon" data-label="Phòng">${s.room_name ? `<span class="hd-ref" data-act="roomDetail" data-args='[${s.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng — ai đang ở"><strong>${esc(s.room_name)}</strong></span>` : `<button class="btn sm" style="white-space:nowrap" title="Xếp phòng cho học viên này" data-act="transferForm" data-args='[${s.id}]'>${IC.transfer} Xếp phòng</button>`}${thueNguyenPhong(s) ? '<div class="sub2">Thuê nguyên phòng</div>' : ''}</td>
         <td class="ct-gon" data-label="Trạng thái">${statusBadge(s)}</td>
         <td data-label="Hợp đồng"><span class="badge ${CONTRACT_BADGE[s.contract_status] || 'gray'}">${CONTRACT_LABEL[s.contract_status] || '—'}</span>${s.contract_no ? `<div class="sub2">${esc(s.contract_no)}</div>` : hdThamChieu(s)}</td>
         <td data-label="Cọc">${depositBadge(s)}${s.deposit_status === 'none' && isOccupying(s) ? ` <button class="btn sm ghost" style="white-space:nowrap" title="Ghi nhận đóng cọc" data-act="depositForm" data-args='[${s.id}]'>＋ Thu cọc</button>` : ''}</td>
@@ -399,9 +399,10 @@ async function studentForm(id) {
       </div>
       <div class="field"><label>SĐT phụ huynh <span class="opt">(liên hệ khẩn cấp)</span></label><input id="f_pphone" value="${esc(s.parent_phone || '')}"></div>
       <div class="grid2">
-        <div class="field"><label>Phòng</label><select id="f_room">${roomOptions(s.room_id, s.gender)}</select></div>
+        <div class="field"><label>Phòng</label><select id="f_room" data-change="dongBoHinhThucThue">${roomOptions(s.room_id, s.gender)}</select></div>
         <div class="field"><label>Hình thức thuê</label><select id="f_rental">
-          ${opt('ghep', s.rental_type, 'Thuê ghép (giá/người)')}${opt('phong', s.rental_type, 'Thuê nguyên phòng (giá theo hạng)')}</select></div>
+          ${opt('ghep', s.rental_type, 'Thuê ghép (giá/người)')}${opt('phong', s.rental_type, 'Thuê nguyên phòng (giá theo hạng)')}</select>
+          <div id="f_rental_ro" class="ro-in" hidden>Thuê nguyên phòng <span class="muted">— theo loại phòng</span></div></div>
       </div>
       <div class="field"><label>Giảm giá <span class="opt">(% mỗi khoản — để trống nếu thu đủ)</span></label>
         <div class="giam-grid">
@@ -464,7 +465,17 @@ async function studentForm(id) {
   attachDate(el('f_in'), s.check_in_date || today());
   attachDate(el('f_cdate'), s.contract_date);
   attachDate(el('f_out'), daRoi ? '' : coHienTai, { min: addDays(today(), 1) });
+  dongBoHinhThucThue();
   setTimeout(() => el('f_name').focus(), 50);
+}
+// Phòng thuê trọn: hình thức là của CẢ PHÒNG chứ không của từng người, nên ẩn ô chọn đi cho khỏi
+// nhập ngược với loại phòng. Giá trị đang lưu giữ nguyên — luật xếp phòng vẫn dựa vào nó.
+function dongBoHinhThucThue() {
+  const sel = el('f_rental'), ro = el('f_rental_ro');
+  if (!sel || !ro) return;
+  const tron = roomType(roomById(+el('f_room').value) || {}) === 'whole';
+  sel.hidden = tron;
+  ro.hidden = !tron;
 }
 async function saveStudent(id) {
   const body = {
@@ -533,7 +544,7 @@ async function studentDetail(id) {
         <div class="rowbtns" style="margin-top:10px"><button class="btn sm green" data-act="restoreStudentAndReload" data-args='[${s.id}]'>${IC.undo} Mở khoá hồ sơ này</button></div></span></div>` : ''}
       <div class="cards" style="margin-bottom:16px">
         <div class="stat"><div class="l">Phòng</div><div class="v sm">${s.room_id ? `<span class="hd-ref" data-act="roomDetail" data-args='[${s.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng — ai đang ở">${esc(s.room_name || '—')}</span>` : esc(s.room_name || '—')}${s.room_hang ? ` <span class="badge gray">${s.room_hang}</span>` : ''}</div></div>
-        <div class="stat"><div class="l">Hình thức</div><div class="v sm">${RENTAL_LABEL[s.rental_type] || 'Thuê ghép'}</div></div>
+        <div class="stat"><div class="l">Hình thức</div><div class="v sm">${rentalLabelOf(s)}</div></div>
         <div class="stat"><div class="l">Tạm trú</div><div class="v sm">${resiBadge(s.residency_status)}</div></div>
       </div>
       <p><strong>Mã HV:</strong> ${esc(s.code || '—')} &nbsp;•&nbsp; <strong>Lớp:</strong> ${esc(s.class_name || '—')} &nbsp;•&nbsp; <strong>Ngày sinh:</strong> ${fmtDate(s.birth_date)}</p>
