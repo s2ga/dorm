@@ -50,7 +50,7 @@ async function viewRequests() {
         <td>${c.student_id ? `<a href="#" data-act="studentDetail" data-args='[${c.student_id}]' title="Xem chi tiết học viên">${esc(c.student_name || '—')}</a>` : esc(c.student_name || '—')}</td><td>${(studentById(c.student_id) || {}).room_id ? `<a href="#" data-act="roomDetail" data-args='[${(studentById(c.student_id) || {}).room_id}]' title="Xem chi tiết phòng">${esc(c.room_name || '—')}</a>` : esc(c.room_name || '—')}</td>
         <td>${fmtDate(c.desired_date)}</td>
         <td>${REASON_LABEL[c.reason] || 'Khác'}${c.note ? `<div class="muted" style="font-size:12px">${esc(c.note)}</div>` : ''}${noteLine(c.admin_note)}</td>
-        <td>${c.status === 'done' ? '<span class="badge green">Đã trả phòng</span>' : c.status === 'rejected' ? '<span class="badge gray">Từ chối</span>' : '<span class="badge amber">Chờ duyệt</span>'}</td>
+        <td>${nhanDonTraPhong(c)}</td>
         <td class="num"><div class="rowbtns" style="justify-content:flex-end">
           ${c.status === 'pending' ? `<button class="btn sm danger" data-act="confirmCout" data-args='[${c.id}]'>Xác nhận trả phòng</button><button class="btn sm" data-act="rejectCout" data-args='[${c.id}]'>Từ chối</button>` : ''}
           <button class="btn sm ghost" title="Ghi chú" data-act="noteForm" data-args='["cout", ${c.id}]'>${IC.filePen}</button>
@@ -135,6 +135,17 @@ async function saveNote(type, id) {
   await napLai('applications', 'couts', 'damage'); closeModal(); toast('Đã lưu ghi chú'); viewRequests();
 }
 const noteLine = n => n ? `<div class="sub2" style="color:var(--brand-d);white-space:pre-wrap;margin-top:3px">${IC.filePen} ${esc(n)}</div>` : '';
+// Duyệt đơn KHÔNG có nghĩa là đã dọn đi: ngày trả thường ở tương lai. Chỉ gọi "Đã trả phòng"
+// khi ngày đó đã tới; trước đó là "Đã xác nhận". Ngày lấy từ hồ sơ (thứ tính tiền), không phải ô mong muốn.
+function nhanDonTraPhong(c) {
+  if (c.status === 'rejected') return '<span class="badge gray">Từ chối</span>';
+  if (c.status !== 'done') return '<span class="badge amber">Chờ duyệt</span>';
+  const ngay = String(c.student_check_out || c.desired_date || '').slice(0, 10);
+  if (ngay && ngay > today()) {
+    return `<span class="badge blue" title="Đã duyệt đơn — tới ${fmtDate(ngay)} mới trả phòng">Đã xác nhận · trả ${fmtDate(ngay)}</span>`;
+  }
+  return '<span class="badge green">Đã trả phòng</span>';
+}
 
 /* ---- Vi phạm / nhắc nhở ---- */
 // BL-45 #3: nối "phản ánh vi phạm" (góp ý category=violation) sang form ghi nhận vi phạm, chép sẵn nội dung.

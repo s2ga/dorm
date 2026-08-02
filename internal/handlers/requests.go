@@ -224,7 +224,8 @@ func (h *Handlers) ListCheckoutRequests(c *gin.Context) {
 	u := auth.CurrentUser(c)
 	where, params := requestsFacilityWhere(c, u)
 	rows, err := h.pool().Query(c.Request.Context(), `
-		SELECT c.*, s.name AS student_name, s.deposit_status, r.name AS room_name
+		SELECT c.*, s.name AS student_name, s.deposit_status, r.name AS room_name,
+		       s.check_out_date AS student_check_out, s.status AS student_status
 		FROM checkout_requests c
 		LEFT JOIN students s ON s.id = c.student_id
 		LEFT JOIN rooms r ON r.id = s.room_id
