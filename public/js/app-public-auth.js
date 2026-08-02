@@ -224,6 +224,9 @@ async function renderPublicRegister() {
         <div class="field"><label>Giới tính *</label><select id="a_gender"><option value="female">Nữ</option><option value="male">Nam</option></select></div>
         <div class="field"><label>Ngày sinh</label><input id="a_birth"></div>
       </div>
+      <div class="field"><label>Ngày muốn nhận phòng <span class="opt">(dự kiến)</span></label><input id="a_movein">
+        <div class="muted" style="font-size:12.5px;margin-top:4px">${IC.info} Ban quản lý xếp phòng theo ngày này. Chưa chắc thì cứ để trống, mình sẽ trao đổi thêm.</div>
+      </div>
       <div class="muted" style="font-size:12.5px;margin:2px 0 7px">${IC.info} <strong>Chưa khai giảng?</strong> Nhiều bạn thuê phòng trước khi vào học — nếu chưa có mã học viên / lớp, bạn cứ <strong>bỏ trống 2 ô dưới</strong>. Khi nào có, báo Ban quản lý cập nhật sau.</div>
       <div class="grid2">
         <div class="field"><label>Mã học viên <span class="opt">(nếu đã có)</span></label><input id="a_code"></div>
@@ -247,6 +250,7 @@ async function renderPublicRegister() {
       <button class="btn pri lg" type="submit">Gửi đăng ký</button>
     </form>`;
   attachDate(el('a_birth'), '', { max: today() });   // ngày sinh không thể ở tương lai
+  attachDate(el('a_movein'), '', { min: today() });  // nhận phòng thì từ hôm nay trở đi
   el('applyForm').addEventListener('submit', async e => {
     e.preventDefault();
     // e.submitter có thể null (gửi form bằng lệnh, không qua nút bấm) -> tra ngược nút Gửi.
@@ -255,7 +259,8 @@ async function renderPublicRegister() {
     btn.disabled = true; btn.textContent = 'Đang gửi...';
     const body = {
       name: el('a_name').value.trim(), phone: el('a_phone').value.trim(), gender: el('a_gender').value,
-      birth_date: el('a_birth').dataset.iso || null, code: el('a_code').value.trim(), class_name: el('a_class').value.trim(),
+      birth_date: el('a_birth').dataset.iso || null, desired_check_in: el('a_movein').dataset.iso || null,
+      code: el('a_code').value.trim(), class_name: el('a_class').value.trim(),
       rental_type: 'ghep', // KTX không cho thuê nguyên phòng nữa — bỏ ô chọn, mọi đơn mới đều là thuê ghép
       note: el('a_note').value.trim(),
       facility_id: el('a_facility') ? +el('a_facility').value : null,

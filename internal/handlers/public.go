@@ -216,21 +216,22 @@ func (h *Handlers) PublicDocNoiQuy(c *gin.Context) {
 }
 
 type publicApplyBody struct {
-	Name         string          `json:"name"`
-	Phone        string          `json:"phone"`
-	Gender       string          `json:"gender"`
-	FacilityID   json.RawMessage `json:"facility_id"`
-	BirthDate    string          `json:"birth_date"`
-	Code         string          `json:"code"`
-	ClassName    string          `json:"class_name"`
-	RentalType   string          `json:"rental_type"`
-	Pref         string          `json:"pref"`
-	Note         string          `json:"note"`
-	WantsWashing bool            `json:"wants_washing"`
-	WantsParking bool            `json:"wants_parking"`
-	Plate        string          `json:"plate"`
-	CccdFront    string          `json:"cccd_front"`
-	CccdBack     string          `json:"cccd_back"`
+	Name           string          `json:"name"`
+	Phone          string          `json:"phone"`
+	Gender         string          `json:"gender"`
+	FacilityID     json.RawMessage `json:"facility_id"`
+	BirthDate      string          `json:"birth_date"`
+	DesiredCheckIn string          `json:"desired_check_in"`
+	Code           string          `json:"code"`
+	ClassName      string          `json:"class_name"`
+	RentalType     string          `json:"rental_type"`
+	Pref           string          `json:"pref"`
+	Note           string          `json:"note"`
+	WantsWashing   bool            `json:"wants_washing"`
+	WantsParking   bool            `json:"wants_parking"`
+	Plate          string          `json:"plate"`
+	CccdFront      string          `json:"cccd_front"`
+	CccdBack       string          `json:"cccd_back"`
 }
 
 // PublicApply: POST /api/public/apply — gửi đơn đăng ký (kèm upload CCCD lên S3). public.routes.js:129-225
@@ -289,6 +290,20 @@ func (h *Handlers) PublicApply(c *gin.Context) {
 	if coNgaySinh {
 		birthDate = b.BirthDate
 	}
+	// Ngày muốn nhận phòng: không bắt buộc, nhưng đã điền thì phải là ngày thật và không lùi về quá khứ.
+	coNgayVao := strings.TrimSpace(b.DesiredCheckIn) != ""
+	if coNgayVao && !valid.IsValidYmd(b.DesiredCheckIn) {
+		badRequest(c, `Ngày muốn nhận phòng không hợp lệ: "`+b.DesiredCheckIn+`"`)
+		return
+	}
+	if coNgayVao && b.DesiredCheckIn < today {
+		badRequest(c, "Ngày muốn nhận phòng đã qua — vui lòng chọn lại.")
+		return
+	}
+	var desiredCheckIn interface{}
+	if coNgayVao {
+		desiredCheckIn = b.DesiredCheckIn
+	}
 	// Chống trùng đơn pending (cùng tên + SĐT).
 	if h.pool().QueryRow(ctx,
 		`SELECT id FROM applications WHERE status='pending' AND lower(trim(name))=lower($1) AND $2 = regexp_replace(phone,'\D','','g')`,
@@ -320,10 +335,10 @@ func (h *Handlers) PublicApply(c *gin.Context) {
 	}
 	var appID int
 	if err := h.pool().QueryRow(ctx,
-		`INSERT INTO applications (name, phone, gender, birth_date, code, class_name, rental_type, pref, note, wants_washing, wants_parking, plate, facility_id)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
+		`INSERT INTO applications (name, phone, gender, birth_date, code, class_name, rental_type, pref, note, wants_washing, wants_parking, plate, facility_id, desired_check_in)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
 		strings.TrimSpace(b.Name), strings.TrimSpace(b.Phone), b.Gender, birthDate,
-		b.Code, b.ClassName, rental, b.Pref, b.Note, b.WantsWashing, b.WantsParking, b.Plate, facID).Scan(&appID); err != nil {
+		b.Code, b.ClassName, rental, b.Pref, b.Note, b.WantsWashing, b.WantsParking, b.Plate, facID, desiredCheckIn).Scan(&appID); err != nil {
 		serverErr(c)
 		return
 	}

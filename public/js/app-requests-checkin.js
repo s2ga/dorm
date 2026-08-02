@@ -28,12 +28,13 @@ async function viewRequests() {
       : regFilter === 'pending' ? 'Không có đơn nào đang chờ duyệt.'
         : regFilter === 'approved' ? 'Chưa có đơn nào đã thêm vào phòng.'
           : regFilter === 'rejected' ? 'Chưa có đơn nào bị từ chối.' : 'Không có đơn phù hợp.';
-    body = pills + (shown.length ? `<div class="table-wrap"><table><thead><tr><th>Ngày gửi</th><th>Họ tên</th><th>SĐT</th><th>GT</th><th>Hình thức</th><th>Nguyện vọng</th><th>Trạng thái</th><th></th></tr></thead><tbody>
+    body = pills + (shown.length ? `<div class="table-wrap"><table><thead><tr><th>Ngày gửi</th><th>Họ tên</th><th>SĐT</th><th>GT</th><th>Hình thức</th><th>Muốn nhận phòng</th><th>Nguyện vọng</th><th>Trạng thái</th><th></th></tr></thead><tbody>
       ${shown.map(a => `<tr>
         <td>${fmtDate(String(a.created_at).slice(0, 10))}</td>
         <td>${a.student_id ? `<a href="#" data-act="studentDetail" data-args='[${a.student_id}]' title="Xem chi tiết học viên"><strong>${esc(a.name)}</strong></a>` : `<strong>${esc(a.name)}</strong>`}${a.class_name ? `<div class="muted" style="font-size:11px">${esc(a.class_name)}</div>` : ''}${a.facility_name ? `<div class="sub2">${IC.building} ${esc(a.facility_name)}</div>` : ''}</td>
         <td>${esc(a.phone)}</td><td>${genderLabel(a.gender)}</td>
         <td class="muted" style="font-size:12px">${RENTAL_LABEL[a.rental_type] || 'Thuê ghép'}</td>
+        <td style="font-size:12px;white-space:nowrap">${a.desired_check_in ? fmtDate(a.desired_check_in) : '<span class="muted">chưa nêu</span>'}</td>
         <td style="font-size:12px">${a.pref ? esc(a.pref) : (a.wants_washing || a.wants_parking || a.plate || a.note || a.admin_note ? '' : '<span class="muted">—</span>')}${a.wants_washing || a.wants_parking || a.plate ? `<div style="margin-top:3px">${a.wants_washing ? `<span class="badge gray">${IC.washer} Máy giặt</span> ` : ''}${a.wants_parking || a.plate ? `<span class="badge gray">${IC.bike} Gửi xe${a.plate ? ' · ' + esc(a.plate) : ''}</span>` : ''}</div>` : ''}${a.note ? `<div class="muted" style="margin-top:3px">${esc(a.note)}</div>` : ''}${noteLine(a.admin_note)}</td>
         <td>${a.status === 'pending' ? '<span class="badge amber">Chờ duyệt</span>' : a.status === 'approved' ? '<span class="badge green">Đã thêm</span>' : '<span class="badge gray">Từ chối</span>'}</td>
         <td class="num"><div class="rowbtns" style="justify-content:flex-end">
@@ -235,7 +236,7 @@ function approveForm(id) {
       ${a.wants_washing || a.wants_parking || a.plate ? `<div class="bang-tin">Dịch vụ đăng ký: ${a.wants_washing ? `${IC.washer} Máy giặt ` : ''}${a.wants_parking || a.plate ? `${IC.bike} Gửi xe${a.plate ? ' (' + esc(a.plate) + ')' : ''}` : ''} — sẽ tự thêm khi duyệt.</div>` : ''}
       <div class="grid2">
         <div class="field"><label>Xếp phòng</label><select id="ap_room">${roomOptions('', a.gender)}</select></div>
-        <div class="field"><label>Ngày vào</label><input id="ap_date"></div>
+        <div class="field"><label>Ngày vào${a.desired_check_in ? ' <span class="opt">(bạn ấy muốn ' + fmtDate(a.desired_check_in) + ')</span>' : ''}</label><input id="ap_date"></div>
       </div>
       <div style="background:var(--bg2);padding:12px;border-radius:10px;margin-bottom:12px">
         <div style="font-weight:600;font-size:13px;margin-bottom:10px">${IC.fileText} Hợp đồng thuê</div>
@@ -246,8 +247,9 @@ function approveForm(id) {
           <div class="field" style="margin:0 0 12px"><label>Ngày ký HĐ</label><input id="ap_cdate"></div>
         </div>
         <div class="field" style="margin:0"><label>Tình trạng HĐ</label><select id="ap_cstatus">
-          ${['done', 'scanned', 'unsigned', 'none', 'handover'].map(k => `<option value="${k}">${CONTRACT_LABEL[k]}</option>`).join('')}
+          ${['unsigned', 'done', 'scanned', 'none', 'handover'].map(k => `<option value="${k}">${CONTRACT_LABEL[k]}</option>`).join('')}
         </select></div>
+        <div class="hint" style="margin:10px 0 0">${IC.info} Xếp phòng xong <strong>chưa có nghĩa là đã ký HĐ</strong>. Chưa ký thì để <strong>“${esc(CONTRACT_LABEL.unsigned)}”</strong> và bỏ trống Số HĐ · Ngày ký — hồ sơ sẽ hiện <strong>số dự kiến</strong> cho tới khi ký thật.</div>
       </div>
       <div style="background:var(--bg2);padding:12px;border-radius:10px;margin-bottom:12px">
         <label class="check"><input type="checkbox" id="ap_dep" checked data-change="onApDepToggle"> ${IC.lock} Đã đóng cọc</label>
@@ -262,8 +264,8 @@ function approveForm(id) {
       </div>
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="doApprove" data-args='[${a.id}]'>Xác nhận thêm</button></div>`);
-  attachDate(el('ap_date'), today());
-  attachDate(el('ap_cdate'), today());
+  attachDate(el('ap_date'), (a.desired_check_in || '').slice(0, 10) || today());
+  attachDate(el('ap_cdate'), '');   // chưa ký thì không có ngày ký — điền sẵn hôm nay là khai khống
 }
 async function doApprove(id) {
   const body = {

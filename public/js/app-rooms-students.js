@@ -544,7 +544,10 @@ async function studentDetail(id) {
         <button class="btn sm" style="margin-left:8px" data-act="accountForm" data-args='[${s.id}, ${JSON.stringify(s.code || s.phone || "")}]'>${s.login_username ? 'Đặt lại MK' : 'Tạo tài khoản'}</button></p>
 
       <div class="panel" style="margin-top:12px"><div class="hd"><h2 style="font-size:14px">${IC.fileText} Hợp đồng</h2></div><div class="pad">
-        <p style="margin:0">Số HĐ: <strong>${esc(s.contract_no || '—')}</strong> · Ngày ký: ${fmtDate(s.contract_date)} · <span class="badge ${CONTRACT_BADGE[s.contract_status] || 'gray'}">${CONTRACT_LABEL[s.contract_status] || '—'}</span></p>
+        <p style="margin:0">Số HĐ: ${s.contract_no
+          ? `<strong>${esc(s.contract_no)}</strong>`
+          : `<span class="muted">chưa ký</span> <span class="badge gray" id="hd_dukien" title="Số sẽ được cấp nếu ký hôm nay — nối tiếp số đã có. Chưa phải số thật.">dự kiến …</span>`
+        } · Ngày ký: ${s.contract_date ? fmtDate(s.contract_date) : '<span class="muted">chưa ký</span>'} · <span class="badge ${CONTRACT_BADGE[s.contract_status] || 'gray'}">${CONTRACT_LABEL[s.contract_status] || '—'}</span></p>
         ${s.contract_no ? '' : hdThamChieu(s, true)}
         ${contractPending(s) ? `<div class="bang-tin" style="margin:10px 0 0;background:var(--amber-bg);border-color:var(--amber-ink);color:var(--amber-ink)">${IC.alert} <strong>Chưa ký HĐ:</strong> thuê trên ${shortTermMaxDays()} ngày — cần ký <strong>hợp đồng thuê phòng</strong>.</div>`
           : handoverPending(s) ? `<div class="bang-tin" style="margin:10px 0 0">${IC.info} Cần <strong>ký phiếu đăng ký & bàn giao phòng</strong> (thuê ngắn hạn hoặc nhân viên công tác) — đặt tình trạng HĐ = "Đã ký phiếu bàn giao".</div>` : ''}
@@ -598,6 +601,17 @@ async function studentDetail(id) {
       ${isOccupying(s) ? `<button class="btn danger" data-act="checkOutForm" data-args='[${s.id}]'>Check-out</button>` : `<button class="btn green" data-act="checkInForm" data-args='[${s.id}]'>Check-in lại</button>`}
       ${s.deleted_at ? '' : `<button class="btn danger" data-act="delStudent" data-args='[${s.id}]'>${IC.lock} Khoá hồ sơ</button>`}
     </div>`, true);
+  if (!s.contract_no) hienSoHDDuKien(s);
+}
+// Số HĐ dự kiến: hỏi máy chủ số kế tiếp thay vì đoán ở máy khách, để trùng đúng số sẽ được cấp khi ký.
+// Hỏi hụt thì bỏ nhãn đi, không hiện số sai.
+async function hienSoHDDuKien(s) {
+  const o = el('hd_dukien'); if (!o) return;
+  try {
+    const r = await API.contractNoNext(s.gender || 'male', today());
+    if (el('hd_dukien') === o && r && r.contract_no) o.textContent = 'dự kiến: ' + r.contract_no;
+    else o.remove();
+  } catch { o.remove(); }
 }
 // Lịch sử ở đọc từ room_stays — nguồn sự thật về ở/rời (thứ tính tiền dùng). Nhật ký chỉ bổ sung
 // ghi chú; mốc không có nhật ký được gắn nhãn "ghi từ hồ sơ" thay vì im lặng bỏ trống.

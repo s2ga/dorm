@@ -230,6 +230,8 @@ ALTER TABLE applications ADD COLUMN IF NOT EXISTS cccd_front TEXT;   -- ảnh CC
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS cccd_back TEXT;    -- ảnh CCCD mặt sau
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS facility_id INTEGER;  -- cơ sở đăng ký
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS admin_note TEXT DEFAULT '';  -- ghi chú của quản lý
+-- Ngày người đăng ký MUỐN nhận phòng; duyệt đơn lấy làm ngày vào mặc định.
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS desired_check_in DATE;
 
 -- Báo cáo hư hỏng (học viên gửi)
 CREATE TABLE IF NOT EXISTS damage_reports (
