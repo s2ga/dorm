@@ -451,7 +451,7 @@ async function studentForm(id) {
       </div>
 
       ${!id ? `
-      <label class="check"><input type="checkbox" id="f_dep" checked> ${IC.lock} Đã đóng cọc ${money(ST.settings.deposit_fee)} khi nhận phòng</label>
+      <label class="check"><input type="checkbox" id="f_dep"> ${IC.lock} Đã đóng cọc ${money(ST.settings.deposit_fee)} khi nhận phòng <span class="opt">— chỉ tick khi đã thật sự nhận tiền</span></label>
       <label class="check" style="margin-top:8px"><input type="checkbox" id="f_login" data-change="onLoginBoxToggle"> ${IC.key} Tạo tài khoản đăng nhập</label>
       <div id="loginBox" style="display:none;background:var(--bg2);padding:12px;border-radius:10px;margin-top:8px">
         <div class="grid2">
