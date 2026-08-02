@@ -428,10 +428,21 @@ type Invoice struct {
 }
 
 // TienCoc: cọc chỉ lên phiếu của KỲ NHẬN PHÒNG và chỉ khi hồ sơ còn ghi chưa đóng (chốt 02/08/2026).
-// Không giới hạn theo thuê ghép / nguyên phòng: cọc là tiền của từng người, hoàn khi người đó rời.
-func TienCoc(st Student, month string, fees Fees) int {
+// Mức cọc bám theo thứ người ta thuê: thuê ghép cọc một suất người; thuê nguyên phòng thì người ký
+// hợp đồng cọc TRỌN GIÁ PHÒNG, thành viên ở cùng không cọc riêng vì họ không đứng hợp đồng nào.
+func TienCoc(st Student, month string, fees Fees, room *Room, np *NguyenPhong) int {
 	if st.DepositStatus != "none" || len(st.CheckInDate) < 7 || st.CheckInDate[:7] != month {
 		return 0
+	}
+	if np != nil && !np.DungHoaDon {
+		return 0
+	}
+	if np != nil || st.RentalType == "phong" {
+		hang := ""
+		if room != nil {
+			hang = room.Hang
+		}
+		return r0(RoomPriceByHang(hang, fees))
 	}
 	return r0(fees.num("deposit_fee"))
 }
@@ -558,7 +569,7 @@ func ComputeInvoice(in ComputeInput) Invoice {
 	}
 	leaderDiscount := LeaderDiscount(in.LeaderDays, days, waterConLai, serviceConLai)
 
-	depositCharge := TienCoc(st, in.Month, fees)
+	depositCharge := TienCoc(st, in.Month, fees, in.Room, in.NguyenPhong)
 	total := InvoiceTotal(map[string]float64{
 		"room_charge": float64(roomCharge), "electric_charge": float64(electricCharge),
 		"water_charge": float64(waterCharge), "service_charge": float64(serviceCharge),

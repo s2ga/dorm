@@ -16,12 +16,12 @@ func feesCoc() Fees {
 
 func TestTienCoc_ChiThuOKyNhanPhong(t *testing.T) {
 	hv := Student{ID: 1, CheckInDate: "2026-08-20", DepositStatus: "none"}
-	if got := TienCoc(hv, "2026-08", feesCoc()); got != 1200000 {
+	if got := TienCoc(hv, "2026-08", feesCoc(), nil, nil); got != 1200000 {
 		t.Errorf("kỳ nhận phòng: cọc = %d, phải = 1200000", got)
 	}
 	// Kỳ sau KHÔNG được thu lại — chưa đóng cọc không phải lý do đòi thêm mỗi tháng.
 	for _, ky := range []string{"2026-09", "2026-10", "2026-07"} {
-		if got := TienCoc(hv, ky, feesCoc()); got != 0 {
+		if got := TienCoc(hv, ky, feesCoc(), nil, nil); got != 0 {
 			t.Errorf("kỳ %s: cọc = %d, phải = 0 (chỉ thu ở kỳ nhận phòng 2026-08)", ky, got)
 		}
 	}
@@ -30,7 +30,7 @@ func TestTienCoc_ChiThuOKyNhanPhong(t *testing.T) {
 func TestTienCoc_DaDongThiThoiThu(t *testing.T) {
 	for _, tt := range []string{"held", "refunded", "forfeited", ""} {
 		hv := Student{ID: 1, CheckInDate: "2026-08-20", DepositStatus: tt}
-		if got := TienCoc(hv, "2026-08", feesCoc()); got != 0 {
+		if got := TienCoc(hv, "2026-08", feesCoc(), nil, nil); got != 0 {
 			t.Errorf("deposit_status=%q: cọc = %d, phải = 0 (chỉ 'none' mới thu)", tt, got)
 		}
 	}
@@ -40,7 +40,7 @@ func TestTienCoc_ThieuNgayNhanPhongThiKhongDoan(t *testing.T) {
 	// Không có ngày nhận phòng thì không biết kỳ nào là kỳ đầu -> KHÔNG thu, thà sót còn hơn thu oan.
 	for _, ci := range []string{"", "2026", "20"} {
 		hv := Student{ID: 1, CheckInDate: ci, DepositStatus: "none"}
-		if got := TienCoc(hv, "2026-08", feesCoc()); got != 0 {
+		if got := TienCoc(hv, "2026-08", feesCoc(), nil, nil); got != 0 {
 			t.Errorf("check_in_date=%q: cọc = %d, phải = 0", ci, got)
 		}
 	}
@@ -50,7 +50,7 @@ func TestTienCoc_MucCocBangKhongThiKhongCoDong(t *testing.T) {
 	f := feesCoc()
 	f["deposit_fee"] = "0"
 	hv := Student{ID: 1, CheckInDate: "2026-08-20", DepositStatus: "none"}
-	if got := TienCoc(hv, "2026-08", f); got != 0 {
+	if got := TienCoc(hv, "2026-08", f, nil, nil); got != 0 {
 		t.Errorf("deposit_fee=0: cọc = %d, phải = 0", got)
 	}
 }
@@ -103,25 +103,57 @@ func TestTienCoc_KhongAnGiamPhanTram(t *testing.T) {
 	}
 }
 
-// Phòng thuê trọn: nước/điện/dịch vụ của thành viên dồn về phiếu người ký HĐ, nhưng cọc thì KHÔNG —
-// cọc là tiền của từng người, hoàn cho chính người đó khi rời.
-func TestTienCoc_ThanhVienPhongTronVanCoCocRieng(t *testing.T) {
-	in := ComputeInput{
+// Phòng thuê trọn có MỘT hợp đồng. Người ký cọc trọn giá phòng; thành viên ở cùng không đứng hợp
+// đồng nào nên không cọc riêng (chốt 02/08/2026).
+func cocPhongTron(dungHoaDon bool) Invoice {
+	return ComputeInvoice(ComputeInput{
 		Student:     Student{ID: 7, CheckInDate: "2026-08-01", DepositStatus: "none"},
-		NguyenPhong: &NguyenPhong{DungHoaDon: false, SuatNguoi: 4},
+		NguyenPhong: &NguyenPhong{DungHoaDon: dungHoaDon, SuatNguoi: 4},
 		Room:        &Room{Hang: "A", RoomType: "whole"},
 		Month:       "2026-08",
 		Fees:        feesCoc(),
+	})
+}
+
+func TestTienCoc_PhongTronNguoiKyCocTronGiaPhong(t *testing.T) {
+	got := cocPhongTron(true)
+	// Cọc = giá phòng hạng A (5.500.000), KHÔNG phải mức cọc một suất người (1.200.000).
+	if got.DepositCharge != 5500000 {
+		t.Errorf("cọc người ký HĐ phòng trọn = %d, phải = 5500000 (giá phòng hạng A)", got.DepositCharge)
 	}
-	got := ComputeInvoice(in)
+	if got.RoomCharge != 5500000 {
+		t.Errorf("tiền phòng = %d, phải = 5500000 — cọc phải bằng đúng giá phòng đang thu", got.RoomCharge)
+	}
+}
+
+func TestTienCoc_ThanhVienPhongTronKhongCoCoc(t *testing.T) {
+	got := cocPhongTron(false)
+	if got.DepositCharge != 0 {
+		t.Errorf("cọc của thành viên = %d, phải = 0 (cọc nằm ở phiếu người ký hợp đồng)", got.DepositCharge)
+	}
 	if got.RoomCharge != 0 || got.WaterCharge != 0 || got.ServiceCharge != 0 {
 		t.Errorf("thành viên phòng trọn: phòng=%d nước=%d dvụ=%d, cả ba phải = 0",
 			got.RoomCharge, got.WaterCharge, got.ServiceCharge)
 	}
-	if got.DepositCharge != 1200000 {
-		t.Errorf("cọc của thành viên = %d, phải = 1200000 (cọc theo người, không gộp về phòng trưởng)", got.DepositCharge)
+	if got.Total != 0 {
+		t.Errorf("tổng phiếu thành viên = %d, phải = 0", got.Total)
 	}
-	if got.Total != 1200000 {
-		t.Errorf("tổng = %d, phải = 1200000 (chỉ còn tiền cọc)", got.Total)
+}
+
+// Dữ liệu cũ: phòng để 'shared' nhưng hồ sơ ghi rental_type='phong' -> vẫn thu giá phòng, nên cọc
+// cũng phải theo giá phòng. Lệch hai chỗ này là cọc thu một đằng, tiền phòng một nẻo.
+func TestTienCoc_RentalTypePhongCungCocTheoGiaPhong(t *testing.T) {
+	got := ComputeInvoice(ComputeInput{
+		Student:   Student{ID: 3, CheckInDate: "2026-08-01", DepositStatus: "none", RentalType: "phong"},
+		Room:      &Room{Hang: "A", RoomType: "shared"},
+		Month:     "2026-08",
+		Fees:      feesCoc(),
+		Occupants: 1,
+	})
+	if got.DepositCharge != got.RoomCharge {
+		t.Errorf("cọc = %d nhưng tiền phòng = %d — hai số phải bằng nhau", got.DepositCharge, got.RoomCharge)
+	}
+	if got.DepositCharge != 5500000 {
+		t.Errorf("cọc = %d, phải = 5500000 (giá phòng hạng A)", got.DepositCharge)
 	}
 }
