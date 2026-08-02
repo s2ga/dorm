@@ -85,6 +85,7 @@ type Student struct {
 	CheckInDate        string // "" = chưa có
 	CheckOutDate       string // "" = chưa có
 	RentalType         string // "phong" = thuê nguyên phòng; còn lại = ghép
+	DepositStatus      string // "none" = chưa đóng cọc; "held" = đang giữ; "refunded" = đã trả
 	RoomFeeDiscountPct float64
 	UsesWashing        bool
 	UsesParking        bool
@@ -421,7 +422,18 @@ type Invoice struct {
 	// FeeDiscount: tổng giảm % của các khoản ngoài tiền phòng (nước/điện/dịch vụ/máy giặt/xe).
 	FeeDiscount int `json:"fee_discount"`
 	OtherCharge int `json:"other_charge"`
-	Total       int `json:"total"`
+	// DepositCharge: tiền cọc thu kèm phiếu kỳ nhận phòng. Khoản một lần, không chia theo ngày ở.
+	DepositCharge int `json:"deposit_charge"`
+	Total         int `json:"total"`
+}
+
+// TienCoc: cọc chỉ lên phiếu của KỲ NHẬN PHÒNG và chỉ khi hồ sơ còn ghi chưa đóng (chốt 02/08/2026).
+// Không giới hạn theo thuê ghép / nguyên phòng: cọc là tiền của từng người, hoàn khi người đó rời.
+func TienCoc(st Student, month string, fees Fees) int {
+	if st.DepositStatus != "none" || len(st.CheckInDate) < 7 || st.CheckInDate[:7] != month {
+		return 0
+	}
+	return r0(fees.num("deposit_fee"))
 }
 
 // ComputeInvoice: server/billing.js:158-229
@@ -546,10 +558,12 @@ func ComputeInvoice(in ComputeInput) Invoice {
 	}
 	leaderDiscount := LeaderDiscount(in.LeaderDays, days, waterConLai, serviceConLai)
 
+	depositCharge := TienCoc(st, in.Month, fees)
 	total := InvoiceTotal(map[string]float64{
 		"room_charge": float64(roomCharge), "electric_charge": float64(electricCharge),
 		"water_charge": float64(waterCharge), "service_charge": float64(serviceCharge),
 		"washing_charge": float64(washingCharge), "parking_charge": float64(parkingCharge),
+		"deposit_charge":  float64(depositCharge),
 		"leader_discount": float64(leaderDiscount), "room_discount": float64(roomDiscount),
 		"fee_discount": float64(feeDiscount),
 	})
@@ -564,12 +578,12 @@ func ComputeInvoice(in ComputeInput) Invoice {
 		ElectricCharge: electricCharge, WaterCharge: waterCharge, ServiceCharge: serviceCharge,
 		WashingCharge: washingCharge, ParkingCharge: parkingCharge,
 		LeaderDiscount: leaderDiscount, RoomDiscount: roomDiscount, FeeDiscount: feeDiscount,
-		OtherCharge: 0, Total: total,
+		OtherCharge: 0, DepositCharge: depositCharge, Total: total,
 	}
 }
 
-// InvoiceTotal: Σ 7 phí − các khoản giảm. server/billing.js:7-11
-var invoiceFeeFields = []string{"room_charge", "electric_charge", "water_charge", "service_charge", "washing_charge", "parking_charge", "other_charge"}
+// InvoiceTotal: Σ các khoản thu − các khoản giảm. server/billing.js:7-11
+var invoiceFeeFields = []string{"room_charge", "electric_charge", "water_charge", "service_charge", "washing_charge", "parking_charge", "other_charge", "deposit_charge"}
 
 func InvoiceTotal(f map[string]float64) int {
 	var fee float64

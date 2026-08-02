@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -37,7 +38,7 @@ const invoiceSELECT = `
   LEFT JOIN rooms r ON r.id = i.room_id`
 
 // invoiceMoneyFields: mọi khoản tiền phải là số KHÔNG ÂM (invoices.routes.js:29).
-var invoiceMoneyFields = []string{"room_charge", "electric_charge", "water_charge", "service_charge", "washing_charge", "parking_charge", "other_charge", "electric_kwh", "days_stayed"}
+var invoiceMoneyFields = []string{"room_charge", "electric_charge", "water_charge", "service_charge", "washing_charge", "parking_charge", "other_charge", "deposit_charge", "electric_kwh", "days_stayed"}
 
 // invDateStr: pgtype.Date -> 'YYYY-MM-DD' (rỗng nếu NULL).
 func invDateStr(d pgtype.Date) string {
@@ -325,6 +326,7 @@ type invoiceGenStudent struct {
 	id                       int
 	roomID                   *int
 	rentalType               string
+	depositStatus            string
 	checkIn, checkOut        string
 	usesWashing, usesParking bool
 	discountPct              float64
@@ -488,7 +490,7 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 		stParams := []interface{}{mEnd, mStart}
 		invoicesExecFacilityFilter(c, u, "facility_id", &stCond, &stParams)
 		stRows, err := tx.Query(ctx,
-			`SELECT id, room_id, rental_type, check_in_date, check_out_date, uses_washing, uses_parking, room_fee_discount_pct, `+
+			`SELECT id, room_id, rental_type, deposit_status, check_in_date, check_out_date, uses_washing, uses_parking, room_fee_discount_pct, `+
 				billing.CotSQL+` FROM students WHERE `+joinAnd(stCond), stParams...)
 		if err != nil {
 			return err
@@ -496,15 +498,18 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 		var students []invoiceGenStudent
 		for stRows.Next() {
 			var s invoiceGenStudent
-			var rentalType *string
+			var rentalType, depositStatus *string
 			var ci, co pgtype.Date
 			var pct *float64
-			if err := stRows.Scan(append([]interface{}{&s.id, &s.roomID, &rentalType, &ci, &co, &s.usesWashing, &s.usesParking, &pct}, s.giam.Ptr()...)...); err != nil {
+			if err := stRows.Scan(append([]interface{}{&s.id, &s.roomID, &rentalType, &depositStatus, &ci, &co, &s.usesWashing, &s.usesParking, &pct}, s.giam.Ptr()...)...); err != nil {
 				stRows.Close()
 				return err
 			}
 			if rentalType != nil {
 				s.rentalType = *rentalType
+			}
+			if depositStatus != nil {
+				s.depositStatus = *depositStatus
 			}
 			s.checkIn, s.checkOut = invDateStr(ci), invDateStr(co)
 			if pct != nil {
@@ -826,7 +831,8 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 			}
 			vc := vehByStudent[s.id]
 			hv := billing.Student{
-				ID: s.id, RentalType: s.rentalType, CheckInDate: s.checkIn, CheckOutDate: s.checkOut,
+				ID: s.id, RentalType: s.rentalType, DepositStatus: s.depositStatus,
+				CheckInDate: s.checkIn, CheckOutDate: s.checkOut,
 				RoomFeeDiscountPct: s.discountPct, UsesWashing: s.usesWashing, UsesParking: s.usesParking,
 			}
 			s.giam.GanVao(&hv)
@@ -844,16 +850,17 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 					"room_charge": float64(inv.RoomCharge), "electric_charge": float64(inv.ElectricCharge),
 					"water_charge": float64(inv.WaterCharge), "service_charge": float64(inv.ServiceCharge),
 					"washing_charge": float64(inv.WashingCharge), "parking_charge": float64(inv.ParkingCharge),
-					"other_charge": dup.other, "leader_discount": float64(inv.LeaderDiscount), "room_discount": float64(inv.RoomDiscount),
+					"other_charge": dup.other, "deposit_charge": float64(inv.DepositCharge),
+					"leader_discount": float64(inv.LeaderDiscount), "room_discount": float64(inv.RoomDiscount),
 					"fee_discount": float64(inv.FeeDiscount),
 				})
 				if _, err := tx.Exec(ctx,
 					`UPDATE invoices SET days_stayed=$1, room_charge=$2, electric_kwh=$3, electric_charge=$4, water_charge=$5,
 					   service_charge=$6, washing_charge=$7, parking_charge=$8, leader_discount=$9, room_discount=$10,
-					   fee_discount=$11, total=$12, deleted_at=NULL WHERE id=$13`,
+					   fee_discount=$11, deposit_charge=$12, total=$13, deleted_at=NULL WHERE id=$14`,
 					inv.DaysStayed, inv.RoomCharge, inv.ElectricKwh, inv.ElectricCharge, inv.WaterCharge,
 					inv.ServiceCharge, inv.WashingCharge, inv.ParkingCharge, inv.LeaderDiscount, inv.RoomDiscount,
-					inv.FeeDiscount, total, dup.id); err != nil {
+					inv.FeeDiscount, inv.DepositCharge, total, dup.id); err != nil {
 					return err
 				}
 				updated++
@@ -861,11 +868,11 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 				if _, err := tx.Exec(ctx,
 					`INSERT INTO invoices (student_id, room_id, month, days_stayed, room_charge, electric_kwh, electric_charge,
 					   water_charge, service_charge, washing_charge, parking_charge, leader_discount, room_discount,
-					   fee_discount, other_charge, total, status)
-					 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'pending')`,
+					   fee_discount, other_charge, deposit_charge, total, status)
+					 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,'pending')`,
 					s.id, s.roomID, body.Month, inv.DaysStayed, inv.RoomCharge, inv.ElectricKwh, inv.ElectricCharge,
 					inv.WaterCharge, inv.ServiceCharge, inv.WashingCharge, inv.ParkingCharge,
-					inv.LeaderDiscount, inv.RoomDiscount, inv.FeeDiscount, inv.OtherCharge, inv.Total); err != nil {
+					inv.LeaderDiscount, inv.RoomDiscount, inv.FeeDiscount, inv.OtherCharge, inv.DepositCharge, inv.Total); err != nil {
 					return err
 				}
 				created++
@@ -921,15 +928,16 @@ func (h *Handlers) GenerateOneInvoice(c *gin.Context) {
 		facID     *int
 		roomID    *int
 		rentalTyp *string
+		depStatus *string
 		ci, co    pgtype.Date
 		uw, up    bool
 		pct       *float64
 	)
 	var giam billing.GiamPct
 	err = h.pool().QueryRow(ctx,
-		"SELECT id, facility_id, room_id, rental_type, check_in_date, check_out_date, uses_washing, uses_parking, room_fee_discount_pct, "+
+		"SELECT id, facility_id, room_id, rental_type, deposit_status, check_in_date, check_out_date, uses_washing, uses_parking, room_fee_discount_pct, "+
 			billing.CotSQL+" FROM students WHERE id=$1", sid).
-		Scan(append([]interface{}{&sID, &facID, &roomID, &rentalTyp, &ci, &co, &uw, &up, &pct}, giam.Ptr()...)...)
+		Scan(append([]interface{}{&sID, &facID, &roomID, &rentalTyp, &depStatus, &ci, &co, &uw, &up, &pct}, giam.Ptr()...)...)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			notFound(c, "Không tìm thấy học viên")
@@ -1018,8 +1026,12 @@ func (h *Handlers) GenerateOneInvoice(c *gin.Context) {
 	if pct != nil {
 		pctVal = *pct
 	}
+	dep := ""
+	if depStatus != nil {
+		dep = *depStatus
+	}
 	hv := billing.Student{
-		ID: sID, RentalType: rt, CheckInDate: invDateStr(ci), CheckOutDate: invDateStr(co),
+		ID: sID, RentalType: rt, DepositStatus: dep, CheckInDate: invDateStr(ci), CheckOutDate: invDateStr(co),
 		RoomFeeDiscountPct: pctVal, UsesWashing: uw, UsesParking: up,
 	}
 	giam.GanVao(&hv)
@@ -1038,16 +1050,17 @@ func (h *Handlers) GenerateOneInvoice(c *gin.Context) {
 			"room_charge": float64(inv.RoomCharge), "electric_charge": float64(inv.ElectricCharge),
 			"water_charge": float64(inv.WaterCharge), "service_charge": float64(inv.ServiceCharge),
 			"washing_charge": float64(inv.WashingCharge), "parking_charge": float64(inv.ParkingCharge),
-			"other_charge": dOther, "leader_discount": float64(inv.LeaderDiscount), "room_discount": float64(inv.RoomDiscount),
+			"other_charge": dOther, "deposit_charge": float64(inv.DepositCharge),
+			"leader_discount": float64(inv.LeaderDiscount), "room_discount": float64(inv.RoomDiscount),
 			"fee_discount": float64(inv.FeeDiscount),
 		})
 		rows, err := h.pool().Query(ctx,
 			`UPDATE invoices SET days_stayed=$1, room_charge=$2, electric_kwh=$3, electric_charge=$4, water_charge=$5,
 			   service_charge=$6, washing_charge=$7, parking_charge=$8, leader_discount=$9, room_discount=$10,
-			   fee_discount=$11, total=$12, deleted_at=NULL WHERE id=$13 RETURNING *`,
+			   fee_discount=$11, deposit_charge=$12, total=$13, deleted_at=NULL WHERE id=$14 RETURNING *`,
 			inv.DaysStayed, inv.RoomCharge, inv.ElectricKwh, inv.ElectricCharge, inv.WaterCharge,
 			inv.ServiceCharge, inv.WashingCharge, inv.ParkingCharge, inv.LeaderDiscount, inv.RoomDiscount,
-			inv.FeeDiscount, total, dID)
+			inv.FeeDiscount, inv.DepositCharge, total, dID)
 		if err != nil {
 			serverErr(c)
 			return
@@ -1063,11 +1076,11 @@ func (h *Handlers) GenerateOneInvoice(c *gin.Context) {
 	rows, err := h.pool().Query(ctx,
 		`INSERT INTO invoices (student_id, room_id, month, days_stayed, room_charge, electric_kwh, electric_charge,
 		   water_charge, service_charge, washing_charge, parking_charge, leader_discount, room_discount,
-		   fee_discount, other_charge, total, status)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'pending') RETURNING *`,
+		   fee_discount, other_charge, deposit_charge, total, status)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,'pending') RETURNING *`,
 		sid, roomID, monthStr, inv.DaysStayed, inv.RoomCharge, inv.ElectricKwh, inv.ElectricCharge,
 		inv.WaterCharge, inv.ServiceCharge, inv.WashingCharge, inv.ParkingCharge,
-		inv.LeaderDiscount, inv.RoomDiscount, inv.FeeDiscount, inv.OtherCharge, inv.Total)
+		inv.LeaderDiscount, inv.RoomDiscount, inv.FeeDiscount, inv.OtherCharge, inv.DepositCharge, inv.Total)
 	if err != nil {
 		// TP-35: hai request cùng lúc -> cái sau va UNIQUE(student_id,month) (23505). invoices.routes.js:324-332
 		if vehicleIsDup(err) {
@@ -1137,14 +1150,14 @@ func (h *Handlers) CreateInvoice(c *gin.Context) {
 		"room_charge": invoiceNumOr0(b["room_charge"]), "electric_charge": invoiceNumOr0(b["electric_charge"]),
 		"water_charge": invoiceNumOr0(b["water_charge"]), "service_charge": invoiceNumOr0(b["service_charge"]),
 		"washing_charge": invoiceNumOr0(b["washing_charge"]), "parking_charge": invoiceNumOr0(b["parking_charge"]),
-		"other_charge": invoiceNumOr0(b["other_charge"]),
+		"other_charge": invoiceNumOr0(b["other_charge"]), "deposit_charge": invoiceNumOr0(b["deposit_charge"]),
 	}) // body không có discount -> 0
-	// vals: $1..$14 (invoices.routes.js:354-356)
+	// vals: $1..$15 (invoices.routes.js:354-356)
 	vals := []interface{}{
 		sid, roomID, monthStr, invoiceNumOr0(b["days_stayed"]), invoiceNumOr0(b["room_charge"]),
 		invoiceNumOr0(b["electric_kwh"]), invoiceNumOr0(b["electric_charge"]), invoiceNumOr0(b["water_charge"]),
 		invoiceNumOr0(b["service_charge"]), invoiceNumOr0(b["washing_charge"]), invoiceNumOr0(b["parking_charge"]),
-		invoiceNumOr0(b["other_charge"]), invoiceStrOr(b["other_note"]), total,
+		invoiceNumOr0(b["other_charge"]), invoiceStrOr(b["other_note"]), invoiceNumOr0(b["deposit_charge"]), total,
 	}
 	// Đã có hoá đơn kỳ này? (kể cả bản xoá mềm). invoices.routes.js:359-369
 	var exID int
@@ -1164,7 +1177,7 @@ func (h *Handlers) CreateInvoice(c *gin.Context) {
 		rows, err := h.pool().Query(ctx,
 			`UPDATE invoices SET room_id=$2, days_stayed=$4, room_charge=$5, electric_kwh=$6, electric_charge=$7,
 			   water_charge=$8, service_charge=$9, washing_charge=$10, parking_charge=$11, other_charge=$12,
-			   other_note=$13, total=$14, status='pending', paid_date=NULL, deleted_at=NULL WHERE id=$15 RETURNING *`,
+			   other_note=$13, deposit_charge=$14, total=$15, status='pending', paid_date=NULL, deleted_at=NULL WHERE id=$16 RETURNING *`,
 			append(vals, exID)...)
 		if err != nil {
 			serverErr(c)
@@ -1180,8 +1193,8 @@ func (h *Handlers) CreateInvoice(c *gin.Context) {
 	}
 	rows, err := h.pool().Query(ctx,
 		`INSERT INTO invoices (student_id, room_id, month, days_stayed, room_charge, electric_kwh, electric_charge,
-		   water_charge, service_charge, washing_charge, parking_charge, other_charge, other_note, total, status)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'pending') RETURNING *`, vals...)
+		   water_charge, service_charge, washing_charge, parking_charge, other_charge, other_note, deposit_charge, total, status)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'pending') RETURNING *`, vals...)
 	if err != nil {
 		if vehicleIsDup(err) { // 23505 (invoices.routes.js:376)
 			badRequest(c, "Học viên đã có hóa đơn trong kỳ này")
@@ -1244,6 +1257,7 @@ func (h *Handlers) UpdateInvoice(c *gin.Context) {
 		"water_charge": invoiceNumOr0(b["water_charge"]), "service_charge": invoiceNumOr0(b["service_charge"]),
 		"washing_charge": invoiceNumOr0(b["washing_charge"]), "parking_charge": invoiceNumOr0(b["parking_charge"]),
 		"other_charge":    invoiceNumOr0(b["other_charge"]),
+		"deposit_charge":  invoiceNumOr0(b["deposit_charge"]),
 		"leader_discount": curLeaderDisc, "room_discount": curRoomDisc,
 	})
 	// BLK-7: total có thể ÂM nếu giảm > tổng phí -> chặn thẳng ở API. invoices.routes.js:402
@@ -1254,10 +1268,10 @@ func (h *Handlers) UpdateInvoice(c *gin.Context) {
 	rows, err := h.pool().Query(ctx,
 		`UPDATE invoices SET days_stayed=$1, room_charge=$2, electric_kwh=$3, electric_charge=$4,
 		   water_charge=$5, service_charge=$6, washing_charge=$7, parking_charge=$8, other_charge=$9,
-		   other_note=$10, total=$11, note=$12 WHERE id=$13 RETURNING *`,
+		   other_note=$10, deposit_charge=$11, total=$12, note=$13 WHERE id=$14 RETURNING *`,
 		invoiceNumOr0(b["days_stayed"]), invoiceNumOr0(b["room_charge"]), invoiceNumOr0(b["electric_kwh"]), invoiceNumOr0(b["electric_charge"]),
 		invoiceNumOr0(b["water_charge"]), invoiceNumOr0(b["service_charge"]), invoiceNumOr0(b["washing_charge"]), invoiceNumOr0(b["parking_charge"]),
-		invoiceNumOr0(b["other_charge"]), invoiceStrOr(b["other_note"]), total, invoiceStrOr(b["note"]), id)
+		invoiceNumOr0(b["other_charge"]), invoiceStrOr(b["other_note"]), invoiceNumOr0(b["deposit_charge"]), total, invoiceStrOr(b["note"]), id)
 	if err != nil {
 		serverErr(c)
 		return
@@ -1272,6 +1286,18 @@ func (h *Handlers) UpdateInvoice(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, row)
+}
+
+// ghiNhanCocDaThu: phiếu mang dòng tiền cọc mà được đánh dấu ĐÃ THU thì hồ sơ chuyển sang đang giữ
+// cọc (chốt 02/08/2026). Chỉ đụng hồ sơ còn 'none' — không đè lên lần đóng cọc đã ghi trước đó.
+// cond lọc trên bảng invoices i, tham số bắt đầu từ $2 ($1 dành cho ngày thu).
+func (h *Handlers) ghiNhanCocDaThu(ctx context.Context, ngayThu string, cond string, args ...interface{}) {
+	_, _ = h.pool().Exec(ctx,
+		`UPDATE students s SET deposit_status='held', deposit_amount=i.deposit_charge, deposit_date=$1
+		   FROM invoices i
+		  WHERE `+cond+` AND i.deposit_charge > 0 AND i.deleted_at IS NULL
+		    AND s.id = i.student_id AND s.deposit_status = 'none'`,
+		append([]interface{}{ngayThu}, args...)...)
 }
 
 // MarkPaidInvoices: POST /api/invoices/mark-paid (CHỈ admin). invoices.routes.js:419-434.
@@ -1304,6 +1330,7 @@ func (h *Handlers) MarkPaidInvoices(c *gin.Context) {
 		serverErr(c)
 		return
 	}
+	h.ghiNhanCocDaThu(ctx, date, "i.month = $2 AND i.status = 'paid'", month)
 	c.JSON(http.StatusOK, gin.H{"ok": true, "updated": int(ct.RowsAffected()), "month": month})
 }
 
@@ -1336,12 +1363,13 @@ func (h *Handlers) InvoiceStatus(c *gin.Context) {
 	}
 	status := *body.Status
 	var paidDate interface{}
+	ngayThu := ""
 	if status == "paid" {
-		d := timeutil.Today()
+		ngayThu = timeutil.Today()
 		if body.Date != nil && *body.Date != "" {
-			d = *body.Date
+			ngayThu = *body.Date
 		}
-		paidDate = d
+		paidDate = ngayThu
 	}
 	var curStatus string
 	var curTotal float64
@@ -1368,6 +1396,9 @@ func (h *Handlers) InvoiceStatus(c *gin.Context) {
 	if row == nil {
 		notFound(c, "Không tìm thấy hóa đơn")
 		return
+	}
+	if status == "paid" {
+		h.ghiNhanCocDaThu(ctx, ngayThu, "i.id = $2", id)
 	}
 	// TP-10: đổi trạng thái là thao tác nhạy cảm -> ghi nhật ký (fire-and-forget). invoices.routes.js:454-460
 	if curStatus != status {

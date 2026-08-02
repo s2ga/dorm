@@ -60,6 +60,7 @@ func (h *Handlers) RevenueReport(c *gin.Context) {
 		  COALESCE(SUM(i.washing_charge),0) AS washing,
 		  COALESCE(SUM(i.parking_charge),0) AS parking,
 		  COALESCE(SUM(i.other_charge),0) AS other,
+		  COALESCE(SUM(i.deposit_charge),0) AS deposit,
 		  COALESCE(SUM(i.total),0) AS total,
 		  COUNT(*)::int AS count
 		FROM invoices i JOIN students s ON s.id = i.student_id `+where+`

@@ -75,7 +75,10 @@ const REV_SERVICES = [
   ['washing', 'Phí máy giặt', 'bravo_washing'],
   ['parking', 'Phí gửi xe máy', 'bravo_parking'],
   ['other', 'Khoản khác', 'bravo_other'],
+  ['deposit', 'Tiền cọc', 'bravo_deposit'],
 ];
+// Hai khoản này thường bằng 0 — chỉ chiếm cột khi kỳ nào đó thật sự có phát sinh.
+const REV_AN_KHI_0 = ['other', 'deposit'];
 let _revData = [];   // doanh thu nam hien hanh — de exportRevenue() tu lay lai (khong nhoi vao data-args)
 async function viewRevenue() {
   el('content').innerHTML = '<div class="spinner"></div>';
@@ -84,22 +87,23 @@ async function viewRevenue() {
   const data = await guard(() => API.revenue(revYear));
   _revData = data;
   const sum = k => data.reduce((a, m) => a + (+m[k] || 0), 0);
+  const cot = REV_SERVICES.filter(([k]) => !REV_AN_KHI_0.includes(k) || sum(k));
   const grand = sum('total'), paid = sum('paid');
 
   // Bảng theo tháng
   const monthRows = data.map(m => `<tr>
     <td><strong>${m.month.slice(5)}/${m.month.slice(0, 4)}</strong></td>
-    ${REV_SERVICES.filter(x => x[0] !== 'other' || sum('other')).map(([k]) => `<td class="num">${+m[k] ? money(m[k]) : '<span class="muted">—</span>'}</td>`).join('')}
+    ${cot.map(([k]) => `<td class="num">${+m[k] ? money(m[k]) : '<span class="muted">—</span>'}</td>`).join('')}
     <td class="num"><strong>${money(m.total)}</strong></td>
   </tr>`).join('');
 
   // Cơ cấu doanh thu (BL-65: chuyển từ màn Tiền phòng sang đây — đúng nơi phân tích doanh thu)
-  const REV_COLOR = { room: 'var(--brand)', electric: '#5f7ea3', water: '#4f8f63', service: '#b5822f', washing: '#9a7bb0', parking: '#c25545', other: '#8a8a8a' };
+  const REV_COLOR = { room: 'var(--brand)', electric: '#5f7ea3', water: '#4f8f63', service: '#b5822f', washing: '#9a7bb0', parking: '#c25545', other: '#8a8a8a', deposit: '#6f8f7c' };
   const revMax = Math.max(1, ...REV_SERVICES.map(([k]) => sum(k)));
   const shortSvc = l => l.replace('Phí ', '').replace(' sinh hoạt', '').replace(' (tiền phòng)', '');
   const revComp = data.length ? `<div class="panel"><div class="hd"><h2>${IC.coins} Cơ cấu doanh thu — năm ${revYear}</h2><span class="muted" style="font-size:12px">Tỉ trọng theo khoản</span></div>
     <div class="pad rev-comp">
-      ${REV_SERVICES.filter(x => x[0] !== 'other' || sum('other')).map(([k, l]) => { const amt = sum(k); return `<div class="rev-row">
+      ${cot.map(([k, l]) => { const amt = sum(k); return `<div class="rev-row">
         <div class="rev-lbl">${shortSvc(l)}</div>
         <div class="rev-track"><div class="rev-fill" style="width:${Math.round(amt / revMax * 100)}%;background:${REV_COLOR[k] || 'var(--brand)'}"></div></div>
         <div class="rev-amt"><strong>${money(amt)}</strong> <span class="muted">${Math.round(amt / (grand || 1) * 100)}%</span></div>
@@ -117,11 +121,11 @@ async function viewRevenue() {
       <button class="btn sm" data-act="exportRevenue">${IC.download} Xuất Excel (CSV)</button></div>
       <div class="table-wrap">
       ${data.length ? `<table><thead><tr><th>Tháng</th>
-        ${REV_SERVICES.filter(x => x[0] !== 'other' || sum('other')).map(([, l]) => `<th class="num">${l.replace('Phí ', '').replace(' sinh hoạt', '').replace(' (tiền phòng)', '')}</th>`).join('')}
+        ${cot.map(([, l]) => `<th class="num">${l.replace('Phí ', '').replace(' sinh hoạt', '').replace(' (tiền phòng)', '')}</th>`).join('')}
         <th class="num">Tổng</th></tr></thead>
         <tbody>${monthRows}
           <tr style="background:var(--bg2)"><td><strong>Cả năm</strong></td>
-          ${REV_SERVICES.filter(x => x[0] !== 'other' || sum('other')).map(([k]) => `<td class="num"><strong>${money(sum(k))}</strong></td>`).join('')}
+          ${cot.map(([k]) => `<td class="num"><strong>${money(sum(k))}</strong></td>`).join('')}
           <td class="num"><strong>${money(grand)}</strong></td></tr>
         </tbody></table>` : '<div class="empty">Chưa có phiếu báo trong năm này.</div>'}
       </div>
@@ -129,13 +133,13 @@ async function viewRevenue() {
 
     <div class="panel"><div class="hd"><h2>${IC.receipt} Tổng theo dịch vụ (đối chiếu Bravo) — năm ${revYear}</h2></div>
       <div class="table-wrap"><table><thead><tr><th>Mã SP Bravo</th><th>Loại phí</th><th>Dịch vụ</th><th class="num">Tiền phiếu cả năm</th></tr></thead><tbody>
-        ${REV_SERVICES.map(([k, l, codeKey]) => { const v = sum(k); if (!v && k === 'other') return ''; return `<tr>
+        ${REV_SERVICES.map(([k, l, codeKey]) => { const v = sum(k); if (!v && REV_AN_KHI_0.includes(k)) return ''; return `<tr>
           <td><strong>${esc(ST.settings[codeKey] || '—')}</strong></td>
           <td class="muted">${esc(ST.settings.bravo_fee_type || '')}</td>
           <td>${l}</td><td class="num">${money(v)}</td></tr>`; }).join('')}
         <tr style="background:var(--bg2)"><td colspan="3"><strong>TỔNG TIỀN PHIẾU</strong></td><td class="num"><strong>${money(grand)}</strong></td></tr>
       </tbody></table></div>
-      <div class="pad muted" style="font-size:12.5px">${IC.bulb} Mã sản phẩm Bravo chỉnh trong <a href="#" data-act="adminGo" data-args='["settings"]'>Cài đặt</a>. Số liệu = tổng tiền đã lập phiếu báo (chưa gồm cọc). Thu tiền thực tế do Bravo quản lý. Số HV xuất cảnh xem ở <a href="#" data-act="adminGo" data-args='["exec"]'>Điều hành</a>.</div>
+      <div class="pad muted" style="font-size:12.5px">${IC.bulb} Mã sản phẩm Bravo chỉnh trong <a href="#" data-act="adminGo" data-args='["settings"]'>Cài đặt</a>. Số liệu = tổng tiền đã lập phiếu báo, gồm cả tiền cọc thu ở kỳ nhận phòng. Thu tiền thực tế do Bravo quản lý. Số HV xuất cảnh xem ở <a href="#" data-act="adminGo" data-args='["exec"]'>Điều hành</a>.</div>
     </div>`;
   const ry = el('ry'); if (ry) ry.onchange = e => { revYear = e.target.value; viewRevenue(); };
   syncFilterUrl(); // BL-17: năm (đã nắn theo years có dữ liệu) lên URL

@@ -62,6 +62,7 @@ async function viewInvoices() {
 
   // Cơ cấu doanh thu: tách Tổng theo từng khoản (tiền phòng/điện/nước/DV/giặt/xe) + xu hướng so kỳ trước.
   const sumK = (arr, k) => arr.reduce((a, i) => a + (+i[k] || 0), 0); // dùng cho dòng TỔNG cuối bảng
+  const coCoc = all.some(i => +i.deposit_charge);   // cột Cọc chỉ chiếm chỗ ở kỳ thật sự có thu cọc
   // Cơ cấu tiền phiếu đã chuyển sang màn Doanh thu (BL-65).
 
   // #2: Tiền phòng theo phòng — tháng này so kỳ trước (dùng lại all + prevAll, không cần backend).
@@ -93,7 +94,7 @@ async function viewInvoices() {
         <button class="btn sm ghost" data-act="toggleThanhVienNP">${invHienThanhVienNP ? 'Ẩn đi' : 'Hiện ra'}</button></div>` : ''}
       <div class="table-wrap card-tbl">
       ${all.length === 0 ? `<div class="empty">Chưa có hóa đơn nào cho kỳ này.<br><br><button class="btn pri" data-act="generateForm">${IC.receipt} Tạo hóa đơn</button></div>` :
-      list.length ? `<table><thead><tr><th>Học viên</th><th>Phòng</th><th>Mã pháp nhân</th><th class="num">Ngày ở</th><th class="num">Tiền phòng</th><th class="num">Điện</th><th class="num">Nước</th><th class="num">DV</th><th class="num">Giặt</th><th class="num">Xe</th><th class="num">Giảm</th><th class="num">Tổng</th><th></th></tr></thead><tbody>
+      list.length ? `<table><thead><tr><th>Học viên</th><th>Phòng</th><th>Mã pháp nhân</th><th class="num">Ngày ở</th><th class="num">Tiền phòng</th><th class="num">Điện</th><th class="num">Nước</th><th class="num">DV</th><th class="num">Giặt</th><th class="num">Xe</th>${coCoc ? '<th class="num">Cọc</th>' : ''}<th class="num">Giảm</th><th class="num">Tổng</th><th></th></tr></thead><tbody>
         ${list.map(i => `<tr class="${laNguyenPhong(i) && +i.total ? 'inv-np' : ''}" data-s="${esc(((i.student_name || '') + ' ' + (i.student_code || '') + ' ' + (i.room_name || '') + ' ' + invLegalEntity(i)).toLowerCase())}">
           <td><div class="flex stu-name" data-act="studentDetail" data-args='[${i.student_id}]' role="button" tabindex="0" title="Xem chi tiết học viên">
             <div><strong>${esc(i.student_name)}</strong>${i.student_code ? `<div class="sub2">${esc(i.student_code)}</div>` : ''}</div>
@@ -109,6 +110,7 @@ async function viewInvoices() {
           <td class="num" data-label="DV">${moneyN(i.service_charge)}</td>
           <td class="num" data-label="Giặt">${i.washing_charge ? moneyN(i.washing_charge) : '—'}</td>
           <td class="num" data-label="Xe">${i.parking_charge ? moneyN(i.parking_charge) : '—'}</td>
+          ${coCoc ? `<td class="num" data-label="Cọc">${+i.deposit_charge ? `<span class="badge blue" title="Tiền cọc thu ở kỳ nhận phòng">${moneyN(i.deposit_charge)}</span>` : '—'}</td>` : ''}
           <td class="num" data-label="Giảm">${(+i.leader_discount || 0) + (+i.room_discount || 0) + (+i.fee_discount || 0)
             ? `<span class="badge green" title="${[+i.room_discount ? 'Giảm tiền phòng ' + money(i.room_discount) : '', +i.fee_discount ? 'Giảm các khoản khác ' + money(i.fee_discount) : '', +i.leader_discount ? 'Giảm phòng trưởng ' + money(i.leader_discount) : ''].filter(Boolean).join(' · ')}">−${moneyN((+i.leader_discount || 0) + (+i.room_discount || 0) + (+i.fee_discount || 0))}</span>`
             : '—'}</td>
@@ -119,7 +121,7 @@ async function viewInvoices() {
             <button class="btn sm ghost" data-act="invoiceForm" data-args='[${i.id}]'>${IC.pencil}</button>
             <button class="btn sm ghost" data-act="delInvoice" data-args='[${i.id}]'>${IC.trash}</button>
           </div></td></tr>`).join('')}
-        <tr class="no-result" style="display:none"><td colspan="13"><div class="empty">Không tìm thấy hóa đơn phù hợp.</div></td></tr>
+        <tr class="no-result" style="display:none"><td colspan="${coCoc ? 14 : 13}"><div class="empty">Không tìm thấy hóa đơn phù hợp.</div></td></tr>
       </tbody><tfoot><tr class="tot-row">
         <td><strong>TỔNG</strong></td>
         <td data-label="Phòng" class="muted">${list.length} phiếu</td>
@@ -131,6 +133,7 @@ async function viewInvoices() {
         <td class="num" data-label="DV"><strong>${moneyN(sumK(list, 'service_charge'))}</strong></td>
         <td class="num" data-label="Giặt"><strong>${moneyN(sumK(list, 'washing_charge'))}</strong></td>
         <td class="num" data-label="Xe"><strong>${moneyN(sumK(list, 'parking_charge'))}</strong></td>
+        ${coCoc ? `<td class="num" data-label="Cọc"><strong>${moneyN(sumK(list, 'deposit_charge'))}</strong></td>` : ''}
         <td class="num" data-label="Giảm"><strong>${sumK(list, 'leader_discount') + sumK(list, 'room_discount') + sumK(list, 'fee_discount') ? '−' + moneyN(sumK(list, 'leader_discount') + sumK(list, 'room_discount') + sumK(list, 'fee_discount')) : '—'}</strong></td>
         <td class="num" data-label="Tổng"><strong>${moneyN(sumK(list, 'total'))}</strong></td>
         <td class="num"></td>
@@ -498,6 +501,7 @@ function invoiceForm(id) {
       <div class="grid2">${f('Tiền điện', 'electric_charge')}${f('Nước', 'water_charge')}</div>
       <div class="grid2">${f('Dịch vụ', 'service_charge')}${f('Máy giặt', 'washing_charge')}</div>
       <div class="grid2">${f('Gửi xe', 'parking_charge')}${f('Khoản khác', 'other_charge')}</div>
+      <div class="grid2">${f('Tiền cọc', 'deposit_charge')}<div></div></div>
       <div class="field"><label>Ghi chú khoản khác</label><input id="i_other_note" value="${esc(i.other_note || '')}"></div>
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveInvoice" data-args='[${id || 0}]'>Lưu</button></div>`, true);
@@ -507,7 +511,7 @@ async function saveInvoice(id) {
   const body = { student_id: +el('i_stu').value, month: el('i_month').value, days_stayed: g('days_stayed'),
     room_charge: g('room_charge'), electric_charge: g('electric_charge'), water_charge: g('water_charge'),
     service_charge: g('service_charge'), washing_charge: g('washing_charge'), parking_charge: g('parking_charge'),
-    other_charge: g('other_charge'), other_note: el('i_other_note').value.trim() };
+    other_charge: g('other_charge'), deposit_charge: g('deposit_charge'), other_note: el('i_other_note').value.trim() };
   if (!body.student_id) return toast('Chọn học viên', 'err');
   await guard(() => id ? API.updateInvoice(id, body) : API.createInvoice(body));
   closeModal(); invMonth = body.month; toast('Đã lưu hóa đơn'); viewInvoices();
@@ -586,6 +590,9 @@ async function phieuBao(inv) {
   if (+inv.washing_charge) row('Máy giặt', money(set.washing_fee), `${Math.round(inv.washing_charge / (+set.washing_fee || 1))} người`, inv.washing_charge);
   if (+inv.parking_charge) row('Gửi xe', money(set.parking_fee), `${Math.round(inv.parking_charge / (+set.parking_fee || 1))} xe`, inv.parking_charge);
   if (+inv.other_charge) row(inv.other_note || 'Khoản khác', '', '', inv.other_charge);
+  if (+inv.deposit_charge) row(chu('Tiền cọc' + phu('thu một lần khi nhận phòng'),
+    'Khoản giữ hộ, hoàn lại khi trả phòng nếu không có hư hao. Chỉ thu ở kỳ nhận phòng.'),
+    money(inv.deposit_charge), '1 lần', inv.deposit_charge);
   // Các khoản GIẢM đứng riêng, ghi số âm — người đọc thấy rõ được ưu đãi gì, vì sao tổng thấp hơn
   if (+inv.room_discount) row(chu('Giảm tiền phòng', 'Ưu đãi riêng cho học viên này'), '', `${+s.room_fee_discount_pct || 0}%`, -inv.room_discount);
   if (+inv.fee_discount) {
@@ -678,8 +685,8 @@ function csvCell(c) {
 function exportCSV() {
   const rows = _invAll.filter(i => invFilter === 'paid' ? i.status === 'paid' : invFilter === 'unpaid' ? i.status !== 'paid' : true); // dung danh sach dang loc (nhu luc render)
   // Thứ tự cột phải khớp mảng data bên dưới.
-  const head = ['Ho ten', 'Ma HV', 'Phong', 'Ma phap nhan', 'Ky', 'So ngay o', 'Tien phong', 'Dien (kWh)', 'Tien dien', 'Nuoc', 'Dich vu', 'May giat', 'Gui xe', 'Khac', 'Giam tien phong', 'Giam khoan khac', 'Giam phong truong', 'Tong'];
-  const data = rows.map(i => [i.student_name, i.student_code || '', i.room_name || '', invLegalEntity(i), i.month, i.days_stayed, i.room_charge, i.electric_kwh, i.electric_charge, i.water_charge, i.service_charge, i.washing_charge, i.parking_charge, i.other_charge, i.room_discount || 0, i.fee_discount || 0, i.leader_discount || 0, i.total]);
+  const head = ['Ho ten', 'Ma HV', 'Phong', 'Ma phap nhan', 'Ky', 'So ngay o', 'Tien phong', 'Dien (kWh)', 'Tien dien', 'Nuoc', 'Dich vu', 'May giat', 'Gui xe', 'Khac', 'Tien coc', 'Giam tien phong', 'Giam khoan khac', 'Giam phong truong', 'Tong'];
+  const data = rows.map(i => [i.student_name, i.student_code || '', i.room_name || '', invLegalEntity(i), i.month, i.days_stayed, i.room_charge, i.electric_kwh, i.electric_charge, i.water_charge, i.service_charge, i.washing_charge, i.parking_charge, i.other_charge, i.deposit_charge || 0, i.room_discount || 0, i.fee_discount || 0, i.leader_discount || 0, i.total]);
   const csv = '﻿' + [head, ...data].map(r => r.map(csvCell).join(',')).join('\r\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));

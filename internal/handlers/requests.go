@@ -809,15 +809,16 @@ func (h *Handlers) BillCheckout(c *gin.Context) {
 		facID     *int
 		roomID    *int
 		rentalTyp *string
+		depStatus *string
 		ci, co    pgtype.Date
 		uw, up    bool
 		pct       *float64
 	)
 	var giam billing.GiamPct
 	if err := h.pool().QueryRow(ctx,
-		"SELECT facility_id, room_id, rental_type, check_in_date, check_out_date, uses_washing, uses_parking, room_fee_discount_pct, "+
+		"SELECT facility_id, room_id, rental_type, deposit_status, check_in_date, check_out_date, uses_washing, uses_parking, room_fee_discount_pct, "+
 			billing.CotSQL+" FROM students WHERE id=$1 AND deleted_at IS NULL", sid).
-		Scan(append([]interface{}{&facID, &roomID, &rentalTyp, &ci, &co, &uw, &up, &pct}, giam.Ptr()...)...); err != nil {
+		Scan(append([]interface{}{&facID, &roomID, &rentalTyp, &depStatus, &ci, &co, &uw, &up, &pct}, giam.Ptr()...)...); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			notFound(c, "Không tìm thấy học viên của đơn này")
 			return
@@ -941,8 +942,12 @@ func (h *Handlers) BillCheckout(c *gin.Context) {
 	if pct != nil {
 		pctVal = *pct
 	}
+	dep := ""
+	if depStatus != nil {
+		dep = *depStatus
+	}
 	hv := billing.Student{
-		ID: sid, RentalType: rt, CheckInDate: invDateStr(ci), CheckOutDate: invDateStr(co),
+		ID: sid, RentalType: rt, DepositStatus: dep, CheckInDate: invDateStr(ci), CheckOutDate: invDateStr(co),
 		RoomFeeDiscountPct: pctVal, UsesWashing: uw, UsesParking: up,
 	}
 	giam.GanVao(&hv)
@@ -961,7 +966,8 @@ func (h *Handlers) BillCheckout(c *gin.Context) {
 		"room_charge": float64(comp.RoomCharge), "electric_charge": float64(comp.ElectricCharge),
 		"water_charge": float64(comp.WaterCharge), "service_charge": float64(comp.ServiceCharge),
 		"washing_charge": float64(comp.WashingCharge), "parking_charge": float64(comp.ParkingCharge),
-		"other_charge": damageAmount, "leader_discount": float64(comp.LeaderDiscount), "room_discount": float64(comp.RoomDiscount),
+		"other_charge": damageAmount, "deposit_charge": float64(comp.DepositCharge),
+		"leader_discount": float64(comp.LeaderDiscount), "room_discount": float64(comp.RoomDiscount),
 		"fee_discount": float64(comp.FeeDiscount),
 	})
 
@@ -970,11 +976,11 @@ func (h *Handlers) BillCheckout(c *gin.Context) {
 		if err := h.pool().QueryRow(ctx,
 			`UPDATE invoices SET days_stayed=$1, room_charge=$2, electric_kwh=$3, electric_charge=$4, water_charge=$5,
 			   service_charge=$6, washing_charge=$7, parking_charge=$8, leader_discount=$9, room_discount=$10,
-			   fee_discount=$11, other_charge=$12, other_note=$13, total=$14, status='pending', paid_date=NULL, deleted_at=NULL
-			 WHERE id=$15 RETURNING id`,
+			   fee_discount=$11, other_charge=$12, other_note=$13, deposit_charge=$14, total=$15, status='pending', paid_date=NULL, deleted_at=NULL
+			 WHERE id=$16 RETURNING id`,
 			comp.DaysStayed, comp.RoomCharge, comp.ElectricKwh, comp.ElectricCharge, comp.WaterCharge,
 			comp.ServiceCharge, comp.WashingCharge, comp.ParkingCharge, comp.LeaderDiscount, comp.RoomDiscount,
-			comp.FeeDiscount, damageAmount, damageNote, total, dID).Scan(&invID); err != nil {
+			comp.FeeDiscount, damageAmount, damageNote, comp.DepositCharge, total, dID).Scan(&invID); err != nil {
 			serverErr(c)
 			return
 		}
@@ -982,11 +988,11 @@ func (h *Handlers) BillCheckout(c *gin.Context) {
 		if err := h.pool().QueryRow(ctx,
 			`INSERT INTO invoices (student_id, room_id, month, days_stayed, room_charge, electric_kwh, electric_charge,
 			   water_charge, service_charge, washing_charge, parking_charge, leader_discount, room_discount,
-			   fee_discount, other_charge, other_note, total, status)
-			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,'pending') RETURNING id`,
+			   fee_discount, other_charge, other_note, deposit_charge, total, status)
+			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'pending') RETURNING id`,
 			sid, roomID, month, comp.DaysStayed, comp.RoomCharge, comp.ElectricKwh, comp.ElectricCharge,
 			comp.WaterCharge, comp.ServiceCharge, comp.WashingCharge, comp.ParkingCharge,
-			comp.LeaderDiscount, comp.RoomDiscount, comp.FeeDiscount, damageAmount, damageNote, total).Scan(&invID); err != nil {
+			comp.LeaderDiscount, comp.RoomDiscount, comp.FeeDiscount, damageAmount, damageNote, comp.DepositCharge, total).Scan(&invID); err != nil {
 			serverErr(c)
 			return
 		}

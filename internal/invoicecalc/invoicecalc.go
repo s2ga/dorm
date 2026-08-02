@@ -323,18 +323,19 @@ func RecalcInvoice(ctx context.Context, database *db.DB, studentID int, month st
 
 	// Học viên (các field billing cần)
 	var (
-		sID         int
-		rentalType  *string
-		ci, co      pgtype.Date
-		discountPct *float64
-		usesWashing bool
-		usesParking bool
-		roomID      *int
+		sID           int
+		rentalType    *string
+		depositStatus *string
+		ci, co        pgtype.Date
+		discountPct   *float64
+		usesWashing   bool
+		usesParking   bool
+		roomID        *int
 	)
 	var giam billing.GiamPct
 	err = database.Pool.QueryRow(ctx,
-		"SELECT id, rental_type, check_in_date, check_out_date, room_fee_discount_pct, uses_washing, uses_parking, room_id, "+billing.CotSQL+" FROM students WHERE id=$1", studentID).
-		Scan(append([]interface{}{&sID, &rentalType, &ci, &co, &discountPct, &usesWashing, &usesParking, &roomID}, giam.Ptr()...)...)
+		"SELECT id, rental_type, deposit_status, check_in_date, check_out_date, room_fee_discount_pct, uses_washing, uses_parking, room_id, "+billing.CotSQL+" FROM students WHERE id=$1", studentID).
+		Scan(append([]interface{}{&sID, &rentalType, &depositStatus, &ci, &co, &discountPct, &usesWashing, &usesParking, &roomID}, giam.Ptr()...)...)
 	if err != nil {
 		return nil, nil // không có HV -> null (server/invoice-calc.js:81)
 	}
@@ -396,8 +397,12 @@ func RecalcInvoice(ctx context.Context, database *db.DB, studentID int, month st
 	if discountPct != nil {
 		pct = *discountPct
 	}
+	dep := ""
+	if depositStatus != nil {
+		dep = *depositStatus
+	}
 	hv := billing.Student{
-		ID: sID, RentalType: rt, CheckInDate: dateStr(ci), CheckOutDate: dateStr(co),
+		ID: sID, RentalType: rt, DepositStatus: dep, CheckInDate: dateStr(ci), CheckOutDate: dateStr(co),
 		RoomFeeDiscountPct: pct, UsesWashing: usesWashing, UsesParking: usesParking,
 	}
 	giam.GanVao(&hv)
@@ -416,17 +421,18 @@ func RecalcInvoice(ctx context.Context, database *db.DB, studentID int, month st
 		"room_charge": float64(c.RoomCharge), "electric_charge": float64(c.ElectricCharge),
 		"water_charge": float64(c.WaterCharge), "service_charge": float64(c.ServiceCharge),
 		"washing_charge": float64(c.WashingCharge), "parking_charge": float64(c.ParkingCharge),
-		"other_charge": other, "leader_discount": float64(c.LeaderDiscount), "room_discount": float64(c.RoomDiscount),
+		"other_charge": other, "deposit_charge": float64(c.DepositCharge),
+		"leader_discount": float64(c.LeaderDiscount), "room_discount": float64(c.RoomDiscount),
 		"fee_discount": float64(c.FeeDiscount),
 	})
 
 	updRows, err := database.Pool.Query(ctx,
 		`UPDATE invoices SET days_stayed=$1, room_charge=$2, electric_kwh=$3, electric_charge=$4, water_charge=$5,
 		   service_charge=$6, washing_charge=$7, parking_charge=$8, leader_discount=$9, room_discount=$10,
-		   fee_discount=$11, total=$12
-		 WHERE id=$13 RETURNING *`,
+		   fee_discount=$11, deposit_charge=$12, total=$13
+		 WHERE id=$14 RETURNING *`,
 		c.DaysStayed, c.RoomCharge, c.ElectricKwh, c.ElectricCharge, c.WaterCharge, c.ServiceCharge, c.WashingCharge,
-		c.ParkingCharge, c.LeaderDiscount, c.RoomDiscount, c.FeeDiscount, total, icInt(inv["id"]))
+		c.ParkingCharge, c.LeaderDiscount, c.RoomDiscount, c.FeeDiscount, c.DepositCharge, total, icInt(inv["id"]))
 	if err != nil {
 		return nil, err
 	}

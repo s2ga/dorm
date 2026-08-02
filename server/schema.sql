@@ -478,6 +478,9 @@ ALTER TABLE students ADD COLUMN IF NOT EXISTS lock_reason TEXT NOT NULL DEFAULT 
 ALTER TABLE students ADD COLUMN IF NOT EXISTS contract_scan TEXT;
 -- Tổng phần giảm của các khoản ngoài tiền phòng, ghi riêng một dòng trên phiếu.
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS fee_discount NUMERIC(12,0) NOT NULL DEFAULT 0;
+-- Tiền cọc thu kèm phiếu KỲ NHẬN PHÒNG, khi hồ sơ còn ghi chưa đóng. Khoản một lần, không chia
+-- theo ngày ở và không nhận giảm %.
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS deposit_charge NUMERIC(12,0) NOT NULL DEFAULT 0;
 
 DO $ktx$
 DECLARE
@@ -557,6 +560,10 @@ BEGIN
         AND washing_charge >= 0 AND parking_charge >= 0 AND other_charge >= 0
         AND leader_discount >= 0 AND room_discount >= 0 AND fee_discount >= 0
         AND electric_kwh >= 0 AND days_stayed >= 0 AND total >= 0)$q$),
+    -- Cột thêm sau nên đứng RIÊNG: ck_invoices_no_negative ở trên đã tồn tại trên CSDL cũ, sửa lại
+    -- định nghĩa của nó chỉ ném duplicate_object rồi bị bỏ qua.
+    ('ck_invoices_deposit_no_negative',
+     $q$ALTER TABLE invoices ADD CONSTRAINT ck_invoices_deposit_no_negative CHECK (deposit_charge >= 0)$q$),
     -- Kỳ phải đúng dạng YYYY-MM. Kỳ "xyz" lọt vào là mọi báo cáo doanh thu lệch.
     ('ck_invoices_month',
      $q$ALTER TABLE invoices ADD CONSTRAINT ck_invoices_month
