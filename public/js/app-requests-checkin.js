@@ -252,8 +252,9 @@ function approveForm(id) {
         <div class="hint" style="margin:10px 0 0">${IC.info} Xếp phòng xong <strong>chưa có nghĩa là đã ký HĐ</strong>. Chưa ký thì để <strong>“${esc(CONTRACT_LABEL.unsigned)}”</strong> và bỏ trống Số HĐ · Ngày ký — hồ sơ sẽ hiện <strong>số dự kiến</strong> cho tới khi ký thật.</div>
       </div>
       <div style="background:var(--bg2);padding:12px;border-radius:10px;margin-bottom:12px">
-        <label class="check"><input type="checkbox" id="ap_dep" checked data-change="onApDepToggle"> ${IC.lock} Đã đóng cọc</label>
-        <div class="field" style="margin:10px 0 0"><label>Số tiền cọc</label><input id="ap_depamt" type="number" min="0" value="${esc(ST.settings.deposit_fee)}"></div>
+        <label class="check"><input type="checkbox" id="ap_dep" data-change="onApDepToggle"> ${IC.lock} Đã đóng cọc</label>
+        <div class="field" style="margin:10px 0 0"><label>Số tiền cọc</label><input id="ap_depamt" type="number" min="0" value="${esc(ST.settings.deposit_fee)}" disabled></div>
+        <div class="hint" style="margin:10px 0 0">${IC.info} Chỉ tick khi <strong>đã thật sự nhận tiền</strong>. Chưa thu thì để trống — hồ sơ ghi <strong>chưa đóng cọc</strong>, thu sau vẫn ghi nhận được ở màn hồ sơ.</div>
       </div>
       <label class="check" style="margin-top:8px"><input type="checkbox" id="ap_login" checked data-change="onApLoginToggle"> ${IC.key} Tạo tài khoản đăng nhập cho học viên</label>
       <div id="apLogin" style="background:var(--bg2);padding:12px;border-radius:10px;margin-top:8px">
