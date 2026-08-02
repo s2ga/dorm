@@ -355,7 +355,7 @@ func (h *Handlers) UnlockUser(c *gin.Context) {
 func (h *Handlers) AdminStudentAccounts(c *gin.Context) {
 	rows, err := h.pool().Query(c.Request.Context(),
 		`SELECT u.id, u.username, u.full_name, u.email, u.auth_provider, u.must_change_password,
-		        u.student_id, s.name AS student_name, s.code AS student_code, s.status AS student_status,
+		        u.student_id, s.name AS student_name, s.code AS student_code, s.gender AS student_gender, s.status AS student_status,
 		        r.name AS room_name, (s.deleted_at IS NOT NULL) AS student_deleted
 		   FROM users u
 		   JOIN students s ON s.id = u.student_id

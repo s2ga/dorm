@@ -19,6 +19,9 @@ function deltaTag(cur, prev) {
   const up = d > 0;
   return `<span style="color:${up ? 'var(--red-ink)' : 'var(--green-ink)'};font-weight:600">${up ? '▲' : '▼'} ${Math.abs(d)} kWh</span>`;
 }
+// Pháp nhân của phiếu lấy theo giới tính NGƯỜI, không theo giới tính phòng (HV có thể ở phòng khác giới).
+// student_gender do API trả; studentById chỉ là đường lùi vì HV đã khoá không có trong ST.students.
+const invLegalEntity = i => legalEntityCell(i.student_gender || (studentById(i.student_id) || {}).gender);
 let _invAll = [];   // hoa don thang hien hanh — de phieuBao/invoiceForm/exportCSV tu lay lai theo id (khong nhoi object vao data-args)
 async function viewInvoices() {
   el('topActions').innerHTML = `<button class="btn" data-act="electricForm">${IC.zap} Chỉ số điện</button><button class="btn" data-act="oneInvoiceForm">${IC.plus} HĐ cho 1 HV</button><button class="btn pri" data-act="generateForm">${IC.receipt} Tạo hóa đơn theo tháng</button>`;
@@ -90,14 +93,15 @@ async function viewInvoices() {
         <button class="btn sm ghost" data-act="toggleThanhVienNP">${invHienThanhVienNP ? 'Ẩn đi' : 'Hiện ra'}</button></div>` : ''}
       <div class="table-wrap card-tbl">
       ${all.length === 0 ? `<div class="empty">Chưa có hóa đơn nào cho kỳ này.<br><br><button class="btn pri" data-act="generateForm">${IC.receipt} Tạo hóa đơn</button></div>` :
-      list.length ? `<table><thead><tr><th>Học viên</th><th>Phòng</th><th class="num">Ngày ở</th><th class="num">Tiền phòng</th><th class="num">Điện</th><th class="num">Nước</th><th class="num">DV</th><th class="num">Giặt</th><th class="num">Xe</th><th class="num">Giảm</th><th class="num">Tổng</th><th></th></tr></thead><tbody>
-        ${list.map(i => `<tr class="${laNguyenPhong(i) && +i.total ? 'inv-np' : ''}" data-s="${esc(((i.student_name || '') + ' ' + (i.student_code || '') + ' ' + (i.room_name || '')).toLowerCase())}">
+      list.length ? `<table><thead><tr><th>Học viên</th><th>Phòng</th><th>Mã pháp nhân</th><th class="num">Ngày ở</th><th class="num">Tiền phòng</th><th class="num">Điện</th><th class="num">Nước</th><th class="num">DV</th><th class="num">Giặt</th><th class="num">Xe</th><th class="num">Giảm</th><th class="num">Tổng</th><th></th></tr></thead><tbody>
+        ${list.map(i => `<tr class="${laNguyenPhong(i) && +i.total ? 'inv-np' : ''}" data-s="${esc(((i.student_name || '') + ' ' + (i.student_code || '') + ' ' + (i.room_name || '') + ' ' + invLegalEntity(i)).toLowerCase())}">
           <td><div class="flex stu-name" data-act="studentDetail" data-args='[${i.student_id}]' role="button" tabindex="0" title="Xem chi tiết học viên">
             <div><strong>${esc(i.student_name)}</strong>${i.student_code ? `<div class="sub2">${esc(i.student_code)}</div>` : ''}</div>
             <span class="row-chev">${IC.chevronRight}</span></div></td>
           <td data-label="Phòng">${i.room_id
             ? `<div class="flex stu-name" data-act="roomDetail" data-args='[${i.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng"><div><strong>${esc(i.room_name || '—')}</strong>${laNguyenPhong(i) ? `<div class="sub2"><span class="badge amber">${IC.home} Nguyên phòng</span></div>` : ''}</div><span class="row-chev">${IC.chevronRight}</span></div>`
             : esc(i.room_name || '—')}</td>
+          <td data-label="Mã pháp nhân">${invLegalEntity(i)}</td>
           <td class="num" data-label="Ngày ở">${i.days_stayed}</td>
           <td class="num" data-label="Tiền phòng">${moneyN(i.room_charge)}</td>
           <td class="num" data-label="Điện">${moneyN(i.electric_charge)}<div class="muted" style="font-size:10px">${i.electric_kwh || 0} kWh</div></td>
@@ -115,10 +119,11 @@ async function viewInvoices() {
             <button class="btn sm ghost" data-act="invoiceForm" data-args='[${i.id}]'>${IC.pencil}</button>
             <button class="btn sm ghost" data-act="delInvoice" data-args='[${i.id}]'>${IC.trash}</button>
           </div></td></tr>`).join('')}
-        <tr class="no-result" style="display:none"><td colspan="12"><div class="empty">Không tìm thấy hóa đơn phù hợp.</div></td></tr>
+        <tr class="no-result" style="display:none"><td colspan="13"><div class="empty">Không tìm thấy hóa đơn phù hợp.</div></td></tr>
       </tbody><tfoot><tr class="tot-row">
         <td><strong>TỔNG</strong></td>
         <td data-label="Phòng" class="muted">${list.length} phiếu</td>
+        <td></td>
         <td class="num"></td>
         <td class="num" data-label="Tiền phòng"><strong>${moneyN(sumK(list, 'room_charge'))}</strong></td>
         <td class="num" data-label="Điện"><strong>${moneyN(sumK(list, 'electric_charge'))}</strong></td>
@@ -335,6 +340,7 @@ function chotGiuaKyHTML(month, reads) {
       <td><div class="flex stu-name" data-act="roomDetail" data-args='[${m.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng — ai đang ở"><div><strong>${esc(m.room_name)}</strong></div><span class="row-chev" aria-hidden="true">${IC.chevronRight}</span></div></td>
       <td>${fmtDate(m.to_date)}${m.la_chuyen_phong ? ' <span class="muted">(chuyển phòng — đọc ngày ' + fmtDate(ngay) + ')</span>' : ''}</td>
       <td>${m.student_id ? `<span class="stu-name" data-act="studentDetail" data-args='[${m.student_id}]' role="button" tabindex="0" title="Xem chi tiết học viên"><strong>${esc(m.student_name || '—')}</strong></span>` : esc(m.student_name || '—')}</td>
+      <td>${legalEntityCell(m.student_gender)}</td>
       <td class="num"><input type="number" min="0" step="0.1" id="mr_${i}" data-mrkey="${khoa}" data-mrten="${esc((m.room_name || '') + ' · ' + fmtDate(ngay))}" placeholder="Số trên đồng hồ" style="width:110px;text-align:right"></td>
       <td><button class="btn sm pri" data-act="luuChotGiuaKy" data-args='[${i},${m.room_id},"${ngay}",${m.student_id || 0}]'>Lưu</button></td>
     </tr>`;
@@ -344,6 +350,7 @@ function chotGiuaKyHTML(month, reads) {
       <td><div class="flex stu-name" data-act="roomDetail" data-args='[${r.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng — ai đang ở"><div><strong>${esc(r.room_name)}</strong></div><span class="row-chev" aria-hidden="true">${IC.chevronRight}</span></div></td>
       <td>${fmtDate(r.read_date)}</td>
       <td>${r.student_id ? `<span class="stu-name" data-act="studentDetail" data-args='[${r.student_id}]' role="button" tabindex="0" title="Xem chi tiết học viên"><strong>${esc(r.student_name || '—')}</strong></span>` : esc(r.student_name || '—')}</td>
+      <td>${legalEntityCell(r.student_gender)}</td>
       <td class="num">${esc(String(r.reading))}</td>
       <td><button class="btn sm" data-act="xoaChotGiuaKy" data-args='[${r.id}]' title="Gỡ lần chốt ghi nhầm">${IC.trash} Gỡ</button></td>
     </tr>`).join('');
@@ -351,8 +358,8 @@ function chotGiuaKyHTML(month, reads) {
     <h4 style="margin:18px 0 6px">Chốt giữa kỳ — chỉ số hôm học viên rời phòng</h4>
     ${thieu.length ? `<div class="bang-tin">${IC.alert} <strong>${thieu.length} lượt rời phòng CHƯA có chỉ số.</strong> Không nhập thì phần điện của người rời đổ sang người ở lại, và phòng bị bỏ qua khi tạo hóa đơn kỳ sau.</div>` : ''}
     <div class="table-wrap" id="chot_cuon" style="max-height:300px;overflow:auto"><table>
-      <thead><tr><th>Phòng</th><th>Ngày</th><th>Học viên rời</th><th class="num">Chỉ số</th><th></th></tr></thead>
-      <tbody>${dongThieu}${dongDaCo || ''}${!thieu.length && !daCo.length ? '<tr><td colspan="5" class="muted">Kỳ này không có lượt rời/chuyển phòng nào.</td></tr>' : ''}</tbody>
+      <thead><tr><th>Phòng</th><th>Ngày</th><th>Học viên rời</th><th>Mã pháp nhân</th><th class="num">Chỉ số</th><th></th></tr></thead>
+      <tbody>${dongThieu}${dongDaCo || ''}${!thieu.length && !daCo.length ? '<tr><td colspan="6" class="muted">Kỳ này không có lượt rời/chuyển phòng nào.</td></tr>' : ''}</tbody>
     </table></div>
     ${thieu.length > 1 ? `<div style="margin-top:8px;text-align:right"><button class="btn pri" data-act="luuTatCaChotGiuaKy">${IC.check} Lưu tất cả ô đã nhập</button></div>` : ''}`;
 }
@@ -671,8 +678,8 @@ function csvCell(c) {
 function exportCSV() {
   const rows = _invAll.filter(i => invFilter === 'paid' ? i.status === 'paid' : invFilter === 'unpaid' ? i.status !== 'paid' : true); // dung danh sach dang loc (nhu luc render)
   // Thứ tự cột phải khớp mảng data bên dưới.
-  const head = ['Ho ten', 'Ma HV', 'Phong', 'Ky', 'So ngay o', 'Tien phong', 'Dien (kWh)', 'Tien dien', 'Nuoc', 'Dich vu', 'May giat', 'Gui xe', 'Khac', 'Giam tien phong', 'Giam khoan khac', 'Giam phong truong', 'Tong'];
-  const data = rows.map(i => [i.student_name, i.student_code || '', i.room_name || '', i.month, i.days_stayed, i.room_charge, i.electric_kwh, i.electric_charge, i.water_charge, i.service_charge, i.washing_charge, i.parking_charge, i.other_charge, i.room_discount || 0, i.fee_discount || 0, i.leader_discount || 0, i.total]);
+  const head = ['Ho ten', 'Ma HV', 'Phong', 'Ma phap nhan', 'Ky', 'So ngay o', 'Tien phong', 'Dien (kWh)', 'Tien dien', 'Nuoc', 'Dich vu', 'May giat', 'Gui xe', 'Khac', 'Giam tien phong', 'Giam khoan khac', 'Giam phong truong', 'Tong'];
+  const data = rows.map(i => [i.student_name, i.student_code || '', i.room_name || '', invLegalEntity(i), i.month, i.days_stayed, i.room_charge, i.electric_kwh, i.electric_charge, i.water_charge, i.service_charge, i.washing_charge, i.parking_charge, i.other_charge, i.room_discount || 0, i.fee_discount || 0, i.leader_discount || 0, i.total]);
   const csv = '﻿' + [head, ...data].map(r => r.map(csvCell).join(',')).join('\r\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
@@ -941,8 +948,8 @@ function viewSettings() {
     <div class="panel" id="stuAccPanel"><div class="hd"><h2>${IC.users} Tài khoản học viên (<span id="stuAccCount">…</span>)</h2>
       <div class="search"><span class="i">${IC.search}</span><input id="stuAccSearch" placeholder="Tìm tên, mã HV, tên đăng nhập, phòng..."></div>
     </div>
-      <div class="table-wrap"><table><thead><tr><th>Tên đăng nhập</th><th>Học viên</th><th>Phòng</th><th>Trạng thái</th><th></th></tr></thead>
-        <tbody id="stuAccRows"><tr><td colspan="5"><div class="spinner"></div></td></tr></tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>Tên đăng nhập</th><th>Học viên</th><th>Phòng</th><th>Mã pháp nhân</th><th>Trạng thái</th><th></th></tr></thead>
+        <tbody id="stuAccRows"><tr><td colspan="6"><div class="spinner"></div></td></tr></tbody></table></div>
       <div class="pad muted" style="font-size:12.5px">${IC.bulb} Học viên cũng là người dùng đăng nhập được. Ở đây chỉ <strong>đặt lại mật khẩu</strong> và
         <strong>thu hồi phiên</strong> (đá mọi thiết bị đang đăng nhập). <strong>Tạo</strong> tài khoản làm ở
         <a href="#" data-act="adminGo" data-args='["students"]'>hồ sơ học viên</a>; đổi vai / xoá không cho phép từ đây để không nâng nhầm quyền.</div>
@@ -1227,13 +1234,13 @@ async function loadStudentAccounts() {
   const box = el('stuAccRows'); if (!box) return;
   let list = [];
   try { list = await API.studentAccounts(); }
-  catch (e) { box.innerHTML = `<tr><td colspan="5" class="muted">${esc(e.message)}</td></tr>`; return; }
+  catch (e) { box.innerHTML = `<tr><td colspan="6" class="muted">${esc(e.message)}</td></tr>`; return; }
   window._stuAccCache = list;
   const cnt = el('stuAccCount'); if (cnt) cnt.textContent = list.length;
   box.innerHTML = list.map(u => {
     const dsxoa = u.student_deleted;
     const dangO = u.student_status === 'in';
-    const ds = esc(`${u.username} ${u.student_name || ''} ${u.student_code || ''} ${u.room_name || ''}`.toLowerCase());
+    const ds = esc(`${u.username} ${u.student_name || ''} ${u.student_code || ''} ${u.room_name || ''} ${legalEntityCell(u.student_gender)}`.toLowerCase());
     return `<tr data-s="${ds}">
       <td><strong>${esc(u.username)}</strong>
         ${u.auth_provider && u.auth_provider !== 'local' ? `<span class="badge blue" style="font-size:10px" title="Đã liên kết Microsoft">Microsoft</span>` : ''}
@@ -1241,6 +1248,7 @@ async function loadStudentAccounts() {
         ${u.email ? `<div class="muted" style="font-size:11px">${esc(u.email)}</div>` : ''}</td>
       <td>${u.student_id ? `<div class="flex stu-name" data-act="studentDetail" data-args='[${u.student_id}]' role="button" tabindex="0" title="Xem chi tiết học viên"><div><strong>${esc(u.student_name || u.full_name || '—')}</strong>${u.student_code ? `<div class="muted" style="font-size:11px">${esc(u.student_code)}</div>` : ''}</div><span class="row-chev" aria-hidden="true">${IC.chevronRight}</span></div>` : `${esc(u.student_name || u.full_name || '—')}${u.student_code ? `<div class="muted" style="font-size:11px">${esc(u.student_code)}</div>` : ''}`}</td>
       <td>${esc(u.room_name || '—')}</td>
+      <td>${legalEntityCell(u.student_gender)}</td>
       <td>${dsxoa ? '<span class="badge red" title="Hồ sơ học viên đã xoá nhưng tài khoản vẫn đăng nhập được">Hồ sơ đã xoá</span>'
         : dangO ? '<span class="badge green">Đang ở</span>' : '<span class="badge gray">Đã trả phòng</span>'}</td>
       <td class="num"><div class="rowbtns" style="justify-content:flex-end">
@@ -1249,7 +1257,7 @@ async function loadStudentAccounts() {
         ${u.student_id ? `<button class="btn sm" data-act="studentDetail" data-args='[${u.student_id}]'>Hồ sơ</button>` : ''}
       </div></td>
     </tr>`;
-  }).join('') || '<tr><td colspan="5" class="muted">Chưa có học viên nào có tài khoản đăng nhập.</td></tr>';
+  }).join('') || '<tr><td colspan="6" class="muted">Chưa có học viên nào có tài khoản đăng nhập.</td></tr>';
   const sb = el('stuAccSearch'); if (sb) attachRowSearch(sb, 'stuAccCount');
 }
 function stuAccPwForm(id) {

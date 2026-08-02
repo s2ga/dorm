@@ -38,8 +38,8 @@ async function viewServices() {
     const vs = el('vs'); if (vs) { vs.addEventListener('input', () => { vehSearch = vs.value; syncFilterUrl(); }); attachRowSearch(vs, 'vehCount'); }
   } else {
     el('svcBody').innerHTML = `<div class="panel"><div class="hd"><h2>${IC.washer} Máy giặt</h2><button class="btn sm pri" data-act="addWashingForm">${IC.plus} Thêm HV dùng máy giặt</button></div>
-      <div class="table-wrap">${washUsers.length ? `<table><thead><tr><th>Học viên</th><th>Phòng</th><th></th></tr></thead><tbody>
-        ${washUsers.map(s => `<tr><td><a href="#" data-act="studentDetail" data-args='[${s.id}]'><strong>${esc(s.name)}</strong></a>${s.code ? `<div class="muted" style="font-size:11px">${esc(s.code)}</div>` : ''}</td><td>${s.room_id ? `<a href="#" data-act="roomDetail" data-args='[${s.room_id}]'>${esc(s.room_name || '—')}</a>` : esc(s.room_name || '—')}</td><td class="num"><button class="btn sm ghost" data-act="toggleWashing" data-args='[${s.id}, false]'>${IC.trash} Ngưng</button></td></tr>`).join('')}
+      <div class="table-wrap">${washUsers.length ? `<table><thead><tr><th>Học viên</th><th>Phòng</th><th>Mã pháp nhân</th><th></th></tr></thead><tbody>
+        ${washUsers.map(s => `<tr><td><a href="#" data-act="studentDetail" data-args='[${s.id}]'><strong>${esc(s.name)}</strong></a>${s.code ? `<div class="muted" style="font-size:11px">${esc(s.code)}</div>` : ''}</td><td>${s.room_id ? `<a href="#" data-act="roomDetail" data-args='[${s.room_id}]'>${esc(s.room_name || '—')}</a>` : esc(s.room_name || '—')}</td><td>${legalEntityCell(s.gender)}</td><td class="num"><button class="btn sm ghost" data-act="toggleWashing" data-args='[${s.id}, false]'>${IC.trash} Ngưng</button></td></tr>`).join('')}
       </tbody></table>` : '<div class="empty">Chưa có HV đăng ký máy giặt. Bấm "Thêm HV dùng máy giặt".</div>'}</div></div>`;
   }
   syncFilterUrl(); // BL-17: tab dịch vụ (washing/parking) + tìm xe lên URL

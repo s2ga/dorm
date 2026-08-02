@@ -22,8 +22,8 @@ async function viewRooms() {
             xoá là không tự nói ra được, nên giữ đúng câu đó. */''}
       ${del || !list.length ? '' : `<div class="hint only-touch" style="margin:12px 12px 0">${IC.info}<span><strong>Giữ</strong> hoặc <strong>kéo ngang</strong> một hàng để xoá phòng.</span></div>`}
     <div class="table-wrap card-tbl">
-      ${list.length ? `<table><thead><tr><th>Phòng</th><th>Loại</th><th class="num">Đang ở</th><th>${IC.star} Phòng trưởng</th><th class="num">Giá thuê</th><th></th></tr></thead><tbody>
-      ${list.map(r => { const full = r.occupancy >= r.capacity && r.capacity > 0; return `<tr data-s="${esc((r.name + ' ' + genderLabel(r.gender) + ' tầng' + r.floor + ' hạng' + (r.hang || 'b')).toLowerCase())}"${del ? ''
+      ${list.length ? `<table><thead><tr><th>Phòng</th><th>Loại</th><th>Mã pháp nhân</th><th class="num">Đang ở</th><th>${IC.star} Phòng trưởng</th><th class="num">Giá thuê</th><th></th></tr></thead><tbody>
+      ${list.map(r => { const full = r.occupancy >= r.capacity && r.capacity > 0; return `<tr data-s="${esc((r.name + ' ' + genderLabel(r.gender) + ' ' + legalEntityCell(r.gender) + ' tầng' + r.floor + ' hạng' + (r.hang || 'b')).toLowerCase())}"${del ? ''
         // Cả hàng bấm được. KHÔNG đặt role="button" lên <tr>: role đó lược hết <td> con với trình đọc
         // màn hình; bàn phím đi bằng .stu-name bên dưới. data-del/data-delid: cử chỉ giữ/kéo để xoá trên
         // điện thoại (app-actions.js), ở đó nút thùng rác bị ẩn.
@@ -34,6 +34,7 @@ async function viewRooms() {
           <div class="sub2">Tầng ${r.floor || '—'}</div>${r.note ? `<div class="sub2" style="white-space:pre-wrap;margin-top:3px">${esc(r.note)}</div>` : ''}</div>
           ${del ? '' : `<span class="row-chev" aria-hidden="true">${IC.chevronRight}</span>`}</div></td>
         <td class="ct-gon" data-label="Loại"><span>${r.gender === 'female' ? '<span class="badge sage">Nữ</span>' : '<span class="badge blue">Nam</span>'} <span class="badge gray">Hạng ${esc(r.hang || 'B')}</span> ${roomTypeBadge(r)}</span></td>
+        <td class="ct-gon" data-label="Mã pháp nhân">${legalEntityCell(r.gender)}</td>
         <td class="num ct-gon" data-label="Đang ở">${roomIsShared(r) ? `<span class="badge ${full ? 'amber' : r.occupancy ? 'green' : 'gray'}">${r.occupancy}/${r.capacity || 0}</span>` : `<span class="badge gray">${r.occupancy} người</span>`}</td>
         ${/* data-trong: ô rỗng thì ở chế độ thẻ (điện thoại) ẩn hẳn dòng — "PHÒNG TRƯỞNG —" không
               đáng chiếm một dòng, không hiện tức là chưa cử. Máy tính vẫn giữ cột cho thẳng hàng. */''}
@@ -47,7 +48,7 @@ async function viewRooms() {
                 // Nút xoá còn lại chỉ hiện trên máy tính (.row-del ẩn ở ≤620px); điện thoại dùng cử chỉ.
                 : `<button class="btn sm ghost row-del" title="Xoá phòng" data-act="delRoom" data-args='[${r.id}]'>${IC.trash}</button>`}
         </div></td></tr>`; }).join('')}
-      <tr class="no-result" style="display:none"><td colspan="6"><div class="empty">Không tìm thấy phòng phù hợp.</div></td></tr>
+      <tr class="no-result" style="display:none"><td colspan="7"><div class="empty">Không tìm thấy phòng phù hợp.</div></td></tr>
       </tbody></table>` : `<div class="empty">${del ? 'Không có phòng đã xóa.' : `Chưa có phòng nào. Bấm <strong>${IC.plus} Thêm phòng</strong>.`}</div>`}
     </div></div>`;
   const rs = el('rs'); if (rs) { rs.addEventListener('input', () => roomSearch = rs.value); attachRowSearch(rs, 'roomCount'); }
@@ -291,7 +292,7 @@ function viewStudents() {
   const sTh = (key, label, cls, attrs) => `<th class="sortable${cls ? ' ' + cls : ''}${stuSort.key === key ? (stuSort.dir === 1 ? ' asc' : ' desc') : ''}" data-sort="${key}"${attrs ? ' ' + attrs : ''}>${label}<span class="sort-ar">${stuSort.key === key ? (stuSort.dir === 1 ? '▲' : '▼') : ''}</span></th>`;
   const xcOf = s => s.expected_departure || (DEPARTURE_REASONS.includes(s.checkout_reason) && s.check_out_date ? s.check_out_date : '');
   const hasXC = list.some(xcOf); // không ai có ngày dự kiến xuất cảnh -> ẩn cột cho đỡ rỗng
-  const nCols = hasXC ? 7 : 6;
+  const nCols = hasXC ? 8 : 7;
   el('content').innerHTML = `
     ${stuFilter !== 'all' ? `<div class="pill-row" style="align-items:center">
       <span class="muted" style="font-size:13px">Đang lọc:</span>
@@ -305,10 +306,10 @@ function viewStudents() {
             chúng nằm chung một dòng (.ct-gon) thay vì mỗi thứ một dòng — thẻ thấp đi, xem được nhiều
             người hơn trong một màn. Trên máy tính thì đây cũng là thứ tự dễ đọc hơn: ở phòng nào và
             đang ở hay đã trả là hai câu hỏi đi liền nhau. */''}
-      ${list.length ? `<table><thead><tr>${sTh('name', 'Học viên')}${sTh('room', 'Phòng', '', 'data-filt="list"')}${sTh('status', 'Trạng thái')}${sTh('contract', 'Hợp đồng')}${sTh('deposit', 'Cọc')}${hasXC ? '<th>Dự kiến XC</th>' : ''}<th></th></tr></thead><tbody>
+      ${list.length ? `<table><thead><tr>${sTh('name', 'Học viên')}${sTh('room', 'Phòng', '', 'data-filt="list"')}${sTh('status', 'Trạng thái')}<th>Mã pháp nhân</th>${sTh('contract', 'Hợp đồng')}${sTh('deposit', 'Cọc')}${hasXC ? '<th>Dự kiến XC</th>' : ''}<th></th></tr></thead><tbody>
       ${list.map(s => {
         const flags = `${isOccupying(s) && s.residency_status !== 'registered' ? `<span title="Chưa đăng ký tạm trú"> ${IC.flag}</span>` : ''}${s.uses_washing ? `<span title="Máy giặt"> ${IC.washer}</span>` : ''}${s.vehicle_count ? `<span title="Xe gửi"> ${IC.bike}${s.vehicle_count}</span>` : ''}${s.violation_count ? `<span title="Vi phạm ${s.violation_count} lần" style="color:${s.violation_count >= vthr ? 'var(--red-ink)' : 'var(--amber-ink)'}"> ${IC.alert}${s.violation_count}</span>` : ''}`;
-        const ds = esc((s.name + ' ' + (s.code || '') + ' ' + (s.phone || '') + ' ' + (s.class_name || '') + ' ' + (s.room_name || '')).toLowerCase());
+        const ds = esc((s.name + ' ' + (s.code || '') + ' ' + (s.phone || '') + ' ' + (s.class_name || '') + ' ' + (s.room_name || '') + ' ' + legalEntityCell(s.gender)).toLowerCase());
         return `<tr data-s="${ds}">
         <td><div class="flex stu-name" data-act="studentDetail" data-args='[${s.id}]' role="button" tabindex="0" title="Xem chi tiết học viên"><span class="avatar">${esc(initials(s.name))}</span><div>
           <strong>${esc(s.name)}</strong> <span class="badge ${s.gender === 'female' ? 'sage' : 'blue'}">${genderLabel(s.gender)}</span>${s.login_username ? ` <span title="Có tài khoản">${IC.key}</span>` : ''}
@@ -316,6 +317,7 @@ function viewStudents() {
         </div><span class="row-chev" aria-hidden="true">${IC.chevronRight}</span></div></td>
         <td class="ct-gon" data-label="Phòng">${s.room_name ? `<span class="hd-ref" data-act="roomDetail" data-args='[${s.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng — ai đang ở"><strong>${esc(s.room_name)}</strong></span>` : `<button class="btn sm" style="white-space:nowrap" title="Xếp phòng cho học viên này" data-act="transferForm" data-args='[${s.id}]'>${IC.transfer} Xếp phòng</button>`}${thueNguyenPhong(s) ? '<div class="sub2">Thuê nguyên phòng</div>' : ''}</td>
         <td class="ct-gon" data-label="Trạng thái">${statusBadge(s)}</td>
+        <td class="ct-gon" data-label="Mã pháp nhân">${legalEntityCell(s.gender)}</td>
         <td data-label="Hợp đồng"><span class="badge ${CONTRACT_BADGE[s.contract_status] || 'gray'}">${CONTRACT_LABEL[s.contract_status] || '—'}</span>${s.contract_no ? `<div class="sub2">${esc(s.contract_no)}</div>` : hdThamChieu(s)}</td>
         <td data-label="Cọc">${depositBadge(s)}${s.deposit_status === 'none' && isOccupying(s) ? ` <button class="btn sm ghost" style="white-space:nowrap" title="Ghi nhận đóng cọc" data-act="depositForm" data-args='[${s.id}]'>＋ Thu cọc</button>` : ''}</td>
         ${hasXC ? `<td class="muted" data-label="Dự kiến XC" style="font-size:12px;white-space:nowrap">${xcOf(s) ? fmtDate(xcOf(s)) : '—'}</td>` : ''}
@@ -883,10 +885,11 @@ async function showDeletedStudents() {
     <div class="mh"><h3>${IC.lock} Học viên đã khoá (${list.length})</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       ${list.length ? `<div class="hint" style="margin-top:0">${IC.info} Bấm vào một dòng để xem <strong>chi tiết hồ sơ</strong> (phòng, hợp đồng, cọc, ngày ở, vi phạm…) rồi mở khoá ngay trong đó.</div>
-      <div class="table-wrap"><table><thead><tr><th>Học viên</th><th>Mã</th><th>Phòng</th><th>Lý do khoá</th><th></th></tr></thead><tbody>
+      <div class="table-wrap"><table><thead><tr><th>Học viên</th><th>Mã</th><th>Phòng</th><th>Mã pháp nhân</th><th>Lý do khoá</th><th></th></tr></thead><tbody>
         ${list.map(s => `<tr style="cursor:pointer" title="Xem chi tiết hồ sơ" data-act="studentDetail" data-args='[${s.id}]'>
           <td><strong>${esc(s.name)}</strong>${s.class_name ? ` <span class="muted">· ${esc(s.class_name)}</span>` : ''}</td>
           <td>${esc(s.code || '—')}</td><td>${s.room_id ? `<span class="hd-ref" data-act="roomDetail" data-args='[${s.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng">${esc(s.room_name || '—')}</span>` : '—'}</td>
+          <td>${legalEntityCell(s.gender)}</td>
           <td>${esc(s.lock_reason || LY_DO_KHOA_TRONG)}</td>
           <td class="num"><div class="rowbtns" style="justify-content:flex-end">
             <button class="btn sm" data-act="studentDetail" data-args='[${s.id}]'>Chi tiết</button>
@@ -997,6 +1000,7 @@ function quyCoc() {
   const pendAmt = pending.reduce((a, s) => a + (+s.deposit_amount || 0), 0);
   const rowFor = s => `<tr>
     <td><span class="hd-ref" data-act="studentDetail" data-args='[${s.id}]' role="button" tabindex="0" title="Xem chi tiết học viên"><strong>${esc(s.name)}</strong></span><div class="sub2">${s.room_id ? `<span class="hd-ref" data-act="roomDetail" data-args='[${s.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng">${esc(s.room_name || '')}</span>` : 'Chưa xếp'} · ${esc(s.code || '')}</div></td>
+    <td>${legalEntityCell(s.gender)}</td>
     <td class="num">${money(s.deposit_amount)}</td>
     <td>${fmtDate(s.deposit_date)}</td>
     <td>${statusBadge(s)}</td>
@@ -1011,9 +1015,9 @@ function quyCoc() {
         <div class="kpi"><span class="ic ic-red">${IC.handCoins}</span><div><div class="v">${pending.length}</div><div class="l">Cần hoàn cọc ${pendAmt ? '(' + money(pendAmt) + ')' : ''}</div></div></div>
       </div>
       ${pending.length ? `<div class="bang-tin" style="background:var(--red-bg);border-color:#fca5a5;color:#b91c1c">${IC.handCoins} <strong>${pending.length} học viên đã trả phòng</strong> đang chờ hoàn cọc — hãy xử lý sớm.</div>
-        <div class="table-wrap" style="margin-bottom:18px"><table><thead><tr><th>Học viên</th><th class="num">Cọc</th><th>Ngày đóng</th><th>Trạng thái</th><th></th></tr></thead><tbody>${pending.map(rowFor).join('')}</tbody></table></div>` : `<div class="hint">${IC.checkCircle} Không có khoản cọc nào chờ hoàn.</div>`}
+        <div class="table-wrap" style="margin-bottom:18px"><table><thead><tr><th>Học viên</th><th>Mã pháp nhân</th><th class="num">Cọc</th><th>Ngày đóng</th><th>Trạng thái</th><th></th></tr></thead><tbody>${pending.map(rowFor).join('')}</tbody></table></div>` : `<div class="hint">${IC.checkCircle} Không có khoản cọc nào chờ hoàn.</div>`}
       <h4 style="margin:6px 0 8px">Đang giữ cọc (${staying.length})</h4>
-      ${staying.length ? `<div class="table-wrap"><table><thead><tr><th>Học viên</th><th class="num">Cọc</th><th>Ngày đóng</th><th>Trạng thái</th><th></th></tr></thead><tbody>${staying.map(rowFor).join('')}</tbody></table></div>` : '<p class="muted">Chưa có.</p>'}
+      ${staying.length ? `<div class="table-wrap"><table><thead><tr><th>Học viên</th><th>Mã pháp nhân</th><th class="num">Cọc</th><th>Ngày đóng</th><th>Trạng thái</th><th></th></tr></thead><tbody>${staying.map(rowFor).join('')}</tbody></table></div>` : '<p class="muted">Chưa có.</p>'}
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Đóng</button></div>`, true);
 }

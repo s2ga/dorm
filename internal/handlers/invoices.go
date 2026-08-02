@@ -31,7 +31,7 @@ var errInvoicePreview = errors.New("invoices: preview rollback")
 
 // invoiceSELECT: câu SELECT chung của GET / (invoices.routes.js:62-66).
 const invoiceSELECT = `
-  SELECT i.*, s.name AS student_name, s.code AS student_code, r.name AS room_name
+  SELECT i.*, s.name AS student_name, s.code AS student_code, s.gender AS student_gender, r.name AS room_name
   FROM invoices i
   JOIN students s ON s.id = i.student_id
   LEFT JOIN rooms r ON r.id = i.room_id`

@@ -35,7 +35,7 @@ func (h *Handlers) ListMeterReads(c *gin.Context) {
 	electricFacilityFilter(c, u, &cond, &params)
 	rows, err := h.pool().Query(ctx,
 		`SELECT m.id, m.room_id, r.name AS room_name, m.read_date, m.reading, m.reason,
-		        m.student_id, s.name AS student_name, m.note, m.created_by
+		        m.student_id, s.name AS student_name, s.gender AS student_gender, m.note, m.created_by
 		   FROM meter_reads m
 		   JOIN rooms r ON r.id = m.room_id AND r.deleted_at IS NULL
 		   LEFT JOIN students s ON s.id = m.student_id
@@ -58,7 +58,7 @@ func (h *Handlers) ListMeterReads(c *gin.Context) {
 	params2 := []interface{}{dau, cuoi}
 	electricFacilityFilter(c, u, &cond2, &params2)
 	rows2, err := h.pool().Query(ctx,
-		`SELECT rs.student_id, s.name AS student_name, s.code, rs.room_id, r.name AS room_name,
+		`SELECT rs.student_id, s.name AS student_name, s.gender AS student_gender, s.code, rs.room_id, r.name AS room_name,
 		        rs.to_date, rs.from_date,
 		        EXISTS (SELECT 1 FROM room_stays n
 		                 WHERE n.student_id = rs.student_id AND n.from_date = rs.to_date + 1) AS la_chuyen_phong,

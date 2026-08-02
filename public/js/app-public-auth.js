@@ -444,6 +444,9 @@ let ST = { view: 'dashboard', rooms: [], students: [], facilities: [], settings:
 const G = { male: 'Nam', female: 'Nữ' };
 const genderLabel = g => G[g] || g;
 const legalEntity = g => g === 'female' ? (ST.settings.legal_female || 'E2') : (ST.settings.legal_male || 'S2');
+// Mã pháp nhân cho cột trong bảng: giới tính rỗng/lạ thì để '—'. legalEntity đổ MỌI giá trị khác
+// 'female' về pháp nhân Nam, dùng thẳng nó cho hàng chưa tra được người là khai khống.
+const legalEntityCell = g => (g === 'female' || g === 'male') ? legalEntity(g) : '—';
 const HANGS = ['A', 'B', 'C', 'D'];
 // Công suất phòng (số giường) theo hạng
 const HANG_CAP = { A: 5, B: 4, C: 4, D: 3 };
