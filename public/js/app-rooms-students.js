@@ -523,11 +523,6 @@ async function suggestContractNo() {
   const r = await guard(() => API.contractNoNext(gender, date));
   if (r && r.contract_no) { el('f_cno').value = r.contract_no; toast('Số HĐ gợi ý: ' + r.contract_no); }
 }
-async function suggestApCno(gender) {
-  const date = (el('ap_cdate') && el('ap_cdate').dataset.iso) || today();
-  const r = await guard(() => API.contractNoNext(gender, date));
-  if (r && r.contract_no) { el('ap_cno').value = r.contract_no; toast('Số HĐ gợi ý: ' + r.contract_no); }
-}
 async function studentDetail(id) {
   const s = await guard(() => API.student(id));
   let invs = [], stays = null;

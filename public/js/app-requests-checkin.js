@@ -238,24 +238,7 @@ function approveForm(id) {
         <div class="field"><label>Xếp phòng</label><select id="ap_room">${roomOptions('', a.gender)}</select></div>
         <div class="field"><label>Ngày vào${a.desired_check_in ? ' <span class="opt">(bạn ấy muốn ' + fmtDate(a.desired_check_in) + ')</span>' : ''}</label><input id="ap_date"></div>
       </div>
-      <div style="background:var(--bg2);padding:12px;border-radius:10px;margin-bottom:12px">
-        <div style="font-weight:600;font-size:13px;margin-bottom:10px">${IC.fileText} Hợp đồng thuê</div>
-        <div class="grid2">
-          <div class="field" style="margin:0 0 12px"><label>Số HĐ <span class="opt">(nhập tay · ⚡ gợi ý số kế tiếp)</span></label>
-            <div class="flex" style="gap:6px"><input id="ap_cno" placeholder="03/2026/HDKTX-${legalEntity(a.gender)}" style="flex:1">
-            <button type="button" class="btn sm" data-act="suggestApCno" data-args='["${a.gender}"]' title="Gợi ý số HĐ kế tiếp (nối tiếp số đã có)">${IC.zap}</button></div></div>
-          <div class="field" style="margin:0 0 12px"><label>Ngày ký HĐ</label><input id="ap_cdate"></div>
-        </div>
-        <div class="field" style="margin:0"><label>Tình trạng HĐ</label><select id="ap_cstatus">
-          ${['unsigned', 'done', 'scanned', 'none', 'handover'].map(k => `<option value="${k}">${CONTRACT_LABEL[k]}</option>`).join('')}
-        </select></div>
-        <div class="hint" style="margin:10px 0 0">${IC.info} Xếp phòng xong <strong>chưa có nghĩa là đã ký HĐ</strong>. Chưa ký thì để <strong>“${esc(CONTRACT_LABEL.unsigned)}”</strong> và bỏ trống Số HĐ · Ngày ký — hồ sơ sẽ hiện <strong>số dự kiến</strong> cho tới khi ký thật.</div>
-      </div>
-      <div style="background:var(--bg2);padding:12px;border-radius:10px;margin-bottom:12px">
-        <label class="check"><input type="checkbox" id="ap_dep" data-change="onApDepToggle"> ${IC.lock} Đã đóng cọc</label>
-        <div class="field" style="margin:10px 0 0"><label>Số tiền cọc</label><input id="ap_depamt" type="number" min="0" value="${esc(ST.settings.deposit_fee)}" disabled></div>
-        <div class="hint" style="margin:10px 0 0">${IC.info} Chỉ tick khi <strong>đã thật sự nhận tiền</strong>. Chưa thu thì để trống — hồ sơ ghi <strong>chưa đóng cọc</strong>, thu sau vẫn ghi nhận được ở màn hồ sơ.</div>
-      </div>
+      <div class="hint">${IC.info} Duyệt đơn chỉ là <strong>xếp chỗ ở</strong>. <strong>Hợp đồng</strong> nhập ở màn hồ sơ học viên khi ký thật; <strong>tiền cọc</strong> tự bật cờ đã đóng khi phiếu thu kỳ nhận phòng được đánh dấu đã thu.</div>
       <label class="check" style="margin-top:8px"><input type="checkbox" id="ap_login" checked data-change="onApLoginToggle"> ${IC.key} Tạo tài khoản đăng nhập cho học viên</label>
       <div id="apLogin" style="background:var(--bg2);padding:12px;border-radius:10px;margin-top:8px">
         <div class="grid2">
@@ -266,13 +249,11 @@ function approveForm(id) {
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="doApprove" data-args='[${a.id}]'>Xác nhận thêm</button></div>`);
   attachDate(el('ap_date'), (a.desired_check_in || '').slice(0, 10) || today());
-  attachDate(el('ap_cdate'), '');   // chưa ký thì không có ngày ký — điền sẵn hôm nay là khai khống
 }
 async function doApprove(id) {
+  // Không gửi hợp đồng/cọc: máy chủ để mặc định "chưa ký HĐ" + "chưa đóng cọc" khi vắng các ô này.
   const body = {
     room_id: el('ap_room').value || null, check_in_date: el('ap_date').dataset.iso,
-    deposit_paid: el('ap_dep').checked, deposit_amount: +el('ap_depamt').value || 0,
-    contract_no: el('ap_cno').value.trim(), contract_date: el('ap_cdate').dataset.iso || null, contract_status: el('ap_cstatus').value,
   };
   if (el('ap_login').checked) { body.create_login = true; body.login_username = el('ap_user').value.trim(); body.login_password = el('ap_pass').value.trim(); }
   const r = await guard(() => withDuplicateGuide(() => withOverloadConfirm(ok => API.approveApplication(id, { ...body, confirm_overload: ok }))));
