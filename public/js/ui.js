@@ -262,8 +262,11 @@ window.addEventListener('beforeunload', e => {
   e.preventDefault(); e.returnValue = '';   // trình duyệt tự hiện hộp "Rời khỏi trang?"
 });
 
-el('overlay').addEventListener('click', e => { if (e.target.id === 'overlay') closeModal(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+// Esc và bấm nền LÙI MỘT LỚP, giống nút × và Back của hệ điều hành. Gọi closeModal ở đây thì
+// huỷ một hộp xác nhận là cuốn theo cả màn phía dưới. modalBack tự đóng hẳn khi chỉ còn một lớp,
+// và vẫn hỏi trước khi bỏ dữ liệu đang nhập dở.
+el('overlay').addEventListener('click', e => { if (e.target.id === 'overlay') modalBack(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') modalBack(); });
 
 // Bọc lời gọi API trong try/catch + toast lỗi
 async function guard(fn) {
