@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 	"golang.org/x/crypto/bcrypt"
 	"ktx/internal/auth"
 	"ktx/internal/db"
@@ -577,6 +578,80 @@ func (h *Handlers) UpdateUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
+type adminTaiKhoanCu struct {
+	ID         int
+	Username   string
+	Role       string
+	SsoSubject string
+	CoMatKhau  bool
+	BiKhoa     bool
+}
+
+// adminGopTaiKhoan: dồn danh tính Microsoft của bản chờ duyệt vào tài khoản SẴN CÓ của hồ sơ.
+// Trả true = đã trả lời client (từ chối hoặc hỏi xác nhận), nơi gọi phải dừng.
+// Vẫn giữ đúng một tài khoản cho một hồ sơ: khoá tài khoản đó là đóng cả hai lối vào.
+func (h *Handlers) adminGopTaiKhoan(c *gin.Context, ctx context.Context, choID int, tenHV string, cu adminTaiKhoanCu, dongY bool) bool {
+	if cu.BiKhoa {
+		badRequest(c, `Hồ sơ "`+tenHV+`" gắn với tài khoản "`+cu.Username+`" đang bị KHOÁ. Mở khoá tài khoản đó trước rồi duyệt lại.`)
+		return true
+	}
+	if cu.Role != "student" {
+		badRequest(c, `Hồ sơ "`+tenHV+`" đang gắn với tài khoản "`+cu.Username+`" vai `+cu.Role+` — không gộp đăng nhập học viên vào tài khoản quản trị/nhân viên.`)
+		return true
+	}
+	var choSubject, choEmail, choTen string
+	if h.pool().QueryRow(ctx,
+		"SELECT COALESCE(sso_subject,''), COALESCE(email,''), COALESCE(full_name,'') FROM users WHERE id=$1", choID).
+		Scan(&choSubject, &choEmail, &choTen) != nil {
+		serverErr(c)
+		return true
+	}
+	if choSubject == "" {
+		badRequest(c, `Hồ sơ "`+tenHV+`" đã có tài khoản "`+cu.Username+`". Tài khoản đang duyệt không phải đăng nhập Microsoft nên không có gì để gộp.`)
+		return true
+	}
+	if cu.SsoSubject != "" && cu.SsoSubject != choSubject {
+		badRequest(c, `Tài khoản "`+cu.Username+`" đã liên kết một tài khoản Microsoft KHÁC. Gỡ liên kết cũ trước, không thể gắn hai danh tính vào một hồ sơ.`)
+		return true
+	}
+	if !dongY {
+		c.JSON(http.StatusConflict, gin.H{
+			"conflict": true, "needs_merge": true,
+			"error": `Hồ sơ "` + tenHV + `" đã có tài khoản "` + cu.Username + `"` +
+				map[bool]string{true: " (đăng nhập bằng mật khẩu)", false: ""}[cu.CoMatKhau] +
+				`. Gộp đăng nhập Microsoft vào tài khoản đó?`,
+			"account": gin.H{"id": cu.ID, "username": cu.Username, "co_mat_khau": cu.CoMatKhau},
+		})
+		return true
+	}
+	// ux_users_sso_subject KHÔNG loại trừ dòng đã xoá -> phải nhả sso_subject ở bản chờ TRƯỚC khi
+	// gắn sang tài khoản kia, nếu không sẽ vỡ khoá duy nhất.
+	err := h.DB.WithTx(ctx, func(tx pgx.Tx) error {
+		if _, e := tx.Exec(ctx,
+			`UPDATE users SET sso_subject=NULL, email=NULL, deleted_at=now(), token_epoch=token_epoch+1 WHERE id=$1`, choID); e != nil {
+			return e
+		}
+		_, e := tx.Exec(ctx,
+			`UPDATE users SET sso_subject=$1,
+			   email = CASE WHEN COALESCE(email,'')='' THEN $2 ELSE email END,
+			   full_name = CASE WHEN COALESCE(full_name,'')='' AND $3<>'' THEN $3 ELSE full_name END,
+			   auth_provider = CASE WHEN password_hash IS NULL THEN 'sso' ELSE 'both' END,
+			   approved = true
+			 WHERE id=$4`, choSubject, choEmail, choTen, cu.ID)
+		return e
+	})
+	if err != nil {
+		serverErr(c)
+		return true
+	}
+	// Vé của bản chờ phải chết ngay, không thì họ còn kẹt ở màn "chờ duyệt" với tài khoản vừa gộp đi.
+	if err := h.Auth.RevokeTokens(ctx, choID); err != nil {
+		serverErr(c)
+		return true
+	}
+	return false
+}
+
 // ApproveUserAsStudent: POST /api/admin/users/:id/approve-student — duyệt tài khoản chờ thành học viên.
 // Duyệt học viên = GHÉP HỒ SƠ chứ không phải gán vai: cổng học viên đọc mọi thứ qua users.student_id,
 // gán vai suông thì đăng nhập vào trống trơn.
@@ -589,7 +664,8 @@ func (h *Handlers) ApproveUserAsStudent(c *gin.Context) {
 		return
 	}
 	var body struct {
-		StudentID  int `json:"student_id"`
+		StudentID  int  `json:"student_id"`
+		Merge      bool `json:"merge"` // đồng ý gộp đăng nhập Microsoft vào tài khoản sẵn có
 		NewStudent *struct {
 			Name      string `json:"name"`
 			Code      string `json:"code"`
@@ -645,11 +721,18 @@ func (h *Handlers) ApproveUserAsStudent(c *gin.Context) {
 			badRequest(c, "Không tìm thấy hồ sơ học viên đã chọn.")
 			return
 		}
-		// Một hồ sơ chỉ một tài khoản — nếu không, thu hồi một cái vẫn còn lối vào kia.
-		var daCo int
+		// Một hồ sơ chỉ một tài khoản — nhưng "một tài khoản" không có nghĩa là một CÁCH đăng nhập.
+		// Người đã có tài khoản mật khẩu rồi đăng nhập Microsoft thì GỘP hai lối vào làm một
+		// (auth_provider='both'), thay vì bắt admin chọn bỏ cái nào.
+		var cu adminTaiKhoanCu
 		if h.pool().QueryRow(ctx,
-			"SELECT 1 FROM users WHERE student_id=$1 AND id<>$2 AND deleted_at IS NULL", studentID, id).Scan(&daCo) == nil {
-			badRequest(c, `Hồ sơ "`+ten+`" đã có tài khoản đăng nhập. Mỗi hồ sơ chỉ một tài khoản.`)
+			`SELECT id, username, role, COALESCE(sso_subject,''), (password_hash IS NOT NULL), (deleted_at IS NOT NULL)
+			   FROM users WHERE student_id=$1 AND id<>$2`, studentID, id).
+			Scan(&cu.ID, &cu.Username, &cu.Role, &cu.SsoSubject, &cu.CoMatKhau, &cu.BiKhoa) == nil {
+			if e := h.adminGopTaiKhoan(c, ctx, id, ten, cu, body.Merge); e {
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"ok": true, "student_id": studentID, "merged_into": cu.ID, "username": cu.Username})
 			return
 		}
 		// Ghi email vào hồ sơ nếu hồ sơ chưa có: lần đăng nhập sau khớp thẳng, khỏi duyệt lại.

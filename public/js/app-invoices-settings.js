@@ -1161,8 +1161,22 @@ async function saveApprove(id) {
     },
   };
   if (!sid && !body.new_student.name) return toast('Nhập họ tên để tạo hồ sơ học viên', 'err');
-  await guard(() => API.approveUserAsStudent(id, body));
-  closeModal(); toast('Đã duyệt — tài khoản học viên');
+  // 409 needs_merge: hồ sơ đã có tài khoản mật khẩu — hỏi rồi gộp hai lối đăng nhập làm một,
+  // thay vì bắt admin chọn bỏ tài khoản nào.
+  let r;
+  try { r = await API.approveUserAsStudent(id, body); }
+  catch (e) {
+    if (!(e.data && e.data.needs_merge)) { toast(e.message || 'Có lỗi xảy ra', 'err'); throw e; }
+    const a = e.data.account || {};
+    if (!confirm(`${e.data.error}\n\n`
+      + `• Sau khi gộp: vẫn CHỈ MỘT tài khoản "${a.username}", đăng nhập được cả bằng Microsoft`
+      + `${a.co_mat_khau ? ' lẫn mật khẩu cũ' : ''}.\n`
+      + `• Khoá tài khoản đó là chặn cả hai lối vào.\n`
+      + `• Bản chờ duyệt này sẽ bị gỡ.`)) return;
+    r = await guard(() => API.approveUserAsStudent(id, { ...body, merge: true }));
+  }
+  closeModal();
+  toast(r && r.merged_into ? `Đã gộp vào tài khoản "${r.username}" — đăng nhập được cả hai cách` : 'Đã duyệt — tài khoản học viên');
   await napLai('students'); // hồ sơ mới -> danh sách học viên phải nạp lại
   loadAdminUsers(); loadStudentAccounts();
 }
