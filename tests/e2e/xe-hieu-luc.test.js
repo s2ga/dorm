@@ -60,12 +60,18 @@ module.exports = {
     t.eq('Có ngày trả phòng → to_date lấy theo ngày trả', d10(e.json.to_date), '2026-07-25',
       `nhận được ${d10(e.json.to_date)}`);
 
-    // ── Gỡ xe không đè lên ngày đã khai ─────────────────────────────────────────────────
-    await t.api('DELETE', `/api/vehicles/${e.json.id}`, T);
-    const sau = (await t.db.query('SELECT to_date FROM vehicles WHERE id=$1', [e.json.id])).rows[0];
-    t.eq('Gỡ xe GIỮ ngày ngừng đã có, không dập thành hôm nay', d10(sau.to_date), '2026-07-25');
-    await t.api('DELETE', `/api/vehicles/${vid}`, T);
-    const sau2 = (await t.db.query('SELECT to_date FROM vehicles WHERE id=$1', [vid])).rows[0];
-    t.ok('Xe đang để ngỏ ngày ngừng → gỡ mới đóng ở hôm nay', !!sau2.to_date, String(sau2.to_date));
+    // ── Xoá là XOÁ HẲN, không để lại dòng vô hình vẫn bị tính tiền ─────────────────────
+    const xoa = await t.api('DELETE', `/api/vehicles/${e.json.id}`, T);
+    t.eq('Xoá xe → 200', xoa.status, 200, `HTTP ${xoa.status}`);
+    const con = (await t.db.query('SELECT COUNT(*)::int c FROM vehicles WHERE id=$1', [e.json.id])).rows[0].c;
+    t.eq('Xoá xe là XOÁ HẲN khỏi CSDL, không phải xoá mềm', con, 0);
+    const dem = (await t.db.query(
+      `SELECT COUNT(*)::int c FROM vehicles
+        WHERE student_id=$1 AND COALESCE(from_date, created_at::date) <= '2026-08-31'
+          AND (to_date IS NULL OR to_date >= '2026-08-01')`, [sid])).rows[0].c;
+    t.eq('Xoá xong thì phép đếm xe tính tiền không còn thấy nó (hồ sơ và hoá đơn khớp nhau)', dem, 1,
+      `còn ${dem} xe tính tiền cho kỳ 08`);
+    const lai = await t.api('DELETE', `/api/vehicles/${e.json.id}`, T);
+    t.eq('Xoá lần hai trên id đã mất → 404, không báo thành công giả', lai.status, 404, `HTTP ${lai.status}`);
   },
 };

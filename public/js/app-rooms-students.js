@@ -557,7 +557,7 @@ async function studentDetail(id) {
 
       <div class="panel"><div class="hd"><h2 style="font-size:14px">${IC.bike} Xe (${vehicles.length})</h2><button class="btn sm" data-act="vehicleForm" data-args='[0, ${s.id}]'>${IC.plus} Thêm xe</button></div><div class="pad">
         ${vehicles.length ? vehicles.map(v => `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--line)">
-          <div><strong>${esc(v.plate || '—')}</strong> <span class="muted">${esc(v.vehicle_type || '')}</span>${v.sticker ? ` · mã dán: ${esc(v.sticker)}` : ''}
+          <div><strong>${esc(v.plate || '—')}</strong> <span class="muted">${esc(v.vehicle_type || '')}</span>${v.sticker ? ` · mã dán: ${esc(v.sticker)}` : ''}${v.to_date && String(v.to_date).slice(0, 10) < today() ? ' <span class="badge gray">đã ngừng gửi</span>' : ''}
             <div class="sub2">${IC.calendar} ${fmtDate(v.from_date)} → ${v.to_date ? fmtDate(v.to_date) : 'còn gửi'}${v.note ? ' · ' + esc(v.note) : ''}</div></div>
           <div class="rowbtns"><button class="btn sm ghost" data-act="vehicleForm" data-args='[${v.id}, ${s.id}]'>${IC.pencil}</button><button class="btn sm ghost" data-act="delVehicle" data-args='[${v.id}, ${s.id}]'>${IC.trash}</button></div>
         </div>`).join('') : '<p class="muted" style="margin:0">Chưa có xe.</p>'}
@@ -652,8 +652,11 @@ async function saveVehicle(vid, studentId) {
   await refreshCache(); toast('Đã lưu xe'); studentDetail(studentId);
 }
 async function delVehicle(vid, studentId) {
-  if (!confirm('Xóa xe này?')) return;
-  await guard(() => API.deleteVehicle(vid)); await refreshCache(); toast('Đã xóa xe'); studentDetail(studentId);
+  const v = (window._detailVehicles || []).find(x => x.id === vid) || {};
+  if (!confirm(`Xóa hẳn xe ${v.plate || 'này'}?\n\n`
+    + `• Dùng khi bản ghi NHẬP NHẦM. Xóa là mất hẳn, KHÔNG khôi phục được.\n`
+    + `• Học viên ngừng gửi xe thì ĐỪNG xóa — bấm ${'✎'} rồi điền "Đến ngày". Xe vẫn nằm trong hồ sơ và phí tính đúng tới ngày đó.`)) return;
+  await guard(() => API.deleteVehicle(vid)); await refreshCache(); toast('Đã xóa hẳn xe'); studentDetail(studentId);
 }
 /* Người này đã có hồ sơ rồi — hiện lỗi kèm NÚT ĐI THẲNG tới việc họ thực sự cần làm.
    Đây là chỗ đã gây thu dư 5.709.087đ trong tháng 07/2026: nhân viên tạo hồ sơ mới khi

@@ -381,8 +381,8 @@ func (h *Handlers) UpdateVehicle(c *gin.Context) {
 	c.JSON(http.StatusOK, row)
 }
 
-// DeleteVehicle: DELETE /api/vehicles/:id (admin,staff) — xoá mềm, ghi to_date để hoá đơn
-// tháng còn hiệu lực vẫn tính đúng, tháng sau thì thôi. vehicles.routes.js:124-127
+// DeleteVehicle: DELETE /api/vehicles/:id (admin,staff) — XOÁ HẲN, dành cho bản ghi nhập nhầm.
+// Ngừng gửi giữa chừng thì đặt "đến ngày" ở form sửa, xe vẫn nằm trong hồ sơ.
 func (h *Handlers) DeleteVehicle(c *gin.Context) {
 	u := auth.CurrentUser(c)
 	id, ok := paramInt(c, "id")
@@ -394,9 +394,13 @@ func (h *Handlers) DeleteVehicle(c *gin.Context) {
 		return
 	}
 	// Ngày ngừng đã đặt tay thì GIỮ — gỡ xe không được đè lên khoảng hiệu lực người dùng khai.
-	if _, err := h.pool().Exec(c.Request.Context(),
-		"UPDATE vehicles SET deleted_at=now(), to_date=COALESCE(to_date, CURRENT_DATE) WHERE id=$1", id); err != nil {
+	tag, err := h.pool().Exec(c.Request.Context(), "DELETE FROM vehicles WHERE id=$1", id)
+	if err != nil {
 		serverErr(c)
+		return
+	}
+	if tag.RowsAffected() == 0 {
+		notFound(c, "Không tìm thấy xe")
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
