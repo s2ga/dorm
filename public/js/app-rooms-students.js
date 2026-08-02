@@ -527,7 +527,7 @@ async function studentDetail(id) {
   const vios = s.violations || [];
   const vthr = (ST.settings && +ST.settings.violation_mail_threshold) || 3;
   openModal(`
-    <div class="mh"><h3>${esc(s.name)} <span class="badge ${s.gender === 'female' ? 'sage' : 'blue'}">${genderLabel(s.gender)}</span> ${statusBadge(s)}${s.deleted_at ? ` <span class="badge red">${IC.lock} Đã khoá</span>` : ''}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mh"><h3>${esc(s.name)} <span class="badge ${s.gender === 'female' ? 'sage' : 'blue'}">${genderLabel(s.gender)}</span> ${statusBadge(s)}${s.deleted_at ? ` <span class="badge red">${IC.lock} Đã khoá — ${esc(s.lock_reason || LY_DO_KHOA_TRONG)}</span>` : ''}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       ${s.deleted_at ? `<div class="bang-tin" style="margin-top:0;border-color:var(--red-ink)">${IC.lock} <span>Hồ sơ này <strong>đang bị khoá</strong> từ ${fmtDate(String(s.deleted_at).slice(0, 10))} — bị ẩn khỏi danh sách và tài khoản không đăng nhập được. Dữ liệu vẫn còn nguyên.
         <div class="rowbtns" style="margin-top:10px"><button class="btn sm green" data-act="restoreStudentAndReload" data-args='[${s.id}]'>${IC.undo} Mở khoá hồ sơ này</button></div></span></div>` : ''}
@@ -596,7 +596,7 @@ async function studentDetail(id) {
       <button class="btn" data-act="studentForm" data-args='[${s.id}]'>${IC.pencil} Sửa</button>
       ${isOccupying(s) ? `<button class="btn" data-act="transferForm" data-args='[${s.id}]'>${IC.transfer} Chuyển phòng</button>` : ''}
       ${isOccupying(s) ? `<button class="btn danger" data-act="checkOutForm" data-args='[${s.id}]'>Check-out</button>` : `<button class="btn green" data-act="checkInForm" data-args='[${s.id}]'>Check-in lại</button>`}
-      <button class="btn danger" data-act="delStudent" data-args='[${s.id}]'>${IC.trash} Xóa</button>
+      ${s.deleted_at ? '' : `<button class="btn danger" data-act="delStudent" data-args='[${s.id}]'>${IC.lock} Khoá hồ sơ</button>`}
     </div>`, true);
 }
 // Lịch sử ở đọc từ room_stays — nguồn sự thật về ở/rời (thứ tính tiền dùng). Nhật ký chỉ bổ sung
@@ -791,14 +791,35 @@ async function doRefund(id, deposit) {
   toast(total ? `Đã hoàn cọc (trừ ${money(total)} hư hao)` : 'Đã hoàn cọc');
   studentDetailRefresh(id);
 }
-async function delStudent(id) {
-  // Phải nói rõ xoá AI. "Xóa học viên này?" thì bấm nhầm dòng cũng không biết mình sắp xoá ai —
-  // nhất là trên điện thoại, các nút san sát nhau.
+// Phải nói rõ khoá AI. "Khoá học viên này?" thì bấm nhầm dòng cũng không biết mình sắp khoá ai —
+// nhất là trên điện thoại, các nút san sát nhau.
+// Bản sao HIỂN THỊ để gợi ý/placeholder; giá trị thật luôn lấy từ phản hồi máy chủ.
+const LY_DO_KHOA_MAC_DINH = 'Ngừng dịch vụ thuê phòng';
+const LY_DO_KHOA_TRONG = 'không ghi lý do (khoá trước khi có ô này)';
+const LY_DO_KHOA_SAN = ['Ngừng dịch vụ thuê phòng', 'Hết hợp đồng', 'Vi phạm nội quy', 'Nhập nhầm hồ sơ', 'Chuyển sang cơ sở khác'];
+function delStudent(id) {
+  if (el('lk_reason')) return;   // nhấn đúp không đẩy hai lớp modal giống hệt nhau
   const s = studentById(id) || {};
   const ai = [s.name, s.code && `mã ${s.code}`, s.room_name && `phòng ${s.room_name}`].filter(Boolean).join(' · ');
-  if (!confirm(`Xóa ${ai || 'học viên này'}?\n\nĐây là xóa mềm — khôi phục lại được trong mục "Đã xóa".`)) return;
-  await guard(() => API.deleteStudent(id)); await refreshCache(); closeModal();
-  toast(`Đã xóa ${s.name || 'học viên'} (khôi phục được)`); viewStudents();
+  openModal(`
+    <div class="mh"><h3>${IC.lock} Khoá hồ sơ học viên</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mb">
+      <div class="bang-tin">${IC.alert} Sắp khoá <strong>${esc(ai || 'học viên này')}</strong>.</div>
+      <div class="hint">${IC.info} Khoá là <strong>ẩn hồ sơ khỏi danh sách + chặn đăng nhập</strong>, dữ liệu vẫn giữ nguyên. Mở lại bất cứ lúc nào ở mục <strong>Học viên đã khoá</strong>.</div>
+      <div class="field"><label>Lý do khoá <span class="opt">(để trống = "${esc(LY_DO_KHOA_MAC_DINH)}")</span></label>
+        <input id="lk_reason" list="lk_goiy" placeholder="${esc(LY_DO_KHOA_MAC_DINH)}" maxlength="300">
+        <datalist id="lk_goiy">${LY_DO_KHOA_SAN.map(v => `<option value="${esc(v)}"></option>`).join('')}</datalist>
+      </div>
+    </div>
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn danger" data-act="doKhoaHoSo" data-args='[${id}]'>${IC.lock} Khoá hồ sơ</button></div>`);
+  setTimeout(() => { const i = el('lk_reason'); if (i) i.focus(); }, 30);
+}
+async function doKhoaHoSo(id) {
+  const s = studentById(id) || {};
+  const lyDo = (el('lk_reason') || {}).value || '';
+  const r = await guard(() => API.deleteStudent(id, lyDo.trim()));
+  await refreshCache(); closeModal();
+  toast(`Đã khoá ${s.name || 'học viên'} — ${(r && r.lock_reason) || ''}`); viewStudents();
 }
 // Thùng rác học viên: xem danh sách đã xóa mềm + khôi phục
 // Danh sách HV ĐÃ KHOÁ (hồ sơ ẩn khỏi danh sách + tài khoản không đăng nhập được — KHÔNG xoá dữ liệu).
@@ -810,10 +831,11 @@ async function showDeletedStudents() {
     <div class="mh"><h3>${IC.lock} Học viên đã khoá (${list.length})</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       ${list.length ? `<div class="hint" style="margin-top:0">${IC.info} Bấm vào một dòng để xem <strong>chi tiết hồ sơ</strong> (phòng, hợp đồng, cọc, ngày ở, vi phạm…) rồi mở khoá ngay trong đó.</div>
-      <div class="table-wrap"><table><thead><tr><th>Học viên</th><th>Mã</th><th>Phòng</th><th></th></tr></thead><tbody>
+      <div class="table-wrap"><table><thead><tr><th>Học viên</th><th>Mã</th><th>Phòng</th><th>Lý do khoá</th><th></th></tr></thead><tbody>
         ${list.map(s => `<tr style="cursor:pointer" title="Xem chi tiết hồ sơ" data-act="studentDetail" data-args='[${s.id}]'>
           <td><strong>${esc(s.name)}</strong>${s.class_name ? ` <span class="muted">· ${esc(s.class_name)}</span>` : ''}</td>
           <td>${esc(s.code || '—')}</td><td>${s.room_id ? `<span class="hd-ref" data-act="roomDetail" data-args='[${s.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng">${esc(s.room_name || '—')}</span>` : '—'}</td>
+          <td>${esc(s.lock_reason || LY_DO_KHOA_TRONG)}</td>
           <td class="num"><div class="rowbtns" style="justify-content:flex-end">
             <button class="btn sm" data-act="studentDetail" data-args='[${s.id}]'>Chi tiết</button>
             <button class="btn sm green" data-act="restoreStudentAndReload" data-args='[${s.id}]'>${IC.undo} Mở khoá</button>

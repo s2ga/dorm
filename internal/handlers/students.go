@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
@@ -93,7 +94,7 @@ const studentsListSelect = `
     s.status, s.uses_washing, s.deposit_amount, s.deposit_status, s.deposit_date, s.deposit_refund_date,
     s.checkout_notice_date, s.checkout_reason, s.class_name, s.email, s.rental_type, s.residency_status,
     s.contract_no, s.contract_date, s.contract_status,
-    s.class_start_date, s.expected_departure, s.room_fee_discount_pct, s.facility_id,
+    s.class_start_date, s.expected_departure, s.room_fee_discount_pct, s.facility_id, s.lock_reason,
     s.water_discount_pct, s.electric_discount_pct, s.service_discount_pct, s.washing_discount_pct, s.parking_discount_pct,
     EXISTS (SELECT 1 FROM room_leaders rl WHERE rl.student_id=s.id AND rl.to_date IS NULL) AS is_leader,
     (s.cccd_front IS NOT NULL OR s.cccd_back IS NOT NULL OR s.cccd_image IS NOT NULL) AS has_cccd,
@@ -1471,12 +1472,50 @@ func (h *Handlers) DeleteStudent(c *gin.Context) {
 		serverErr(c) // id phi số -> câu lệnh SQL vỡ như Node (500)
 		return
 	}
-	if _, err := h.pool().Exec(c.Request.Context(), "UPDATE students SET deleted_at=now() WHERE id=$1", id); err != nil {
+	_, b := studentsReadBody(c)
+	// Chỉ nhận CHUỖI. studentsJSString biến object/mảng thành chuỗi rác, mà Go với Node còn
+	// ra chuỗi rác khác nhau -> hai backend lệch dữ liệu.
+	thoRaw, _ := b["reason"].(string)
+	if e := valid.KhongChoHTML(func(k string) (string, bool) { return thoRaw, k == "reason" },
+		[]string{"reason"}); e != "" {
+		badRequest(c, e)
+		return
+	}
+	lyDo := studentsLyDoKhoa(thoRaw)
+	tag, err := h.pool().Exec(c.Request.Context(),
+		"UPDATE students SET deleted_at=now(), lock_reason=$2 WHERE id=$1", id, lyDo)
+	if err != nil {
 		serverErr(c)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	if tag.RowsAffected() == 0 {
+		notFound(c, "Không tìm thấy học viên")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "lock_reason": lyDo})
 }
+
+// studentsLyDoKhoa: lý do khoá hồ sơ. Bỏ trống -> lý do mặc định, không để trống trơn.
+// Ký tự vô hình (zero-width, BOM) cũng tính là trống — không thì ô "Lý do khoá" hiện ra trắng trơn.
+func studentsLyDoKhoa(s string) string {
+	v := strings.TrimSpace(s)
+	v = strings.Map(func(r rune) rune {
+		if unicode.Is(unicode.Cf, r) {
+			return -1
+		}
+		return r
+	}, v)
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return studentsLyDoKhoaMacDinh
+	}
+	if len([]rune(v)) > 300 {
+		v = string([]rune(v)[:300])
+	}
+	return v
+}
+
+const studentsLyDoKhoaMacDinh = "Ngừng dịch vụ thuê phòng"
 
 // RestoreStudent: POST /:id/restore (admin,staff). students.routes.js:427-430
 func (h *Handlers) RestoreStudent(c *gin.Context) {
@@ -1489,7 +1528,8 @@ func (h *Handlers) RestoreStudent(c *gin.Context) {
 		serverErr(c)
 		return
 	}
-	if _, err := h.pool().Exec(c.Request.Context(), "UPDATE students SET deleted_at=NULL WHERE id=$1", id); err != nil {
+	// Mở khoá thì lý do hết hiệu lực — để lại sẽ hiện lẫn với hồ sơ đang hoạt động.
+	if _, err := h.pool().Exec(c.Request.Context(), "UPDATE students SET deleted_at=NULL, lock_reason='' WHERE id=$1", id); err != nil {
 		serverErr(c)
 		return
 	}

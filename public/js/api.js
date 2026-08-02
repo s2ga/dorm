@@ -108,7 +108,7 @@ const API = {
   student: id => api('/students/' + id),
   createStudent: b => api('/students', { method: 'POST', body: b }),
   updateStudent: (id, b) => api('/students/' + id, { method: 'PUT', body: b }),
-  deleteStudent: id => api('/students/' + id, { method: 'DELETE' }),
+  deleteStudent: (id, reason) => api('/students/' + id, { method: 'DELETE', body: { reason: reason || '' } }),
   restoreStudent: id => api('/students/' + id + '/restore', { method: 'POST' }),
   contractNoNext: (gender, date) => api('/students/contract-no/next?gender=' + encodeURIComponent(gender) + '&date=' + encodeURIComponent(date || '')),
   setWashing: (id, on) => api('/students/' + id + '/washing', { method: 'POST', body: { on: !!on } }),

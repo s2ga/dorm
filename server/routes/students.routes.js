@@ -80,7 +80,7 @@ const LIST_SELECT = `
     s.status, s.note, s.uses_washing, s.deposit_amount, s.deposit_status, s.deposit_date, s.deposit_refund_date,
     s.checkout_notice_date, s.checkout_reason, s.birth_date, s.class_name, s.rental_type, s.residency_status,
     s.contract_no, s.contract_date, s.contract_status, s.deposit_bank, s.deposit_account,
-    s.class_start_date, s.expected_departure, s.parent_phone, s.room_fee_discount_pct, s.facility_id,
+    s.class_start_date, s.expected_departure, s.parent_phone, s.room_fee_discount_pct, s.facility_id, s.lock_reason,
     EXISTS (SELECT 1 FROM room_leaders rl WHERE rl.student_id=s.id AND rl.to_date IS NULL) AS is_leader,
     (s.cccd_front IS NOT NULL OR s.cccd_back IS NOT NULL OR s.cccd_image IS NOT NULL) AS has_cccd,
     (s.cccd_front IS NOT NULL) AS has_cccd_front,
@@ -391,14 +391,24 @@ router.put('/:id', requireRole('admin', 'staff'), async (req, res, next) => {
 });
 
 // Xóa mềm (khôi phục được — không xóa dữ liệu thật)
+const LY_DO_KHOA_MAC_DINH = 'Ngừng dịch vụ thuê phòng';
+// Chỉ nhận chuỗi; ký tự vô hình (Cf: zero-width, BOM) coi như trống. Phải khớp studentsLyDoKhoa bên Go.
+const lyDoKhoa = s => {
+  const v = (typeof s === 'string' ? s : '').trim().replace(/\p{Cf}/gu, '').trim();
+  return v ? [...v].slice(0, 300).join('') : LY_DO_KHOA_MAC_DINH;
+};
+
 router.delete('/:id', requireRole('admin', 'staff'), async (req, res, next) => {
-  try { await query('UPDATE students SET deleted_at=now() WHERE id=$1', [req.params.id]); res.json({ ok: true }); }
-  catch (e) { next(e); }
+  try {
+    const reason = lyDoKhoa(req.body && req.body.reason);
+    await query('UPDATE students SET deleted_at=now(), lock_reason=$2 WHERE id=$1', [req.params.id, reason]);
+    res.json({ ok: true, lock_reason: reason });
+  } catch (e) { next(e); }
 });
 
-// Khôi phục học viên đã xóa
+// Khôi phục học viên đã xóa — mở khoá thì lý do hết hiệu lực
 router.post('/:id/restore', requireRole('admin', 'staff'), async (req, res, next) => {
-  try { await query('UPDATE students SET deleted_at=NULL WHERE id=$1', [req.params.id]); res.json({ ok: true }); }
+  try { await query("UPDATE students SET deleted_at=NULL, lock_reason='' WHERE id=$1", [req.params.id]); res.json({ ok: true }); }
   catch (e) { next(e); }
 });
 

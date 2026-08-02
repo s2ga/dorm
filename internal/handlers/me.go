@@ -38,7 +38,7 @@ func meStudentID(c *gin.Context) (int, bool) {
 func meRuneLen(s string) int { return utf8.RuneCountInString(s) }
 
 // Cột GHI CHÚ NỘI BỘ của staff — KHÔNG bao giờ trả cho học viên. server/routes/me.routes.js:20-27
-var meChuNoiBo = []string{"note", "deposit_deduction_note", "checkin_confirm_note", "checkout_confirm_note"}
+var meChuNoiBo = []string{"note", "deposit_deduction_note", "checkin_confirm_note", "checkout_confirm_note", "lock_reason"}
 
 func meBoChuNoiBo(row map[string]interface{}) {
 	if row == nil {
