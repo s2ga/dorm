@@ -9,6 +9,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -425,10 +426,17 @@ func studentsSignCccd(row map[string]interface{}) {
 			row[field] = v
 		}
 	}
+	// Bản scan HĐ cũng là khoá S3 -> đổi thành đường xem có kiểm quyền, kèm đuôi tệp để biết ảnh hay PDF.
+	if v, _ := row["contract_scan"].(string); v != "" {
+		row["contract_scan_ext"] = strings.ToLower(strings.TrimPrefix(filepath.Ext(v), "."))
+		row["contract_scan"] = "/api/students/" + id + "/contract-scan"
+	} else {
+		row["contract_scan"] = nil
+	}
 }
 
 // studentsMeterVal: mô phỏng Node cho meter_reading trên giá trị đã decode.
-// hasMeter = mr != null && String(mr).trim() !== '' (students.routes.js:497);
+// hasMeter = mr != null && String(mr).trim() !== ” (students.routes.js:497);
 // finite = Number.isFinite(Number(reading)) (meter.js:14).
 func studentsMeterVal(v interface{}) (hasMeter bool, reading float64, finite bool) {
 	switch x := v.(type) {
@@ -786,6 +794,131 @@ func (h *Handlers) StudentCccdImage(c *gin.Context) {
 	c.Header("X-Content-Type-Options", "nosniff")
 	c.Header("Cache-Control", "private, max-age=300")
 	_, _ = io.Copy(c.Writer, obj.Body)
+}
+
+// studentsXemDuocHoSo: nhân viên xem được mọi hồ sơ; học viên chỉ xem hồ sơ của chính mình.
+func studentsXemDuocHoSo(u *auth.User, id int) bool {
+	if u == nil {
+		return false
+	}
+	if u.Role == "admin" || u.Role == "staff" {
+		return true
+	}
+	return u.StudentID != nil && *u.StudentID == id
+}
+
+// StudentContractScan: GET /:id/contract-scan — proxy bản scan HĐ từ bucket riêng tư.
+func (h *Handlers) StudentContractScan(c *gin.Context) {
+	id, _ := paramInt(c, "id")
+	if !studentsXemDuocHoSo(auth.CurrentUser(c), id) {
+		c.Status(http.StatusForbidden)
+		return
+	}
+	if h.Store == nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	ctx := c.Request.Context()
+	var k *string
+	if h.pool().QueryRow(ctx, "SELECT contract_scan FROM students WHERE id=$1 AND deleted_at IS NULL", id).Scan(&k) != nil || k == nil || *k == "" {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	obj, err := h.Store.GetObject(ctx, h.Store.CccdBucket, *k)
+	if err != nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	defer obj.Body.Close()
+	ct := obj.ContentType
+	if ct == "" {
+		ct = "application/octet-stream"
+	}
+	c.Header("Content-Type", ct)
+	c.Header("X-Content-Type-Options", "nosniff")
+	// inline: PDF/ảnh mở thẳng trong tab, không ép tải về.
+	c.Header("Content-Disposition", "inline")
+	c.Header("Cache-Control", "private, max-age=300")
+	_, _ = io.Copy(c.Writer, obj.Body)
+}
+
+// UploadContractScan: POST /:id/contract-scan (admin,staff) — nhận ẢNH hoặc PDF dạng data URL.
+func (h *Handlers) UploadContractScan(c *gin.Context) {
+	if !h.storeOr501(c) {
+		return
+	}
+	u := auth.CurrentUser(c)
+	if !h.studentsFacilityGuard(c, u, c.Param("id")) {
+		return
+	}
+	id, ok := paramInt(c, "id")
+	if !ok {
+		notFound(c, "Không tìm thấy học viên")
+		return
+	}
+	var body struct {
+		Data string `json:"data"`
+	}
+	_ = c.ShouldBindJSON(&body)
+	if len(body.Data) > 12*1024*1024 {
+		badRequest(c, "Tệp quá lớn (tối đa ~9MB)")
+		return
+	}
+	p := storage.ParseDataUrl(body.Data)
+	if p == nil {
+		p = storage.ParsePdfDataUrl(body.Data)
+	}
+	if p == nil {
+		badRequest(c, "Chỉ nhận ảnh (JPG, PNG, WEBP, GIF) hoặc PDF — và tệp phải đúng chữ ký, không chỉ đúng đuôi.")
+		return
+	}
+	ctx := c.Request.Context()
+	var cu *string
+	if h.pool().QueryRow(ctx, "SELECT contract_scan FROM students WHERE id=$1 AND deleted_at IS NULL", id).Scan(&cu) != nil {
+		notFound(c, "Không tìm thấy học viên")
+		return
+	}
+	key := "hopdong/" + itoa(id) + "." + p.Ext
+	if _, err := h.Store.PutBuffer(ctx, h.Store.CccdBucket, key, p.Buffer, p.ContentType); err != nil {
+		handleStorageErr(c, err)
+		return
+	}
+	if _, err := h.pool().Exec(ctx, "UPDATE students SET contract_scan=$1 WHERE id=$2", key, id); err != nil {
+		serverErr(c)
+		return
+	}
+	// Đổi từ .jpg sang .pdf thì tệp cũ thành rác trong bucket — dọn sau khi đã ghi khoá mới.
+	if cu != nil && *cu != "" && *cu != key {
+		_ = h.Store.DeleteObject(ctx, h.Store.CccdBucket, *cu)
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "ext": p.Ext})
+}
+
+// DeleteContractScan: DELETE /:id/contract-scan (admin,staff).
+func (h *Handlers) DeleteContractScan(c *gin.Context) {
+	u := auth.CurrentUser(c)
+	if !h.studentsFacilityGuard(c, u, c.Param("id")) {
+		return
+	}
+	id, ok := paramInt(c, "id")
+	if !ok {
+		notFound(c, "Không tìm thấy học viên")
+		return
+	}
+	ctx := c.Request.Context()
+	var cu *string
+	if h.pool().QueryRow(ctx, "SELECT contract_scan FROM students WHERE id=$1 AND deleted_at IS NULL", id).Scan(&cu) != nil {
+		notFound(c, "Không tìm thấy học viên")
+		return
+	}
+	if _, err := h.pool().Exec(ctx, "UPDATE students SET contract_scan=NULL WHERE id=$1", id); err != nil {
+		serverErr(c)
+		return
+	}
+	if cu != nil && *cu != "" && h.Store != nil {
+		_ = h.Store.DeleteObject(ctx, h.Store.CccdBucket, *cu)
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
 // ListStudents: GET / (admin,staff). ?deleted ?facility ?q ?page ?limit. students.routes.js:136-168

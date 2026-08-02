@@ -551,6 +551,16 @@ async function studentDetail(id) {
         ${s.contract_no ? '' : hdThamChieu(s, true)}
         ${contractPending(s) ? `<div class="bang-tin" style="margin:10px 0 0;background:var(--amber-bg);border-color:var(--amber-ink);color:var(--amber-ink)">${IC.alert} <strong>Chưa ký HĐ:</strong> thuê trên ${shortTermMaxDays()} ngày — cần ký <strong>hợp đồng thuê phòng</strong>.</div>`
           : handoverPending(s) ? `<div class="bang-tin" style="margin:10px 0 0">${IC.info} Cần <strong>ký phiếu đăng ký & bàn giao phòng</strong> (thuê ngắn hạn hoặc nhân viên công tác) — đặt tình trạng HĐ = "Đã ký phiếu bàn giao".</div>` : ''}
+        <div style="margin-top:10px">
+          <div class="muted" style="font-size:12px;margin-bottom:4px">Bản scan hợp đồng <span class="opt">(ảnh hoặc PDF)</span>:</div>
+          ${s.contract_scan
+            ? (s.contract_scan_ext === 'pdf'
+              ? `<a class="btn sm" href="${s.contract_scan}" target="_blank" rel="noopener">${IC.fileText} Mở bản scan (PDF)</a>`
+              : `<a href="${s.contract_scan}" target="_blank" rel="noopener" title="Bấm để xem cỡ đầy đủ"><img src="${s.contract_scan}" style="max-width:100%;max-height:220px;border-radius:8px;border:1px solid var(--line)"></a>`)
+              + ` <button class="btn sm ghost" data-act="goScanHD" data-args='[${s.id}]' title="Gỡ bản scan">${IC.trash} Gỡ</button>`
+            : `<p class="muted" style="margin:0 0 6px;font-size:12px">Chưa đính kèm.</p>`}
+          <div style="margin-top:6px"><input type="file" accept="image/*,application/pdf" id="hd_scan" data-change="tepScanHD" data-args='[${s.id}]'></div>
+        </div>
         ${(s.cccd_front || s.cccd_back || s.cccd_image) ? `<div style="margin-top:10px"><div class="muted" style="font-size:12px;margin-bottom:4px">Ảnh CCCD:</div><div style="display:flex;gap:8px;flex-wrap:wrap">
           ${s.cccd_front ? `<img src="${s.cccd_front}" title="Mặt trước" style="max-width:48%;max-height:180px;border-radius:8px;border:1px solid var(--line)">` : ''}
           ${s.cccd_back ? `<img src="${s.cccd_back}" title="Mặt sau" style="max-width:48%;max-height:180px;border-radius:8px;border:1px solid var(--line)">` : ''}
@@ -602,6 +612,23 @@ async function studentDetail(id) {
       ${s.deleted_at ? '' : `<button class="btn danger" data-act="delStudent" data-args='[${s.id}]'>${IC.lock} Khoá hồ sơ</button>`}
     </div>`, true);
   if (!s.contract_no) hienSoHDDuKien(s);
+}
+// Đính kèm bản scan HĐ: đọc tệp thành data URL rồi gửi thẳng, máy chủ tự kiểm chữ ký tệp và
+// đẩy lên bucket riêng tư. Không giữ ảnh trong hồ sơ dạng data URL.
+function tepScanHD(id) {
+  const f = this.files && this.files[0]; if (!f) return;
+  if (f.size > 9 * 1024 * 1024) { this.value = ''; return toast('Tệp quá lớn (tối đa 9MB)', 'err'); }
+  const r = new FileReader();
+  r.onload = async () => {
+    await guard(() => API.uploadContractScan(id, r.result));
+    toast('Đã đính kèm bản scan hợp đồng'); studentDetail(id);
+  };
+  r.readAsDataURL(f);
+}
+async function goScanHD(id) {
+  if (!confirm('Gỡ bản scan hợp đồng?\n\nTệp bị xoá khỏi kho, không khôi phục được.')) return;
+  await guard(() => API.deleteContractScan(id));
+  toast('Đã gỡ bản scan'); studentDetail(id);
 }
 // Số HĐ dự kiến: hỏi máy chủ số kế tiếp thay vì đoán ở máy khách, để trùng đúng số sẽ được cấp khi ký.
 // Hỏi hụt thì bỏ nhãn đi, không hiện số sai.

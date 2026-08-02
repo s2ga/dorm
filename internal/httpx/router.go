@@ -46,8 +46,8 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 		os.Exit(1)
 	}
 	r.Use(gin.Recovery())
-	r.Use(middleware.RequestLog())  // log mỗi request /api (+ thông điệp lỗi) ra stderr -> Render/Docker
-	r.Use(middleware.Security()) // helmet/CSP cho MỌI response (kể cả index.html)
+	r.Use(middleware.RequestLog()) // log mỗi request /api (+ thông điệp lỗi) ra stderr -> Render/Docker
+	r.Use(middleware.Security())   // helmet/CSP cho MỌI response (kể cả index.html)
 	r.Use(middleware.BodyLimit())
 
 	authLim := middleware.AuthLimiter() // chung buckets cho login + change-password (như Node)
@@ -146,10 +146,10 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	el.GET("", h.ListElectric)
 	el.GET("/history", h.ElectricHistory)
 	el.POST("/bulk", h.SaveElectricBulk)
-	el.GET("/reads", h.ListMeterReads)          // chỉ số chốt giữa kỳ (lúc HV rời phòng)
+	el.GET("/reads", h.ListMeterReads) // chỉ số chốt giữa kỳ (lúc HV rời phòng)
 	el.POST("/reads", h.SaveMeterRead)
 	el.DELETE("/reads/:id", h.DeleteMeterRead)
-	el.GET("/segments", h.ElectricSegments)     // chặng chia điện của phòng trong kỳ (phiếu thu in chi tiết)
+	el.GET("/segments", h.ElectricSegments) // chặng chia điện của phòng trong kỳ (phiếu thu in chi tiết)
 
 	// Admin
 	adm := api.Group("/admin", a.RequireAuth(), a.RequireRole("admin"))
@@ -185,9 +185,9 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	req.POST("/checkout/:id/approve", h.ApproveCheckout) // BL-62: duyệt -> chờ bàn giao (không trả phòng ở bước này)
 	req.PUT("/checkout/:id/note", h.NoteCheckout)
 	req.POST("/checkout/:id/reject", h.RejectCheckout)
-	req.POST("/checkout/:id/bill", h.BillCheckout)               // BL-62 GĐ2d: lập phiếu thu (handed_over -> billed)
-	req.POST("/checkout/:id/refund-done", h.RefundDoneCheckout)  // BL-62 GĐ2e: đánh dấu đã hoàn cọc (billed -> done)
-	req.POST("/checkout/create", h.AdminCreateCheckout)          // BL-62 GĐ2f: BQL tạo đơn hộ + duyệt luôn
+	req.POST("/checkout/:id/bill", h.BillCheckout)              // BL-62 GĐ2d: lập phiếu thu (handed_over -> billed)
+	req.POST("/checkout/:id/refund-done", h.RefundDoneCheckout) // BL-62 GĐ2e: đánh dấu đã hoàn cọc (billed -> done)
+	req.POST("/checkout/create", h.AdminCreateCheckout)         // BL-62 GĐ2f: BQL tạo đơn hộ + duyệt luôn
 	// BL-62 GĐ2c: an ninh bàn giao — role maintenance CŨNG được, nên đăng ký riêng ngoài group admin/staff.
 	api.POST("/requests/checkout/:id/handover", a.RequireAuth(), a.RequireRole("admin", "staff", "maintenance"), h.HandoverCheckout)
 
@@ -210,7 +210,8 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 
 	// Học viên (students)
 	st := api.Group("/students", a.RequireAuth())
-	st.GET("/:id/cccd/:side", h.StudentCccdImage) // chỉ requireAuth (nay 501 stub)
+	st.GET("/:id/cccd/:side", h.StudentCccdImage)       // chỉ requireAuth (nay 501 stub)
+	st.GET("/:id/contract-scan", h.StudentContractScan) // học viên xem được bản scan HĐ của chính mình
 	rs := st.Group("", a.RequireRole("admin", "staff"))
 	rs.GET("", h.ListStudents)
 	rs.GET("/contract-no/next", h.ContractNoNext)
@@ -220,6 +221,8 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	rs.PUT("/:id", h.UpdateStudent)
 	rs.DELETE("/:id", h.DeleteStudent)
 	rs.POST("/:id/restore", h.RestoreStudent)
+	rs.POST("/:id/contract-scan", h.UploadContractScan)
+	rs.DELETE("/:id/contract-scan", h.DeleteContractScan)
 	rs.POST("/:id/washing", h.StudentWashing)
 	rs.POST("/:id/checkin", h.StudentCheckin)
 	rs.POST("/:id/checkout", h.StudentCheckout)

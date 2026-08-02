@@ -110,6 +110,8 @@ const API = {
   updateStudent: (id, b) => api('/students/' + id, { method: 'PUT', body: b }),
   deleteStudent: (id, reason) => api('/students/' + id, { method: 'DELETE', body: { reason: reason || '' } }),
   restoreStudent: id => api('/students/' + id + '/restore', { method: 'POST' }),
+  uploadContractScan: (id, data) => api('/students/' + id + '/contract-scan', { method: 'POST', body: { data } }),
+  deleteContractScan: id => api('/students/' + id + '/contract-scan', { method: 'DELETE' }),
   contractNoNext: (gender, date) => api('/students/contract-no/next?gender=' + encodeURIComponent(gender) + '&date=' + encodeURIComponent(date || '')),
   setWashing: (id, on) => api('/students/' + id + '/washing', { method: 'POST', body: { on: !!on } }),
   checkIn: (id, b) => api('/students/' + id + '/checkin', { method: 'POST', body: b }),
