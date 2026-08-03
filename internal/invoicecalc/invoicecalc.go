@@ -108,9 +108,16 @@ func RoomSegments(ctx context.Context, database *db.DB, roomID int, month string
 	return billing.BuildSegments(month, rs, re, reads, stays), nil
 }
 
-// StudentElectric: tiền điện 1 HV = tổng phần ở MỌI phòng họ ở trong tháng, làm tròn TỪNG PHÒNG.
+// PhanDien: phần điện của một học viên — tiền và số kWh. Hai con số chia bằng CÙNG một thuật toán
+// phần dư lớn nhất nên tổng cả phòng khớp tuyệt đối ở cả hai.
+type PhanDien struct {
+	Tien float64
+	Kwh  float64
+}
+
+// StudentElectric: điện 1 HV = tổng phần ở MỌI phòng họ ở trong tháng, làm tròn TỪNG PHÒNG.
 // nil = chưa có dữ liệu chỉ số (bên gọi dùng cách cũ). server/invoice-calc.js:54-68
-func StudentElectric(ctx context.Context, database *db.DB, studentID int, month string, unit float64) (*float64, error) {
+func StudentElectric(ctx context.Context, database *db.DB, studentID int, month string, unit float64) (*PhanDien, error) {
 	rows, err := database.Pool.Query(ctx,
 		`SELECT DISTINCT room_id FROM room_stays
 		  WHERE student_id=$1 AND from_date <= $2 AND (to_date IS NULL OR to_date >= $3)`,
@@ -134,7 +141,7 @@ func StudentElectric(ctx context.Context, database *db.DB, studentID int, month 
 		return nil, err
 	}
 
-	sum := 0.0
+	var sum PhanDien
 	found := false
 	for _, rid := range roomIDs {
 		segs, err := RoomSegments(ctx, database, rid, month)
@@ -145,12 +152,7 @@ func StudentElectric(ctx context.Context, database *db.DB, studentID int, month 
 			continue
 		}
 		found = true
-		bs := make([]billing.Segment, len(segs))
-		for i, s := range segs {
-			bs[i] = billing.Segment{Electric: s.Kwh * unit, Roster: s.Roster}
-		}
-		share := billing.SplitElectricExact(bs)
-		sum += float64(share[studentID])
+		sum.Cong(segs, studentID, unit)
 	}
 	if !found {
 		return nil, nil
@@ -158,12 +160,24 @@ func StudentElectric(ctx context.Context, database *db.DB, studentID int, month 
 	return &sum, nil
 }
 
+// Cong: cộng phần của HV trong một phòng — tiền và kWh chia riêng nhưng cùng bảng chặng.
+func (p *PhanDien) Cong(segs []billing.BuiltSegment, studentID int, unit float64) {
+	tien := make([]billing.Segment, len(segs))
+	kwh := make([]billing.Segment, len(segs))
+	for i, s := range segs {
+		tien[i] = billing.Segment{Electric: s.Kwh * unit, Roster: s.Roster}
+		kwh[i] = billing.Segment{Electric: s.Kwh, Roster: s.Roster}
+	}
+	p.Tien += float64(billing.SplitElectricExact(tien)[studentID])
+	p.Kwh += billing.SplitKwhExact(kwh)[studentID]
+}
+
 // StudentElectricProvisional: điện của HV ĐÃ TRẢ PHÒNG khi phòng CHƯA chốt chỉ số cuối tháng
 // (electric_readings tháng này chưa có). Dùng chỉ số bàn giao (meter_reads mới nhất trong tháng)
 // làm mốc CUỐI tạm, chỉ số ĐẦU = reading_end tháng trước; chỉ tính phần tới ngày bàn giao.
 // Khớp tuyệt đối: khi phòng chốt cuối tháng, đường thường (StudentElectric) ra ĐÚNG cùng số cho HV
 // này (cùng các chặng trước ngày rời). nil nếu thiếu dữ liệu -> bên gọi giữ 0/đường cũ. — BL-62 GĐ3 (phương án A).
-func StudentElectricProvisional(ctx context.Context, database *db.DB, studentID int, month string, unit float64) (*float64, error) {
+func StudentElectricProvisional(ctx context.Context, database *db.DB, studentID int, month string, unit float64) (*PhanDien, error) {
 	rows, err := database.Pool.Query(ctx,
 		`SELECT DISTINCT room_id FROM room_stays
 		  WHERE student_id=$1 AND from_date <= $2 AND (to_date IS NULL OR to_date >= $3)`,
@@ -193,7 +207,7 @@ func StudentElectricProvisional(ctx context.Context, database *db.DB, studentID 
 		prevM = prevM[:7]
 	}
 
-	sum := 0.0
+	var sum PhanDien
 	found := false
 	for _, rid := range roomIDs {
 		// Phòng ĐÃ có chỉ số cuối tháng -> đường thường (RoomSegments) lo, KHÔNG tạm tính.
@@ -261,12 +275,7 @@ func StudentElectricProvisional(ctx context.Context, database *db.DB, studentID 
 		}
 		segs := billing.BuildSegments(month, *opening, lastReading, reads, stays)
 		found = true
-		bs := make([]billing.Segment, len(segs))
-		for i, s := range segs {
-			bs[i] = billing.Segment{Electric: s.Kwh * unit, Roster: s.Roster}
-		}
-		share := billing.SplitElectricExact(bs)
-		sum += float64(share[studentID])
+		sum.Cong(segs, studentID, unit)
 	}
 	if !found {
 		return nil, nil
@@ -383,7 +392,7 @@ func RecalcInvoice(ctx context.Context, database *db.DB, studentID int, month st
 	if err != nil {
 		return nil, err
 	}
-	electricCharge := &ecVal
+	electricCharge, electricKwh := &ecVal.Tien, &ecVal.Kwh
 	leaderDays, err := roomleaders.LeaderDaysInMonth(ctx, database.Pool, studentID, month)
 	if err != nil {
 		return nil, err
@@ -413,7 +422,8 @@ func RecalcInvoice(ctx context.Context, database *db.DB, studentID int, month st
 	c := billing.ComputeInvoice(billing.ComputeInput{
 		Student: hv, NguyenPhong: np.Cua(sID),
 		Room: room, Month: month, Fees: billing.Fees(fees),
-		ElectricCharge: electricCharge, LeaderDays: leaderDays, Kwh: kwh, VehicleCount: &veh,
+		ElectricCharge: electricCharge, ElectricKwh: electricKwh,
+		LeaderDays: leaderDays, Kwh: kwh, VehicleCount: &veh,
 	})
 
 	other := icFloat(inv["other_charge"])

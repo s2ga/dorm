@@ -592,7 +592,8 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 		}
 
 		unit := billing.Fees(fees).Num("electric_unit")
-		elec := map[int]float64{} // student_id -> tiền điện KỲ M-1 đã cộng qua mọi phòng
+		elec := map[int]float64{}    // student_id -> tiền điện KỲ M-1 đã cộng qua mọi phòng
+		elecKwh := map[int]float64{} // student_id -> số kWh tương ứng, chia riêng để Σ khớp khối phòng
 		for _, e := range er {
 			stays := staysByRoom[e.roomID]
 			if len(stays) == 0 {
@@ -600,18 +601,25 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 			}
 			segs := billing.BuildSegments(pmonth0, e.readingStart, e.readingEnd, readsByRoom[e.roomID], stays)
 			bsegs := make([]billing.Segment, len(segs))
+			ksegs := make([]billing.Segment, len(segs))
 			for i, sg := range segs {
 				bsegs[i] = billing.Segment{Electric: sg.Kwh * unit, Roster: sg.Roster}
+				ksegs[i] = billing.Segment{Electric: sg.Kwh, Roster: sg.Roster}
 			}
 			share := billing.SplitElectricExact(bsegs)
+			shareKwh := billing.SplitKwhExact(ksegs)
 			// Ở phòng có chỉ số nhưng phần chia = 0 -> vẫn ghi 0 (invoices.routes.js:192).
 			for _, st := range stays {
 				if _, ok := elec[st.StudentID]; !ok {
 					elec[st.StudentID] = 0
+					elecKwh[st.StudentID] = 0
 				}
 			}
 			for id, v := range share {
 				elec[id] += float64(v)
+			}
+			for id, v := range shareKwh {
+				elecKwh[id] += v
 			}
 		}
 
@@ -813,6 +821,7 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 			// Điện = trọn phần kỳ M-1; HV rời trong M thì cộng thêm phần kỳ M tới ngày rời.
 			// Không có phần nào -> 0 rõ ràng (KHÔNG rơi về chia roster tháng M cho khối M-1).
 			vv := elec[s.id]
+			vvKwh := elecKwh[s.id]
 			if len(s.checkOut) >= 7 && s.checkOut[:7] == body.Month {
 				cur, e := invoicecalc.StudentElectric(ctx, h.DB, s.id, body.Month, unit)
 				if e != nil {
@@ -824,10 +833,11 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 					}
 				}
 				if cur != nil {
-					vv += *cur
+					vv += cur.Tien
+					vvKwh += cur.Kwh
 				}
 			}
-			ec := &vv
+			ec, ecKwh := &vv, &vvKwh
 			kwh := 0.0
 			if s.roomID != nil {
 				kwh = kwhByRoom[*s.roomID]
@@ -847,7 +857,8 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 			inv := billing.ComputeInvoice(billing.ComputeInput{
 				Student: hv, NguyenPhong: npCua,
 				Room: room, Month: body.Month, Fees: billing.Fees(fees),
-				ElectricCharge: ec, LeaderDays: leaderDays[s.id], Kwh: kwh, VehicleCount: &vc,
+				ElectricCharge: ec, ElectricKwh: ecKwh,
+				LeaderDays: leaderDays[s.id], Kwh: kwh, VehicleCount: &vc,
 			})
 			// Phòng thuê trọn: mọi khoản đã gộp vào phiếu người ký HĐ. Thành viên không còn khoản nào
 			// thì KHÔNG xuất phiếu 0 đồng; phiếu cũ (chưa thu) thì dọn đi cho khỏi rác danh sách.
@@ -1036,7 +1047,7 @@ func (h *Handlers) GenerateOneInvoice(c *gin.Context) {
 		serverErr(c)
 		return
 	}
-	electricCharge := &ecVal
+	electricCharge, electricKwh := &ecVal.Tien, &ecVal.Kwh
 	leaderDays, err := roomleaders.LeaderDaysInMonth(ctx, h.pool(), sid, monthStr)
 	if err != nil {
 		serverErr(c)
@@ -1067,7 +1078,8 @@ func (h *Handlers) GenerateOneInvoice(c *gin.Context) {
 	inv := billing.ComputeInvoice(billing.ComputeInput{
 		Student: hv, NguyenPhong: npCua,
 		Room: room, Month: monthStr, Fees: billing.Fees(fees),
-		ElectricCharge: electricCharge, LeaderDays: leaderDays, Kwh: kwh, VehicleCount: &vehicleCnt,
+		ElectricCharge: electricCharge, ElectricKwh: electricKwh,
+		LeaderDays: leaderDays, Kwh: kwh, VehicleCount: &vehicleCnt,
 	})
 	// Thành viên phòng thuê trọn không có khoản riêng nào -> nói rõ tiền nằm ở phiếu của ai, thay vì
 	// lặng lẽ đẻ ra một phiếu 0 đồng.

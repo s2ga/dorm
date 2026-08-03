@@ -928,7 +928,7 @@ func (h *Handlers) BillCheckout(c *gin.Context) {
 		serverErr(c)
 		return
 	}
-	electricCharge := &ecVal
+	electricCharge, electricKwh := &ecVal.Tien, &ecVal.Kwh
 	leaderDays, err := roomleaders.LeaderDaysInMonth(ctx, h.pool(), sid, month)
 	if err != nil {
 		serverErr(c)
@@ -959,7 +959,8 @@ func (h *Handlers) BillCheckout(c *gin.Context) {
 	comp := billing.ComputeInvoice(billing.ComputeInput{
 		Student: hv, NguyenPhong: np.Cua(sid),
 		Room: room, Month: month, Fees: billing.Fees(fees),
-		ElectricCharge: electricCharge, LeaderDays: leaderDays, Kwh: kwh, VehicleCount: &veh,
+		ElectricCharge: electricCharge, ElectricKwh: electricKwh,
+		LeaderDays: leaderDays, Kwh: kwh, VehicleCount: &veh,
 	})
 
 	// Hư hao -> "khoản khác"; tổng gồm cả khoản khác.

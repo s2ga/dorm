@@ -230,6 +230,24 @@ func SplitElectricExact(segments []Segment) map[int]int {
 	return out
 }
 
+// KwhDonViNho: đơn vị nhỏ nhất của số kWh trên phiếu — 0,01 kWh (hệ thống tài chính đối tác nhận
+// tới 2 số lẻ). Chia ở đơn vị này rồi rải phần dư nên Σ kWh các phần = kWh cả phòng, không lệch.
+const KwhDonViNho = 100
+
+// SplitKwhExact: chia SỐ KWH theo ngày ở, dùng chung thuật toán phần dư lớn nhất với tiền. Segment.
+// Electric truyền vào là kWh THÔ (không nhân đơn giá).
+func SplitKwhExact(segments []Segment) map[int]float64 {
+	nho := make([]Segment, len(segments))
+	for i, s := range segments {
+		nho[i] = Segment{Electric: s.Electric * KwhDonViNho, Roster: s.Roster}
+	}
+	out := map[int]float64{}
+	for id, v := range SplitElectricExact(nho) {
+		out[id] = float64(v) / KwhDonViNho
+	}
+	return out
+}
+
 // SplitElectricByDays: cả tháng là 1 chặng, bảo đảm mọi id trong roster đều có mặt (0 nếu thiếu).
 // server/billing.js:68-72
 func SplitElectricByDays(roomElectric float64, roster []RosterEntry) map[int]int {
@@ -402,9 +420,12 @@ type ComputeInput struct {
 	Occupants      int
 	Roster         []RosterEntry
 	ElectricCharge *float64 // nil = chưa tính sẵn
-	LeaderDays     int
-	Kwh            float64
-	VehicleCount   *int // nil = suy theo uses_parking
+	// ElectricKwh: phần kWh của HV, đã chia sẵn bằng SplitKwhExact. nil = suy ngược từ tiền (sai số
+	// làm tròn nên tổng cả phòng có thể lệch — chỉ dùng khi không có bảng chặng để chia).
+	ElectricKwh  *float64
+	LeaderDays   int
+	Kwh          float64
+	VehicleCount *int // nil = suy theo uses_parking
 }
 
 // Invoice: kết quả tính, tên field khớp cột hoá đơn (JSON number).
@@ -583,10 +604,16 @@ func ComputeInvoice(in ComputeInput) Invoice {
 		"fee_discount": float64(feeDiscount),
 	})
 
-	// Số kWh suy từ chính số tiền phải trả, giữ ĐÚNG 2 SỐ LẺ — hệ thống tài chính bên đối tác chỉ
-	// nhận tới 2 số lẻ, ghi nhiều hơn là hai bên lệch nhau ở con số kWh.
+	// kWh lấy phần ĐÃ CHIA SẴN (SplitKwhExact) để Σ kWh của phòng khớp tuyệt đối với khối công-tơ.
+	// Không có thì suy ngược từ tiền — tiện nhưng tổng có thể lệch vài phần trăm kWh.
 	electricKwh := 0.0
-	if unit > 0 {
+	switch {
+	case thanhVien:
+	case nguyenPhong:
+		electricKwh = math.Round(in.Kwh*100) / 100 // trọn khối của phòng
+	case in.ElectricKwh != nil:
+		electricKwh = math.Round(*in.ElectricKwh*100) / 100
+	case unit > 0:
 		electricKwh = math.Round(float64(electricCharge)/unit*100) / 100
 	}
 
