@@ -205,7 +205,10 @@ async function renderPublicRegister() {
       <div class="intro-contact">
         <div class="contact-info">
           ${info.address ? `<div class="ci-row">${IC.mapPin}<div><b>Địa chỉ</b><span>${esc(info.address)}</span></div></div>` : ''}
-          <div class="ci-row">${IC.home}<div><b>${dorm}</b><span>Ban quản lý khu nội trú</span>${info.hotline ? `<a class="ci-tel" href="tel:${esc(String(info.hotline).replace(/\s/g, ''))}">${IC.phone}${esc(info.hotline)}</a>` : ''}</div></div>
+          ${/* Dưới tên khu là SỐ HOTLINE, không phải câu mô tả — người ta vào đây để gọi. */''}
+          <div class="ci-row">${IC.home}<div><b>${dorm}</b>${info.hotline
+    ? `<a class="ci-tel" href="tel:${esc(String(info.hotline).replace(/[\s.]/g, ''))}">${IC.phone}${esc(info.hotline)}</a>`
+    : '<span>Ban quản lý khu nội trú</span>'}</div></div>
         </div>
         ${info.address ? `<div class="contact-map"><iframe title="Bản đồ" src="https://www.google.com/maps?q=${encodeURIComponent(info.address)}&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div>` : ''}
       </div>
@@ -216,16 +219,16 @@ async function renderPublicRegister() {
   el('pubBody').innerHTML = `
     <form id="applyForm">
       <div class="grid2">
-        <div class="field"><label>Họ tên *</label><input id="a_name" required></div>
-        <div class="field"><label>Số điện thoại *</label><input id="a_phone" type="tel" autocomplete="tel" inputmode="tel" required></div>
+        <div class="field"><label>Họ tên ${SAO}</label><input id="a_name" required></div>
+        <div class="field"><label>Số điện thoại ${SAO}</label><input id="a_phone" type="tel" autocomplete="tel" inputmode="tel" required></div>
       </div>
-      ${info.facilities && info.facilities.length ? `<div class="field"><label>Cơ sở đăng ký *</label><select id="a_facility">${info.facilities.map(f => `<option value="${f.id}">${esc(f.name)}${f.address ? ' — ' + esc(f.address) : ''}</option>`).join('')}</select></div>` : ''}
+      ${info.facilities && info.facilities.length ? `<div class="field"><label>Cơ sở đăng ký ${SAO}</label><select id="a_facility">${info.facilities.map(f => `<option value="${f.id}">${esc(f.name)}${f.address ? ' — ' + esc(f.address) : ''}</option>`).join('')}</select></div>` : ''}
       <div class="grid2">
-        <div class="field"><label>Giới tính *</label><select id="a_gender"><option value="female">Nữ</option><option value="male">Nam</option></select></div>
+        <div class="field"><label>Giới tính ${SAO}</label><select id="a_gender"><option value="female">Nữ</option><option value="male">Nam</option></select></div>
         <div class="field"><label>Ngày sinh</label><input id="a_birth"></div>
       </div>
-      <div class="field"><label>Ngày muốn nhận phòng <span class="opt">(dự kiến)</span></label><input id="a_movein">
-        <div class="muted" style="font-size:12.5px;margin-top:4px">${IC.info} Ban quản lý xếp phòng theo ngày này. Chưa chắc thì cứ để trống, mình sẽ trao đổi thêm.</div>
+      <div class="field"><label>Ngày muốn nhận phòng ${SAO}</label><input id="a_movein" required>
+        <div class="muted" style="font-size:12.5px;margin-top:4px">${IC.info} Ban quản lý xếp phòng theo ngày này. Chọn từ hôm nay trở đi; chưa chắc ngày nào thì cứ chọn tạm rồi báo lại sau.</div>
       </div>
       <div class="muted" style="font-size:12.5px;margin:2px 0 7px">${IC.info} <strong>Chưa khai giảng?</strong> Nhiều bạn thuê phòng trước khi vào học — nếu chưa có mã học viên / lớp, bạn cứ <strong>bỏ trống 2 ô dưới</strong>. Khi nào có, báo Ban quản lý cập nhật sau.</div>
       <div class="grid2">
@@ -253,6 +256,10 @@ async function renderPublicRegister() {
   attachDate(el('a_movein'), '', { min: today() });  // nhận phòng thì từ hôm nay trở đi
   el('applyForm').addEventListener('submit', async e => {
     e.preventDefault();
+    // Ô ngày là input đọc-chỉ có lịch riêng nên `required` của trình duyệt không bắt được -> chặn ở đây.
+    const ngayVao = el('a_movein').dataset.iso || '';
+    if (!ngayVao) { toast('Chọn ngày muốn nhận phòng', 'err'); el('a_movein').focus(); return; }
+    if (ngayVao < today()) { toast('Ngày muốn nhận phòng đã qua — chọn lại', 'err'); el('a_movein').focus(); return; }
     // e.submitter có thể null (gửi form bằng lệnh, không qua nút bấm) -> tra ngược nút Gửi.
     // Đây là form học viên LẠ tự đăng ký: văng lỗi ở đây là mất đơn mà không ai biết.
     const btn = e.submitter || e.target.querySelector('[type=submit]') || {};
@@ -460,6 +467,7 @@ const roomTypeBadge = r => { const [l, c] = ROOM_TYPE[roomType(r)]; return `<spa
 // Giường trống chỉ đến từ phòng CHO THUÊ GHÉP còn slot (bỏ nguyên phòng / an ninh / nhân viên)
 const availBedsOf = rooms => rooms.filter(roomIsShared).reduce((a, r) => a + Math.max(0, (+r.capacity || 0) - (+r.occupancy || 0)), 0);
 const rentCapOf = rooms => rooms.filter(roomForRent).reduce((a, r) => a + (+r.capacity || 0), 0);
+const SAO = '<span class="sao" aria-hidden="true">*</span>'; // dấu bắt buộc, đỏ
 const RENTAL_LABEL = { ghep: 'Thuê ghép', phong: 'Thuê nguyên phòng' };
 // Hình thức thuê của một hồ sơ do LOẠI PHÒNG quyết định — rooms.room_type cũng chính là thứ công thức
 // tính tiền dùng. Cột rental_type của hồ sơ chỉ còn nghĩa khi chưa xếp phòng.

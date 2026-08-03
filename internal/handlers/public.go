@@ -290,20 +290,21 @@ func (h *Handlers) PublicApply(c *gin.Context) {
 	if coNgaySinh {
 		birthDate = b.BirthDate
 	}
-	// Ngày muốn nhận phòng: không bắt buộc, nhưng đã điền thì phải là ngày thật và không lùi về quá khứ.
-	coNgayVao := strings.TrimSpace(b.DesiredCheckIn) != ""
-	if coNgayVao && !valid.IsValidYmd(b.DesiredCheckIn) {
+	// Ngày muốn nhận phòng: BẮT BUỘC, phải là ngày thật và không lùi về quá khứ.
+	ngayVao := strings.TrimSpace(b.DesiredCheckIn)
+	if ngayVao == "" {
+		badRequest(c, "Chọn ngày muốn nhận phòng.")
+		return
+	}
+	if !valid.IsValidYmd(ngayVao) {
 		badRequest(c, `Ngày muốn nhận phòng không hợp lệ: "`+b.DesiredCheckIn+`"`)
 		return
 	}
-	if coNgayVao && b.DesiredCheckIn < today {
+	if ngayVao < today {
 		badRequest(c, "Ngày muốn nhận phòng đã qua — vui lòng chọn lại.")
 		return
 	}
-	var desiredCheckIn interface{}
-	if coNgayVao {
-		desiredCheckIn = b.DesiredCheckIn
-	}
+	var desiredCheckIn interface{} = ngayVao
 	// Chống trùng đơn pending (cùng tên + SĐT).
 	if h.pool().QueryRow(ctx,
 		`SELECT id FROM applications WHERE status='pending' AND lower(trim(name))=lower($1) AND $2 = regexp_replace(phone,'\D','','g')`,
