@@ -87,7 +87,7 @@ func ThieuDienKy(ctx context.Context, database *db.DB, roomID int, month string)
 	// (chuyển phòng ngày D -> lượt cũ hết D-1, đọc ghi ngày D).
 	rows, err := database.Pool.Query(ctx,
 		`SELECT s.name, to_char(rs.to_date,'YYYY-MM-DD')
-		   FROM room_stays rs JOIN students s ON s.id = rs.student_id AND s.deleted_at IS NULL
+		   FROM room_stays rs JOIN students s ON s.id = rs.student_id
 		  WHERE rs.room_id=$1 AND rs.to_date >= $2 AND rs.to_date < $3
 		    AND NOT EXISTS (SELECT 1 FROM meter_reads m WHERE m.room_id = rs.room_id
 		                     AND m.read_date BETWEEN rs.to_date AND rs.to_date + 1)

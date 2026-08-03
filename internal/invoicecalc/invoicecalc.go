@@ -79,10 +79,12 @@ func RoomSegments(ctx context.Context, database *db.DB, roomID int, month string
 		return nil, err
 	}
 
+	// KHÔNG lọc s.deleted_at: khoá hồ sơ chỉ chặn sửa/đăng nhập, người đó vẫn đã ở và vẫn dùng điện.
+	// Bỏ họ khỏi bảng chia là phần điện của họ đổ sang bạn cùng phòng.
 	stayRows, err := database.Pool.Query(ctx,
 		`SELECT rs.student_id, rs.from_date, rs.to_date
-		   FROM room_stays rs JOIN students s ON s.id = rs.student_id
-		  WHERE rs.room_id=$1 AND s.deleted_at IS NULL
+		   FROM room_stays rs
+		  WHERE rs.room_id=$1
 		    AND rs.from_date <= $2 AND (rs.to_date IS NULL OR rs.to_date >= $3)`,
 		roomID, billing.LastDay(month), billing.FirstDay(month))
 	if err != nil {
@@ -244,11 +246,11 @@ func StudentElectricProvisional(ctx context.Context, database *db.DB, studentID 
 		if len(reads) == 0 {
 			continue // chưa có chốt bàn giao -> bỏ
 		}
-		// stays trong tháng.
+		// stays trong tháng — không lọc hồ sơ khoá, xem RoomSegments.
 		stayRows, err := database.Pool.Query(ctx,
 			`SELECT rs.student_id, rs.from_date, rs.to_date
-			   FROM room_stays rs JOIN students s ON s.id = rs.student_id
-			  WHERE rs.room_id=$1 AND s.deleted_at IS NULL
+			   FROM room_stays rs
+			  WHERE rs.room_id=$1
 			    AND rs.from_date <= $2 AND (rs.to_date IS NULL OR rs.to_date >= $3)`,
 			rid, billing.LastDay(month), billing.FirstDay(month))
 		if err != nil {

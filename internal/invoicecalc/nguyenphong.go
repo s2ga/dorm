@@ -46,7 +46,7 @@ func NguyenPhongCuaPhong(ctx context.Context, database *db.DB, roomID int, month
 		`SELECT s.id, s.check_in_date, s.check_out_date, s.uses_washing,
 		        (SELECT COUNT(*)::int FROM vehicles v WHERE v.student_id=s.id AND v.deleted_at IS NULL) AS so_xe
 		   FROM students s
-		  WHERE s.room_id=$1 AND s.deleted_at IS NULL
+		  WHERE s.room_id=$1
 		    AND s.check_in_date <= $2 AND (s.check_out_date IS NULL OR s.check_out_date >= $3)`,
 		roomID, billing.LastDay(month), billing.FirstDay(month))
 	if err != nil {

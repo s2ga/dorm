@@ -486,7 +486,8 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 		mStart, mEnd := billing.FirstDay(body.Month), billing.LastDay(body.Month)
 
 		// HV có ở trong tháng. Đa cơ sở: điều hành tất cả/lọc ?facility; quản lý ép cơ sở. invoices.routes.js:152-164
-		stCond := []string{"deleted_at IS NULL", "check_in_date IS NOT NULL", "check_in_date <= $1", "(check_out_date IS NULL OR check_out_date >= $2)"}
+		// Hồ sơ ĐÃ KHOÁ vẫn vào danh sách: khoá là chặn sửa/đăng nhập, không phải xoá nợ.
+		stCond := []string{"check_in_date IS NOT NULL", "check_in_date <= $1", "(check_out_date IS NULL OR check_out_date >= $2)"}
 		stParams := []interface{}{mEnd, mStart}
 		invoicesExecFacilityFilter(c, u, "facility_id", &stCond, &stParams)
 		stRows, err := tx.Query(ctx,
@@ -572,8 +573,8 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 		staysByRoom := map[int][]billing.Stay{}
 		rsRows, err := tx.Query(ctx,
 			`SELECT rs.room_id, rs.student_id, rs.from_date AS from, rs.to_date AS to
-			   FROM room_stays rs JOIN students s ON s.id = rs.student_id
-			  WHERE s.deleted_at IS NULL AND rs.from_date <= $1 AND (rs.to_date IS NULL OR rs.to_date >= $2)`, eEnd, eStart)
+			   FROM room_stays rs
+			  WHERE rs.from_date <= $1 AND (rs.to_date IS NULL OR rs.to_date >= $2)`, eEnd, eStart)
 		if err != nil {
 			return err
 		}
