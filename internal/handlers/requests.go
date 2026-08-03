@@ -846,8 +846,9 @@ func (h *Handlers) BillCheckout(c *gin.Context) {
 	var dID int
 	var dStatus string
 	var dOther, dCoc float64
-	dupErr := h.pool().QueryRow(ctx, "SELECT id, status, other_charge, deposit_charge FROM invoices WHERE student_id=$1 AND month=$2", sid, month).
-		Scan(&dID, &dStatus, &dOther, &dCoc)
+	var dDaXoa bool
+	dupErr := h.pool().QueryRow(ctx, "SELECT id, status, other_charge, deposit_charge, deleted_at IS NOT NULL FROM invoices WHERE student_id=$1 AND month=$2", sid, month).
+		Scan(&dID, &dStatus, &dOther, &dCoc, &dDaXoa)
 	hasDup := dupErr == nil
 	if dupErr != nil && !errors.Is(dupErr, pgx.ErrNoRows) {
 		serverErr(c)
@@ -962,9 +963,9 @@ func (h *Handlers) BillCheckout(c *gin.Context) {
 	})
 
 	// Hư hao -> "khoản khác"; tổng gồm cả khoản khác.
-	// Cọc: phiếu đã có thì giữ nguyên khoản đang ghi, chưa có mới tính mới.
+	// Cọc: phiếu đang sống thì giữ nguyên khoản đang ghi; chưa có hoặc đã xoá thì tính mới.
 	coc := float64(comp.DepositCharge)
-	if hasDup {
+	if hasDup && !dDaXoa {
 		coc = dCoc
 	}
 	total := billing.InvoiceTotal(map[string]float64{

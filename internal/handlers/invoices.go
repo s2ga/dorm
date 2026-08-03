@@ -762,9 +762,10 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 			status string
 			other  float64
 			coc    float64
+			daXoa  bool
 		}
 		existing := map[int]genExisting{}
-		exRows, err := tx.Query(ctx, "SELECT id, student_id, status, other_charge, deposit_charge FROM invoices WHERE month=$1", body.Month)
+		exRows, err := tx.Query(ctx, "SELECT id, student_id, status, other_charge, deposit_charge, deleted_at IS NOT NULL FROM invoices WHERE month=$1", body.Month)
 		if err != nil {
 			return err
 		}
@@ -772,11 +773,12 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 			var iid, sid int
 			var st string
 			var other, coc float64
-			if err := exRows.Scan(&iid, &sid, &st, &other, &coc); err != nil {
+			var daXoa bool
+			if err := exRows.Scan(&iid, &sid, &st, &other, &coc, &daXoa); err != nil {
 				exRows.Close()
 				return err
 			}
-			existing[sid] = genExisting{id: iid, status: st, other: other, coc: coc}
+			existing[sid] = genExisting{id: iid, status: st, other: other, coc: coc, daXoa: daXoa}
 		}
 		exRows.Close()
 		if err := exRows.Err(); err != nil {
@@ -849,7 +851,11 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 			if hasDup {
 				// Cọc đã nằm trên phiếu thì GIỮ NGUYÊN, không tính lại: hồ sơ chuyển sang "đang giữ"
 				// sau khi thu là TienCoc trả 0, phát lại phiếu sẽ xoá mất khoản đã thu.
+				// Phiếu ĐÃ XOÁ là chuyện khác: lập lại = làm mới, phải tính cọc như phiếu đầu tiên.
 				coc := dup.coc
+				if dup.daXoa {
+					coc = float64(inv.DepositCharge)
+				}
 				total := billing.InvoiceTotal(map[string]float64{
 					"room_charge": float64(inv.RoomCharge), "electric_charge": float64(inv.ElectricCharge),
 					"water_charge": float64(inv.WaterCharge), "service_charge": float64(inv.ServiceCharge),
@@ -958,8 +964,9 @@ func (h *Handlers) GenerateOneInvoice(c *gin.Context) {
 	var dID int
 	var dStatus string
 	var dOther, dCoc float64
-	dupErr := h.pool().QueryRow(ctx, "SELECT id, status, other_charge, deposit_charge FROM invoices WHERE student_id=$1 AND month=$2", sid, monthStr).
-		Scan(&dID, &dStatus, &dOther, &dCoc)
+	var dDaXoa bool
+	dupErr := h.pool().QueryRow(ctx, "SELECT id, status, other_charge, deposit_charge, deleted_at IS NOT NULL FROM invoices WHERE student_id=$1 AND month=$2", sid, monthStr).
+		Scan(&dID, &dStatus, &dOther, &dCoc, &dDaXoa)
 	hasDup := dupErr == nil
 	if dupErr != nil && !errors.Is(dupErr, pgx.ErrNoRows) {
 		serverErr(c)
@@ -1050,11 +1057,16 @@ func (h *Handlers) GenerateOneInvoice(c *gin.Context) {
 	})
 
 	if hasDup {
+		// Cọc trên phiếu đang sống thì giữ nguyên; phiếu đã xoá mà lập lại thì tính mới.
+		coc := dCoc
+		if dDaXoa {
+			coc = float64(inv.DepositCharge)
+		}
 		total := billing.InvoiceTotal(map[string]float64{
 			"room_charge": float64(inv.RoomCharge), "electric_charge": float64(inv.ElectricCharge),
 			"water_charge": float64(inv.WaterCharge), "service_charge": float64(inv.ServiceCharge),
 			"washing_charge": float64(inv.WashingCharge), "parking_charge": float64(inv.ParkingCharge),
-			"other_charge": dOther, "deposit_charge": dCoc, // cọc đã có trên phiếu thì giữ nguyên
+			"other_charge": dOther, "deposit_charge": coc,
 			"leader_discount": float64(inv.LeaderDiscount), "room_discount": float64(inv.RoomDiscount),
 			"fee_discount": float64(inv.FeeDiscount),
 		})
@@ -1064,7 +1076,7 @@ func (h *Handlers) GenerateOneInvoice(c *gin.Context) {
 			   fee_discount=$11, deposit_charge=$12, total=$13, deleted_at=NULL WHERE id=$14 RETURNING *`,
 			inv.DaysStayed, inv.RoomCharge, inv.ElectricKwh, inv.ElectricCharge, inv.WaterCharge,
 			inv.ServiceCharge, inv.WashingCharge, inv.ParkingCharge, inv.LeaderDiscount, inv.RoomDiscount,
-			inv.FeeDiscount, dCoc, total, dID)
+			inv.FeeDiscount, coc, total, dID)
 		if err != nil {
 			serverErr(c)
 			return
