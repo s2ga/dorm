@@ -371,6 +371,12 @@ input[type=checkbox],input[type=radio]{width:auto;flex:none;accent-color:var(--b
 /* select[size] = hộp danh sách mở sẵn (thay dropdown khi lựa chọn quá nhiều để cuộn tay). */
 select[size]{height:auto;padding:6px}
 select[size] option{padding:8px 9px;border-radius:8px}
+/* Nhóm ô trong form dài: tiêu đề + đường kẻ để mắt bám mốc, thay vì cuộn một mạch 29 ô. */
+.form-nhom{margin:0 0 20px}
+.form-nhom>h4{display:flex;align-items:center;gap:9px;margin:0 0 11px;font-size:11.5px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.form-nhom>h4::after{content:'';flex:1;height:1px;background:var(--line)}
+.form-nhom>h4 .ic-svg{width:14px;height:14px;color:var(--brand)}
 /* Ô chỉ đọc: trông như input nhưng giá trị suy ra từ nơi khác, không sửa tại chỗ được. */
 .ro-in{padding:11px 13px;border:1px solid var(--line2);border-radius:11px;background:var(--bg2);color:var(--ink2);font-size:14.5px}
 .ro-in .muted{font-size:13px}

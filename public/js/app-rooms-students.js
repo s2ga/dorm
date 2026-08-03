@@ -373,6 +373,9 @@ function previewCccd(input, side) {
   };
   r.readAsDataURL(f);
 }
+// Một nhóm ô trong form dài: tiêu đề nhỏ + đường kẻ. Form hồ sơ có gần 30 ô, không chia thì cuộn
+// một mạch không có mốc nào để bám.
+const nhomForm = (ico, ten, noiDung) => `<div class="form-nhom"><h4>${ico || ''}${ten}</h4>${noiDung}</div>`;
 async function studentForm(id) {
   const s = id ? await guard(() => API.student(id)) : { name: '', code: '', gender: 'female', phone: '', id_card: '', room_id: '', check_in_date: today(), note: '', uses_washing: false, rental_type: 'ghep', residency_status: 'unregistered', contract_status: 'unsigned', class_name: '', birth_date: '', contract_no: '', contract_date: '', class_start_date: '', expected_departure: '', parent_phone: '' };
   window._svV = s._v || null;   // ghi nhớ hồ sơ này ở phiên bản nào lúc mình MỞ form
@@ -384,68 +387,68 @@ async function studentForm(id) {
   openModal(`
     <div class="mh"><h3>${id ? 'Sửa học viên' : 'Thêm học viên'}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <div class="grid2">
-        <div class="field"><label>Họ tên *</label><input id="f_name" value="${esc(s.name)}" placeholder="Nguyễn Văn A"></div>
-        <div class="field"><label>Mã học viên (MSHV)</label><input id="f_code" value="${esc(s.code || '')}" placeholder="TXTS-S25..."></div>
-      </div>
-      <div class="grid2">
-        <div class="field"><label>Lớp</label><input id="f_class" value="${esc(s.class_name || '')}" placeholder="Esu684"></div>
-        <div class="field"><label>Ngày sinh</label><input id="f_birth"></div>
-      </div>
-      <div class="field"><label>Email công ty <span class="opt">(để học viên đăng nhập bằng tài khoản Microsoft)</span></label>
-        <input id="f_email" type="email" value="${esc(s.email || '')}" placeholder="hoten@esuhai.com">
-        <div class="sub2" style="margin-top:4px">${IC.info} Điền đúng email này thì lần đầu học viên bấm "Đăng nhập bằng Microsoft" là vào thẳng, <strong>không phải chờ admin duyệt</strong>. Bỏ trống cũng được — khi đó admin duyệt tay ở màn Cài đặt → Người dùng.</div></div>
-      <div class="grid2">
-        <div class="field"><label>Giới tính</label><select id="f_gender" data-change="onFRoomFromGender">
-          ${opt('female', s.gender, 'Nữ')}${opt('male', s.gender, 'Nam')}</select></div>
-        <div class="field"><label>Số điện thoại</label><input id="f_phone" value="${esc(s.phone || '')}"></div>
-      </div>
-      <div class="grid2">
-        <div class="field"><label>Ngày khai giảng</label><input id="f_cstart"></div>
-        <div class="field"><label>Dự kiến xuất cảnh</label><input id="f_departure"></div>
-      </div>
-      <div class="field"><label>SĐT phụ huynh <span class="opt">(liên hệ khẩn cấp)</span></label><input id="f_pphone" value="${esc(s.parent_phone || '')}"></div>
-      <div class="grid2">
-        <div class="field"><label>Phòng</label><select id="f_room" data-change="dongBoHinhThucThue">${roomOptions(s.room_id, s.gender)}</select></div>
-        <div class="field"><label>Hình thức thuê</label><select id="f_rental">
-          ${opt('ghep', s.rental_type, 'Thuê ghép (giá/người)')}${opt('phong', s.rental_type, 'Thuê nguyên phòng (giá theo hạng)')}</select>
-          <div id="f_rental_ro" class="ro-in" hidden>Thuê nguyên phòng <span class="muted">— theo loại phòng</span></div></div>
-      </div>
-      <div class="field"><label>Giảm giá <span class="opt">(% mỗi khoản — để trống nếu thu đủ)</span></label>
-        <div class="giam-grid">
-          ${GIAM_O.map(([k, id2, nhan]) => `<label class="giam-o"><span>${nhan}</span>
-            <input id="${id2}" type="number" min="0" max="100" step="1" placeholder="0"
-              value="${+s[k] > 0 ? +s[k] : ''}"><span class="dv">%</span></label>`).join('')}
-        </div>
-        <div class="hint">${IC.info}<span>Dùng cho các ca lẻ, vd quản lý ký túc xá ở phòng 104 giảm <strong>50%</strong>
-          tiền phòng, hay người ở phòng nhân viên được <strong>miễn 100%</strong> tiền phòng nhưng vẫn trả nước/điện/dịch vụ.
-          Công thức tính tiền không đổi — phiếu vẫn ghi đủ từng khoản, kèm dòng giảm riêng. Bỏ trống = thu đủ.</span></div>
-      </div>
-      <div class="grid2">
-        <div class="field"><label>Ngày vào (check-in)</label><input id="f_in"></div>
-        <div class="field"><label>Tạm trú</label><select id="f_residency">
-          ${opt('unregistered', s.residency_status, 'Chưa đăng ký')}${opt('processing', s.residency_status, 'Đang xử lý')}${opt('registered', s.residency_status, 'Đã đăng ký')}</select></div>
-      </div>
-      ${/* Ngày trả đã tới/đã qua thì KHOÁ — phiếu tháng đó đã phát, công-tơ đã chốt. Hiện dạng ô chỉ
-            đọc chứ không phải input readonly: input trông y hệt ô nhập được, bấm không ra lịch thì
-            người dùng tưởng hỏng. */''}
-      <div class="field"><label>Ngày trả phòng ${daRoi ? '' : '<span class="opt">(báo trước — để trống nếu chưa báo)</span>'}</label>
-        ${daRoi
-    ? `<div class="ro-in">${esc(fmtDate(coHienTai))}
-         <span class="muted">— đã trả phòng, không sửa ở đây. Cần đổi thì dùng nút <strong>Check-out</strong> trong hồ sơ.</span></div>`
-    : '<input id="f_out">'}</div>
-
-      <div style="background:var(--bg2);padding:12px;border-radius:10px;margin-bottom:14px">
-        <div style="font-weight:600;font-size:13px;margin-bottom:10px">${IC.fileText} Hợp đồng</div>
+      ${nhomForm(IC.user, 'Nhân thân', `
         <div class="grid2">
-          <div class="field" style="margin:0 0 12px"><label>Số HĐ <span class="opt">(nhập tay · ⚡ gợi ý số kế tiếp)</span></label>
+          <div class="field"><label>Họ tên ${SAO}</label><input id="f_name" value="${esc(s.name)}" placeholder="Nguyễn Văn A"></div>
+          <div class="field"><label>Mã học viên (MSHV)</label><input id="f_code" value="${esc(s.code || '')}" placeholder="TXTS-S25..."></div>
+        </div>
+        <div class="grid2">
+          <div class="field"><label>Ngày sinh</label><input id="f_birth"></div>
+          <div class="field"><label>Giới tính</label><select id="f_gender" data-change="onFRoomFromGender">
+            ${opt('female', s.gender, 'Nữ')}${opt('male', s.gender, 'Nam')}</select></div>
+        </div>`)}
+
+      ${nhomForm(IC.phone, 'Liên hệ', `
+        <div class="grid2">
+          <div class="field"><label>Số điện thoại</label><input id="f_phone" value="${esc(s.phone || '')}"></div>
+          <div class="field"><label>SĐT phụ huynh <span class="opt">(khẩn cấp)</span></label><input id="f_pphone" value="${esc(s.parent_phone || '')}"></div>
+        </div>
+        <div class="field" style="margin:0"><label>Email công ty <span class="opt">(để đăng nhập bằng Microsoft)</span></label>
+          <input id="f_email" type="email" value="${esc(s.email || '')}" placeholder="hoten@esuhai.com">
+          <div class="hint">${IC.info}<span>Điền đúng email này thì lần đầu học viên bấm "Đăng nhập bằng Microsoft" là vào thẳng,
+            <strong>không phải chờ admin duyệt</strong>. Bỏ trống cũng được — khi đó admin duyệt tay ở màn Cài đặt → Người dùng.</span></div></div>`)}
+
+      ${nhomForm(IC.planeTakeoff, 'Học tập & xuất cảnh', `
+        <div class="grid2">
+          <div class="field"><label>Lớp</label><input id="f_class" value="${esc(s.class_name || '')}" placeholder="Esu684"></div>
+          <div class="field"><label>Ngày khai giảng</label><input id="f_cstart"></div>
+        </div>
+        <div class="field" style="margin:0"><label>Dự kiến xuất cảnh</label><input id="f_departure"></div>`)}
+
+      ${nhomForm(IC.bed, 'Ở tại ký túc xá', `
+        <div class="grid2">
+          <div class="field"><label>Phòng</label><select id="f_room" data-change="dongBoHinhThucThue">${roomOptions(s.room_id, s.gender)}</select></div>
+          <div class="field"><label>Hình thức thuê</label><select id="f_rental">
+            ${opt('ghep', s.rental_type, 'Thuê ghép (giá/người)')}${opt('phong', s.rental_type, 'Thuê nguyên phòng (giá theo hạng)')}</select>
+            <div id="f_rental_ro" class="ro-in" hidden>Thuê nguyên phòng <span class="muted">— theo loại phòng</span></div></div>
+        </div>
+        <div class="grid2">
+          <div class="field"><label>Ngày vào (check-in)</label><input id="f_in"></div>
+          <div class="field"><label>Tạm trú</label><select id="f_residency">
+            ${opt('unregistered', s.residency_status, 'Chưa đăng ký')}${opt('processing', s.residency_status, 'Đang xử lý')}${opt('registered', s.residency_status, 'Đã đăng ký')}</select></div>
+        </div>
+        ${/* Ngày trả đã tới/đã qua thì KHOÁ — phiếu tháng đó đã phát, công-tơ đã chốt. Hiện dạng ô chỉ
+              đọc chứ không phải input readonly: input trông y hệt ô nhập được, bấm không ra lịch. */''}
+        <div class="field" style="margin:0"><label>Ngày trả phòng ${daRoi ? '' : '<span class="opt">(báo trước — để trống nếu chưa báo)</span>'}</label>
+          ${daRoi
+    ? `<div class="ro-in">${esc(fmtDate(coHienTai))}
+           <span class="muted">— đã trả phòng, không sửa ở đây. Cần đổi thì dùng nút <strong>Check-out</strong> trong hồ sơ.</span></div>`
+    : '<input id="f_out">'}</div>`)}
+
+      ${nhomForm(IC.fileText, 'Hợp đồng', `
+        <div class="grid2">
+          <div class="field"><label>Số HĐ <span class="opt">(nhập tay · ⚡ gợi ý số kế tiếp)</span></label>
             <div class="flex" style="gap:6px"><input id="f_cno" value="${esc(s.contract_no || '')}" placeholder="03/2026/HDKTX-E2" style="flex:1">
             <button type="button" class="btn sm" data-act="suggestContractNo" title="Gợi ý số HĐ kế tiếp (nối tiếp số đã có)">${IC.zap}</button></div></div>
-          <div class="field" style="margin:0 0 12px"><label>Ngày ký HĐ</label><input id="f_cdate"></div>
+          <div class="field"><label>Ngày ký HĐ</label><input id="f_cdate"></div>
         </div>
-        <div class="field" style="margin:0 0 12px"><label>Tình trạng HĐ</label><select id="f_cstatus">
-          ${['done', 'scanned', 'unsigned', 'none', 'handover'].map(k => opt(k, s.contract_status || 'unsigned', CONTRACT_LABEL[k])).join('')}</select></div>
-        <div class="hint" style="margin:0;font-size:11.5px">${IC.info} Thuê <strong>trên ${shortTermMaxDays()} ngày</strong> (ghép hoặc nguyên phòng) → ký <strong>HĐ thuê phòng</strong>. Thuê <strong>dưới ${shortTermMaxDays()} ngày</strong> hoặc <strong>nhân viên công tác</strong> → ký <strong>phiếu đăng ký & bàn giao</strong>. Phòng an ninh không cần ký gì.</div>
+        <div class="field" style="margin:0"><label>Tình trạng HĐ</label><select id="f_cstatus">
+          ${['done', 'scanned', 'unsigned', 'none', 'handover'].map(k => opt(k, s.contract_status || 'unsigned', CONTRACT_LABEL[k])).join('')}</select>
+          <div class="hint">${IC.info}<span>Thuê <strong>trên ${shortTermMaxDays()} ngày</strong> (ghép hoặc nguyên phòng) → ký <strong>HĐ thuê phòng</strong>.
+            Thuê <strong>dưới ${shortTermMaxDays()} ngày</strong> hoặc <strong>nhân viên công tác</strong> → ký <strong>phiếu đăng ký & bàn giao</strong>.
+            Phòng an ninh không cần ký gì.</span></div></div>`)}
+
+      ${nhomForm(IC.userCheck, 'Giấy tờ tuỳ thân', `
         <div class="field" style="margin:0"><label>Ảnh CCCD <span class="opt">(2 mặt — chụp/chọn ảnh)</span></label>
           <div class="grid2">
             <div><div class="muted" style="font-size:12px;margin-bottom:4px">Mặt trước</div>
@@ -456,18 +459,17 @@ async function studentForm(id) {
               <div id="cccdBackPrev" style="margin-top:6px">${s.cccd_back ? `<img src="${s.cccd_back}" style="max-width:100%;max-height:180px;border-radius:8px;border:1px solid var(--line)">` : ''}</div></div>
           </div>
           ${!s.cccd_front && !s.cccd_back && s.cccd_image ? `<div style="margin-top:8px"><div class="muted" style="font-size:12px;margin-bottom:4px">${IC.info} Ảnh cũ (1 mặt) — tải 2 mặt ở trên để cập nhật:</div><img src="${s.cccd_image}" style="max-width:100%;max-height:160px;border-radius:8px;border:1px solid var(--line)"></div>` : ''}
-        </div>
-      </div>
+        </div>`)}
 
-      ${!id ? `
-      <label class="check"><input type="checkbox" id="f_dep"> ${IC.lock} Đã đóng cọc ${money(ST.settings.deposit_fee)} khi nhận phòng <span class="opt">— chỉ tick khi đã thật sự nhận tiền</span></label>
-      <label class="check" style="margin-top:8px"><input type="checkbox" id="f_login" data-change="onLoginBoxToggle"> ${IC.key} Tạo tài khoản đăng nhập</label>
-      <div id="loginBox" style="display:none;background:var(--bg2);padding:12px;border-radius:10px;margin-top:8px">
-        <div class="grid2">
-          <div class="field" style="margin:0"><label>Tên đăng nhập <span class="opt">(trống = mã HV)</span></label><input id="f_luser"></div>
-          <div class="field" style="margin:0"><label>Mật khẩu</label><input id="f_lpass" type="text" placeholder="tối thiểu 6 ký tự"></div>
-        </div>
-      </div>` : ''}
+      ${!id ? nhomForm(IC.plus, 'Khởi tạo', `
+        <label class="check"><input type="checkbox" id="f_dep"> ${IC.lock} Đã đóng cọc ${money(ST.settings.deposit_fee)} khi nhận phòng <span class="opt">— chỉ tick khi đã thật sự nhận tiền</span></label>
+        <label class="check" style="margin-top:8px"><input type="checkbox" id="f_login" data-change="onLoginBoxToggle"> ${IC.key} Tạo tài khoản đăng nhập</label>
+        <div id="loginBox" style="display:none;background:var(--bg2);padding:12px;border-radius:10px;margin-top:8px">
+          <div class="grid2">
+            <div class="field" style="margin:0"><label>Tên đăng nhập <span class="opt">(trống = mã HV)</span></label><input id="f_luser"></div>
+            <div class="field" style="margin:0"><label>Mật khẩu</label><input id="f_lpass" type="text" placeholder="tối thiểu 6 ký tự"></div>
+          </div>
+        </div>`) : `<div class="hint">${IC.info}<span>Giảm giá theo % nay chỉnh ở màn <strong>Tiền phòng</strong> — bấm ✎ trên phiếu của học viên. Tiền nằm ở đâu thì sửa ở đó.</span></div>`}
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveStudent" data-args='[${id || 0}]'>Lưu</button></div>`, true);
   attachDate(el('f_birth'), s.birth_date, { max: today() });
@@ -496,7 +498,7 @@ async function saveStudent(id) {
     room_id: el('f_room').value || null, rental_type: el('f_rental').value, check_in_date: el('f_in').dataset.iso,
     // Ô vắng mặt (HV đã trả phòng) -> KHÔNG gửi field, để server giữ nguyên ngày cũ.
     ...(el('f_out') ? { check_out_date: el('f_out').dataset.iso || null } : {}),
-    ...Object.fromEntries(GIAM_O.map(([k, id2]) => [k, +el(id2).value || 0])),
+    // Giảm giá % KHÔNG gửi từ đây nữa — chỉnh ở màn Tiền phòng. Không gửi field = server giữ nguyên.
     // Số hiệu phiên bản đọc lúc MỞ form. Server so lại: khác nghĩa là người khác vừa sửa
     // trong lúc mình đang điền -> báo cho biết thay vì đè mất công của họ.
     _v: window._svV || undefined,
