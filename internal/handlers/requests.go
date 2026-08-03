@@ -845,9 +845,9 @@ func (h *Handlers) BillCheckout(c *gin.Context) {
 	// Phiếu kỳ này đã tồn tại? Đã thu (paid) thì không sửa.
 	var dID int
 	var dStatus string
-	var dOther float64
-	dupErr := h.pool().QueryRow(ctx, "SELECT id, status, other_charge FROM invoices WHERE student_id=$1 AND month=$2", sid, month).
-		Scan(&dID, &dStatus, &dOther)
+	var dOther, dCoc float64
+	dupErr := h.pool().QueryRow(ctx, "SELECT id, status, other_charge, deposit_charge FROM invoices WHERE student_id=$1 AND month=$2", sid, month).
+		Scan(&dID, &dStatus, &dOther, &dCoc)
 	hasDup := dupErr == nil
 	if dupErr != nil && !errors.Is(dupErr, pgx.ErrNoRows) {
 		serverErr(c)
@@ -962,11 +962,16 @@ func (h *Handlers) BillCheckout(c *gin.Context) {
 	})
 
 	// Hư hao -> "khoản khác"; tổng gồm cả khoản khác.
+	// Cọc: phiếu đã có thì giữ nguyên khoản đang ghi, chưa có mới tính mới.
+	coc := float64(comp.DepositCharge)
+	if hasDup {
+		coc = dCoc
+	}
 	total := billing.InvoiceTotal(map[string]float64{
 		"room_charge": float64(comp.RoomCharge), "electric_charge": float64(comp.ElectricCharge),
 		"water_charge": float64(comp.WaterCharge), "service_charge": float64(comp.ServiceCharge),
 		"washing_charge": float64(comp.WashingCharge), "parking_charge": float64(comp.ParkingCharge),
-		"other_charge": damageAmount, "deposit_charge": float64(comp.DepositCharge),
+		"other_charge": damageAmount, "deposit_charge": coc,
 		"leader_discount": float64(comp.LeaderDiscount), "room_discount": float64(comp.RoomDiscount),
 		"fee_discount": float64(comp.FeeDiscount),
 	})
@@ -980,7 +985,7 @@ func (h *Handlers) BillCheckout(c *gin.Context) {
 			 WHERE id=$16 RETURNING id`,
 			comp.DaysStayed, comp.RoomCharge, comp.ElectricKwh, comp.ElectricCharge, comp.WaterCharge,
 			comp.ServiceCharge, comp.WashingCharge, comp.ParkingCharge, comp.LeaderDiscount, comp.RoomDiscount,
-			comp.FeeDiscount, damageAmount, damageNote, comp.DepositCharge, total, dID).Scan(&invID); err != nil {
+			comp.FeeDiscount, damageAmount, damageNote, coc, total, dID).Scan(&invID); err != nil {
 			serverErr(c)
 			return
 		}
@@ -992,7 +997,7 @@ func (h *Handlers) BillCheckout(c *gin.Context) {
 			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'pending') RETURNING id`,
 			sid, roomID, month, comp.DaysStayed, comp.RoomCharge, comp.ElectricKwh, comp.ElectricCharge,
 			comp.WaterCharge, comp.ServiceCharge, comp.WashingCharge, comp.ParkingCharge,
-			comp.LeaderDiscount, comp.RoomDiscount, comp.FeeDiscount, damageAmount, damageNote, comp.DepositCharge, total).Scan(&invID); err != nil {
+			comp.LeaderDiscount, comp.RoomDiscount, comp.FeeDiscount, damageAmount, damageNote, coc, total).Scan(&invID); err != nil {
 			serverErr(c)
 			return
 		}

@@ -28,6 +28,7 @@ func defaultSettings(dormName string) [][2]string {
 		{"bravo_fee_type", "T0704"},
 		{"bravo_room", "GP00180"}, {"bravo_water", "GP00181"}, {"bravo_service", "GP00183"},
 		{"bravo_electric", "GP00184"}, {"bravo_parking", "GP00182"}, {"bravo_washing", ""}, {"bravo_other", ""},
+		{"bravo_deposit", ""},
 		{"intro_hero_title", "Không gian nội trú\nan tâm & nề nếp"},
 		{"intro_hero_desc", "chỗ ở tiện nghi, kỷ luật, đồng hành cùng học viên trên hành trình sang Nhật."},
 		{"intro_about_eyebrow", "Về khu nội trú"},

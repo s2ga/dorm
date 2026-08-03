@@ -93,7 +93,7 @@ var settingsAllowed = []string{
 	"overdue_remind_days", "shortterm_max_days", "deposit_notice_min_days", "partial_half_factor",
 	"room_cap_A", "room_cap_B", "room_cap_C", "room_cap_D", "checkout_max_future_days", "max_cccd_mb",
 	"room_price_A", "room_price_B", "room_price_C", "room_price_D",
-	"bravo_fee_type", "bravo_room", "bravo_water", "bravo_service", "bravo_electric", "bravo_parking", "bravo_washing", "bravo_other",
+	"bravo_fee_type", "bravo_room", "bravo_water", "bravo_service", "bravo_electric", "bravo_parking", "bravo_washing", "bravo_other", "bravo_deposit",
 	"school_name", "school_email", "violation_mail_threshold",
 	"smtp_host", "smtp_port", "smtp_secure", "smtp_user", "smtp_pass", "smtp_from",
 	"sso_enabled", "sso_tenant_id", "sso_client_id", "sso_client_secret", "sso_allowed_domains",

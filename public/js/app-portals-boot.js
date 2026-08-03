@@ -23,7 +23,7 @@ function myInvoiceDetail(id) {
   if (!i) return;
   const line = (label, val, sub) => `<tr><td>${label}${sub ? ` <span class="muted" style="font-size:12px">${sub}</span>` : ''}</td><td class="num">${money(+val || 0)}</td></tr>`;
   const opt = (label, val, sub) => (+val) ? line(label, val, sub) : '';
-  const leaderD = +i.leader_discount || 0, roomD = +i.room_discount || 0;
+  const leaderD = +i.leader_discount || 0, roomD = +i.room_discount || 0, feeD = +i.fee_discount || 0;
   openModal(`
     <div class="mh"><h3>${IC.receipt} Chi tiết phiếu ${monthLabel(i.month)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
@@ -36,8 +36,10 @@ function myInvoiceDetail(id) {
         ${opt('Máy giặt', i.washing_charge)}
         ${opt('Gửi xe', i.parking_charge)}
         ${opt('Khoản khác', i.other_charge, i.other_note ? esc(i.other_note) : '')}
+        ${opt('Tiền cọc', i.deposit_charge, 'thu một lần khi nhận phòng · hoàn lại khi trả phòng')}
         ${leaderD ? `<tr><td>Giảm phòng trưởng</td><td class="num" style="color:var(--green)">−${money(leaderD)}</td></tr>` : ''}
         ${roomD ? `<tr><td>Giảm tiền phòng</td><td class="num" style="color:var(--green)">−${money(roomD)}</td></tr>` : ''}
+        ${feeD ? `<tr><td>Giảm các khoản khác</td><td class="num" style="color:var(--green)">−${money(feeD)}</td></tr>` : ''}
         <tr style="border-top:2px solid var(--line)"><td><strong>Tổng cộng</strong></td><td class="num"><strong>${money(i.total)}</strong></td></tr>
       </tbody></table></div>
       <p class="muted" style="font-size:12.5px;margin:12px 0 0">${IC.creditCard} Đóng tiền qua mã QR quản lý gửi trên Zalo.</p>
@@ -99,9 +101,9 @@ async function loadStudentPortal() {
       ${invs.length ? `<table><thead><tr><th>Kỳ</th><th class="num">Tiền phòng</th><th class="num">Điện</th><th class="num">Khác</th><th class="num">Giảm</th><th class="num">Tổng</th></tr></thead><tbody>
         ${invs.map(i => {
           // Cột "Giảm" phải hiện, nếu không thì 4 cột đầu cộng lại KHÔNG ra Tổng — học viên tưởng app tính sai
-          const giam = (+i.leader_discount || 0) + (+i.room_discount || 0);
+          const giam = (+i.leader_discount || 0) + (+i.room_discount || 0) + (+i.fee_discount || 0);
           return `<tr style="cursor:pointer" data-act="myInvoiceDetail" data-args='[${i.id}]' title="Bấm để xem chi tiết khoản thu"><td>${monthLabel(i.month)}</td><td class="num" data-label="Tiền phòng">${money(i.room_charge)}</td><td class="num" data-label="Điện">${money(i.electric_charge)}</td>
-          <td class="num" data-label="Khác">${money((+i.water_charge) + (+i.service_charge) + (+i.washing_charge) + (+i.parking_charge) + (+i.other_charge || 0))}</td>
+          <td class="num" data-label="Khác">${money((+i.water_charge) + (+i.service_charge) + (+i.washing_charge) + (+i.parking_charge) + (+i.other_charge || 0) + (+i.deposit_charge || 0))}</td>
           <td class="num" data-label="Giảm">${giam ? `<span class="badge green">−${money(giam)}</span>` : '—'}</td>
           <td class="num" data-label="Tổng"><strong>${money(i.total)}</strong></td></tr>`;
         }).join('')}

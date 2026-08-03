@@ -761,21 +761,22 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 			id     int
 			status string
 			other  float64
+			coc    float64
 		}
 		existing := map[int]genExisting{}
-		exRows, err := tx.Query(ctx, "SELECT id, student_id, status, other_charge FROM invoices WHERE month=$1", body.Month)
+		exRows, err := tx.Query(ctx, "SELECT id, student_id, status, other_charge, deposit_charge FROM invoices WHERE month=$1", body.Month)
 		if err != nil {
 			return err
 		}
 		for exRows.Next() {
 			var iid, sid int
 			var st string
-			var other float64
-			if err := exRows.Scan(&iid, &sid, &st, &other); err != nil {
+			var other, coc float64
+			if err := exRows.Scan(&iid, &sid, &st, &other, &coc); err != nil {
 				exRows.Close()
 				return err
 			}
-			existing[sid] = genExisting{id: iid, status: st, other: other}
+			existing[sid] = genExisting{id: iid, status: st, other: other, coc: coc}
 		}
 		exRows.Close()
 		if err := exRows.Err(); err != nil {
@@ -846,11 +847,14 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 				ElectricCharge: ec, LeaderDays: leaderDays[s.id], Kwh: kwh, VehicleCount: &vc,
 			})
 			if hasDup {
+				// Cọc đã nằm trên phiếu thì GIỮ NGUYÊN, không tính lại: hồ sơ chuyển sang "đang giữ"
+				// sau khi thu là TienCoc trả 0, phát lại phiếu sẽ xoá mất khoản đã thu.
+				coc := dup.coc
 				total := billing.InvoiceTotal(map[string]float64{
 					"room_charge": float64(inv.RoomCharge), "electric_charge": float64(inv.ElectricCharge),
 					"water_charge": float64(inv.WaterCharge), "service_charge": float64(inv.ServiceCharge),
 					"washing_charge": float64(inv.WashingCharge), "parking_charge": float64(inv.ParkingCharge),
-					"other_charge": dup.other, "deposit_charge": float64(inv.DepositCharge),
+					"other_charge": dup.other, "deposit_charge": coc,
 					"leader_discount": float64(inv.LeaderDiscount), "room_discount": float64(inv.RoomDiscount),
 					"fee_discount": float64(inv.FeeDiscount),
 				})
@@ -860,7 +864,7 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 					   fee_discount=$11, deposit_charge=$12, total=$13, deleted_at=NULL WHERE id=$14`,
 					inv.DaysStayed, inv.RoomCharge, inv.ElectricKwh, inv.ElectricCharge, inv.WaterCharge,
 					inv.ServiceCharge, inv.WashingCharge, inv.ParkingCharge, inv.LeaderDiscount, inv.RoomDiscount,
-					inv.FeeDiscount, inv.DepositCharge, total, dup.id); err != nil {
+					inv.FeeDiscount, coc, total, dup.id); err != nil {
 					return err
 				}
 				updated++
@@ -953,9 +957,9 @@ func (h *Handlers) GenerateOneInvoice(c *gin.Context) {
 	// dup + khoá phiếu đã đóng (invoices.routes.js:292-293)
 	var dID int
 	var dStatus string
-	var dOther float64
-	dupErr := h.pool().QueryRow(ctx, "SELECT id, status, other_charge FROM invoices WHERE student_id=$1 AND month=$2", sid, monthStr).
-		Scan(&dID, &dStatus, &dOther)
+	var dOther, dCoc float64
+	dupErr := h.pool().QueryRow(ctx, "SELECT id, status, other_charge, deposit_charge FROM invoices WHERE student_id=$1 AND month=$2", sid, monthStr).
+		Scan(&dID, &dStatus, &dOther, &dCoc)
 	hasDup := dupErr == nil
 	if dupErr != nil && !errors.Is(dupErr, pgx.ErrNoRows) {
 		serverErr(c)
@@ -1050,7 +1054,7 @@ func (h *Handlers) GenerateOneInvoice(c *gin.Context) {
 			"room_charge": float64(inv.RoomCharge), "electric_charge": float64(inv.ElectricCharge),
 			"water_charge": float64(inv.WaterCharge), "service_charge": float64(inv.ServiceCharge),
 			"washing_charge": float64(inv.WashingCharge), "parking_charge": float64(inv.ParkingCharge),
-			"other_charge": dOther, "deposit_charge": float64(inv.DepositCharge),
+			"other_charge": dOther, "deposit_charge": dCoc, // cọc đã có trên phiếu thì giữ nguyên
 			"leader_discount": float64(inv.LeaderDiscount), "room_discount": float64(inv.RoomDiscount),
 			"fee_discount": float64(inv.FeeDiscount),
 		})
@@ -1060,7 +1064,7 @@ func (h *Handlers) GenerateOneInvoice(c *gin.Context) {
 			   fee_discount=$11, deposit_charge=$12, total=$13, deleted_at=NULL WHERE id=$14 RETURNING *`,
 			inv.DaysStayed, inv.RoomCharge, inv.ElectricKwh, inv.ElectricCharge, inv.WaterCharge,
 			inv.ServiceCharge, inv.WashingCharge, inv.ParkingCharge, inv.LeaderDiscount, inv.RoomDiscount,
-			inv.FeeDiscount, inv.DepositCharge, total, dID)
+			inv.FeeDiscount, dCoc, total, dID)
 		if err != nil {
 			serverErr(c)
 			return
@@ -1231,9 +1235,9 @@ func (h *Handlers) UpdateInvoice(c *gin.Context) {
 	}
 	// KHÓA hoá đơn đã thu (invoices.routes.js:388-390)
 	var curStatus, curMonth string
-	var curLeaderDisc, curRoomDisc float64
-	err := h.pool().QueryRow(ctx, "SELECT status, leader_discount, room_discount, month FROM invoices WHERE id=$1 AND deleted_at IS NULL", id).
-		Scan(&curStatus, &curLeaderDisc, &curRoomDisc, &curMonth)
+	var curLeaderDisc, curRoomDisc, curFeeDisc float64
+	err := h.pool().QueryRow(ctx, "SELECT status, leader_discount, room_discount, fee_discount, month FROM invoices WHERE id=$1 AND deleted_at IS NULL", id).
+		Scan(&curStatus, &curLeaderDisc, &curRoomDisc, &curFeeDisc, &curMonth)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			notFound(c, "Không tìm thấy hóa đơn")
@@ -1250,15 +1254,16 @@ func (h *Handlers) UpdateInvoice(c *gin.Context) {
 		badRequest(c, e)
 		return
 	}
-	giam := curLeaderDisc + curRoomDisc
-	// total = Σ7 phí − CÁC KHOẢN GIẢM (lấy discount từ bản ghi hiện tại). invoices.routes.js:398
+	// Lấy CẢ BA khoản giảm từ bản ghi hiện tại. Bỏ sót fee_discount là mỗi lần sửa phiếu tay lại
+	// cộng ngược phần giảm % vào tổng, trong khi cột fee_discount trong CSDL vẫn giữ nguyên.
+	giam := curLeaderDisc + curRoomDisc + curFeeDisc
 	total := billing.InvoiceTotal(map[string]float64{
 		"room_charge": invoiceNumOr0(b["room_charge"]), "electric_charge": invoiceNumOr0(b["electric_charge"]),
 		"water_charge": invoiceNumOr0(b["water_charge"]), "service_charge": invoiceNumOr0(b["service_charge"]),
 		"washing_charge": invoiceNumOr0(b["washing_charge"]), "parking_charge": invoiceNumOr0(b["parking_charge"]),
 		"other_charge":    invoiceNumOr0(b["other_charge"]),
 		"deposit_charge":  invoiceNumOr0(b["deposit_charge"]),
-		"leader_discount": curLeaderDisc, "room_discount": curRoomDisc,
+		"leader_discount": curLeaderDisc, "room_discount": curRoomDisc, "fee_discount": curFeeDisc,
 	})
 	// BLK-7: total có thể ÂM nếu giảm > tổng phí -> chặn thẳng ở API. invoices.routes.js:402
 	if total < 0 {
@@ -1291,13 +1296,28 @@ func (h *Handlers) UpdateInvoice(c *gin.Context) {
 // ghiNhanCocDaThu: phiếu mang dòng tiền cọc mà được đánh dấu ĐÃ THU thì hồ sơ chuyển sang đang giữ
 // cọc (chốt 02/08/2026). Chỉ đụng hồ sơ còn 'none' — không đè lên lần đóng cọc đã ghi trước đó.
 // cond lọc trên bảng invoices i, tham số bắt đầu từ $2 ($1 dành cho ngày thu).
-func (h *Handlers) ghiNhanCocDaThu(ctx context.Context, ngayThu string, cond string, args ...interface{}) {
-	_, _ = h.pool().Exec(ctx,
+func ghiNhanCocDaThu(ctx context.Context, q db.Querier, ngayThu string, cond string, args ...interface{}) error {
+	_, err := q.Exec(ctx,
 		`UPDATE students s SET deposit_status='held', deposit_amount=i.deposit_charge, deposit_date=$1
 		   FROM invoices i
 		  WHERE `+cond+` AND i.deposit_charge > 0 AND i.deleted_at IS NULL
 		    AND s.id = i.student_id AND s.deposit_status = 'none'`,
 		append([]interface{}{ngayThu}, args...)...)
+	return err
+}
+
+// goCocDaThu: gỡ trạng thái ĐÃ THU của một phiếu thì trả cờ cọc về "chưa đóng", nếu khoản đang giữ
+// đúng là khoản phiếu này ghi nhận. Thiếu chiều về là cọc không bao giờ đòi lại được: TienCoc thấy
+// 'held' nên trả 0, mà toàn app không có đường nào khác đặt lại 'none'.
+func goCocDaThu(ctx context.Context, q db.Querier, invoiceID int) error {
+	_, err := q.Exec(ctx,
+		`UPDATE students s SET deposit_status='none', deposit_amount=0, deposit_date=NULL
+		   FROM invoices i
+		  WHERE i.id = $1 AND i.deposit_charge > 0
+		    AND s.id = i.student_id AND s.deposit_status = 'held'
+		    AND s.deposit_amount = i.deposit_charge`,
+		invoiceID)
+	return err
 }
 
 // MarkPaidInvoices: POST /api/invoices/mark-paid (CHỈ admin). invoices.routes.js:419-434.
@@ -1324,14 +1344,22 @@ func (h *Handlers) MarkPaidInvoices(c *gin.Context) {
 		return
 	}
 	date := timeutil.Today()
-	ct, err := h.pool().Exec(ctx,
-		`UPDATE invoices SET status='paid', paid_date=$1 WHERE month=$2 AND status<>'paid' AND deleted_at IS NULL`, date, month)
-	if err != nil {
+	var soSua int
+	// Một giao dịch: đánh dấu đã thu và ghi nhận cọc phải cùng sống cùng chết, không để phiếu ghi
+	// đã thu mà hồ sơ vẫn "chưa đóng cọc".
+	if err := h.DB.WithTx(ctx, func(tx pgx.Tx) error {
+		ct, e := tx.Exec(ctx,
+			`UPDATE invoices SET status='paid', paid_date=$1 WHERE month=$2 AND status<>'paid' AND deleted_at IS NULL`, date, month)
+		if e != nil {
+			return e
+		}
+		soSua = int(ct.RowsAffected())
+		return ghiNhanCocDaThu(ctx, tx, date, "i.month = $2 AND i.status = 'paid'", month)
+	}); err != nil {
 		serverErr(c)
 		return
 	}
-	h.ghiNhanCocDaThu(ctx, date, "i.month = $2 AND i.status = 'paid'", month)
-	c.JSON(http.StatusOK, gin.H{"ok": true, "updated": int(ct.RowsAffected()), "month": month})
+	c.JSON(http.StatusOK, gin.H{"ok": true, "updated": soSua, "month": month})
 }
 
 // InvoiceStatus: POST /api/invoices/:id/status (admin,staff) — đổi trạng thái + ghi audit. invoices.routes.js:437-463.
@@ -1382,23 +1410,33 @@ func (h *Handlers) InvoiceStatus(c *gin.Context) {
 		serverErr(c)
 		return
 	}
-	rows, err := h.pool().Query(ctx,
-		`UPDATE invoices SET status=$1, paid_date=$2 WHERE id=$3 AND deleted_at IS NULL RETURNING *`, status, paidDate, id)
-	if err != nil {
-		serverErr(c)
-		return
-	}
-	row, err := db.RowToMap(rows)
-	if err != nil {
+	// Đổi trạng thái và cờ cọc đi cùng một giao dịch. Vào 'paid' thì ghi nhận đang giữ cọc; RỜI
+	// 'paid' thì trả cờ về chưa đóng, nếu không cọc mất luôn đường đòi lại.
+	var row map[string]interface{}
+	if err := h.DB.WithTx(ctx, func(tx pgx.Tx) error {
+		rows, e := tx.Query(ctx,
+			`UPDATE invoices SET status=$1, paid_date=$2 WHERE id=$3 AND deleted_at IS NULL RETURNING *`, status, paidDate, id)
+		if e != nil {
+			return e
+		}
+		row, e = db.RowToMap(rows)
+		if e != nil || row == nil {
+			return e
+		}
+		if status == "paid" {
+			return ghiNhanCocDaThu(ctx, tx, ngayThu, "i.id = $2", id)
+		}
+		if curStatus == "paid" {
+			return goCocDaThu(ctx, tx, id)
+		}
+		return nil
+	}); err != nil {
 		serverErr(c)
 		return
 	}
 	if row == nil {
 		notFound(c, "Không tìm thấy hóa đơn")
 		return
-	}
-	if status == "paid" {
-		h.ghiNhanCocDaThu(ctx, ngayThu, "i.id = $2", id)
 	}
 	// TP-10: đổi trạng thái là thao tác nhạy cảm -> ghi nhật ký (fire-and-forget). invoices.routes.js:454-460
 	if curStatus != status {

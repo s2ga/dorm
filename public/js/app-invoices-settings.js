@@ -805,6 +805,10 @@ function viewSettings() {
         <div class="field"><label>Phí gửi xe</label><input id="set_bravo_parking" value="${esc(s.bravo_parking || '')}" placeholder="GP00182"></div>
         <div class="field"><label>Phí máy giặt</label><input id="set_bravo_washing" value="${esc(s.bravo_washing || '')}" placeholder="GP00197"></div>
       </div>
+      <div class="grid2">
+        <div class="field"><label>Tiền cọc</label><input id="set_bravo_deposit" value="${esc(s.bravo_deposit || '')}" placeholder="chưa có mã"></div>
+        <div></div>
+      </div>
       <button class="btn pri" data-act="saveBravo">Lưu mã Bravo</button>
     </div></div>
     </div>
@@ -1545,7 +1549,7 @@ async function saveAsset(id) {
 }
 async function delAsset(id) { if (!confirm('Xóa tài sản này?')) return; await guard(() => API.deleteAsset(id)); await napLai('assets'); toast('Đã xóa'); viewSettings(); }
 async function saveBravo() {
-  const keys = ['bravo_fee_type', 'bravo_room', 'bravo_electric', 'bravo_water', 'bravo_service', 'bravo_parking', 'bravo_washing'];
+  const keys = ['bravo_fee_type', 'bravo_room', 'bravo_electric', 'bravo_water', 'bravo_service', 'bravo_parking', 'bravo_washing', 'bravo_deposit'];
   const body = {}; keys.forEach(k => body[k] = el('set_' + k).value.trim());
   await guard(() => API.updateSettings(body));
   await napLai('settings'); toast('Đã lưu mã Bravo'); // BL-24: không re-render, giữ input panel khác

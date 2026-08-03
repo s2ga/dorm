@@ -417,11 +417,14 @@ func RecalcInvoice(ctx context.Context, database *db.DB, studentID int, month st
 	})
 
 	other := icFloat(inv["other_charge"])
+	// Cọc GIỮ NGUYÊN như đang ghi trên phiếu. Tính lại là mất: thu xong hồ sơ chuyển "đang giữ" nên
+	// TienCoc trả 0. Đường này bị gọi tự động (lưu chỉ số điện, sửa hồ sơ, đổi phòng, check-out).
+	coc := icFloat(inv["deposit_charge"])
 	total := billing.InvoiceTotal(map[string]float64{
 		"room_charge": float64(c.RoomCharge), "electric_charge": float64(c.ElectricCharge),
 		"water_charge": float64(c.WaterCharge), "service_charge": float64(c.ServiceCharge),
 		"washing_charge": float64(c.WashingCharge), "parking_charge": float64(c.ParkingCharge),
-		"other_charge": other, "deposit_charge": float64(c.DepositCharge),
+		"other_charge": other, "deposit_charge": coc,
 		"leader_discount": float64(c.LeaderDiscount), "room_discount": float64(c.RoomDiscount),
 		"fee_discount": float64(c.FeeDiscount),
 	})
@@ -432,7 +435,7 @@ func RecalcInvoice(ctx context.Context, database *db.DB, studentID int, month st
 		   fee_discount=$11, deposit_charge=$12, total=$13
 		 WHERE id=$14 RETURNING *`,
 		c.DaysStayed, c.RoomCharge, c.ElectricKwh, c.ElectricCharge, c.WaterCharge, c.ServiceCharge, c.WashingCharge,
-		c.ParkingCharge, c.LeaderDiscount, c.RoomDiscount, c.FeeDiscount, c.DepositCharge, total, icInt(inv["id"]))
+		c.ParkingCharge, c.LeaderDiscount, c.RoomDiscount, c.FeeDiscount, coc, total, icInt(inv["id"]))
 	if err != nil {
 		return nil, err
 	}
