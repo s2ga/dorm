@@ -531,6 +531,7 @@ async function studentDetail(id) {
   try { stays = ((await API.stays(id)) || {}).stays || []; } catch {}
   const vehicles = s.vehicles || [];
   window._detailVehicles = vehicles;
+  window._detailInvs = invs;   // bấm một kỳ ở bảng phiếu -> phieuBaoHV tra lại object đầy đủ
   window._detailStudent = s;   // form xe lấy ngày nhận/trả phòng làm khoảng hiệu lực mặc định
   const vios = s.violations || [];
   const vthr = (ST.settings && +ST.settings.violation_mail_threshold) || 3;
@@ -607,8 +608,10 @@ async function studentDetail(id) {
       </div></div>
 
       <h4 style="margin:18px 0 8px">${IC.receipt} Phiếu báo tiền phòng</h4>
-      ${invs.length ? `<div class="table-wrap"><table><thead><tr><th>Kỳ</th><th class="num">Tổng tiền phiếu</th></tr></thead><tbody>
-        ${invs.map(i => `<tr><td>${monthLabel(i.month)}</td><td class="num"><strong>${money(i.total)}</strong></td></tr>`).join('')}
+      ${invs.length ? `<div class="table-wrap"><table><thead><tr><th>Kỳ</th><th class="num">Tổng tiền phiếu</th><th></th></tr></thead><tbody>
+        ${invs.map(i => `<tr style="cursor:pointer" data-act="phieuBaoHV" data-args='[${i.id}]' role="button" tabindex="0" title="Xem phiếu báo kỳ ${monthLabel(i.month)}">
+          <td>${monthLabel(i.month)}</td><td class="num"><strong>${money(i.total)}</strong></td>
+          <td class="num"><span class="row-chev" aria-hidden="true">${IC.chevronRight}</span></td></tr>`).join('')}
       </tbody></table></div>` : '<p class="muted">Chưa có phiếu báo.</p>'}
       <h4 style="margin:18px 0 8px">${IC.history} Lịch sử ở (ra/vào)</h4>
       ${lichSuOHTML(stays)}
@@ -663,6 +666,14 @@ function lichSuOHTML(stays) {
     </tr>`).join('')}
   </tbody></table></div>`;
 }
+// Mở phiếu báo từ trong hồ sơ. phieuBao(id) tra ở _invAll của màn Tiền phòng — mở từ đây thì danh
+// sách đó rỗng hoặc khác kỳ, nên truyền thẳng object đã tải theo học viên.
+function phieuBaoHV(id) {
+  const i = (window._detailInvs || []).find(x => x.id === id);
+  if (!i) return toast('Không tìm thấy phiếu báo', 'err');
+  phieuBao(i);
+}
+
 /* Xe */
 function vehicleForm(vid, studentId) {
   const s = window._detailStudent || {};

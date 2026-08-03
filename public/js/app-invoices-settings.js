@@ -520,7 +520,10 @@ function toggleThanhVienNP() { invHienThanhVienNP = !invHienThanhVienNP; viewInv
 async function phieuBao(inv) {
   if (typeof inv !== 'object') inv = _invAll.find(x => x.id === +inv);  // nut truyen id; noi khac (sau khi sinh HD) truyen thang object
   if (!inv) return toast('Không tìm thấy hóa đơn', 'err');
-  const s = studentById(inv.student_id) || {};
+  // Hồ sơ đã khoá thì không có trong ST.students — lùi về bản ghi đang mở ở màn chi tiết, không thì
+  // phiếu ra trống họ tên / mã HV / ngày nhận phòng.
+  const ct = window._detailStudent;
+  const s = studentById(inv.student_id) || (ct && ct.id === inv.student_id ? ct : null) || {};
   const room = roomById(s.room_id) || {};
   const fac = ST.facilities.find(f => f.id === room.facility_id) || {};
   const set = ST.settings;
