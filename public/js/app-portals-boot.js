@@ -30,7 +30,7 @@ function myInvoiceDetail(id) {
       <p class="muted" style="margin:0 0 12px">Số ngày ở trong kỳ: <strong>${i.days_stayed || 0}</strong> ngày</p>
       <div class="table-wrap"><table><tbody>
         ${line('Tiền phòng', i.room_charge)}
-        ${line('Tiền điện', i.electric_charge, `${i.electric_kwh || 0} kWh · kỳ ${monthLabel(prevKy(i.month))}`)}
+        ${line('Tiền điện', i.electric_charge, `${kwh(i.electric_kwh)} kWh · kỳ ${monthLabel(prevKy(i.month))}`)}
         ${opt('Tiền nước', i.water_charge)}
         ${opt('Phí dịch vụ', i.service_charge)}
         ${opt('Máy giặt', i.washing_charge)}

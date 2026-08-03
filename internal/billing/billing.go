@@ -411,7 +411,7 @@ type ComputeInput struct {
 type Invoice struct {
 	DaysStayed     int `json:"days_stayed"`
 	RoomCharge     int `json:"room_charge"`
-	ElectricKwh    int `json:"electric_kwh"`
+	ElectricKwh    float64 `json:"electric_kwh"`
 	ElectricCharge int `json:"electric_charge"`
 	WaterCharge    int `json:"water_charge"`
 	ServiceCharge  int `json:"service_charge"`
@@ -579,9 +579,11 @@ func ComputeInvoice(in ComputeInput) Invoice {
 		"fee_discount": float64(feeDiscount),
 	})
 
-	electricKwh := 0
+	// Số kWh suy từ CHÍNH số tiền phải trả và giữ 4 số lẻ. Làm tròn về số nguyên như trước là phiếu
+	// tự mâu thuẫn: 41 kWh × 3.000 = 123.000 trong khi dòng tiền ghi 123.730.
+	electricKwh := 0.0
 	if unit > 0 {
-		electricKwh = r0(float64(electricCharge) / unit)
+		electricKwh = math.Round(float64(electricCharge)/unit*10000) / 10000
 	}
 
 	return Invoice{

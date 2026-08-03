@@ -624,7 +624,7 @@
       "out": {
         "days_stayed": 31,
         "room_charge": 1200000,
-        "electric_kwh": 35,
+        "electric_kwh": 35.2731,
         "electric_charge": 123456,
         "water_charge": 100000,
         "service_charge": 50000,
@@ -678,7 +678,7 @@
       "out": {
         "days_stayed": 31,
         "room_charge": 1200000,
-        "electric_kwh": 202,
+        "electric_kwh": 202.174,
         "electric_charge": 707609,
         "water_charge": 100000,
         "service_charge": 50000,

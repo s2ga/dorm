@@ -105,7 +105,7 @@ async function viewInvoices() {
           <td data-label="Mã pháp nhân">${invLegalEntity(i)}</td>
           <td class="num" data-label="Ngày ở">${i.days_stayed}</td>
           <td class="num" data-label="Tiền phòng">${moneyN(i.room_charge)}</td>
-          <td class="num" data-label="Điện">${moneyN(i.electric_charge)}<div class="muted" style="font-size:10px">${i.electric_kwh || 0} kWh</div></td>
+          <td class="num" data-label="Điện">${moneyN(i.electric_charge)}<div class="muted" style="font-size:10px">${kwh(i.electric_kwh)} kWh</div></td>
           <td class="num" data-label="Nước">${moneyN(i.water_charge)}</td>
           <td class="num" data-label="DV">${moneyN(i.service_charge)}</td>
           <td class="num" data-label="Giặt">${i.washing_charge ? moneyN(i.washing_charge) : '—'}</td>
@@ -560,7 +560,7 @@ async function phieuBao(inv) {
   row(chu('Tiền điện' + phu('kỳ ' + monthLabel(kyDien)), nguyenPhong ? `Tính trọn công-tơ phòng kỳ ${monthLabel(kyDien)}`
         : `Điện thu sau một kỳ: công-tơ kỳ ${monthLabel(kyDien)} chạy ${tongKwh == null ? '—' : tongKwh} kWh, chia theo ngày ở từng chặng`),
     money(unit),
-    `${inv.electric_kwh} kWh` + phu(er ? `chỉ số ${er.reading_start} → ${er.reading_end}` : ''),
+    `${kwh(inv.electric_kwh)} kWh` + phu(er ? `chỉ số ${er.reading_start} → ${er.reading_end}` : ''),
     inv.electric_charge);
   // Từng chặng của kỳ điện, cắt tại mỗi lần chốt công-tơ.
   if (!nguyenPhong && segs.length > 1) {
@@ -568,7 +568,7 @@ async function phieuBao(inv) {
       const my = (sg.roster || []).find(x => x.student_id === inv.student_id);
       if (!my || !my.days) continue;
       const tongNgay = (sg.roster || []).reduce((a, x) => a + x.days, 0) || 1;
-      const phanKwh = Math.round(sg.kwh * my.days / tongNgay * 10) / 10;
+      const phanKwh = kwh(sg.kwh * my.days / tongNgay);
       rows.push(`<tr class="rc-seg"><td></td><td colspan="2">· ${fmtDate(sg.from)} → ${fmtDate(sg.to)} — phòng chạy ${Math.round(sg.kwh * 10) / 10} kWh, ${(sg.roster || []).length} người ở</td><td colspan="2">phần bạn ≈ ${phanKwh} kWh (${my.days} ngày)</td></tr>`);
     }
   }
