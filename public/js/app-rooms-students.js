@@ -426,9 +426,13 @@ async function studentForm(id) {
         <div class="field"><label>Tạm trú</label><select id="f_residency">
           ${opt('unregistered', s.residency_status, 'Chưa đăng ký')}${opt('processing', s.residency_status, 'Đang xử lý')}${opt('registered', s.residency_status, 'Đã đăng ký')}</select></div>
       </div>
+      ${/* Ngày trả đã tới/đã qua thì KHOÁ — phiếu tháng đó đã phát, công-tơ đã chốt. Hiện dạng ô chỉ
+            đọc chứ không phải input readonly: input trông y hệt ô nhập được, bấm không ra lịch thì
+            người dùng tưởng hỏng. */''}
       <div class="field"><label>Ngày trả phòng ${daRoi ? '' : '<span class="opt">(báo trước — để trống nếu chưa báo)</span>'}</label>
         ${daRoi
-    ? `<input value="${esc(fmtDate(coHienTai))}" readonly title="Đã trả phòng — ngày đã qua không sửa được ở đây">`
+    ? `<div class="ro-in">${esc(fmtDate(coHienTai))}
+         <span class="muted">— đã trả phòng, không sửa ở đây. Cần đổi thì dùng nút <strong>Check-out</strong> trong hồ sơ.</span></div>`
     : '<input id="f_out">'}</div>
 
       <div style="background:var(--bg2);padding:12px;border-radius:10px;margin-bottom:14px">
