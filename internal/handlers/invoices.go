@@ -867,10 +867,11 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 				if _, err := tx.Exec(ctx,
 					`UPDATE invoices SET days_stayed=$1, room_charge=$2, electric_kwh=$3, electric_charge=$4, water_charge=$5,
 					   service_charge=$6, washing_charge=$7, parking_charge=$8, leader_discount=$9, room_discount=$10,
-					   fee_discount=$11, deposit_charge=$12, total=$13, deleted_at=NULL WHERE id=$14`,
+					   fee_discount=$11, deposit_charge=$12, total=$13, room_id=COALESCE(room_id,$14),
+					   deleted_at=NULL WHERE id=$15`,
 					inv.DaysStayed, inv.RoomCharge, inv.ElectricKwh, inv.ElectricCharge, inv.WaterCharge,
 					inv.ServiceCharge, inv.WashingCharge, inv.ParkingCharge, inv.LeaderDiscount, inv.RoomDiscount,
-					inv.FeeDiscount, coc, total, dup.id); err != nil {
+					inv.FeeDiscount, coc, total, s.roomID, dup.id); err != nil {
 					return err
 				}
 				updated++
@@ -1073,10 +1074,11 @@ func (h *Handlers) GenerateOneInvoice(c *gin.Context) {
 		rows, err := h.pool().Query(ctx,
 			`UPDATE invoices SET days_stayed=$1, room_charge=$2, electric_kwh=$3, electric_charge=$4, water_charge=$5,
 			   service_charge=$6, washing_charge=$7, parking_charge=$8, leader_discount=$9, room_discount=$10,
-			   fee_discount=$11, deposit_charge=$12, total=$13, deleted_at=NULL WHERE id=$14 RETURNING *`,
+			   fee_discount=$11, deposit_charge=$12, total=$13, room_id=COALESCE(room_id,$14),
+			   deleted_at=NULL WHERE id=$15 RETURNING *`,
 			inv.DaysStayed, inv.RoomCharge, inv.ElectricKwh, inv.ElectricCharge, inv.WaterCharge,
 			inv.ServiceCharge, inv.WashingCharge, inv.ParkingCharge, inv.LeaderDiscount, inv.RoomDiscount,
-			inv.FeeDiscount, coc, total, dID)
+			inv.FeeDiscount, coc, total, roomID, dID)
 		if err != nil {
 			serverErr(c)
 			return

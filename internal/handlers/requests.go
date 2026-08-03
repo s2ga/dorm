@@ -982,11 +982,12 @@ func (h *Handlers) BillCheckout(c *gin.Context) {
 		if err := h.pool().QueryRow(ctx,
 			`UPDATE invoices SET days_stayed=$1, room_charge=$2, electric_kwh=$3, electric_charge=$4, water_charge=$5,
 			   service_charge=$6, washing_charge=$7, parking_charge=$8, leader_discount=$9, room_discount=$10,
-			   fee_discount=$11, other_charge=$12, other_note=$13, deposit_charge=$14, total=$15, status='pending', paid_date=NULL, deleted_at=NULL
-			 WHERE id=$16 RETURNING id`,
+			   fee_discount=$11, other_charge=$12, other_note=$13, deposit_charge=$14, total=$15,
+			   room_id=COALESCE(room_id,$16), status='pending', paid_date=NULL, deleted_at=NULL
+			 WHERE id=$17 RETURNING id`,
 			comp.DaysStayed, comp.RoomCharge, comp.ElectricKwh, comp.ElectricCharge, comp.WaterCharge,
 			comp.ServiceCharge, comp.WashingCharge, comp.ParkingCharge, comp.LeaderDiscount, comp.RoomDiscount,
-			comp.FeeDiscount, damageAmount, damageNote, coc, total, dID).Scan(&invID); err != nil {
+			comp.FeeDiscount, damageAmount, damageNote, coc, total, roomID, dID).Scan(&invID); err != nil {
 			serverErr(c)
 			return
 		}

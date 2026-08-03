@@ -429,13 +429,15 @@ func RecalcInvoice(ctx context.Context, database *db.DB, studentID int, month st
 		"fee_discount": float64(c.FeeDiscount),
 	})
 
+	// room_id là ảnh chụp phòng lúc lập phiếu (HV có thể đã chuyển/trả) nên KHÔNG đè. Nhưng NULL
+	// không phải ảnh chụp, mà là lúc lập phiếu chưa xếp phòng — vá lại bằng phòng hiện tại.
 	updRows, err := database.Pool.Query(ctx,
 		`UPDATE invoices SET days_stayed=$1, room_charge=$2, electric_kwh=$3, electric_charge=$4, water_charge=$5,
 		   service_charge=$6, washing_charge=$7, parking_charge=$8, leader_discount=$9, room_discount=$10,
-		   fee_discount=$11, deposit_charge=$12, total=$13
-		 WHERE id=$14 RETURNING *`,
+		   fee_discount=$11, deposit_charge=$12, total=$13, room_id=COALESCE(room_id,$14)
+		 WHERE id=$15 RETURNING *`,
 		c.DaysStayed, c.RoomCharge, c.ElectricKwh, c.ElectricCharge, c.WaterCharge, c.ServiceCharge, c.WashingCharge,
-		c.ParkingCharge, c.LeaderDiscount, c.RoomDiscount, c.FeeDiscount, coc, total, icInt(inv["id"]))
+		c.ParkingCharge, c.LeaderDiscount, c.RoomDiscount, c.FeeDiscount, coc, total, roomID, icInt(inv["id"]))
 	if err != nil {
 		return nil, err
 	}
