@@ -90,9 +90,36 @@ func CloseStudent(ctx context.Context, q db.Querier, studentID int, toDate strin
 type SetResult struct {
 	Err               string                 // != "" -> 400
 	Leader            map[string]interface{} // nhiệm kỳ hiện/mới
-	Already           bool                   // đã là phòng trưởng rồi
+	Already           bool                   // đã là phòng trưởng rồi, ngày không đổi
+	DoiNgay           bool                   // vẫn người đó, chỉ nắn lại ngày nhận nhiệm vụ
+	NgayCu            string                 // ngày nhận nhiệm vụ trước khi nắn (để biết tính lại từ kỳ nào)
 	Replaced          map[string]interface{} // nhiệm kỳ người bị thay (đầy đủ, để trả về response)
 	ReplacedStudentID *int                   // id người bị thay (để recalc)
+}
+
+// nanNgayNhanNhiemVu: chặn hai ca làm số ngày làm phòng trưởng ra sai khi nắn lại ngày —
+// lùi trước ngày HV vào ở, và đè lên nhiệm kỳ đã đóng của người trước (LeaderDaysInMonth cộng
+// dồn mọi nhiệm kỳ nên chồng lấn là đếm hai lần).
+func nanNgayNhanNhiemVu(ctx context.Context, q db.Querier, roomID, curID int, date, checkIn, sName string) (string, error) {
+	if checkIn != "" && date < checkIn {
+		return sName + " nhận phòng ngày " + checkIn + " — không thể làm phòng trưởng từ trước đó.", nil
+	}
+	rows, err := q.Query(ctx,
+		`SELECT s.name, rl.from_date, rl.to_date FROM room_leaders rl
+		   JOIN students s ON s.id = rl.student_id
+		  WHERE rl.room_id=$1 AND rl.id <> $2 AND rl.to_date IS NOT NULL AND rl.to_date >= $3
+		  ORDER BY rl.to_date DESC LIMIT 1`, roomID, curID, date)
+	if err != nil {
+		return "", err
+	}
+	m, err := db.RowToMap(rows)
+	if err != nil || m == nil {
+		return "", err
+	}
+	ten, _ := m["name"].(string)
+	tu, _ := m["from_date"].(string)
+	den, _ := m["to_date"].(string)
+	return "Nhiệm kỳ của " + ten + " (" + tu + " → " + den + ") còn phủ ngày này. Chọn ngày sau " + den + ".", nil
 }
 
 // SetLeader: cử phòng trưởng mới từ ngày date; người cũ hết D-1. server/room-leaders.js:49-64
@@ -100,12 +127,16 @@ func SetLeader(ctx context.Context, q db.Querier, roomID, studentID int, date, n
 	var sName string
 	var sRoom *int
 	var checkOut *string
+	checkIn := ""
 	{
-		var co pgtype.Date
-		err := q.QueryRow(ctx, "SELECT name, room_id, check_out_date FROM students WHERE id=$1 AND deleted_at IS NULL", studentID).
-			Scan(&sName, &sRoom, &co)
+		var ci, co pgtype.Date
+		err := q.QueryRow(ctx, "SELECT name, room_id, check_in_date, check_out_date FROM students WHERE id=$1 AND deleted_at IS NULL", studentID).
+			Scan(&sName, &sRoom, &ci, &co)
 		if err != nil {
 			return &SetResult{Err: "Không tìm thấy học viên"}, nil
+		}
+		if ci.Valid {
+			checkIn = ci.Time.Format("2006-01-02")
 		}
 		if co.Valid {
 			c := co.Time.Format("2006-01-02")
@@ -123,8 +154,29 @@ func SetLeader(ctx context.Context, q db.Querier, roomID, studentID int, date, n
 	if err != nil {
 		return nil, err
 	}
+	// Vẫn đúng người đang làm: cử lại không có nghĩa gì, nhưng ĐỔI NGÀY thì có — sửa lại ngày nhận
+	// nhiệm vụ ghi nhầm. Không có nhánh này thì ngày sai nằm vĩnh viễn, giảm giá lệch theo.
 	if cur != nil && intOf(cur["student_id"]) == studentID {
-		return &SetResult{Leader: cur, Already: true}, nil
+		curFrom, _ := cur["from_date"].(string)
+		if curFrom == date {
+			return &SetResult{Leader: cur, Already: true}, nil
+		}
+		if e, err := nanNgayNhanNhiemVu(ctx, q, roomID, intOf(cur["id"]), date, checkIn, sName); err != nil {
+			return nil, err
+		} else if e != "" {
+			return &SetResult{Err: e}, nil
+		}
+		rows, err := q.Query(ctx,
+			"UPDATE room_leaders SET from_date=$1 WHERE id=$2 RETURNING *", date, intOf(cur["id"]))
+		if err != nil {
+			return nil, err
+		}
+		moi, err := db.RowToMap(rows)
+		if err != nil {
+			return nil, err
+		}
+		moi["student_name"] = sName
+		return &SetResult{Leader: moi, DoiNgay: true, NgayCu: curFrom}, nil
 	}
 
 	replaced, err := CloseRoom(ctx, q, roomID, billing.AddDays(date, -1))

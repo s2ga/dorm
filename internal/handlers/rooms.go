@@ -537,14 +537,22 @@ func (h *Handlers) SetRoomLeader(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"ok": true, "already": true, "leader": r.Leader})
 		return
 	}
-	month := d[:7]
 	ids := []int{int(sidNum)}
 	if r.ReplacedStudentID != nil && *r.ReplacedStudentID != int(sidNum) {
 		ids = append(ids, *r.ReplacedStudentID)
 	}
+	// Nắn ngày lùi/tiến làm số ngày làm đổi ở MỌI kỳ nằm giữa ngày cũ và ngày mới, không riêng kỳ
+	// của ngày mới.
+	ky := roomsKyCanTinhLai(r.NgayCu, d)
 	recalced := []int{}
 	for _, sid := range ids {
-		if res, e := invoicecalc.RecalcInvoice(ctx, h.DB, sid, month); e == nil && res != nil {
+		xong := false
+		for _, month := range ky {
+			if res, e := invoicecalc.RecalcInvoice(ctx, h.DB, sid, month); e == nil && res != nil {
+				xong = true
+			}
+		}
+		if xong {
 			recalced = append(recalced, sid)
 		}
 	}
@@ -552,7 +560,27 @@ func (h *Handlers) SetRoomLeader(c *gin.Context) {
 	if r.Replaced != nil {
 		replaced = r.Replaced
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true, "leader": r.Leader, "replaced": replaced, "recalced": recalced})
+	c.JSON(http.StatusOK, gin.H{"ok": true, "leader": r.Leader, "replaced": replaced, "recalced": recalced, "doi_ngay": r.DoiNgay})
+}
+
+// roomsKyCanTinhLai: các kỳ nằm giữa hai ngày (kể cả hai đầu). ngayCu rỗng = chỉ kỳ của ngayMoi.
+// Chặn trần 36 kỳ phòng khi hai ngày cách nhau vô lý.
+func roomsKyCanTinhLai(ngayCu, ngayMoi string) []string {
+	if len(ngayMoi) < 7 {
+		return nil
+	}
+	if len(ngayCu) < 7 {
+		return []string{ngayMoi[:7]}
+	}
+	tu, den := ngayCu[:7], ngayMoi[:7]
+	if tu > den {
+		tu, den = den, tu
+	}
+	out := []string{}
+	for m := tu; m <= den && len(out) < 36; m = invoicecalc.NextMonthOf(m) {
+		out = append(out, m)
+	}
+	return out
 }
 
 // UnsetRoomLeader: DELETE /api/rooms/:id/leader (admin,staff). server/routes/rooms.routes.js:213-222

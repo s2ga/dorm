@@ -128,10 +128,13 @@ function leaderCell(r) {
   const L = leaderOf(r.id);
   return L ? `<span class="badge amber">${IC.star} ${esc(L.name)}</span>` : '<span class="muted">—</span>';
 }
-function leaderForm(roomId) {
+async function leaderForm(roomId) {
   const r = ST.rooms.find(x => x.id === roomId) || {};
   const cur = leaderOf(roomId);
   const inRoom = ST.students.filter(s => s.room_id === roomId && isOccupying(s));
+  // Ngày nhận nhiệm vụ đang ghi trong sổ — điền sẵn để sửa được, thay vì mặc định hôm nay.
+  let tuNgay = today();
+  try { const l = await API.roomLeader(roomId); if (l && l.current && l.current.from_date) tuNgay = String(l.current.from_date).slice(0, 10); } catch {}
   openModal(`
     <div class="mh"><h3>${IC.star} Phòng trưởng: ${esc(r.name || '')}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
@@ -143,14 +146,15 @@ function leaderForm(roomId) {
       <div class="field"><label>Ghi chú</label><input id="l_note" placeholder="VD: cử thay bạn A xuất cảnh..."></div>
       <div class="hint">${IC.info}<span>Phòng trưởng được <strong>miễn tiền nước và phí dịch vụ</strong>, tính theo <strong>số ngày làm</strong>:
         đổi người giữa tháng thì mỗi bạn được giảm theo phần của mình, không ai được trọn cả tháng.
-        Người đang làm sẽ tự kết thúc nhiệm kỳ vào hôm trước ngày này.</span></div>`}
+        Người đang làm sẽ tự kết thúc nhiệm kỳ vào hôm trước ngày này.
+        ${cur ? `Giữ nguyên <strong>${esc(cur.name)}</strong> mà đổi ngày = <strong>sửa lại ngày nhận nhiệm vụ</strong> ghi nhầm; phiếu các kỳ liên quan sẽ được tính lại.` : ''}</span></div>`}
     </div>
     <div class="mf">
       ${cur ? `<button class="btn danger" data-act="unsetLeader" data-args='[${roomId}]'>Miễn nhiệm ${esc(cur.name)}</button>` : ''}
       <button class="btn" data-act="closeModal">Hủy</button>
-      ${inRoom.length ? `<button class="btn pri" data-act="doSetLeader" data-args='[${roomId}]'>Cử làm phòng trưởng</button>` : ''}
+      ${inRoom.length ? `<button class="btn pri" data-act="doSetLeader" data-args='[${roomId}]'>${cur ? 'Lưu' : 'Cử làm phòng trưởng'}</button>` : ''}
     </div>`);
-  attachDate(el('l_date'), today());
+  attachDate(el('l_date'), tuNgay);
 }
 async function doSetLeader(roomId) {
   const student_id = el('l_stu').value;
@@ -158,8 +162,9 @@ async function doSetLeader(roomId) {
   const r = await guard(() => API.setLeader(roomId, { student_id: +student_id, date: el('l_date').dataset.iso, note: el('l_note').value.trim() }));
   await refreshCache(); closeModal();
   const n = r && r.recalced ? r.recalced.length : 0;
-  toast(r && r.already ? 'Bạn này đang là phòng trưởng rồi'
-    : n ? `Đã cử phòng trưởng · tính lại ${n} phiếu` : 'Đã cử phòng trưởng');
+  toast(r && r.already ? 'Không có gì thay đổi — vẫn bạn này, vẫn ngày đó'
+    : r && r.doi_ngay ? `Đã sửa ngày nhận nhiệm vụ${n ? ` · tính lại ${n} phiếu` : ''}`
+      : n ? `Đã cử phòng trưởng · tính lại ${n} phiếu` : 'Đã cử phòng trưởng');
   adminGo(ST.view);
 }
 async function unsetLeader(roomId) {
