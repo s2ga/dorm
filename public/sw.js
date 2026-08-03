@@ -1,6 +1,6 @@
 // Service worker: ưu tiên MẠNG cho giao diện (luôn có bản mới nhất khi online),
 // dùng cache làm dự phòng khi offline. API luôn lấy trực tiếp từ mạng.
-const CACHE = 'ktx-shell-v225';
+const CACHE = 'ktx-shell-v226';
 // Số phiên bản SUY RA TỪ TÊN CACHE — không ghi tay lần thứ hai (lệch với index.html là tải sẵn nguyên
 // bộ asset cũ mà không dùng tới). tests/unit/version.test.js canh việc này.
 const V = (CACHE.match(/-v(\d+)$/) || [, '1'])[1];

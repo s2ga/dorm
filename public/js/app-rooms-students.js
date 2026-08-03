@@ -8,9 +8,19 @@ async function viewRooms() {
     ? `<button class="btn" data-act="roomDel" data-args='[false]'>← Danh sách phòng</button>`
     : `<button class="btn pri" data-act="roomForm">${IC.plus} Thêm phòng</button>
        <button class="btn" data-act="roomDel" data-args='[true]'>${IC.trash} Đã xóa</button>`;
-  const list = roomShowDeleted ? await guard(() => API.rooms(true)) : ST.rooms;
+  const tatCa = roomShowDeleted ? await guard(() => API.rooms(true)) : ST.rooms;
   const del = roomShowDeleted;
+  // Lọc "còn giường trống" phải khớp ĐÚNG cách availBedsOf đếm (chỉ phòng ghép còn slot), nếu không
+  // thẻ KPI nói 1 giường mà bấm vào ra danh sách rỗng hoặc thừa phòng.
+  const list = roomFilter === 'trong' && !del
+    ? tatCa.filter(giuongTrongCua).slice().sort((a, b) => giuongTrongCua(b) - giuongTrongCua(a))  // trống nhiều lên trước
+    : tatCa;
   el('content').innerHTML = `
+    ${roomFilter === 'trong' && !del ? `<div class="pill-row" style="align-items:center">
+      <span class="muted" style="font-size:13px">Đang lọc:</span>
+      <span class="badge gray" style="font-size:13px">${IC.bed} Còn giường trống — ${tatCa.reduce((a, r) => a + giuongTrongCua(r), 0)} giường ở ${list.length} phòng</span>
+      <button class="btn sm ghost" data-act="roomGo" data-args='["all"]' title="Bỏ lọc, xem tất cả phòng">✕ Bỏ lọc</button>
+    </div>` : ''}
     <div class="panel"><div class="hd">
       <h2>${del ? 'Phòng đã xóa' : 'Danh sách phòng'} (<span id="roomCount">${list.length}</span>)</h2>
       <div class="toolbar">
@@ -1073,3 +1083,7 @@ function quyCoc() {
 let vehSearch = '';
 /* ---------- DỊCH VỤ (Máy giặt · Gửi xe — mọi dịch vụ tùy chọn ở 1 nơi) ---------- */
 let svcTab = 'washing';
+let roomFilter = 'all';   // 'trong' = chỉ phòng ghép còn giường (drill-down từ thẻ KPI Tổng quan)
+// Số giường còn trống của MỘT phòng — dùng chung với availBedsOf để hai chỗ không lệch nhau.
+const giuongTrongCua = r => (roomIsShared(r) ? Math.max(0, (+r.capacity || 0) - (+r.occupancy || 0)) : 0);
+function roomGo(f) { roomFilter = f; adminGo('rooms'); }

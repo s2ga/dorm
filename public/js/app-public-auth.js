@@ -465,7 +465,7 @@ const roomIsShared = r => roomType(r) === 'shared';          // chỉ phòng gh�
 const roomForRent = r => ['shared', 'whole'].includes(roomType(r)); // thuộc quỹ cho thuê (có doanh thu)
 const roomTypeBadge = r => { const [l, c] = ROOM_TYPE[roomType(r)]; return `<span class="badge ${c}">${l}</span>`; };
 // Giường trống chỉ đến từ phòng CHO THUÊ GHÉP còn slot (bỏ nguyên phòng / an ninh / nhân viên)
-const availBedsOf = rooms => rooms.filter(roomIsShared).reduce((a, r) => a + Math.max(0, (+r.capacity || 0) - (+r.occupancy || 0)), 0);
+const availBedsOf = rooms => rooms.reduce((a, r) => a + giuongTrongCua(r), 0);   // giuongTrongCua: app-rooms-students.js
 const rentCapOf = rooms => rooms.filter(roomForRent).reduce((a, r) => a + (+r.capacity || 0), 0);
 const SAO = '<span class="sao" aria-hidden="true">*</span>'; // dấu bắt buộc, đỏ
 const RENTAL_LABEL = { ghep: 'Thuê ghép', phong: 'Thuê nguyên phòng' };

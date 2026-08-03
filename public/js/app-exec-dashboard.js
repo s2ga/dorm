@@ -261,7 +261,7 @@ async function viewDashboard() {
   el('content').innerHTML = `
     <div class="kpis">
       ${kpi('ic-green', IC.userCheck, inCount, 'Học viên đang ở', actAttr('stuGoAdmin', 'in'))}
-      ${kpi('ic-blue', IC.bed, `${beds}<span class="muted" style="font-size:15px;font-weight:600"> / ${capacity}</span>`, 'Giường còn trống', actAttr('adminGo', 'rooms'))}
+      ${kpi('ic-blue', IC.bed, `${beds}<span class="muted" style="font-size:15px;font-weight:600"> / ${capacity}</span>`, 'Giường còn trống', actAttr('roomGo', 'trong'))}
       ${kpi('ic-brand', IC.receipt, money(billedThisMonth), 'Phiếu báo tháng này', actAttr('adminGo', 'invoices'), billedLastMonth ? 'Tháng trước ' + money(billedLastMonth) : '')}
       ${kpi('ic-amber', IC.filePen, `${noBill}<span class="muted" style="font-size:15px;font-weight:600"> / ${occ.length}</span>`, 'HV chưa lập phiếu tháng này', actAttr('adminGo', 'invoices'))}
     </div>
