@@ -108,8 +108,7 @@ func RoomSegments(ctx context.Context, database *db.DB, roomID int, month string
 	return billing.BuildSegments(month, rs, re, reads, stays), nil
 }
 
-// PhanDien: phần điện của một học viên — tiền và số kWh. Hai con số chia bằng CÙNG một thuật toán
-// phần dư lớn nhất nên tổng cả phòng khớp tuyệt đối ở cả hai.
+// PhanDien: phần điện của một học viên, cộng dồn qua mọi phòng họ ở trong tháng.
 type PhanDien struct {
 	Tien float64
 	Kwh  float64
@@ -160,16 +159,15 @@ func StudentElectric(ctx context.Context, database *db.DB, studentID int, month 
 	return &sum, nil
 }
 
-// Cong: cộng phần của HV trong một phòng — tiền và kWh chia riêng nhưng cùng bảng chặng.
+// Cong: cộng phần của HV trong một phòng, lấy từ cùng một phép chia cho cả kWh lẫn tiền.
 func (p *PhanDien) Cong(segs []billing.BuiltSegment, studentID int, unit float64) {
-	tien := make([]billing.Segment, len(segs))
-	kwh := make([]billing.Segment, len(segs))
+	bs := make([]billing.Segment, len(segs))
 	for i, s := range segs {
-		tien[i] = billing.Segment{Electric: s.Kwh * unit, Roster: s.Roster}
-		kwh[i] = billing.Segment{Electric: s.Kwh, Roster: s.Roster}
+		bs[i] = billing.Segment{Electric: s.Kwh, Roster: s.Roster}
 	}
-	p.Tien += float64(billing.SplitElectricExact(tien)[studentID])
-	p.Kwh += billing.SplitKwhExact(kwh)[studentID]
+	phan := billing.ChiaDien(bs, unit)[studentID]
+	p.Tien += float64(phan.Tien)
+	p.Kwh += phan.Kwh
 }
 
 // StudentElectricProvisional: điện của HV ĐÃ TRẢ PHÒNG khi phòng CHƯA chốt chỉ số cuối tháng

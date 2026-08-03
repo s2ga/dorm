@@ -593,7 +593,7 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 
 		unit := billing.Fees(fees).Num("electric_unit")
 		elec := map[int]float64{}    // student_id -> tiền điện KỲ M-1 đã cộng qua mọi phòng
-		elecKwh := map[int]float64{} // student_id -> số kWh tương ứng, chia riêng để Σ khớp khối phòng
+		elecKwh := map[int]float64{} // student_id -> số kWh tương ứng, cùng một phép chia với tiền
 		for _, e := range er {
 			stays := staysByRoom[e.roomID]
 			if len(stays) == 0 {
@@ -601,13 +601,10 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 			}
 			segs := billing.BuildSegments(pmonth0, e.readingStart, e.readingEnd, readsByRoom[e.roomID], stays)
 			bsegs := make([]billing.Segment, len(segs))
-			ksegs := make([]billing.Segment, len(segs))
 			for i, sg := range segs {
-				bsegs[i] = billing.Segment{Electric: sg.Kwh * unit, Roster: sg.Roster}
-				ksegs[i] = billing.Segment{Electric: sg.Kwh, Roster: sg.Roster}
+				bsegs[i] = billing.Segment{Electric: sg.Kwh, Roster: sg.Roster}
 			}
-			share := billing.SplitElectricExact(bsegs)
-			shareKwh := billing.SplitKwhExact(ksegs)
+			share := billing.ChiaDien(bsegs, unit)
 			// Ở phòng có chỉ số nhưng phần chia = 0 -> vẫn ghi 0 (invoices.routes.js:192).
 			for _, st := range stays {
 				if _, ok := elec[st.StudentID]; !ok {
@@ -616,10 +613,8 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 				}
 			}
 			for id, v := range share {
-				elec[id] += float64(v)
-			}
-			for id, v := range shareKwh {
-				elecKwh[id] += v
+				elec[id] += float64(v.Tien)
+				elecKwh[id] += v.Kwh
 			}
 		}
 

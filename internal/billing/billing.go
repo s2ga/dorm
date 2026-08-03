@@ -248,6 +248,61 @@ func SplitKwhExact(segments []Segment) map[int]float64 {
 	return out
 }
 
+// PhanDien: phần điện của một người trong phòng.
+type PhanDien struct {
+	Kwh  float64
+	Tien int
+}
+
+// ChiaDien: MỘT phép chia duy nhất cho cả kWh lẫn tiền — chia kWh theo ngày ở (đơn vị 0,01 kWh)
+// rồi suy tiền TỪ chính phần kWh đó, nên kWh × đơn giá = đúng cột tiền và cả hai tổng đều khớp
+// tuyệt đối với khối của phòng.
+func ChiaDien(segments []Segment, unit float64) map[int]PhanDien {
+	kwh := SplitKwhExact(segments)
+	ids := make([]int, 0, len(kwh))
+	var tongKwh float64
+	for id, v := range kwh {
+		ids = append(ids, id)
+		tongKwh += v
+	}
+	sort.Ints(ids)
+
+	type phan struct {
+		id   int
+		base int
+		frac float64
+	}
+	parts := make([]phan, 0, len(ids))
+	sumBase := 0
+	for _, id := range ids {
+		x := kwh[id] * unit
+		base := int(math.Floor(x))
+		parts = append(parts, phan{id: id, base: base, frac: x - float64(base)})
+		sumBase += base
+	}
+	rem := r0(tongKwh*unit) - sumBase
+	sorted := make([]phan, len(parts))
+	copy(sorted, parts)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		if sorted[i].frac != sorted[j].frac {
+			return sorted[i].frac > sorted[j].frac
+		}
+		return sorted[i].id < sorted[j].id
+	})
+	them := map[int]int{}
+	for i := range sorted {
+		if rem > 0 {
+			them[sorted[i].id] = 1
+			rem--
+		}
+	}
+	out := map[int]PhanDien{}
+	for _, p := range parts {
+		out[p.id] = PhanDien{Kwh: kwh[p.id], Tien: p.base + them[p.id]}
+	}
+	return out
+}
+
 // SplitElectricByDays: cả tháng là 1 chặng, bảo đảm mọi id trong roster đều có mặt (0 nếu thiếu).
 // server/billing.js:68-72
 func SplitElectricByDays(roomElectric float64, roster []RosterEntry) map[int]int {
