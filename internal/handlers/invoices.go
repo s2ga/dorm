@@ -843,11 +843,23 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 			if s.roomID != nil {
 				np, _ = invoicecalc.NguyenPhongCuaPhong(ctx, h.DB, *s.roomID, body.Month, billing.Fees(fees))
 			}
+			npCua := np.Cua(s.id)
 			inv := billing.ComputeInvoice(billing.ComputeInput{
-				Student: hv, NguyenPhong: np.Cua(s.id),
+				Student: hv, NguyenPhong: npCua,
 				Room: room, Month: body.Month, Fees: billing.Fees(fees),
 				ElectricCharge: ec, LeaderDays: leaderDays[s.id], Kwh: kwh, VehicleCount: &vc,
 			})
+			// Phòng thuê trọn: mọi khoản đã gộp vào phiếu người ký HĐ. Thành viên không còn khoản nào
+			// thì KHÔNG xuất phiếu 0 đồng; phiếu cũ (chưa thu) thì dọn đi cho khỏi rác danh sách.
+			if npCua != nil && !npCua.DungHoaDon && inv.Total == 0 && (!hasDup || dup.other == 0 && dup.coc == 0) {
+				if hasDup && !dup.daXoa {
+					if _, err := tx.Exec(ctx, "UPDATE invoices SET deleted_at=now() WHERE id=$1", dup.id); err != nil {
+						return err
+					}
+					daDon++
+				}
+				continue
+			}
 			if hasDup {
 				// Cọc đã nằm trên phiếu thì GIỮ NGUYÊN, không tính lại: hồ sơ chuyển sang "đang giữ"
 				// sau khi thu là TienCoc trả 0, phát lại phiếu sẽ xoá mất khoản đã thu.
@@ -1051,11 +1063,26 @@ func (h *Handlers) GenerateOneInvoice(c *gin.Context) {
 	if roomID != nil {
 		np, _ = invoicecalc.NguyenPhongCuaPhong(ctx, h.DB, *roomID, monthStr, billing.Fees(fees))
 	}
+	npCua := np.Cua(sID)
 	inv := billing.ComputeInvoice(billing.ComputeInput{
-		Student: hv, NguyenPhong: np.Cua(sID),
+		Student: hv, NguyenPhong: npCua,
 		Room: room, Month: monthStr, Fees: billing.Fees(fees),
 		ElectricCharge: electricCharge, LeaderDays: leaderDays, Kwh: kwh, VehicleCount: &vehicleCnt,
 	})
+	// Thành viên phòng thuê trọn không có khoản riêng nào -> nói rõ tiền nằm ở phiếu của ai, thay vì
+	// lặng lẽ đẻ ra một phiếu 0 đồng.
+	if npCua != nil && !npCua.DungHoaDon && inv.Total == 0 && (!hasDup || dOther == 0 && dCoc == 0) {
+		tenChu := ""
+		if np != nil && np.PhongTruongID > 0 {
+			_ = h.pool().QueryRow(ctx, "SELECT name FROM students WHERE id=$1", np.PhongTruongID).Scan(&tenChu)
+		}
+		them := ""
+		if tenChu != "" {
+			them = " Toàn bộ tiền phòng kỳ này nằm ở phiếu của " + tenChu + "."
+		}
+		badRequest(c, "Học viên này là thành viên phòng thuê nguyên phòng nên không có phiếu riêng."+them)
+		return
+	}
 
 	if hasDup {
 		// Cọc trên phiếu đang sống thì giữ nguyên; phiếu đã xoá mà lập lại thì tính mới.
