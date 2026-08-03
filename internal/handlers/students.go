@@ -2154,8 +2154,30 @@ func (h *Handlers) StudentDeposit(c *gin.Context) {
 	}
 	ctx := c.Request.Context()
 	data, b := studentsReadBody(c)
-	if bad := studentsRejectUnknown(studentsOrderedKeys(data), []string{"amount", "date"}); bad != "" {
+	if bad := studentsRejectUnknown(studentsOrderedKeys(data), []string{"amount", "date", "undo"}); bad != "" {
 		badRequest(c, bad)
+		return
+	}
+	// undo: gỡ ghi nhận đóng cọc, đưa hồ sơ về "chưa đóng". Ghi nhầm mà không có đường lùi thì cọc
+	// vừa không đòi được (TienCoc thấy 'held' nên trả 0) vừa hiện "đang giữ" ở cổng học viên.
+	if b["undo"] == true {
+		rows, err := h.pool().Query(ctx,
+			`UPDATE students SET deposit_amount=0, deposit_status='none', deposit_date=NULL, deposit_refund_date=NULL
+			  WHERE id=$1 AND deleted_at IS NULL AND deposit_status='held' RETURNING *`, id)
+		if err != nil {
+			serverErr(c)
+			return
+		}
+		row, err := db.RowToMap(rows)
+		if err != nil {
+			serverErr(c)
+			return
+		}
+		if row == nil {
+			badRequest(c, "Chỉ gỡ được hồ sơ đang ở trạng thái ĐANG GIỮ cọc. Cọc đã hoàn / không hoàn thì dùng màn tất toán.")
+			return
+		}
+		c.JSON(http.StatusOK, row)
 		return
 	}
 	settings, err := h.DB.GetSettings(ctx)

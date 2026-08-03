@@ -590,7 +590,7 @@ async function studentDetail(id) {
         ${s.deposit_account ? `<p style="margin:0 0 10px" class="muted">Hoàn về: ${esc(s.deposit_account)} — ${esc(s.deposit_bank)}</p>` : ''}
         <div class="rowbtns">
           ${s.deposit_status === 'none' ? `<button class="btn sm" data-act="depositForm" data-args='[${s.id}]'>Ghi nhận đóng cọc</button>` : ''}
-          ${s.deposit_status === 'held' ? `<button class="btn sm green" data-act="refundForm" data-args='[${s.id}]'>Hoàn cọc</button><button class="btn sm danger" data-act="settleDeposit" data-args='[${s.id},"forfeit"]'>Không hoàn (giữ cọc)</button>` : ''}
+          ${s.deposit_status === 'held' ? `<button class="btn sm green" data-act="refundForm" data-args='[${s.id}]'>Hoàn cọc</button><button class="btn sm danger" data-act="settleDeposit" data-args='[${s.id},"forfeit"]'>Không hoàn (giữ cọc)</button><button class="btn sm ghost" title="Ghi nhầm là đã đóng — đưa hồ sơ về chưa đóng cọc" data-act="goGhiNhanCoc" data-args='[${s.id}]'>Gỡ ghi nhận</button>` : ''}
           ${s.deposit_status === 'refunded' || s.deposit_status === 'forfeited' ? `<button class="btn sm" data-act="depositForm" data-args='[${s.id}]'>Điều chỉnh</button>` : ''}
         </div>
       </div></div>
@@ -978,6 +978,14 @@ function depositForm(id) {
 async function saveDeposit(id) {
   await guard(() => API.setDeposit(id, { amount: +el('d_amt').value || 0, date: el('d_date').dataset.iso }));
   await refreshCache(); closeModal(); toast('Đã ghi nhận cọc'); studentDetailRefresh(id);
+}
+// Gỡ ghi nhận cọc: hồ sơ bị đánh dấu đã đóng nhầm thì phải về được "chưa đóng", nếu không phiếu kỳ
+// nhận phòng không còn dòng cọc mà cổng học viên vẫn ghi đang giữ.
+async function goGhiNhanCoc(id) {
+  const s = studentById(id) || {};
+  if (!confirm(`Gỡ ghi nhận đóng cọc của ${s.name || 'học viên này'}?\n\nHồ sơ về "chưa đóng cọc"${+s.deposit_amount ? ` (đang ghi ${money(s.deposit_amount)})` : ''}. Dùng khi đánh dấu nhầm, KHÔNG phải khi hoàn cọc.`)) return;
+  await guard(() => API.setDeposit(id, { undo: true }));
+  await refreshCache(); toast('Đã gỡ ghi nhận cọc'); studentDetailRefresh(id);
 }
 async function settleDeposit(id, action) {
   if (!confirm(action === 'refund' ? 'Xác nhận HOÀN cọc cho học viên?' : 'Xác nhận KHÔNG hoàn cọc (giữ lại)?')) return;
