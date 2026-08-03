@@ -25,16 +25,22 @@ async function viewServices() {
     </div>
     <div id="svcBody"><div class="spinner"></div></div>`;
   if (svcTab === 'parking') {
+    window._detailVehicles = allVeh;   // vehicleForm tra lại bản ghi khi bấm sửa
     el('svcBody').innerHTML = `<div class="panel"><div class="hd"><h2>${IC.bike} Gửi xe — HV đang ở (<span id="vehCount">${totalVeh}</span> xe)</h2>
-      <div class="search"><span class="i">${IC.search}</span><input id="vs" placeholder="Tìm biển số, loại, chủ xe, phòng..." value="${esc(vehSearch)}"></div></div>
-      <div class="pad muted" style="font-size:12px">${IC.info} Thêm/sửa xe (biển số, mã dán) trong <strong>Chi tiết học viên</strong>.</div>
-      <div class="table-wrap">${totalVeh ? `<table><thead><tr><th>Biển số</th><th>Loại xe</th><th>Mã dán</th><th>Chủ xe</th><th>Phòng</th></tr></thead><tbody>
+      <div class="search"><span class="i">${IC.search}</span><input id="vs" placeholder="Tìm biển số, loại, chủ xe, phòng..." value="${esc(vehSearch)}"></div>
+      <button class="btn sm pri" data-act="vehicleForm" data-args='[0, 0]'>${IC.plus} Thêm xe</button></div>
+      <div class="table-wrap">${totalVeh ? `<table><thead><tr><th>Biển số</th><th>Loại xe</th><th>Mã dán</th><th>Chủ xe</th><th>Phòng</th><th>Hiệu lực</th><th></th></tr></thead><tbody>
         ${veh.map(v => `<tr data-s="${esc((v.plate + ' ' + (v.vehicle_type || '') + ' ' + (v.student_name || '') + ' ' + (v.room_name || '') + ' ' + (v.sticker || '')).toLowerCase())}">
           <td><strong>${esc(v.plate || '—')}</strong></td><td>${esc(v.vehicle_type || '—')}</td><td>${esc(v.sticker || '—')}</td>
           <td><a href="#" data-act="studentDetail" data-args='[${v.student_id}]'>${esc(v.student_name)}</a></td><td>${esc(v.room_name || '—')}</td>
+          <td class="muted" style="font-size:12px;white-space:nowrap">${fmtDate(v.from_date)} → ${v.to_date ? fmtDate(v.to_date) : 'còn gửi'}</td>
+          <td class="num"><div class="rowbtns" style="justify-content:flex-end">
+            <button class="btn sm ghost" title="Sửa xe" data-act="vehicleForm" data-args='[${v.id}, ${v.student_id}]'>${IC.pencil}</button>
+            <button class="btn sm ghost" title="Xoá hẳn (nhập nhầm)" data-act="delVehicle" data-args='[${v.id}, ${v.student_id}]'>${IC.trash}</button>
+          </div></td>
         </tr>`).join('')}
-        <tr class="no-result" style="display:none"><td colspan="5"><div class="empty">Không tìm thấy xe phù hợp.</div></td></tr>
-      </tbody></table>` : `<div class="empty">Chưa có HV đang ở gửi xe. Thêm xe trong <strong>Chi tiết học viên</strong>.</div>`}</div></div>`;
+        <tr class="no-result" style="display:none"><td colspan="7"><div class="empty">Không tìm thấy xe phù hợp.</div></td></tr>
+      </tbody></table>` : `<div class="empty">Chưa có HV đang ở gửi xe. Bấm <strong>Thêm xe</strong>.</div>`}</div></div>`;
     const vs = el('vs'); if (vs) { vs.addEventListener('input', () => { vehSearch = vs.value; syncFilterUrl(); }); attachRowSearch(vs, 'vehCount'); }
   } else {
     el('svcBody').innerHTML = `<div class="panel"><div class="hd"><h2>${IC.washer} Máy giặt</h2><button class="btn sm pri" data-act="addWashingForm">${IC.plus} Thêm HV dùng máy giặt</button></div>
