@@ -5,9 +5,9 @@ const el = id => document.getElementById(id);
 const esc = s => (s == null ? '' : String(s)).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const money = n => (Number(n) || 0).toLocaleString('vi-VN');  // số tiền — KHÔNG kèm đơn vị "đ" (bỏ đơn vị toàn app theo yêu cầu)
 const moneyN = money;
-// Số kWh: in ĐÚNG phần chia được, tối đa 4 số lẻ, cắt số 0 thừa ở đuôi. Làm tròn về số nguyên là
-// phiếu tự mâu thuẫn — 41 kWh × 3.000 ra 123.000 trong khi dòng tiền ghi 123.730.
-const kwh = n => (Number(n) || 0).toLocaleString('vi-VN', { maximumFractionDigits: 4 });
+// Số kWh: 2 số lẻ, cắt số 0 thừa ở đuôi. Chốt 2 chứ không hơn vì hệ thống tài chính bên đối tác
+// chỉ nhận tới 2 số lẻ — ghi khác nhau là hai bên lệch số.
+const kwh = n => (Number(n) || 0).toLocaleString('vi-VN', { maximumFractionDigits: 2 });
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const curMonth = () => today().slice(0, 7);
 const prevKy = m => { const d = new Date(m + '-15T00:00:00'); d.setMonth(d.getMonth() - 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };

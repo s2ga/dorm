@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-// Số kWh trên phiếu phải nhân ngược ra ĐÚNG số tiền đang thu. Làm tròn về số nguyên như bản cũ là
-// phiếu tự mâu thuẫn: 41 kWh × 3.000 = 123.000 trong khi dòng tiền ghi 123.730.
+// Số kWh giữ ĐÚNG 2 số lẻ. Đổi lại kWh × đơn giá không khít tới từng đồng — lệch tối đa nửa đơn
+// vị cuối × đơn giá (đơn giá 3.000 -> ≤ 15đ).
 
 func feesKwh(unit string) Fees {
 	return Fees{
@@ -26,29 +26,44 @@ func phieuDien(tien float64, unit string) Invoice {
 	})
 }
 
-func TestSoKwh_NhanNguocRaDungSoTien(t *testing.T) {
-	// Đúng các con số trên ảnh chụp phòng 102 kỳ 08/2026, đơn giá 3.000.
-	for _, tien := range []float64{123730, 103774, 107765, 123731} {
+var tienDienMau = []float64{123730, 103774, 107765, 123731} // phòng 102 kỳ 08/2026, đơn giá 3.000
+
+func TestSoKwh_DungHaiSoLe(t *testing.T) {
+	for _, tien := range tienDienMau {
 		got := phieuDien(tien, "3000")
 		if got.ElectricCharge != int(tien) {
 			t.Fatalf("tiền điện = %d, phải = %d", got.ElectricCharge, int(tien))
 		}
-		nhanNguoc := math.Round(got.ElectricKwh * 3000)
-		if nhanNguoc != tien {
-			t.Errorf("%v kWh × 3.000 = %v, phải = %v (lệch %v đồng)",
-				got.ElectricKwh, nhanNguoc, tien, nhanNguoc-tien)
+		// Nhân 100 phải ra số nguyên: quá 2 số lẻ là hệ thống tài chính đối tác nhận không hết.
+		x100 := got.ElectricKwh * 100
+		if math.Abs(x100-math.Round(x100)) > 1e-9 {
+			t.Errorf("%v kWh có quá 2 số lẻ", got.ElectricKwh)
+		}
+		if muon := math.Round(tien/3000*100) / 100; math.Abs(got.ElectricKwh-muon) > 1e-9 {
+			t.Errorf("kWh = %v, phải = %v", got.ElectricKwh, muon)
 		}
 	}
 }
 
 func TestSoKwh_KhongLamTronVeSoNguyen(t *testing.T) {
 	got := phieuDien(123730, "3000")
-	if got.ElectricKwh == math.Trunc(got.ElectricKwh) {
-		t.Errorf("kWh = %v — số nguyên tròn trĩnh nghĩa là vẫn đang bị làm tròn", got.ElectricKwh)
+	// 123730/3000 = 41,243333... -> 41,24. Về 41 tròn trĩnh là lại làm tròn quá tay.
+	if math.Abs(got.ElectricKwh-41.24) > 1e-9 {
+		t.Errorf("kWh = %v, phải = 41.24", got.ElectricKwh)
 	}
-	// 123730/3000 = 41,243333... -> giữ 4 số lẻ.
-	if math.Abs(got.ElectricKwh-41.2433) > 1e-9 {
-		t.Errorf("kWh = %v, phải = 41.2433", got.ElectricKwh)
+}
+
+// Sai lệch khi nhân ngược phải nằm trong nửa đơn vị cuối × đơn giá. Vượt ngưỡng này là công thức
+// hỏng chứ không còn là chuyện làm tròn.
+func TestSoKwh_LechNhanNguocTrongNguong(t *testing.T) {
+	const unit = 3000.0
+	nguong := unit / 200 // nửa của 0,01 kWh
+	for _, tien := range tienDienMau {
+		got := phieuDien(tien, "3000")
+		lech := math.Abs(math.Round(got.ElectricKwh*unit) - tien)
+		if lech > nguong {
+			t.Errorf("%v kWh × 3.000 lệch %v đồng so với %v — vượt ngưỡng %v", got.ElectricKwh, lech, tien, nguong)
+		}
 	}
 }
 

@@ -183,7 +183,7 @@ CREATE TABLE IF NOT EXISTS invoices (
   month          TEXT NOT NULL,              -- 'YYYY-MM'
   days_stayed    INTEGER NOT NULL DEFAULT 0,
   room_charge    NUMERIC(12,0) NOT NULL DEFAULT 0,
-  electric_kwh   NUMERIC(12,4) NOT NULL DEFAULT 0,  -- 4 số lẻ: kWh × đơn giá phải ra đúng tiền đang thu
+  electric_kwh   NUMERIC(12,2) NOT NULL DEFAULT 0,  -- 2 số lẻ: hệ thống tài chính đối tác chỉ nhận tới đó
   electric_charge NUMERIC(12,0) NOT NULL DEFAULT 0,
   water_charge   NUMERIC(12,0) NOT NULL DEFAULT 0,
   service_charge NUMERIC(12,0) NOT NULL DEFAULT 0,

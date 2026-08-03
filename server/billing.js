@@ -215,9 +215,8 @@ function computeInvoice({ student, room, month, fees, occupants, roster, electri
     // kWh HIỂN THỊ trên phiếu = phần của RIÊNG học viên (suy từ tiền điện của họ ÷ đơn giá),
     // KHÔNG phải kWh cả phòng. Trước đây hiện kWh cả phòng (vd 300) nhưng chỉ thu 1/3 -> HV đọc
     // "300 kWh sao chỉ trả 1/3?" tưởng app tính sai (TP-27). Giờ hiện ~100 kWh, khớp số tiền.
-    // Giữ 4 số lẻ, KHÔNG làm tròn về số nguyên: 41 kWh × 3.000 = 123.000 trong khi dòng tiền
-    // ghi 123.730 là phiếu tự mâu thuẫn.
-    electric_kwh: unit > 0 ? Math.round((electric_charge / unit) * 10000) / 10000 : 0,
+    // Giữ ĐÚNG 2 số lẻ — hệ thống tài chính bên đối tác chỉ nhận tới 2 số lẻ.
+    electric_kwh: unit > 0 ? Math.round((electric_charge / unit) * 100) / 100 : 0,
     electric_charge,
     water_charge,
     service_charge,

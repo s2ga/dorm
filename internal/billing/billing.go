@@ -583,11 +583,11 @@ func ComputeInvoice(in ComputeInput) Invoice {
 		"fee_discount": float64(feeDiscount),
 	})
 
-	// Số kWh suy từ CHÍNH số tiền phải trả và giữ 4 số lẻ. Làm tròn về số nguyên như trước là phiếu
-	// tự mâu thuẫn: 41 kWh × 3.000 = 123.000 trong khi dòng tiền ghi 123.730.
+	// Số kWh suy từ chính số tiền phải trả, giữ ĐÚNG 2 SỐ LẺ — hệ thống tài chính bên đối tác chỉ
+	// nhận tới 2 số lẻ, ghi nhiều hơn là hai bên lệch nhau ở con số kWh.
 	electricKwh := 0.0
 	if unit > 0 {
-		electricKwh = math.Round(float64(electricCharge)/unit*10000) / 10000
+		electricKwh = math.Round(float64(electricCharge)/unit*100) / 100
 	}
 
 	return Invoice{
