@@ -23,6 +23,7 @@ function deltaTag(cur, prev) {
 // student_gender do API trả; studentById chỉ là đường lùi vì HV đã khoá không có trong ST.students.
 const invLegalEntity = i => legalEntityCell(i.student_gender || (studentById(i.student_id) || {}).gender);
 let _invAll = [];   // hoa don thang hien hanh — de phieuBao/invoiceForm/exportCSV tu lay lai theo id (khong nhoi object vao data-args)
+let _invTbl = null; // tham chieu bang phieu bao dang hien -> exportCSV/tinh tong doc duoc tap hang dang loc (_visIds)
 async function viewInvoices() {
   el('topActions').innerHTML = `<button class="btn" data-act="electricForm">${IC.zap} Chỉ số điện</button><button class="btn" data-act="oneInvoiceForm">${IC.plus} HĐ cho 1 HV</button><button class="btn pri" data-act="generateForm">${IC.receipt} Tạo hóa đơn theo tháng</button>`;
   el('content').innerHTML = '<div class="spinner"></div>';
@@ -95,7 +96,7 @@ async function viewInvoices() {
       <div class="table-wrap card-tbl">
       ${all.length === 0 ? `<div class="empty">Chưa có hóa đơn nào cho kỳ này.<br><br><button class="btn pri" data-act="generateForm">${IC.receipt} Tạo hóa đơn</button></div>` :
       list.length ? `<table><thead><tr><th>Học viên</th><th>Phòng</th><th>Mã pháp nhân</th><th class="num">Ngày ở</th><th class="num">Tiền phòng</th><th class="num">Điện</th><th class="num">Nước</th><th class="num">DV</th><th class="num">Giặt</th><th class="num">Xe</th>${coCoc ? '<th class="num">Cọc</th>' : ''}<th class="num">Giảm</th><th class="num">Tổng</th><th></th></tr></thead><tbody>
-        ${list.map(i => `<tr class="${laNguyenPhong(i) && +i.total ? 'inv-np' : ''}" data-s="${esc(((i.student_name || '') + ' ' + (i.student_code || '') + ' ' + (i.room_name || '') + ' ' + invLegalEntity(i)).toLowerCase())}">
+        ${list.map(i => `<tr class="${laNguyenPhong(i) && +i.total ? 'inv-np' : ''}" data-id="${i.id}" data-s="${esc(((i.student_name || '') + ' ' + (i.student_code || '') + ' ' + (i.room_name || '') + ' ' + invLegalEntity(i)).toLowerCase())}">
           <td><div class="flex stu-name" data-act="studentDetail" data-args='[${i.student_id}]' role="button" tabindex="0" title="Xem chi tiết học viên">
             <div><strong>${esc(i.student_name)}</strong>${i.student_code ? `<div class="sub2">${esc(i.student_code)}</div>` : ''}</div>
             <span class="row-chev">${IC.chevronRight}</span></div></td>
@@ -124,18 +125,18 @@ async function viewInvoices() {
         <tr class="no-result" style="display:none"><td colspan="${coCoc ? 14 : 13}"><div class="empty">Không tìm thấy hóa đơn phù hợp.</div></td></tr>
       </tbody><tfoot><tr class="tot-row">
         <td><strong>TỔNG</strong></td>
-        <td data-label="Phòng" class="muted">${list.length} phiếu</td>
+        <td data-label="Phòng" class="muted" data-tot="count">${list.length} phiếu</td>
         <td></td>
         <td class="num"></td>
-        <td class="num" data-label="Tiền phòng"><strong>${moneyN(sumK(list, 'room_charge'))}</strong></td>
-        <td class="num" data-label="Điện"><strong>${moneyN(sumK(list, 'electric_charge'))}</strong></td>
-        <td class="num" data-label="Nước"><strong>${moneyN(sumK(list, 'water_charge'))}</strong></td>
-        <td class="num" data-label="DV"><strong>${moneyN(sumK(list, 'service_charge'))}</strong></td>
-        <td class="num" data-label="Giặt"><strong>${moneyN(sumK(list, 'washing_charge'))}</strong></td>
-        <td class="num" data-label="Xe"><strong>${moneyN(sumK(list, 'parking_charge'))}</strong></td>
-        ${coCoc ? `<td class="num" data-label="Cọc"><strong>${moneyN(sumK(list, 'deposit_charge'))}</strong></td>` : ''}
-        <td class="num" data-label="Giảm"><strong>${sumK(list, 'leader_discount') + sumK(list, 'room_discount') + sumK(list, 'fee_discount') ? '−' + moneyN(sumK(list, 'leader_discount') + sumK(list, 'room_discount') + sumK(list, 'fee_discount')) : '—'}</strong></td>
-        <td class="num" data-label="Tổng"><strong>${moneyN(sumK(list, 'total'))}</strong></td>
+        <td class="num" data-label="Tiền phòng"><strong data-tot="room_charge">${moneyN(sumK(list, 'room_charge'))}</strong></td>
+        <td class="num" data-label="Điện"><strong data-tot="electric_charge">${moneyN(sumK(list, 'electric_charge'))}</strong></td>
+        <td class="num" data-label="Nước"><strong data-tot="water_charge">${moneyN(sumK(list, 'water_charge'))}</strong></td>
+        <td class="num" data-label="DV"><strong data-tot="service_charge">${moneyN(sumK(list, 'service_charge'))}</strong></td>
+        <td class="num" data-label="Giặt"><strong data-tot="washing_charge">${moneyN(sumK(list, 'washing_charge'))}</strong></td>
+        <td class="num" data-label="Xe"><strong data-tot="parking_charge">${moneyN(sumK(list, 'parking_charge'))}</strong></td>
+        ${coCoc ? `<td class="num" data-label="Cọc"><strong data-tot="deposit_charge">${moneyN(sumK(list, 'deposit_charge'))}</strong></td>` : ''}
+        <td class="num" data-label="Giảm"><strong data-tot="discount">${sumK(list, 'leader_discount') + sumK(list, 'room_discount') + sumK(list, 'fee_discount') ? '−' + moneyN(sumK(list, 'leader_discount') + sumK(list, 'room_discount') + sumK(list, 'fee_discount')) : '—'}</strong></td>
+        <td class="num" data-label="Tổng"><strong data-tot="total">${moneyN(sumK(list, 'total'))}</strong></td>
         <td class="num"></td>
       </tr></tfoot></table>` : `<div class="empty">Không có hóa đơn ${invFilter === 'paid' ? 'đã đóng' : 'chưa đóng'} trong kỳ này.</div>`}
     </div></div>
@@ -143,7 +144,26 @@ async function viewInvoices() {
     ${elecPanel}`;
   const im = el('im'); if (im) { attachMonth(im, invMonth); im.onchange = () => { invMonth = im.dataset.ym; viewInvoices(); }; }
   const iv = el('invs'); if (iv) { iv.addEventListener('input', () => { invSearch = iv.value; syncFilterUrl(); }); attachRowSearch(iv, 'invCount'); }
+  // Dòng TỔNG phải cộng theo ĐÚNG danh sách đang lọc (tìm kiếm + phễu cột), không phải cả kỳ.
+  // Gắn danh sách gốc + hook tính lại vào bảng; applyRowFilters sẽ gọi lại mỗi lần lọc đổi.
+  const invTbl = iv ? (iv.closest('.panel') || document).querySelector('.card-tbl table') : null;
+  _invTbl = invTbl || null; // reset mỗi kỳ để exportCSV không đọc nhầm bảng cũ
+  if (invTbl && invTbl._flt) { invTbl._invRows = list; invTbl._flt.onRows = _invTotalsRecompute; applyRowFilters(invTbl); }
   syncFilterUrl(); // BL-17: kỳ (thang, đã nắn theo tháng có dữ liệu) + tìm kiếm lên URL
+}
+// Tính lại dòng TỔNG cuối bảng phiếu báo theo các hàng ĐANG HIỆN (đã qua tìm kiếm + phễu cột).
+// Dùng lại chính đối tượng hoá đơn (khớp theo data-id) để cộng đúng từng đồng, không parse chữ hiển thị.
+function _invTotalsRecompute(passing, table) {
+  const rows = table._invRows; if (!rows) return;
+  const ids = new Set(passing.map(tr => +tr.dataset.id).filter(Boolean));
+  const vis = rows.filter(i => ids.has(i.id));
+  const S = k => vis.reduce((a, i) => a + (+i[k] || 0), 0);
+  table._visIds = ids;   // exportCSV dùng lại đúng tập hàng đang lọc
+  const set = (k, txt) => { const n = table.querySelector(`[data-tot="${k}"]`); if (n) n.textContent = txt; };
+  set('count', vis.length + ' phiếu');
+  ['room_charge', 'electric_charge', 'water_charge', 'service_charge', 'washing_charge', 'parking_charge', 'deposit_charge', 'total'].forEach(k => set(k, moneyN(S(k))));
+  const disc = S('leader_discount') + S('room_discount') + S('fee_discount');
+  set('discount', disc ? '−' + moneyN(disc) : '—');
 }
 async function recalcInv(id) { const r = await guard(() => API.recalcInvoice(id)); toast(`Đã tính lại: ${r.days_stayed} ngày ở → ${money(r.total)}`); viewInvoices(); }
 async function delInvoice(id) {
@@ -686,7 +706,12 @@ function csvCell(c) {
   return '"' + s.replace(/"/g, '""') + '"';
 }
 function exportCSV() {
-  const rows = _invAll.filter(i => invFilter === 'paid' ? i.status === 'paid' : invFilter === 'unpaid' ? i.status !== 'paid' : true); // dung danh sach dang loc (nhu luc render)
+  // Xuất theo ĐÚNG các hàng đang hiện (tìm kiếm + phễu cột). Chưa lọc gì -> _visIds = cả danh sách render.
+  // Dự phòng (không có bảng/tập lọc): quay về lọc theo trạng thái đóng/chưa như cũ.
+  const visIds = _invTbl && _invTbl._visIds;
+  const rows = visIds
+    ? _invAll.filter(i => visIds.has(i.id))
+    : _invAll.filter(i => invFilter === 'paid' ? i.status === 'paid' : invFilter === 'unpaid' ? i.status !== 'paid' : true);
   // Thứ tự cột phải khớp mảng data bên dưới.
   const head = ['Ho ten', 'Ma HV', 'Phong', 'Ma phap nhan', 'Ky', 'So ngay o', 'Tien phong', 'Dien (kWh)', 'Tien dien', 'Nuoc', 'Dich vu', 'May giat', 'Gui xe', 'Khac', 'Tien coc', 'Giam tien phong', 'Giam khoan khac', 'Giam phong truong', 'Tong'];
   const data = rows.map(i => [i.student_name, i.student_code || '', i.room_name || '', invLegalEntity(i), i.month, i.days_stayed, i.room_charge, i.electric_kwh, i.electric_charge, i.water_charge, i.service_charge, i.washing_charge, i.parking_charge, i.other_charge, i.deposit_charge || 0, i.room_discount || 0, i.fee_discount || 0, i.leader_discount || 0, i.total]);

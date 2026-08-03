@@ -333,6 +333,8 @@ function applyRowFilters(table) {
     _renderPager(table, st, n, page, pages);
   } else { passing.forEach(tr => { tr.style.display = ''; }); st.page = 0; _renderPager(table, st, n, 0, 1); }
   if (st.countId) { const c = el(st.countId); if (c) c.textContent = n; }
+  // Bảng có dòng TỔNG (vd phiếu báo): tính lại tổng theo ĐÚNG các hàng đang lọc, không chỉ theo trang.
+  if (st.onRows) { try { st.onRows(passing, table); } catch (e) { console.error('[onRows]', e); } }
   const er = table.querySelector('.no-result'); if (er) er.style.display = n === 0 ? '' : 'none';
   if (head) for (const th of head.cells) {
     const fn = th.querySelector('.col-filt'); if (!fn) continue;
