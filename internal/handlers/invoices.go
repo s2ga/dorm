@@ -486,8 +486,7 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 		mStart, mEnd := billing.FirstDay(body.Month), billing.LastDay(body.Month)
 
 		// HV có ở trong tháng. Đa cơ sở: điều hành tất cả/lọc ?facility; quản lý ép cơ sở. invoices.routes.js:152-164
-		// Hồ sơ ĐÃ KHOÁ vẫn vào danh sách: khoá là chặn sửa/đăng nhập, không phải xoá nợ.
-		stCond := []string{"check_in_date IS NOT NULL", "check_in_date <= $1", "(check_out_date IS NULL OR check_out_date >= $2)"}
+		stCond := []string{"deleted_at IS NULL", "check_in_date IS NOT NULL", "check_in_date <= $1", "(check_out_date IS NULL OR check_out_date >= $2)"}
 		stParams := []interface{}{mEnd, mStart}
 		invoicesExecFacilityFilter(c, u, "facility_id", &stCond, &stParams)
 		stRows, err := tx.Query(ctx,

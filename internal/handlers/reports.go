@@ -37,9 +37,9 @@ func reportsFacilityCond(u *auth.User, c *gin.Context, params *[]interface{}) st
 func (h *Handlers) RevenueReport(c *gin.Context) {
 	u := auth.CurrentUser(c)
 	params := []interface{}{}
-	// Chỉ loại phiếu ĐÃ XOÁ. Phiếu của hồ sơ đã KHOÁ vẫn tính: khoá chặn sửa/đăng nhập chứ không
-	// xoá nợ, tiền vẫn phải đi thu nên vẫn là doanh thu.
-	where := "WHERE i.deleted_at IS NULL"
+	// Loại phiếu đã xoá VÀ phiếu của HỌC VIÊN ĐÃ XOÁ (js:25-28). Không thì tiền của HV đã xoá vẫn
+	// nằm trong doanh thu — khoản thu của người không còn tồn tại, không ai đi thu.
+	where := "WHERE i.deleted_at IS NULL AND s.deleted_at IS NULL"
 	// year phải đúng 4 chữ số; so tiền tố substr thay vì LIKE để tránh "?year=%" khớp mọi tháng (V2-70, js:29-34).
 	if year := c.Query("year"); year != "" {
 		if !isYyyy(year) {
@@ -78,8 +78,8 @@ func (h *Handlers) RevenueReport(c *gin.Context) {
 }
 
 // RevenueYears: GET /api/reports/years (admin) — các năm có dữ liệu hoá đơn.
-// PHẢI lọc y hệt /revenue — lệch nhau thì năm hiện trong ô chọn mà bấm vào /revenue trả rỗng
-// (V2-69b). server/routes/reports.routes.js:56-67
+// PHẢI lọc y hệt /revenue (JOIN students, loại HV đã xoá) — nếu không, năm mà toàn bộ phiếu thuộc HV
+// đã xoá vẫn hiện trong ô chọn, bấm vào thì /revenue trả rỗng (V2-69b). server/routes/reports.routes.js:56-67
 func (h *Handlers) RevenueYears(c *gin.Context) {
 	u := auth.CurrentUser(c)
 	params := []interface{}{}
@@ -87,7 +87,7 @@ func (h *Handlers) RevenueYears(c *gin.Context) {
 	rows, err := h.pool().Query(c.Request.Context(),
 		`SELECT DISTINCT substr(i.month,1,4) AS y
 		   FROM invoices i JOIN students s ON s.id = i.student_id
-		  WHERE i.deleted_at IS NULL`+facWhere+`
+		  WHERE i.deleted_at IS NULL AND s.deleted_at IS NULL`+facWhere+`
 		  ORDER BY y DESC`, params...)
 	if err != nil {
 		serverErr(c)
