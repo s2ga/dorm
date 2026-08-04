@@ -449,7 +449,7 @@ async function studentForm(id) {
         <div class="grid2">
           <div class="field"><label>Số HĐ <span class="opt">(nhập tay · ⚡ gợi ý số kế tiếp)</span></label>
             <div class="flex" style="gap:6px"><input id="f_cno" value="${esc(s.contract_no || '')}" placeholder="03/2026/HDKTX-E2" style="flex:1">
-            <button type="button" class="btn sm" data-act="suggestContractNo" title="Gợi ý số HĐ kế tiếp (nối tiếp số đã có)">${IC.zap}</button></div></div>
+            <button type="button" class="btn sm" data-act="suggestContractNo" data-args='[${id || 0}]' title="Điền số HĐ đã giữ chỗ cho hồ sơ này">${IC.zap}</button></div></div>
           <div class="field"><label>Ngày ký HĐ</label><input id="f_cdate"></div>
         </div>
         <div class="field" style="margin:0"><label>Tình trạng HĐ</label><select id="f_cstatus">
@@ -538,10 +538,13 @@ async function saveStudent(id) {
 // Gợi ý số HĐ KẾ TIẾP = MAX số đã có (cùng năm + pháp nhân, parse từ chính số HĐ) + 1 (backend).
 // NỐI TIẾP số có sẵn, KHÔNG đụng/đánh lại số cũ. (Đã BỎ nút "đánh lại toàn bộ HĐ theo ngày ký" 23/07
 // vì đếm/đánh lại từ đầu làm SAI số các HĐ đã có số — nhất là 97 HĐ có số nhưng chưa có ngày ký.)
-async function suggestContractNo() {
+// studentId do CHÍNH form truyền vào, không lấy từ _detailStudent: form mở thẳng được từ màn Điều
+// hành (không qua chi tiết học viên) nên biến đó có thể còn của người xem trước — điền nhầm số giữ
+// chỗ của người khác là hai hợp đồng trùng số.
+async function suggestContractNo(studentId) {
   const gender = el('f_gender') ? el('f_gender').value : 'female';
   const date = (el('f_cdate') && el('f_cdate').dataset.iso) || today();
-  const sid = (window._detailStudent || {}).id || 0;   // số ĐÃ GIỮ CHỖ của chính hồ sơ này
+  const sid = +studentId || 0;
   const r = await guard(() => API.contractNoNext(gender, date, sid));
   if (r && r.dung_chung) return toast('Phòng thuê trọn dùng chung HĐ của người ký — hồ sơ này không có số riêng', 'err');
   if (r && r.contract_no) { el('f_cno').value = r.contract_no; toast('Số HĐ: ' + r.contract_no); }
