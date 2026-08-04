@@ -100,6 +100,7 @@ var settingsAllowed = []string{
 	"intro_hero_title", "intro_hero_desc", "intro_about_eyebrow", "intro_about_title", "intro_about_desc",
 	"intro_rooms_eyebrow", "intro_rooms_title", "intro_rooms_desc", "intro_amenities_title",
 	"intro_price_title", "intro_price_desc", "intro_contact_title", "intro_contact_desc",
+	"contact_person",
 	"imgcap_khuon-vien-1", "imgcap_khuon-vien-2", "imgcap_khuon-vien-3",
 	"imgcap_phong-1", "imgcap_phong-2", "imgcap_phong-3",
 }

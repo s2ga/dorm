@@ -130,7 +130,7 @@ async function renderPublicRegister() {
         <p>${info.address ? esc(info.address) + ' — ' : ''}${T('intro_hero_desc', 'chỗ ở tiện nghi, kỷ luật, đồng hành cùng học viên trên hành trình sang Nhật.')}</p>
         <div class="intro-stats">
           <div><b>${info.room_count != null ? info.room_count : '—'}</b><span>Phòng ở</span></div>
-          <div><b>${info.bed_free != null ? info.bed_free : '—'}</b><span>Giường trống</span></div>
+          <div><b>${info.bed_free != null ? info.bed_free : '—'}</b><span>Giường trống${info.bed_soon ? ` · +${info.bed_soon} sắp trống` : ''}</span></div>
           <div><b>${money(info.room_fee)}</b><span>Thuê ghép / tháng</span></div>
         </div>
         <div class="intro-cta">
@@ -208,7 +208,7 @@ async function renderPublicRegister() {
           ${/* Dưới tên khu là SỐ HOTLINE, không phải câu mô tả — người ta vào đây để gọi. */''}
           <div class="ci-row">${IC.home}<div><b>${dorm}</b>${info.hotline
     ? `<a class="ci-tel" href="tel:${esc(String(info.hotline).replace(/[\s.]/g, ''))}">${IC.phone}${esc(info.hotline)}</a>`
-    : '<span>Ban quản lý khu nội trú</span>'}</div></div>
+    : '<span>Ban quản lý khu nội trú</span>'}${info.contact_person ? `<span>${esc(info.contact_person)}</span>` : ''}</div></div>
         </div>
         ${info.address ? `<div class="contact-map"><iframe title="Bản đồ" src="https://www.google.com/maps?q=${encodeURIComponent(info.address)}&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div>` : ''}
       </div>
@@ -522,6 +522,7 @@ const INTRO_FIELDS = [
   ['intro_price_desc', 'Mục "Bảng giá" — mô tả', 'ta'],
   ['intro_contact_title', 'Mục "Liên hệ" — tiêu đề', 'in'],
   ['intro_contact_desc', 'Mục "Liên hệ" — mô tả', 'ta'],
+  ['contact_person', 'Người liên hệ — hiện dưới số hotline', 'in'],
 ];
 const INTRO_MEDIA = [
   ['hero', 'Ảnh nền đầu trang (toàn cảnh)'],

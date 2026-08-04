@@ -61,10 +61,11 @@ func (h *Handlers) PublicInfo(c *gin.Context) {
 			facAddr = v
 		}
 	}
-	// Chỉ tính phòng CHO THUÊ GHÉP cho số liệu công khai. public.routes.js:62-63
-	var rooms, beds, bedFree int
+	// "Phòng ở" = phòng học viên ở được: thuê ghép + thuê trọn. Phòng an ninh và phòng nhân viên
+	// không phải chỗ ở của học viên nên không đếm.
+	var rooms, beds, bedFree, bedSoon int
 	if err := h.pool().QueryRow(ctx,
-		"SELECT COUNT(*)::int c FROM rooms WHERE COALESCE(room_type,'shared')='shared' AND deleted_at IS NULL").Scan(&rooms); err != nil {
+		"SELECT COUNT(*)::int c FROM rooms WHERE COALESCE(room_type,'shared') IN ('shared','whole') AND deleted_at IS NULL").Scan(&rooms); err != nil {
 		serverErr(c)
 		return
 	}
@@ -82,6 +83,25 @@ func (h *Handlers) PublicInfo(c *gin.Context) {
 		serverErr(c)
 		return
 	}
+	// Giường SẮP trống: người đang ở đã có ngày trả phòng ở tương lai. Tính bằng hiệu hai lần kẹp 0,
+	// không phải bằng cách đếm đầu người — phòng đang ở VƯỢT sức chứa thì một người rời chỉ bớt phần
+	// vượt, chưa sinh ra giường trống nào.
+	if err := h.pool().QueryRow(ctx,
+		`SELECT COALESCE(SUM(GREATEST(0, r.capacity - o.dang_o + o.sap_roi)
+		                  - GREATEST(0, r.capacity - o.dang_o)),0)::int c
+		   FROM rooms r
+		   JOIN LATERAL (
+		     SELECT COUNT(*)::int AS dang_o,
+		            COUNT(*) FILTER (WHERE s.check_out_date IS NOT NULL)::int AS sap_roi
+		       FROM students s
+		      WHERE s.room_id = r.id AND s.deleted_at IS NULL
+		        AND s.check_in_date <= CURRENT_DATE
+		        AND (s.check_out_date IS NULL OR s.check_out_date > CURRENT_DATE)
+		   ) o ON TRUE
+		  WHERE COALESCE(r.room_type,'shared')='shared' AND r.deleted_at IS NULL`).Scan(&bedSoon); err != nil {
+		serverErr(c)
+		return
+	}
 	// Số người đang ở: đếm NGƯỜI THẬT (thấy được cả người ở vượt sức chứa). public.routes.js:74
 	occupancy, err := h.publicDemNguoiDangO(c)
 	if err != nil {
@@ -90,10 +110,10 @@ func (h *Handlers) PublicInfo(c *gin.Context) {
 	}
 	// facilities.map(f => ({id, name, address})) — query chỉ chọn đúng 3 cột nên dùng thẳng. public.routes.js:78
 	c.JSON(http.StatusOK, gin.H{
-		"dorm_name": s["dorm_name"], "hotline": s["hotline"],
+		"dorm_name": s["dorm_name"], "hotline": s["hotline"], "contact_person": s["contact_person"],
 		"address": facAddr, "facility_name": facName,
 		"facilities": facilities,
-		"room_count": rooms, "bed_count": beds, "occupancy": occupancy, "bed_free": bedFree,
+		"room_count": rooms, "bed_count": beds, "occupancy": occupancy, "bed_free": bedFree, "bed_soon": bedSoon,
 		"room_fee": s["room_fee"], "deposit_fee": s["deposit_fee"],
 		"electric_unit": s["electric_unit"], "water_fee": s["water_fee"], "service_fee": s["service_fee"],
 		"washing_fee": s["washing_fee"], "parking_fee": s["parking_fee"],
