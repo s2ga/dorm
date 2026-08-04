@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -322,8 +323,31 @@ type invoiceGenReading struct {
 }
 
 // invoiceGenStudent: cột HV cần cho bộ tính tiền (chỉ lấy cột dùng -> nhẹ RAM/băng thông).
+// invoiceKhacNhau: các khoản lệch giữa bản đang lưu và bản vừa tính. Rỗng = phiếu không đổi gì.
+// So ở sai số 0,005 vì electric_kwh là số thực 2 số lẻ, đọc từ NUMERIC ra có thể lệch bit cuối.
+func invoiceKhacNhau(cu, moi map[string]float64) []gin.H {
+	thu := []string{"days_stayed", "room_charge", "electric_kwh", "electric_charge", "water_charge",
+		"service_charge", "washing_charge", "parking_charge", "leader_discount", "room_discount",
+		"fee_discount", "deposit_charge", "total"}
+	out := []gin.H{}
+	for _, k := range thu {
+		if math.Abs(moi[k]-cu[k]) > 0.005 {
+			out = append(out, gin.H{"field": k, "truoc": cu[k], "sau": moi[k]})
+		}
+	}
+	return out
+}
+
+func roomIDOr0(p *int) int {
+	if p == nil {
+		return 0
+	}
+	return *p
+}
+
 type invoiceGenStudent struct {
 	id                       int
+	ten                      string
 	roomID                   *int
 	rentalType               string
 	depositStatus            string
@@ -451,8 +475,9 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 		return
 	}
 
-	var created, updated, skipped, skippedThieu, daDon, totalStudents int
+	var created, updated, khongDoi, skipped, skippedThieu, daDon, totalStudents int
 	var warnings []string
+	thayDoi := []gin.H{} // phiếu tính ra KHÁC bản đang lưu — kèm từng khoản trước/sau
 	txErr := h.DB.WithTx(ctx, func(tx pgx.Tx) error {
 		// Lưu chỉ số điện VÀO KỲ M-1 (số đầu = số cuối kỳ M-2 nếu không nhập). invoices.routes.js:133-146
 		for _, r := range body.Readings {
@@ -494,7 +519,7 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 		stParams := []interface{}{mEnd, eStart0}
 		invoicesExecFacilityFilter(c, u, "facility_id", &stCond, &stParams)
 		stRows, err := tx.Query(ctx,
-			`SELECT id, room_id, rental_type, deposit_status, check_in_date, check_out_date, uses_washing, uses_parking, room_fee_discount_pct, `+
+			`SELECT id, name, room_id, rental_type, deposit_status, check_in_date, check_out_date, uses_washing, uses_parking, room_fee_discount_pct, `+
 				billing.CotSQL+` FROM students WHERE `+joinAnd(stCond), stParams...)
 		if err != nil {
 			return err
@@ -505,7 +530,7 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 			var rentalType, depositStatus *string
 			var ci, co pgtype.Date
 			var pct *float64
-			if err := stRows.Scan(append([]interface{}{&s.id, &s.roomID, &rentalType, &depositStatus, &ci, &co, &s.usesWashing, &s.usesParking, &pct}, s.giam.Ptr()...)...); err != nil {
+			if err := stRows.Scan(append([]interface{}{&s.id, &s.ten, &s.roomID, &rentalType, &depositStatus, &ci, &co, &s.usesWashing, &s.usesParking, &pct}, s.giam.Ptr()...)...); err != nil {
 				stRows.Close()
 				return err
 			}
@@ -769,15 +794,22 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 		}
 
 		// Nạp sẵn hoá đơn hiện có của kỳ (diệt N+1). invoices.routes.js:226-228
+		// Giữ luôn giá trị CŨ của mọi cột sẽ ghi đè, để so trước/sau: phiếu tính ra y hệt thì không
+		// ghi lại và đếm vào "không đổi", khác thì kê ra từng khoản cho người duyệt xem.
 		type genExisting struct {
 			id     int
 			status string
 			other  float64
 			coc    float64
 			daXoa  bool
+			cu     map[string]float64
 		}
 		existing := map[int]genExisting{}
-		exRows, err := tx.Query(ctx, "SELECT id, student_id, status, other_charge, deposit_charge, deleted_at IS NOT NULL FROM invoices WHERE month=$1", body.Month)
+		exRows, err := tx.Query(ctx,
+			`SELECT id, student_id, status, other_charge, deposit_charge, deleted_at IS NOT NULL,
+			        days_stayed, room_charge, electric_kwh, electric_charge, water_charge, service_charge,
+			        washing_charge, parking_charge, leader_discount, room_discount, fee_discount, total
+			   FROM invoices WHERE month=$1`, body.Month)
 		if err != nil {
 			return err
 		}
@@ -786,11 +818,19 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 			var st string
 			var other, coc float64
 			var daXoa bool
-			if err := exRows.Scan(&iid, &sid, &st, &other, &coc, &daXoa); err != nil {
+			var ngay, phong, kwh, dien, nuoc, dvu, giat, xe, gPT, gPhong, gKhac, tong float64
+			if err := exRows.Scan(&iid, &sid, &st, &other, &coc, &daXoa,
+				&ngay, &phong, &kwh, &dien, &nuoc, &dvu, &giat, &xe, &gPT, &gPhong, &gKhac, &tong); err != nil {
 				exRows.Close()
 				return err
 			}
-			existing[sid] = genExisting{id: iid, status: st, other: other, coc: coc, daXoa: daXoa}
+			existing[sid] = genExisting{id: iid, status: st, other: other, coc: coc, daXoa: daXoa,
+				cu: map[string]float64{
+					"days_stayed": ngay, "room_charge": phong, "electric_kwh": kwh, "electric_charge": dien,
+					"water_charge": nuoc, "service_charge": dvu, "washing_charge": giat, "parking_charge": xe,
+					"leader_discount": gPT, "room_discount": gPhong, "fee_discount": gKhac,
+					"deposit_charge": coc, "total": tong,
+				}}
 		}
 		exRows.Close()
 		if err := exRows.Err(); err != nil {
@@ -876,6 +916,23 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 					"leader_discount": float64(inv.LeaderDiscount), "room_discount": float64(inv.RoomDiscount),
 					"fee_discount": float64(inv.FeeDiscount),
 				})
+				moi := map[string]float64{
+					"days_stayed": float64(inv.DaysStayed), "room_charge": float64(inv.RoomCharge),
+					"electric_kwh": inv.ElectricKwh, "electric_charge": float64(inv.ElectricCharge),
+					"water_charge": float64(inv.WaterCharge), "service_charge": float64(inv.ServiceCharge),
+					"washing_charge": float64(inv.WashingCharge), "parking_charge": float64(inv.ParkingCharge),
+					"leader_discount": float64(inv.LeaderDiscount), "room_discount": float64(inv.RoomDiscount),
+					"fee_discount": float64(inv.FeeDiscount), "deposit_charge": coc, "total": float64(total),
+				}
+				khac := invoiceKhacNhau(dup.cu, moi)
+				if len(khac) == 0 && !dup.daXoa {
+					khongDoi++
+					continue // tính ra y hệt -> khỏi ghi đè, khỏi làm nhiễu danh sách "đã cập nhật"
+				}
+				thayDoi = append(thayDoi, gin.H{
+					"invoice_id": dup.id, "student_id": s.id, "name": s.ten,
+					"room": roomsCache[roomIDOr0(s.roomID)].name, "fields": khac,
+				})
 				if _, err := tx.Exec(ctx,
 					`UPDATE invoices SET days_stayed=$1, room_charge=$2, electric_kwh=$3, electric_charge=$4, water_charge=$5,
 					   service_charge=$6, washing_charge=$7, parking_charge=$8, leader_discount=$9, room_discount=$10,
@@ -913,13 +970,13 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 	if warnings == nil {
 		warnings = []string{}
 	}
+	ket := gin.H{"created": created, "updated": updated, "unchanged": khongDoi, "skipped": skipped,
+		"skipped_missing": skippedThieu, "cleaned": daDon, "warnings": warnings, "total": totalStudents,
+		"changes": thayDoi}
 	if preview {
-		c.JSON(http.StatusOK, gin.H{"preview": true, "created": created, "updated": updated, "skipped": skipped,
-			"skipped_missing": skippedThieu, "cleaned": daDon, "warnings": warnings, "total": totalStudents})
-		return
+		ket["preview"] = true
 	}
-	c.JSON(http.StatusOK, gin.H{"created": created, "updated": updated, "skipped": skipped,
-		"skipped_missing": skippedThieu, "cleaned": daDon, "warnings": warnings, "total": totalStudents})
+	c.JSON(http.StatusOK, ket)
 }
 
 // GenerateOneInvoice: POST /api/invoices/generate-one (admin,staff). invoices.routes.js:283-336.

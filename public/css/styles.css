@@ -371,6 +371,16 @@ input[type=checkbox],input[type=radio]{width:auto;flex:none;accent-color:var(--b
 /* select[size] = hộp danh sách mở sẵn (thay dropdown khi lựa chọn quá nhiều để cuộn tay). */
 select[size]{height:auto;padding:6px}
 select[size] option{padding:8px 9px;border-radius:8px}
+/* Tổng kết lập hoá đơn: mỗi loại một dòng, dòng nào bấm được thì có mũi tên. */
+.gen-list{display:flex;flex-direction:column;gap:2px;margin-bottom:14px}
+.gen-dong{display:flex;align-items:center;gap:11px;padding:11px 13px;border-radius:11px;background:var(--bg2)}
+.gen-dong.co-the-bam{cursor:pointer;background:var(--brand-soft)}
+.gen-dong.co-the-bam:hover{outline:1px solid var(--brand)}
+.gen-dong .gen-ic{display:flex;width:28px;height:28px;flex:none;align-items:center;justify-content:center;border-radius:9px;background:var(--card)}
+.gen-dong .gen-ic.ic-green{color:var(--green-ink)} .gen-dong .gen-ic.ic-amber{color:var(--amber-ink)}
+.gen-dong .gen-ic.ic-red{color:var(--red-ink)}     .gen-dong .gen-ic.ic-gray{color:var(--muted)}
+.gen-dong .gen-nhan{flex:1;font-size:13.5px}
+.gen-dong .gen-so{font-size:19px;font-weight:800;font-variant-numeric:tabular-nums}
 /* Nhóm ô trong form dài: tiêu đề + đường kẻ để mắt bám mốc, thay vì cuộn một mạch 29 ô. */
 .form-nhom{margin:0 0 20px}
 .form-nhom>h4{display:flex;align-items:center;gap:9px;margin:0 0 11px;font-size:11.5px;font-weight:700;

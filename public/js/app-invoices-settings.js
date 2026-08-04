@@ -473,38 +473,92 @@ async function saveElectric() {
   await guard(() => API.saveElectric({ month: el('e_month').value, readings }));
   closeModal(); toast('Đã lưu chỉ số cuối kỳ');
 }
+const GEN_NHAN = {
+  days_stayed: 'Số ngày ở', room_charge: 'Tiền phòng', electric_kwh: 'Số kWh', electric_charge: 'Tiền điện',
+  water_charge: 'Tiền nước', service_charge: 'Phí dịch vụ', washing_charge: 'Máy giặt', parking_charge: 'Gửi xe',
+  leader_discount: 'Giảm phòng trưởng', room_discount: 'Giảm tiền phòng', fee_discount: 'Giảm khoản khác',
+  deposit_charge: 'Tiền cọc', total: 'TỔNG',
+};
+// Số ngày và kWh không phải tiền — in bằng money() thì "31" thành "31" nhưng 41,24 kWh thành "41".
+const genSo = (k, v) => k === 'days_stayed' ? String(+v || 0) : k === 'electric_kwh' ? kwh(v) : money(v);
+let _genKq = null;   // kết quả lần chạy gần nhất, để modal chi tiết tra lại
+
+// Một dòng tổng kết trong modal. Bấm được khi có danh sách chi tiết kèm theo.
+function genDong(ico, nhan, so, mau, act) {
+  if (!so) return '';
+  return `<div class="gen-dong${act ? ' co-the-bam' : ''}"${act || ''}>
+    <span class="gen-ic ${mau}">${ico}</span>
+    <span class="gen-nhan">${nhan}</span>
+    <span class="gen-so">${so}</span>
+    ${act ? `<span class="row-chev">${IC.chevronRight}</span>` : ''}</div>`;
+}
+function genTomTat(r, month, xemTruoc) {
+  const thieu = r.skipped_missing || 0;
+  return `
+    <p class="muted" style="margin:0 0 12px">Kỳ <strong>${monthLabel(month)}</strong> · ${r.total} học viên có phát sinh trong kỳ.
+      Tiền điện của phiếu này là kỳ <strong>${monthLabel(prevKy(month))}</strong>.</p>
+    <div class="gen-list">
+      ${genDong(IC.plus, 'Tạo mới', r.created, 'ic-green')}
+      ${genDong(IC.pencil, 'Có thay đổi', r.updated, 'ic-amber', (r.changes || []).length ? ` data-act="genXemThayDoi"` : '')}
+      ${genDong(IC.check, 'Không đổi', r.unchanged, 'ic-gray')}
+      ${genDong(IC.lock, 'Bỏ qua — đã thu', r.skipped, 'ic-gray')}
+      ${genDong(IC.trash, 'Dọn phiếu rỗng của người đã rời', r.cleaned, 'ic-gray')}
+      ${genDong(IC.alert, `Thiếu chỉ số điện kỳ ${monthLabel(prevKy(month))}`, thieu, 'ic-red')}
+    </div>
+    ${thieu ? `<div class="bang-tin" style="border-color:var(--red-ink)">${IC.alert} <span><strong>${thieu} học viên chưa lập được hoá đơn</strong> — các phòng sau còn thiếu chỉ số:
+      <ul style="margin:8px 0 0 18px;line-height:1.8">${(r.warnings || []).map(w => `<li>${esc(w)}</li>`).join('')}</ul>
+      <div style="margin-top:8px">Vào <strong>Chỉ số điện</strong> → <em>Chốt giữa kỳ</em> nhập số ngày học viên rời, rồi chạy lại.</div></span></div>` : ''}
+    ${xemTruoc ? `<div class="hint">${IC.info}<span>Đây mới là <strong>xem trước</strong>, chưa ghi gì. Chạy lại bao nhiêu lần cũng được —
+      hoá đơn <strong>đã thu</strong> không bị đụng, học viên vào giữa tháng được tạo bù.</span></div>` : ''}`;
+}
 async function runGenerate() {
   const month = el('g_month').value; if (!month) return toast('Chọn kỳ', 'err');
   if (badElectricRooms().length) return toast('Có phòng "số cuối < số đầu" — sửa lại chỉ số điện trước khi lập hóa đơn', 'err');
   const readings = readElectricInputs();
-  // Bước 1: xem trước (dry-run) — tính nhưng KHÔNG lưu
-  const pv = await guard(() => API.generateInvoices({ month, readings, preview: true }));
-  let msg = `Kỳ ${month} — ${pv.total} học viên ở trong kỳ:\n`
-    + `• Tạo mới: ${pv.created}\n`
-    + `• Cập nhật (chưa thu): ${pv.updated}\n`
-    + `• Bỏ qua (đã đóng, khóa): ${pv.skipped}\n`;
-  if (pv.skipped_missing) {
-    msg += `• ⚠ BỎ QUA ${pv.skipped_missing} HV — kỳ điện ${prevKy(month)} thiếu dữ liệu:\n`
-      + (pv.warnings || []).map(w => `    - ${w}`).join('\n') + '\n';
-  }
-  msg += `\nTiếp tục lập hóa đơn? (Chạy lại bao nhiêu lần cũng được — HV mới vào giữa tháng sẽ được tạo bù, hóa đơn đã thu không bị đụng.)`;
-  if (!confirm(msg)) return;
-  // Bước 2: lập thật
+  const pv = await guard(() => API.generateInvoices({ month, readings, preview: true }));   // dry-run, không lưu
+  _genKq = { ...pv, month };
+  openModal(`
+    <div class="mh"><h3>${IC.receipt} Xem trước — lập hoá đơn ${monthLabel(month)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mb">${genTomTat(pv, month, true)}</div>
+    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button>
+      <button class="btn pri" data-act="genChot">${IC.check} Lập hoá đơn</button></div>`, true);
+}
+async function genChot() {
+  const { month } = _genKq || {};
+  if (!month) return;
+  const readings = _genKq.readings || readElectricInputs();
   const r = await guard(() => API.generateInvoices({ month, readings }));
-  closeModal(); invMonth = month; invFilter = 'all';
-  toast(`Đã tạo ${r.created} · cập nhật ${r.updated || 0}${r.skipped ? ` · bỏ qua ${r.skipped} (đã đóng)` : ''}${r.cleaned ? ` · dọn ${r.cleaned} phiếu rác (người đã rời)` : ''}${r.skipped_missing ? ` · ⚠ ${r.skipped_missing} thiếu điện` : ''} hóa đơn`, r.skipped_missing ? 'err' : undefined);
+  _genKq = { ...r, month };
+  invMonth = month; invFilter = 'all';
   viewInvoices();
-  // Cảnh báo phải ĐẬP VÀO MẮT, không được chết im trong toast (bài học 2 nút chết im lặng).
-  if (r.skipped_missing) {
-    openModal(`
-      <div class="mh"><h3>${IC.alert} ${r.skipped_missing} học viên CHƯA có hóa đơn</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
-      <div class="mb">
-        <p>Kỳ điện <strong>${prevKy(month)}</strong> còn thiếu dữ liệu — các phòng sau bị bỏ qua, chưa lập hóa đơn:</p>
-        <ul style="margin:10px 0 14px 20px;line-height:1.9">${(r.warnings || []).map(w => `<li>${esc(w)}</li>`).join('')}</ul>
-        <p class="muted">Vào <strong>Chỉ số điện</strong> → mục <em>Chốt giữa kỳ</em> để nhập chỉ số ngày học viên rời (số đã ghi lúc bàn giao), rồi bấm <strong>Tạo hóa đơn theo tháng</strong> lần nữa.</p>
-      </div>
-      <div class="mf"><button class="btn pri" data-act="closeModal">Đã hiểu</button></div>`);
-  }
+  modalThay(`
+    <div class="mh"><h3>${IC.checkCircle} Đã lập hoá đơn ${monthLabel(month)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mb">${genTomTat(r, month, false)}</div>
+    <div class="mf"><button class="btn pri" data-act="closeModal">Xong</button></div>`);
+}
+// Bảng trước/sau: chỉ liệt kê khoản THẬT SỰ lệch, khỏi bắt người đọc tự dò 13 cột giống nhau.
+function genXemThayDoi() {
+  const ds = (_genKq && _genKq.changes) || [];
+  if (!ds.length) return;
+  openModal(`
+    <div class="mh"><h3>${IC.pencil} ${ds.length} phiếu có thay đổi</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mb">
+      <p class="muted" style="margin:0 0 12px">Chỉ hiện khoản có lệch. Khoản nào không đổi thì không liệt kê.</p>
+      ${ds.map(c => `<div class="form-nhom">
+        <h4>${esc(c.name || '—')}${c.room ? ` · phòng ${esc(c.room)}` : ''}</h4>
+        <div class="table-wrap"><table><thead><tr><th>Khoản</th><th class="num">Trước</th><th class="num">Sau</th><th class="num">Lệch</th></tr></thead><tbody>
+          ${(c.fields || []).map(f => {
+    const d = (+f.sau) - (+f.truoc);
+    return `<tr${f.field === 'total' ? ' style="background:var(--bg2);font-weight:700"' : ''}>
+              <td>${esc(GEN_NHAN[f.field] || f.field)}</td>
+              <td class="num muted">${genSo(f.field, f.truoc)}</td>
+              <td class="num"><strong>${genSo(f.field, f.sau)}</strong></td>
+              <td class="num" style="color:${d > 0 ? 'var(--red-ink)' : 'var(--green-ink)'}">${d > 0 ? '▲ +' : '▼ '}${genSo(f.field, Math.abs(d))}</td>
+            </tr>`;
+  }).join('')}
+        </tbody></table></div></div>`).join('')}
+    </div>
+    <div class="mf"><button class="btn" data-act="modalBack">← Quay lại</button></div>`, true);
 }
 function invoiceForm(id) {
   let i = _invAll.find(x => x.id === id) || { student_id: '', month: invMonth, days_stayed: 0, room_charge: 0, electric_kwh: 0, electric_charge: 0, water_charge: 0, service_charge: 0, washing_charge: 0, parking_charge: 0, other_charge: 0, other_note: '' };
