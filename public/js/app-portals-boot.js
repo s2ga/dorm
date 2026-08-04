@@ -264,8 +264,13 @@ function myAssetsPanel(assets, profile) {
   </div></div>`;
 }
 
+// Phí máy giặt KHÔNG có ngày bắt đầu — chỉ là một ô đúng/sai, tính theo số ngày Ở của tháng
+// (billing.go:598). Phiếu kỳ này chưa đóng tiền mà được lập lại là phí vào luôn kỳ này; phiếu đã
+// đóng thì bị khoá (invoices.go:855) nên phí rơi sang kỳ sau. Câu hỏi phải nói đúng như vậy.
 async function toggleMyWashing(on) {
-  if (!confirm(on ? 'Đăng ký dùng máy giặt? Phí sẽ tính vào phiếu báo từ kỳ sau.' : 'Hủy đăng ký máy giặt? Phí máy giặt sẽ không còn tính từ kỳ sau.')) return;
+  if (!confirm(on
+    ? 'Đăng ký dùng máy giặt?\n\nNếu phiếu báo kỳ này chưa đóng tiền thì phí có thể được tính luôn vào kỳ này. Phiếu đã đóng rồi thì tính từ kỳ sau.'
+    : 'Hủy đăng ký máy giặt?\n\nNếu phiếu báo kỳ này chưa đóng tiền thì kỳ này cũng thôi tính phí. Phiếu đã đóng rồi thì hết tính từ kỳ sau.')) return;
   await guard(() => API.meWashing(on));
   toast(on ? 'Đã đăng ký máy giặt' : 'Đã hủy máy giặt'); loadStudentPortal();
 }
