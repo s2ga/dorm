@@ -875,9 +875,14 @@ td .hd-ref{position:relative;z-index:1}   /* nổi trên vùng bấm của cả 
      so với chính tên màn đang hiện ngay trên nó. Trên màn hẹp: bỏ. */
   .top .sub{display:none}
   .content{padding:12px 12px}
-  .panel{margin-bottom:14px;border-radius:14px}
-  .panel .hd{padding:10px 12px;gap:6px}
+  /* Ô tìm kiếm nằm ở ĐẦU BẢNG. Danh sách 134 dòng trên điện thoại thì nó cuộn mất, muốn tìm phải
+     lướt ngược lên đầu trang. Ghim đầu bảng ngay dưới thanh tiêu đề (--top-h do JS đo).
+     overflow:clip thay hidden — vẫn bo góc nhưng KHÔNG tạo vùng cuộn nên sticky mới ăn. */
+  .panel{margin-bottom:14px;border-radius:14px;overflow:clip}
+  .panel .hd{padding:10px 12px;gap:6px;position:sticky;top:var(--top-h,56px);z-index:3;background:var(--card)}
   .panel .hd h2{font-size:15.5px}
+  .panel .hd .search{flex:1 1 100%}
+  .panel .hd .search input{min-width:0;width:100%}
   .bang-tin{padding:9px 12px;font-size:12.5px;line-height:1.45;margin-bottom:12px;border-radius:10px}
   .bang-tin .ic-svg{width:15px;height:15px;margin:1px 7px 0 0}
   .hint{font-size:12px;margin-bottom:10px}

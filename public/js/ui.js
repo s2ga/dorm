@@ -43,10 +43,17 @@ function datViTriNote(h) {
   p.style.left = Math.max(8, Math.min(b.left, innerWidth - 8 - rong)) + 'px';
   p.style.top = (b.bottom + 7 + cao > innerHeight - 8 ? Math.max(8, b.top - 7 - cao) : b.bottom + 7) + 'px';
 }
+// Đầu bảng ghim dưới thanh tiêu đề trên điện thoại -> cần biết thanh đó cao bao nhiêu. Chiều cao đổi
+// theo màn (tên dài ngắn, có/không nút thao tác, nút xuống dòng) nên đo lại mỗi lần DOM đổi.
+function doChieuCaoThanhTren() {
+  const t = document.querySelector('.top');
+  if (t) document.documentElement.style.setProperty('--top-h', t.offsetHeight + 'px');
+}
+addEventListener('resize', doChieuCaoThanhTren);
 let _henGonNote = 0;
 new MutationObserver(() => {
   if (_henGonNote) return;
-  _henGonNote = requestAnimationFrame(() => { _henGonNote = 0; gonNote(); });
+  _henGonNote = requestAnimationFrame(() => { _henGonNote = 0; gonNote(); doChieuCaoThanhTren(); });
 }).observe(document.documentElement, { childList: true, subtree: true });
 function monthLabel(m) { const [y, mm] = m.split('-'); return `Tháng ${mm}/${y}`; }
 function initials(name) { const p = (name || '?').trim().split(/\s+/); return ((p[0] || '')[0] || '') + ((p[p.length - 1] || '')[0] || ''); }
