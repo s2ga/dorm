@@ -1080,8 +1080,8 @@ func (h *Handlers) contractNoRank(ctx context.Context, studentID int, gender str
 		   LEFT JOIN rooms r ON r.id = s.room_id
 		  WHERE s.deleted_at IS NULL AND s.gender = $2 AND `+chuaCoHD+`
 		    AND NOT COALESCE(`+thanhVienTron+`, false)
-		    AND (s.check_in_date, s.id) <
-		        (SELECT (COALESCE(x.check_in_date, DATE '9999-12-31'), x.id) FROM students x WHERE x.id = $1)`,
+		    AND (COALESCE(s.check_in_date, DATE '9999-12-31'), s.id) <
+		        (SELECT COALESCE(x.check_in_date, DATE '9999-12-31'), x.id FROM students x WHERE x.id = $1)`,
 		studentID, gender).Scan(&truoc)
 	return truoc, err
 }
