@@ -432,18 +432,18 @@ async function studentForm(id) {
             ${opt('ghep', s.rental_type, 'Thuê ghép (giá/người)')}${opt('phong', s.rental_type, 'Thuê nguyên phòng (giá theo hạng)')}</select>
             <div id="f_rental_ro" class="ro-in" hidden>Thuê nguyên phòng <span class="muted">— theo loại phòng</span></div></div>
         </div>
-        <div class="grid2">
-          <div class="field"><label>Ngày vào (check-in)</label><input id="f_in"></div>
-          <div class="field"><label>Tạm trú</label><select id="f_residency">
-            ${opt('unregistered', s.residency_status, 'Chưa đăng ký')}${opt('processing', s.residency_status, 'Đang xử lý')}${opt('registered', s.residency_status, 'Đã đăng ký')}</select></div>
-        </div>
         ${/* Ngày trả đã tới/đã qua thì KHOÁ — phiếu tháng đó đã phát, công-tơ đã chốt. Hiện dạng ô chỉ
               đọc chứ không phải input readonly: input trông y hệt ô nhập được, bấm không ra lịch. */''}
-        <div class="field" style="margin:0"><label>Ngày trả phòng ${daRoi ? '' : '<span class="opt">(báo trước — để trống nếu chưa báo)</span>'}</label>
-          ${daRoi
+        <div class="grid2">
+          <div class="field"><label>Ngày vào (check-in)</label><input id="f_in"></div>
+          <div class="field"><label>Ngày trả phòng ${daRoi ? '' : '<span class="opt">(báo trước)</span>'}</label>
+            ${daRoi
     ? `<div class="ro-in">${esc(fmtDate(coHienTai))}
-           <span class="muted">— đã trả phòng, không sửa ở đây. Cần đổi thì dùng nút <strong>Check-out</strong> trong hồ sơ.</span></div>`
-    : '<input id="f_out">'}</div>`)}
+             <span class="muted">— đã trả phòng, không sửa ở đây.</span></div>`
+    : '<input id="f_out">'}</div>
+        </div>
+        <div class="field" style="margin:0"><label>Tạm trú</label><select id="f_residency">
+          ${opt('unregistered', s.residency_status, 'Chưa đăng ký')}${opt('processing', s.residency_status, 'Đang xử lý')}${opt('registered', s.residency_status, 'Đã đăng ký')}</select></div>`)}
 
       ${nhomForm(IC.fileText, 'Hợp đồng', `
         <div class="grid2">
