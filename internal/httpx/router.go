@@ -129,6 +129,8 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	me.POST("/damage", h.MeDamageCreate)
 	me.GET("/checkout-request", h.MeCheckoutRequestList)
 	me.POST("/checkout-request", h.MeCheckoutRequestCreate)
+	me.GET("/notifications", h.MeNotifications)
+	me.POST("/notifications/seen", h.MeNotificationsSeen)
 
 	// Phòng (rooms) + phòng trưởng
 	rm := api.Group("/rooms", a.RequireAuth())

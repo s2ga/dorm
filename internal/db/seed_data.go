@@ -25,6 +25,13 @@ func defaultSettings(dormName string) [][2]string {
 		{"sso_allowed_domains", ""},
 		{"legal_female", "E2"}, {"legal_male", "S2"}, {"due_day_from", "1"}, {"due_day_to", "5"}, {"hotline", ""},
 		{"room_price_A", "5500000"}, {"room_price_B", "4800000"}, {"room_price_C", "4200000"}, {"room_price_D", "3600000"},
+		// Diện tích đi theo HẠNG chứ không theo từng phòng. Là CHUỖI vì hạng A ghi khoảng "24~26".
+		{"room_area_A", "24~26"}, {"room_area_B", "23"}, {"room_area_C", "22"}, {"room_area_D", "19"},
+		// Số trực an ninh + khung giờ ca ngày (ca đêm là phần còn lại: day_to -> day_from).
+		{"security_day_phone", ""}, {"security_night_phone", ""},
+		{"security_day_from", "06:00"}, {"security_day_to", "18:00"},
+		// Wifi dùng chung toàn KTX. Mật khẩu chỉ trả cho HV ĐANG Ở (me.go), không lọt ra /api/public.
+		{"wifi_ssid", ""}, {"wifi_password", ""},
 		{"bravo_fee_type", "T0704"},
 		{"bravo_room", "GP00180"}, {"bravo_water", "GP00181"}, {"bravo_service", "GP00183"},
 		{"bravo_electric", "GP00184"}, {"bravo_parking", "GP00182"}, {"bravo_washing", ""}, {"bravo_other", ""},

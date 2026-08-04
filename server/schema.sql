@@ -150,6 +150,12 @@ ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 CREATE UNIQUE INDEX IF NOT EXISTS ux_users_email ON users (lower(email)) WHERE email IS NOT NULL AND deleted_at IS NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS ux_users_sso_subject ON users (sso_subject) WHERE sso_subject IS NOT NULL;
+-- Chuông thông báo cổng học viên: mốc "đã xem tới đâu". Thông báo được SUY RA từ dữ liệu nghiệp vụ
+-- sẵn có (phiếu, đơn, vi phạm...) chứ không ghi thành bảng sự kiện riêng, nên chỉ cần đúng một mốc
+-- thời gian cho mỗi tài khoản; việc gì mới hơn mốc này là CHƯA ĐỌC.
+-- Mặc định = created_at của tài khoản: người mới đăng nhập lần đầu không bị dội một đống việc cũ.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS notif_seen_at TIMESTAMPTZ;
+UPDATE users SET notif_seen_at = created_at WHERE notif_seen_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS logs (
   id          SERIAL PRIMARY KEY,
@@ -481,6 +487,10 @@ ALTER TABLE invoices ADD COLUMN IF NOT EXISTS fee_discount NUMERIC(12,0) NOT NUL
 -- Tiền cọc thu kèm phiếu KỲ NHẬN PHÒNG, khi hồ sơ còn ghi chưa đóng. Khoản một lần, không chia
 -- theo ngày ở và không nhận giảm %.
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS deposit_charge NUMERIC(12,0) NOT NULL DEFAULT 0;
+-- Mốc GIỜ đánh dấu đã thu. paid_date là kiểu DATE nên chỉ tới ngày; chuông "đã xem tới lúc T" so
+-- theo giờ, lấy 00:00 của ngày thu thì phiếu chốt buổi chiều lọt qua mốc và không bao giờ báo.
+-- Phiếu cũ để NULL -> rơi về paid_date, chấp nhận thô vì đều đã nằm trong quá khứ.
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ;
 
 DO $ktx$
 DECLARE

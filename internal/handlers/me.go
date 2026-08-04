@@ -83,6 +83,7 @@ func (h *Handlers) MeProfile(c *gin.Context) {
 	ctx := c.Request.Context()
 	rows, err := h.pool().Query(ctx, `
 		SELECT s.*, r.name AS room_name, r.floor AS room_floor, r.monthly_fee,
+		  r.capacity AS room_capacity, r.hang AS room_hang,
 		  EXISTS (SELECT 1 FROM room_leaders rl
 		           WHERE rl.student_id=s.id AND rl.room_id=s.room_id AND rl.to_date IS NULL) AS is_leader
 		FROM students s LEFT JOIN rooms r ON r.id = s.room_id
@@ -115,6 +116,24 @@ func (h *Handlers) MeProfile(c *gin.Context) {
 	row["washing_fee"] = s["washing_fee"]
 	row["parking_fee"] = s["parking_fee"]
 	row["has_rules"] = hasRules
+	// Diện tích đi theo HẠNG phòng (Cài đặt), không lưu riêng từng phòng.
+	if hang, _ := row["room_hang"].(string); hang != "" {
+		row["room_area"] = s["room_area_"+hang]
+	}
+	// Số gọi khi cần. Ca đêm là phần còn lại của ca ngày nên không lưu khung giờ riêng.
+	row["hotline"] = s["hotline"]
+	row["security_day_phone"] = s["security_day_phone"]
+	row["security_night_phone"] = s["security_night_phone"]
+	row["security_day_from"] = s["security_day_from"]
+	row["security_day_to"] = s["security_day_to"]
+	// Wifi CHỈ trả cho HV đang ở. MeProfile không chặn người đã trả phòng (họ vẫn đăng nhập xem
+	// lịch sử phiếu được), nên không lọc ở đây là họ giữ mật khẩu wifi vĩnh viễn sau khi rời KTX.
+	coDate, _ := row["check_out_date"].(string)
+	stt, _ := row["status"].(string)
+	if meOccupyingStr(stt, coDate, timeutil.Today()) {
+		row["wifi_ssid"] = s["wifi_ssid"]
+		row["wifi_password"] = s["wifi_password"]
+	}
 	c.JSON(http.StatusOK, row)
 }
 
@@ -227,6 +246,15 @@ func meIntOf(v interface{}) int {
 		return int(n)
 	}
 	return 0
+}
+
+// meOccupyingStr: cùng quy tắc meOccupying nhưng nhận ngày dạng chuỗi 'YYYY-MM-DD' — RowToMap
+// đổi cột DATE thành chuỗi, NULL thành nil (ép kiểu hụt ra ""), nên không dùng lại pgtype được.
+func meOccupyingStr(status, checkOut, today string) bool {
+	if status != "in" {
+		return false
+	}
+	return checkOut == "" || checkOut > today
 }
 
 // meOccupying: HV còn đang ở KTX? status='in' && (chưa có ngày trả HOẶC ngày trả > hôm nay).

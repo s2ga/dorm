@@ -8,16 +8,31 @@ async function renderStudent() {
     <div class="app"><div class="main" style="margin:0 auto;max-width:760px;width:100%">
       <div class="top">
         <div><h1>${IC.home} Phòng của tôi</h1><div class="sub">Xin chào, ${esc(Auth.user.full_name || Auth.user.username)}</div></div>
+        ${/* Chuông tách RIÊNG khỏi .toolbar: trên điện thoại cụm nút hành động tự xuống dòng, để
+             chung một cụm là kéo cái chuông xuống theo (đã gặp ở cổng quản lý, xem app-admin-core). */''}
+        <div class="flex" style="gap:10px">
+          <button class="notif-bell" id="hvNotifBell" title="Thông báo" aria-haspopup="dialog" aria-expanded="false" data-act="toggleHvNotif">${IC.bell}<span class="notif-dot" id="hvNotifDot" style="display:none"></span></button>
+        </div>
         <div class="toolbar">${dungMatKhau() ? `<button class="btn sm" data-act="changePwd">${IC.key} Đổi mật khẩu</button>` : ''}<button class="btn sm" data-act="logout">${IC.logOut} Đăng xuất</button></div>
       </div>
       <div class="content" id="content"><div class="spinner"></div></div>
     </div></div>`;
   startTableResize();
   loadStudentPortal();
+  hvNotifTai();
+  startHvNotifPolling();
 }
 // BL-16: cổng HV — bấm hàng phiếu báo để xem TÁCH các khoản (nước/dịch vụ/giặt/xe/khác + ghi chú
 // "other_note"), số kWh và số ngày ở. Dữ liệu đã có sẵn trong /me/invoices (SELECT *); bảng ngoài chỉ
 // gộp lại nên HV thấy cục "Khác" không giải thích được. _myInvs được lưu khi vẽ danh sách.
+// Trạng thái thu tiền của phiếu. /me/invoices vốn đã trả về `status` + `paid_date` (SELECT *) nhưng
+// trang không hiện, nên học viên không có đường nào tự biết mình đã đóng kỳ nào — phải đi hỏi quản lý.
+// Chỉ hai trạng thái: 'sent' (đã gửi) với 'pending' đối với người đóng tiền là một, đều là CHƯA thu.
+function invPaidBadge(i) {
+  return i.status === 'paid'
+    ? `<span class="badge green">${IC.check} Đã thu${i.paid_date ? ' ' + fmtDate(i.paid_date) : ''}</span>`
+    : '<span class="badge amber">Chưa thu</span>';
+}
 function myInvoiceDetail(id) {
   const i = (window._myInvs || []).find(x => x.id === id);
   if (!i) return;
@@ -27,7 +42,7 @@ function myInvoiceDetail(id) {
   openModal(`
     <div class="mh"><h3>${IC.receipt} Chi tiết phiếu ${monthLabel(i.month)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <p class="muted" style="margin:0 0 12px">Số ngày ở trong kỳ: <strong>${i.days_stayed || 0}</strong> ngày</p>
+      <p class="muted" style="margin:0 0 12px">Số ngày ở trong kỳ: <strong>${i.days_stayed || 0}</strong> ngày &nbsp;•&nbsp; ${invPaidBadge(i)}</p>
       <div class="table-wrap"><table><tbody>
         ${line('Tiền phòng', i.room_charge)}
         ${line('Tiền điện', i.electric_charge, `${kwh(i.electric_kwh)} kWh · kỳ ${monthLabel(prevKy(i.month))}`)}
@@ -62,19 +77,15 @@ async function loadStudentPortal() {
       <div class="stat"><div class="l">${IC.receipt} Phiếu tháng này</div><div class="v sm">${money(billNow)}</div></div>
       <div class="stat"><div class="l">${IC.lock} Cọc</div><div class="v sm">${depTxt}</div></div>
     </div>
+    ${myContactPanel(profile)}
+
     <div class="panel"><div class="hd"><h2>${IC.user} Thông tin của tôi</h2></div><div class="pad">
       <p><strong>Họ tên:</strong> ${esc(profile.name)} · <span class="badge ${profile.gender === 'female' ? 'sage' : 'blue'}">${genderLabel(profile.gender)}</span></p>
       <p><strong>Mã HV:</strong> ${esc(profile.code || '—')} &nbsp;•&nbsp; <strong>Lớp:</strong> ${esc(profile.class_name || '—')} &nbsp;•&nbsp; <strong>SĐT:</strong> ${esc(profile.phone || '—')}</p>
       <p><strong>Ngày vào:</strong> ${fmtDate(profile.check_in_date)} ${profile.check_out_date ? `&nbsp;•&nbsp; <strong>Ngày trả:</strong> ${fmtDate(profile.check_out_date)}` : ''}</p>
     </div></div>
 
-    <div class="panel"><div class="hd"><h2>${IC.users} Thành viên cùng phòng${profile.room_name ? ` (${mates.length})` : ''}</h2></div><div class="pad">
-      ${!profile.room_name ? '<p class="muted" style="margin:0">Bạn chưa được xếp phòng.</p>'
-        : mates.length ? `<div style="display:flex;flex-wrap:wrap;gap:8px">${mates.map(m =>
-            `<span class="badge ${m.is_leader ? 'amber' : 'blue'}" style="font-size:13px;padding:6px 12px">${m.is_leader ? IC.star : IC.user} ${esc(m.name)}${m.is_leader ? ' — Phòng trưởng' : ''}</span>`).join('')}</div>`
-        : '<p class="muted" style="margin:0">Hiện bạn ở một mình trong phòng.</p>'}
-      ${profile.room_name ? leaderNote(profile, mates) : ''}
-    </div></div>
+    ${myRoomPanel(profile, mates)}
 
     ${myChoresPanel(chores, profile)}
     ${myAssetsPanel(assets, profile)}
@@ -90,19 +101,19 @@ async function loadStudentPortal() {
             <button class="btn sm pri" data-act="toggleMyWashing" data-args='[true]'>${IC.plus} Đăng ký máy giặt</button></div>`}
     </div></div>
 
-    ${myVios.length ? `<div class="panel"><div class="hd"><h2>${IC.alert} Nhắc nhở / Vi phạm (${myVios.length})</h2></div><div class="table-wrap card-tbl">
+    ${myVios.length ? `<div class="panel" id="pnViPham"><div class="hd"><h2>${IC.alert} Nhắc nhở / Vi phạm (${myVios.length})</h2></div><div class="table-wrap card-tbl">
       <table><thead><tr><th>Ngày</th><th>Nội dung</th><th>Mức độ</th><th class="num">Lần</th></tr></thead><tbody>
         ${myVios.map(v => `<tr><td>${fmtDate(v.date)}</td><td data-label="Nội dung"><strong>${esc(v.type_name)}</strong>${v.note ? `<div class="muted" style="font-size:12px">${esc(v.note)}</div>` : ''}</td><td data-label="Mức độ">${vioSevBadge(v.severity)}</td><td class="num" data-label="Lần">${v.level}</td></tr>`).join('')}
       </tbody></table>
       <div class="pad muted" style="font-size:12.5px">${IC.info} Vui lòng tuân thủ nội quy ký túc xá. Vi phạm nhiều lần sẽ được thông báo về nhà trường.</div>
     </div></div>` : ''}
 
-    <div class="panel"><div class="hd"><h2>${IC.receipt} Phiếu báo tiền phòng</h2></div><div class="table-wrap card-tbl">
+    <div class="panel" id="pnPhieu"><div class="hd"><h2>${IC.receipt} Phiếu báo tiền phòng</h2></div><div class="table-wrap card-tbl">
       ${invs.length ? `<table><thead><tr><th>Kỳ</th><th class="num">Tiền phòng</th><th class="num">Điện</th><th class="num">Khác</th><th class="num">Giảm</th><th class="num">Tổng</th></tr></thead><tbody>
         ${invs.map(i => {
           // Cột "Giảm" phải hiện, nếu không thì 4 cột đầu cộng lại KHÔNG ra Tổng — học viên tưởng app tính sai
           const giam = (+i.leader_discount || 0) + (+i.room_discount || 0) + (+i.fee_discount || 0);
-          return `<tr style="cursor:pointer" data-act="myInvoiceDetail" data-args='[${i.id}]' title="Bấm để xem chi tiết khoản thu"><td>${monthLabel(i.month)}</td><td class="num" data-label="Tiền phòng">${money(i.room_charge)}</td><td class="num" data-label="Điện">${money(i.electric_charge)}</td>
+          return `<tr style="cursor:pointer" data-act="myInvoiceDetail" data-args='[${i.id}]' title="Bấm để xem chi tiết khoản thu"><td>${monthLabel(i.month)}<div style="margin-top:4px">${invPaidBadge(i)}</div></td><td class="num" data-label="Tiền phòng">${money(i.room_charge)}</td><td class="num" data-label="Điện">${money(i.electric_charge)}</td>
           <td class="num" data-label="Khác">${money((+i.water_charge) + (+i.service_charge) + (+i.washing_charge) + (+i.parking_charge) + (+i.other_charge || 0) + (+i.deposit_charge || 0))}</td>
           <td class="num" data-label="Giảm">${giam ? `<span class="badge green">−${money(giam)}</span>` : '—'}</td>
           <td class="num" data-label="Tổng"><strong>${money(i.total)}</strong></td></tr>`;
@@ -111,13 +122,13 @@ async function loadStudentPortal() {
       <div class="pad muted" style="font-size:12.5px">${IC.info} Bấm vào từng kỳ để xem chi tiết khoản thu. &nbsp;·&nbsp; ${IC.creditCard} Đóng tiền qua mã QR quản lý gửi trên Zalo theo hạn hằng tháng.</div>
     </div></div>
 
-    <div class="panel"><div class="hd"><h2>${IC.handCoins} Hỗ trợ học viên</h2><button class="btn sm pri" data-act="damageForm">${IC.plus} Gửi yêu cầu hỗ trợ</button></div><div class="table-wrap">
+    <div class="panel" id="pnHoTro"><div class="hd"><h2>${IC.handCoins} Hỗ trợ học viên</h2><button class="btn sm pri" data-act="damageForm">${IC.plus} Gửi yêu cầu hỗ trợ</button></div><div class="table-wrap">
       ${damage.length ? `<table><thead><tr><th>Ngày</th><th>Loại</th><th>Nội dung</th><th>Trạng thái</th></tr></thead><tbody>
         ${damage.map(d => `<tr><td>${fmtDate(String(d.created_at).slice(0, 10))}</td><td data-label="Loại">${supCatBadge(d.category)}</td><td data-label="Nội dung"><strong>${esc(d.title)}</strong>${d.description ? `<div class="muted" style="font-size:12px">${esc(d.description)}</div>` : ''}</td><td data-label="Trạng thái">${d.status === 'done' ? '<span class="badge green">Đã xử lý</span>' : d.status === 'blocked' ? '<span class="badge red">Chưa xử lý được — liên hệ quản lý</span>' : d.status === 'processing' ? '<span class="badge blue">Đang xử lý</span>' : '<span class="badge amber">Mới</span>'}</td></tr>`).join('')}
       </tbody></table>` : '<div class="empty">Chưa có yêu cầu nào.</div>'}
     </div></div>
 
-    <div class="panel"><div class="hd"><h2>${IC.logOut} Đăng ký trả phòng</h2>${!pendingCout && profile.status === 'in' && !notMovedIn ? '<button class="btn sm danger" data-act="checkoutReqForm">Xin trả phòng</button>' : ''}</div><div class="pad">
+    <div class="panel" id="pnTraPhong"><div class="hd"><h2>${IC.logOut} Đăng ký trả phòng</h2>${!pendingCout && profile.status === 'in' && !notMovedIn ? '<button class="btn sm danger" data-act="checkoutReqForm">Xin trả phòng</button>' : ''}</div><div class="pad">
       ${pendingCout ? `<div class="bang-tin">${IC.hourglass} Bạn đã gửi đơn trả phòng ngày <strong>${fmtDate(pendingCout.desired_date)}</strong> — đang chờ quản lý duyệt.</div>` :
       notMovedIn ? '<p class="muted" style="margin:0">Bạn chưa tới ngày nhận phòng nên chưa thể gửi đơn trả phòng.</p>' :
       profile.status !== 'in' ? '<p class="muted" style="margin:0">Bạn đã trả phòng.</p>' :
@@ -188,6 +199,90 @@ async function submitCheckoutReq() {
   await guard(() => API.createMeCheckoutReq({ desired_date: d, reason: el('co_reason').value, note: el('co_note').value.trim() }));
   closeModal(); toast('Đã gửi đơn trả phòng'); loadStudentPortal();
 }
+/* Panel "Phòng của tôi" — thông số phòng + wifi + người ở cùng gộp làm một, vì cùng nói về một chỗ.
+   Sức chứa cố ý hiện TRUNG TÍNH: ở vượt số giường là chuyện nghiệp vụ CHO PHÉP (xếp người vào chờ
+   bạn cũ xuất cảnh), tô đỏ là học viên tưởng app tính sai rồi đi hỏi quản lý.
+   KHÔNG hiện giá phòng ở đây: giá thật đi theo hạng + loại thuê + giảm giá, số trên phòng lệch với
+   số trên phiếu báo là nguồn khiếu nại. Tiền đã có chỗ nói riêng là bảng phiếu báo. */
+function myRoomPanel(profile, mates) {
+  if (!profile.room_name) {
+    return `<div class="panel"><div class="hd"><h2>${IC.doorOpen} Phòng của tôi</h2></div><div class="pad">
+      <p class="muted" style="margin:0">Bạn chưa được xếp phòng.</p></div></div>`;
+  }
+  const cap = +profile.room_capacity || 0;
+  const soNguoi = mates.length + 1;   // mates KHÔNG gồm chính mình
+  const spec = [
+    profile.room_floor ? `Tầng ${profile.room_floor}` : '',
+    cap ? `${cap} giường` : '',
+    profile.room_area ? `${esc(profile.room_area)} m²` : '',
+    profile.room_hang ? `Hạng ${esc(profile.room_hang)}` : '',
+    `Đang ở ${soNguoi} người`,
+  ].filter(Boolean).join(' &nbsp;•&nbsp; ');
+  return `<div class="panel" id="pnPhong"><div class="hd"><h2>${IC.doorOpen} Phòng ${esc(profile.room_name)}</h2></div><div class="pad">
+    <p class="muted" style="margin:0">${spec}</p>
+    ${myWifiBlock(profile)}
+    <h4 class="asset-h" style="margin-top:18px">Người ở cùng ${mates.length ? `(${mates.length})` : ''}</h4>
+    ${mates.length ? `<div style="display:flex;flex-wrap:wrap;gap:8px">${mates.map(m =>
+        `<span class="badge ${m.is_leader ? 'amber' : 'blue'}" style="font-size:13px;padding:6px 12px">${m.is_leader ? IC.star : IC.user} ${esc(m.name)}${m.is_leader ? ' — Phòng trưởng' : ''}</span>`).join('')}</div>`
+      : '<p class="muted" style="margin:0">Hiện bạn ở một mình trong phòng.</p>'}
+    ${leaderNote(profile, mates)}
+  </div></div>`;
+}
+
+/* Wifi dùng chung toàn KTX. Máy chủ CHỈ gửi mật khẩu về cho học viên đang ở (me.go) — người đã trả
+   phòng mở trang lên sẽ không thấy khối này.
+   Không che mật khẩu sau dấu chấm: cả phòng đều biết chuỗi này, che chỉ tổ vướng. Thứ thật sự cần là
+   nút chép — gõ tay khoá WPA trên điện thoại là gõ sai, rồi đi báo "wifi hỏng". */
+function myWifiBlock(profile) {
+  if (!profile.wifi_ssid) return '';
+  const mk = profile.wifi_password || '';
+  return `<div class="bang-tin" style="margin:14px 0 0;align-items:flex-start">${IC.wifi}<span>
+    <strong>Wifi:</strong> ${esc(profile.wifi_ssid)}
+    ${mk ? `<br><strong>Mật khẩu:</strong> <code style="font-size:14px;letter-spacing:.02em">${esc(mk)}</code>
+      <button class="btn sm ghost" style="margin-left:8px;vertical-align:middle" data-act="copyWifi" data-args='[${JSON.stringify(mk)}]'>${IC.clipboard} Chép</button>`
+    : '<br><span class="muted">Mật khẩu chưa được cập nhật — hỏi ban quản lý.</span>'}
+  </span></div>`;
+}
+async function copyWifi(mk) {
+  try { await navigator.clipboard.writeText(mk); toast('Đã chép mật khẩu wifi'); }
+  catch (e) { toast('Trình duyệt không cho chép tự động — bạn chép tay giúp nhé', 'err'); }
+}
+
+/* Panel "Liên hệ khi cần" — đặt NGAY ĐẦU trang, trên cả hồ sơ cá nhân. Số an ninh ca đêm là thứ
+   người ta tìm lúc 2 giờ sáng đang hoảng; nằm dưới sáu khối phải cuộn mới thấy thì coi như không có.
+   Giữ dạng chip gọn một hàng để không đẩy phần còn lại của trang xuống quá sâu. */
+function myContactPanel(p) {
+  const ca = caDangTruc(p.security_day_from, p.security_day_to);
+  const gioNgay = (p.security_day_from && p.security_day_to) ? `${p.security_day_from} – ${p.security_day_to}` : '';
+  const gioDem = (p.security_day_from && p.security_day_to) ? `${p.security_day_to} – ${p.security_day_from}` : '';
+  const chip = (ic, ten, sdt, gio, dangTruc) => !sdt ? '' : `
+    <a class="ci-row" style="flex:1 1 210px;padding:13px 15px" href="tel:${esc(String(sdt).replace(/[\s.]/g, ''))}">${ic}<div>
+      <b>${ten}${dangTruc ? ' <span class="badge green" style="font-weight:600">Đang trực</span>' : ''}</b>
+      ${gio ? `<span>${esc(gio)}</span>` : ''}
+      <span class="ci-tel">${IC.phone}${esc(sdt)}</span>
+    </div></a>`;
+  const chips = [
+    chip(IC.home, 'Quản lý ký túc xá', p.hotline, '', false),
+    chip(IC.shield, 'An ninh ca ngày', p.security_day_phone, gioNgay, ca === 'day'),
+    chip(IC.shield, 'An ninh ca đêm', p.security_night_phone, gioDem, ca === 'night'),
+  ].join('');
+  if (!chips.trim()) return '';   // chưa nhập số nào -> không dựng khối rỗng
+  return `<div class="panel"><div class="hd"><h2>${IC.phone} Liên hệ khi cần</h2></div><div class="pad">
+    <div style="display:flex;flex-wrap:wrap;gap:10px">${chips}</div>
+  </div></div>`;
+}
+/* Ca nào đang trực, tính theo giờ máy người dùng. Chỉ lưu khung ca NGÀY; ca đêm là phần còn lại nên
+   hai ca không bao giờ mâu thuẫn nhau. Giờ trong Cài đặt hỏng -> trả '' để không tô ca nào:
+   nói sai ca còn tệ hơn không nói, người ta gọi đúng số mà nhầm ca thì không ai bắt máy. */
+function caDangTruc(from, to) {
+  const phut = s => { const m = /^(\d{2}):(\d{2})$/.exec(String(s || '')); return m ? +m[1] * 60 + +m[2] : null; };
+  const f = phut(from), t = phut(to);
+  if (f === null || t === null || f === t) return '';
+  const now = new Date(), cur = now.getHours() * 60 + now.getMinutes();
+  const trongCaNgay = f < t ? (cur >= f && cur < t) : (cur >= f || cur < t);   // ca vắt qua nửa đêm
+  return trongCaNgay ? 'day' : 'night';
+}
+
 /* Dòng chú thích phòng trưởng ở trang "Phòng của tôi".
    Chính chủ là phòng trưởng thì KHÔNG nằm trong danh sách bạn cùng phòng -> phải báo riêng,
    không thì họ mở trang lên thấy phòng mình "chưa có phòng trưởng". */
@@ -208,7 +303,7 @@ function myChoresPanel(chores, profile) {
   if (!profile.room_name) return '';
   const DOW = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
   const dm = s => { const d = new Date(s); return `${DOW[d.getDay()]} ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`; };
-  return `<div class="panel"><div class="hd"><h2>${IC.calendar} Lịch trực nhật</h2></div><div class="pad">
+  return `<div class="panel" id="pnTrucNhat"><div class="hd"><h2>${IC.calendar} Lịch trực nhật</h2></div><div class="pad">
     ${!chores.length ? '<p class="muted" style="margin:0">Chưa xếp được lịch — phòng chưa có ai ở.</p>' : `
     <div class="chore-list">${chores.map((w, i) => `
       <div class="chore-row${i === 0 ? ' now' : ''}${w.is_me ? ' mine' : ''}">
@@ -229,7 +324,7 @@ function myChoresPanel(chores, profile) {
    thà không có mục còn hơn hiện ra một nút bấm vào báo lỗi. */
 function myRulesPanel(profile) {
   if (!profile.has_rules) return '';
-  return `<div class="panel"><div class="hd"><h2>${IC.clipboard} Nội quy ký túc xá</h2></div><div class="pad">
+  return `<div class="panel" id="pnNoiQuy"><div class="hd"><h2>${IC.clipboard} Nội quy ký túc xá</h2></div><div class="pad">
     <div class="flex" style="justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center">
       <div class="muted">Bản nội quy, quy định của ký túc xá. Vui lòng đọc kỹ và tuân thủ.</div>
       <a class="btn pri" href="/api/public/doc/noi-quy" target="_blank" rel="noopener">${IC.clipboard} Xem nội quy</a>
@@ -273,6 +368,103 @@ async function toggleMyWashing(on) {
     : 'Hủy đăng ký máy giặt?\n\nNếu phiếu báo kỳ này chưa đóng tiền thì kỳ này cũng thôi tính phí. Phiếu đã đóng rồi thì hết tính từ kỳ sau.')) return;
   await guard(() => API.meWashing(on));
   toast(on ? 'Đã đăng ký máy giặt' : 'Đã hủy máy giặt'); loadStudentPortal();
+}
+
+/* ================= CHUÔNG THÔNG BÁO (cổng học viên) =================
+   Máy chủ suy thông báo từ dữ liệu nghiệp vụ và trả về dạng có cấu trúc; câu chữ dựng ở đây.
+   Mỗi loại khai: [icon, câu chữ, id khối để nhảy tới]. */
+const HV_NOTIF = {
+  invoice_new:       n => [IC.receipt, `Phiếu báo kỳ ${monthLabel(n.txt)} đã có — ${money(n.amount)}`, 'pnPhieu'],
+  invoice_paid:      n => [IC.checkCircle, `Đã xác nhận nhận tiền kỳ ${monthLabel(n.txt)}`, 'pnPhieu'],
+  checkout_done:     n => [IC.logOut, `Đơn trả phòng đã được duyệt${n.txt ? ` — ngày trả ${fmtDate(n.txt)}` : ''}`, 'pnTraPhong'],
+  checkout_rejected: () => [IC.alert, 'Đơn trả phòng không được duyệt — liên hệ ban quản lý', 'pnTraPhong'],
+  handover:          () => [IC.key, 'Đã xác nhận bàn giao phòng', 'pnTraPhong'],
+  deposit_refunded:  () => [IC.handCoins, 'Tiền cọc của bạn đã được hoàn', 'pnTraPhong'],
+  damage_assigned:   n => [IC.wrench, `Yêu cầu "${esc(n.txt)}" đã chuyển bộ phận xử lý`, 'pnHoTro'],
+  damage_done:       n => [IC.checkCircle, `Yêu cầu "${esc(n.txt)}" đã xử lý xong`, 'pnHoTro'],
+  violation:         n => [IC.alert, `Ghi nhận nhắc nhở: ${esc(n.txt)}`, 'pnViPham'],
+  leader:            () => [IC.star, 'Bạn được cử làm phòng trưởng', 'pnPhong'],
+  rules:             () => [IC.clipboard, 'Nội quy ký túc xá vừa được cập nhật', 'pnNoiQuy'],
+  chore:             () => [IC.calendar, 'Tuần này đến lượt bạn trực nhật', 'pnTrucNhat'],
+};
+let _hvNotif = [], _hvNotifTimer = null;
+
+// Chỉ đổi CON SỐ trên chuông, không vẽ lại trang: người ta đang đọc dở mà đập lại cả trang là mất
+// chỗ đang cuộn. Nội dung được làm mới khi họ bấm vào một thông báo.
+async function hvNotifTai() {
+  if (!Auth.user || Auth.user.role !== 'student') return;
+  let d;
+  try { d = await API.meNotifications(); } catch (e) { return; }   // lỗi mạng tạm -> lần sau thử lại
+  _hvNotif = (d && d.items) || [];
+  const dot = el('hvNotifDot');
+  if (dot) { dot.textContent = d.unread > 99 ? '99+' : d.unread; dot.style.display = d.unread ? '' : 'none'; }
+  if (el('hvNotifPanel')) hvNotifVe();
+}
+function startHvNotifPolling() {
+  if (_hvNotifTimer) clearInterval(_hvNotifTimer);
+  _hvNotifTimer = setInterval(() => {
+    if (!Auth.user || Auth.user.role !== 'student') { clearInterval(_hvNotifTimer); _hvNotifTimer = null; return; }
+    if (document.hidden) return;
+    hvNotifTai();
+  }, 60000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) hvNotifTai(); });
+}
+function hvNotifDong() {
+  const p = el('hvNotifPanel'); if (!p) return;
+  p.remove();
+  document.removeEventListener('mousedown', _hvNotifNgoai, true);
+  document.removeEventListener('touchstart', _hvNotifNgoai, true);
+  document.removeEventListener('keydown', _hvNotifPhim, true);
+  const b = el('hvNotifBell'); if (b) b.setAttribute('aria-expanded', 'false');
+}
+function _hvNotifNgoai(e) {
+  const p = el('hvNotifPanel'), b = el('hvNotifBell');
+  if (p && !p.contains(e.target) && b && !b.contains(e.target)) hvNotifDong();
+}
+function _hvNotifPhim(e) { if (e.key === 'Escape') { e.stopPropagation(); hvNotifDong(); } }
+function hvNotifVe() {
+  const p = el('hvNotifPanel'); if (!p) return;
+  const dong = n => {
+    const f = HV_NOTIF[n.kind]; if (!f) return '';       // loại lạ (máy chủ mới hơn client) -> bỏ qua
+    const [ic, chu, neo] = f(n);
+    return `<button class="notif-item${n.unread ? ' notif-moi' : ''}" data-act="hvNotifDi" data-args='["${neo}"]'>${ic}<span>${chu}
+      <span class="muted" style="display:block;font-size:11.5px">${fmtDate(String(n.ts).slice(0, 10))}</span></span></button>`;
+  };
+  const ds = _hvNotif.map(dong).join('');
+  p.innerHTML = `<div class="notif-hd" id="hvNotifHd">${IC.bell} Thông báo</div>${ds ||
+    `<div class="notif-empty">${IC.checkCircle} Chưa có thông báo nào</div>`}`;
+}
+async function toggleHvNotif(e) {
+  if (e) e.stopPropagation();
+  if (el('hvNotifPanel')) { hvNotifDong(); return; }
+  const p = document.createElement('div');
+  p.className = 'notif-panel'; p.id = 'hvNotifPanel';
+  p.setAttribute('role', 'dialog'); p.setAttribute('aria-labelledby', 'hvNotifHd'); p.tabIndex = -1;
+  document.body.appendChild(p);           // gắn vào body: trang vẽ lại thì panel vẫn sống
+  hvNotifVe();
+  const r = el('hvNotifBell').getBoundingClientRect(), pw = p.offsetWidth;
+  p.style.top = (r.bottom + 8) + 'px';
+  p.style.left = Math.min(Math.max(8, r.right - pw), window.innerWidth - pw - 8) + 'px';
+  p.style.right = 'auto';
+  el('hvNotifBell').setAttribute('aria-expanded', 'true');
+  (p.querySelector('.notif-item') || p).focus();
+  setTimeout(() => {
+    document.addEventListener('mousedown', _hvNotifNgoai, true);
+    document.addEventListener('touchstart', _hvNotifNgoai, true);
+    document.addEventListener('keydown', _hvNotifPhim, true);
+  }, 0);
+  // Mở chuông = đã xem hết. Dấu "mới" trên từng dòng vẫn giữ tới lần tải sau để còn nhìn ra cái nào mới.
+  try { await API.meNotifSeen(); } catch (err) { return; }
+  const dot = el('hvNotifDot'); if (dot) dot.style.display = 'none';
+}
+// Bấm một thông báo: tải lại nội dung trang (số liệu có thể đã cũ) rồi nhảy tới đúng khối và tô sáng.
+async function hvNotifDi(neo) {
+  hvNotifDong();
+  await loadStudentPortal();
+  const t = el(neo); if (!t) return;
+  t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  t.classList.add('pn-sang');
+  setTimeout(() => t.classList.remove('pn-sang'), 1600);
 }
 
 /* ================================================================= */
@@ -672,6 +864,7 @@ function chongBam2Lan(fn) {
   'saveStudent', 'saveRoom', 'saveVehicle', 'saveAsset', 'saveFacility', 'saveUser', 'saveApp',
   'saveViolation', 'saveVtype', 'saveInvoice', 'saveOneInvoice', 'saveElectric', 'saveDeposit',
   'saveAccount', 'saveSettings', 'saveIntro', 'saveBravo', 'saveMailSettings', 'saveSsoSettings', 'saveNote',
+  'saveHocVienInfo',
   'doApprove', 'doTransfer', 'doCheckOut', 'doCheckIn', 'doSetLeader', 'unsetLeader',
   'doChangePwd', 'doResetUserPw', 'doKhoaHoSo', 'runGenerate',
   'settleDepositAndClose', 'submitCheckoutReq', 'submitDamage', 'submitHandoverCheckin',

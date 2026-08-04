@@ -1448,7 +1448,7 @@ func (h *Handlers) MarkPaidInvoices(c *gin.Context) {
 	// đã thu mà hồ sơ vẫn "chưa đóng cọc".
 	if err := h.DB.WithTx(ctx, func(tx pgx.Tx) error {
 		ct, e := tx.Exec(ctx,
-			`UPDATE invoices SET status='paid', paid_date=$1 WHERE month=$2 AND status<>'paid' AND deleted_at IS NULL`, date, month)
+			`UPDATE invoices SET status='paid', paid_date=$1, paid_at=now() WHERE month=$2 AND status<>'paid' AND deleted_at IS NULL`, date, month)
 		if e != nil {
 			return e
 		}
@@ -1514,7 +1514,9 @@ func (h *Handlers) InvoiceStatus(c *gin.Context) {
 	var row map[string]interface{}
 	if err := h.DB.WithTx(ctx, func(tx pgx.Tx) error {
 		rows, e := tx.Query(ctx,
-			`UPDATE invoices SET status=$1, paid_date=$2 WHERE id=$3 AND deleted_at IS NULL RETURNING *`, status, paidDate, id)
+			// Rời 'paid' thì xoá luôn mốc giờ, không để phiếu "chưa thu" còn mang dấu đã thu.
+			`UPDATE invoices SET status=$1, paid_date=$2, paid_at=CASE WHEN $1='paid' THEN now() ELSE NULL END
+			   WHERE id=$3 AND deleted_at IS NULL RETURNING *`, status, paidDate, id)
 		if e != nil {
 			return e
 		}

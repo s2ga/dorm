@@ -12,6 +12,7 @@ var (
 	reYmd     = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 	reMonth   = regexp.MustCompile(`^\d{4}-\d{2}$`)
 	reNum     = regexp.MustCompile(`^-?\d+(\.\d+)?$`)
+	reHourMin = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
 	reEmail   = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
 	reNonDig  = regexp.MustCompile(`\D`)
 	rePrivA   = regexp.MustCompile(`^127\.`)
@@ -88,8 +89,18 @@ var SettingNum = map[string]settingRange{
 	"checkout_max_future_days": {1, 3650}, "max_cccd_mb": {1, 15},
 }
 
+// SettingTime: khoá settings phải là giờ 'HH:MM'. Giờ rác thì khung ca trực hiện sai trên cổng học
+// viên — người ta gọi đúng số nhưng nhầm ca, không ai bắt máy.
+var SettingTime = map[string]bool{"security_day_from": true, "security_day_to": true}
+
 // CheckSetting trả chuỗi lỗi nếu sai, "" nếu hợp lệ. server/valid.js:54-64
 func CheckSetting(key, raw string) string {
+	if SettingTime[key] {
+		if !reHourMin.MatchString(strings.TrimSpace(raw)) {
+			return `"` + key + `" phải là giờ dạng HH:MM (đang nhận: "` + raw + `")`
+		}
+		return ""
+	}
 	spec, ok := SettingNum[key]
 	if !ok {
 		return ""

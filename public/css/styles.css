@@ -637,6 +637,10 @@ a.ci-row:hover{border-color:var(--brand)}
 .notif-item:last-child{border-bottom:none}
 .notif-empty{display:flex;align-items:center;justify-content:center;gap:8px;padding:26px 16px;text-align:center;color:var(--green-ink);font-size:13.5px}
 .notif-empty .ic-svg{width:17px;height:17px}
+/* Chuông cổng học viên: dòng chưa đọc có vạch màu bên trái; khối được nhảy tới thì sáng lên một nhịp */
+.notif-item.notif-moi{box-shadow:inset 3px 0 0 var(--brand);background:#fdfaf4}
+.panel.pn-sang{box-shadow:0 0 0 2px var(--brand);transition:box-shadow .3s ease}
+.notif-panel{max-height:min(70vh,520px);overflow-y:auto}
 /* Cột bảng có thể click để sắp xếp */
 th.sortable{cursor:pointer;user-select:none}
 th.sortable:hover{color:var(--ink)}

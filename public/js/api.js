@@ -228,6 +228,8 @@ const API = {
   createMeDamage: b => api('/me/damage', { method: 'POST', body: b }),
   meCheckoutReq: () => api('/me/checkout-request'),
   createMeCheckoutReq: b => api('/me/checkout-request', { method: 'POST', body: b }),
+  meNotifications: () => api('/me/notifications'),
+  meNotifSeen: () => api('/me/notifications/seen', { method: 'POST' }),
 
   // Ảnh trang giới thiệu (upload trong Cài đặt)
   mediaList: () => api('/media'),

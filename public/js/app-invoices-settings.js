@@ -836,12 +836,14 @@ function viewSettings() {
         ${fee('Gửi xe', 'parking_fee', '/xe/tháng')}
         <div></div>
       </div>
-      <div style="font-weight:600;font-size:13px;margin:10px 0 8px">${IC.home} Cấu hình theo hạng phòng <span class="opt" style="font-weight:400">(giá thuê nguyên phòng · trần giường)</span></div>
-      <div class="table-wrap"><table><thead><tr><th>Hạng</th><th>Giá thuê nguyên phòng <span class="opt">/phòng/tháng</span></th><th>Trần giường <span class="opt">(sức chứa tối đa)</span></th></tr></thead><tbody>
+      <div style="font-weight:600;font-size:13px;margin:10px 0 8px">${IC.home} Cấu hình theo hạng phòng <span class="opt" style="font-weight:400">(giá thuê nguyên phòng · trần giường · diện tích)</span></div>
+      <div class="table-wrap"><table><thead><tr><th>Hạng</th><th>Giá thuê nguyên phòng <span class="opt">/phòng/tháng</span></th><th>Trần giường <span class="opt">(sức chứa tối đa)</span></th><th>Diện tích <span class="opt">(m², hiện ở cổng HV)</span></th></tr></thead><tbody>
         ${HANGS.map(h => `<tr>
           <td><strong>Hạng ${h}</strong></td>
           <td><input id="set_room_price_${h}" type="number" min="0" value="${esc(s['room_price_' + h] || 0)}" data-input="feeHint" data-args='["room_price_${h}"]'><div class="sub2" id="hint_room_price_${h}" style="margin-top:2px">${money(s['room_price_' + h] || 0)}</div></td>
           <td><input id="set_room_cap_${h}" type="number" min="1" max="20" value="${esc(s['room_cap_' + h] ?? 8)}"></td>
+          ${/* Ô CHỮ chứ không phải số: hạng A ghi theo khoảng "24~26" chứ không phải một con số. */''}
+          <td><input id="set_room_area_${h}" value="${esc(s['room_area_' + h] || '')}" placeholder="VD: 23 hoặc 24~26"></td>
         </tr>`).join('')}
       </tbody></table></div>
       <div class="grid2">
@@ -902,6 +904,25 @@ function viewSettings() {
           <td class="num"><div class="rowbtns" style="justify-content:flex-end"><button class="btn sm" data-act="facilityForm" data-args='[${f.id}]'>Sửa</button><button class="btn sm danger" data-act="delFacility" data-args='[${f.id}]'>Xóa</button></div></td></tr>`).join('')}
       </tbody></table></div>
     </div>
+
+    <div class="panel"><div class="hd"><h2>${IC.wifi} Wifi & số trực — hiện ở cổng học viên</h2></div><div class="pad">
+      <div class="grid2">
+        <div class="field"><label>Tên wifi (SSID)</label><input id="set_wifi_ssid" value="${esc(s.wifi_ssid || '')}" placeholder="VD: KTX-Esuhai"></div>
+        <div class="field"><label>Mật khẩu wifi</label><input id="set_wifi_password" value="${esc(s.wifi_password || '')}" placeholder="Để trống thì cổng học viên không hiện mật khẩu"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>An ninh ca ngày — số điện thoại</label><input id="set_security_day_phone" value="${esc(s.security_day_phone || '')}" placeholder="VD: 0909 123 456"></div>
+        <div class="field"><label>An ninh ca đêm — số điện thoại</label><input id="set_security_night_phone" value="${esc(s.security_night_phone || '')}" placeholder="VD: 0938 123 456"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>Ca ngày bắt đầu <span class="opt">(HH:MM)</span></label><input id="set_security_day_from" value="${esc(s.security_day_from || '06:00')}" placeholder="06:00"></div>
+        <div class="field"><label>Ca ngày kết thúc <span class="opt">(HH:MM)</span></label><input id="set_security_day_to" value="${esc(s.security_day_to || '18:00')}" placeholder="18:00"></div>
+      </div>
+      <div class="hint" style="font-size:12.5px">${IC.info}<span>Chỉ khai khung giờ ca NGÀY — ca đêm là phần còn lại, nên hai ca không bao giờ chỏi nhau.
+        Cổng học viên tự tô <strong>"Đang trực"</strong> lên ca đúng giờ hiện tại.
+        Số hotline quản lý lấy ở mục <strong>Đơn giá &amp; tính tiền</strong>. Mật khẩu wifi <strong>chỉ gửi cho học viên đang ở</strong>; người đã trả phòng không thấy.</span></div>
+      <button class="btn pri" data-act="saveHocVienInfo">Lưu wifi &amp; số trực</button>
+    </div></div>
 
     <div class="panel"><div class="hd"><h2>${IC.armchair} Tài sản / trang thiết bị trong phòng</h2><button class="btn sm" data-act="assetForm">${IC.plus} Thêm tài sản</button></div>
       <div class="table-wrap"><table><thead><tr><th>Tên tài sản</th><th>Loại</th><th>ĐVT</th><th class="num">SL</th><th class="num">Phí bồi hoàn</th><th></th></tr></thead><tbody>
@@ -1636,6 +1657,14 @@ async function saveBravo() {
   await guard(() => API.updateSettings(body));
   await napLai('settings'); toast('Đã lưu mã Bravo'); // BL-24: không re-render, giữ input panel khác
 }
+// Wifi + số trực: nút Lưu riêng (như saveIntro/saveBravo) để lưu một nhóm mà không đụng panel khác.
+async function saveHocVienInfo() {
+  const body = {};
+  ['wifi_ssid', 'wifi_password', 'security_day_phone', 'security_night_phone', 'security_day_from', 'security_day_to']
+    .forEach(k => { const inp = el('set_' + k); if (inp) body[k] = inp.value.trim(); });
+  await guard(() => API.updateSettings(body));
+  await napLai('settings'); toast('Đã lưu wifi & số trực');   // BL-24: không re-render, giữ input panel khác
+}
 function feeHint(key) { const h = el('hint_' + key), i = el('set_' + key); if (h && i) h.textContent = money(i.value || 0); }
 async function saveSettings() {
   const keys = ['room_fee', 'deposit_fee', 'water_fee', 'electric_unit', 'service_fee', 'washing_fee', 'parking_fee', 'partial_half_min', 'partial_full_min', 'room_price_A', 'room_price_B', 'room_price_C', 'room_price_D'];
@@ -1647,7 +1676,8 @@ async function saveSettings() {
   // Ngưỡng nhắc / nghiệp vụ (Đợt 3) — gửi RAW (chuỗi) để backend validate khoảng + giữ số thập phân (0.5).
   ['overdue_remind_days', 'shortterm_max_days', 'deposit_notice_min_days', 'partial_half_factor',
     'room_cap_A', 'room_cap_B', 'room_cap_C', 'room_cap_D', 'checkout_max_future_days', 'max_cccd_mb',
-    'due_day_from', 'due_day_to']
+    'due_day_from', 'due_day_to',
+    'room_area_A', 'room_area_B', 'room_area_C', 'room_area_D']
     .forEach(k => { const inp = el('set_' + k); if (inp) body[k] = inp.value; });
   await guard(() => API.updateSettings(body));
   // BL-24: KHÔNG re-render toàn trang sau khi lưu — giữ input đang gõ ở các panel khác (mọi panel
