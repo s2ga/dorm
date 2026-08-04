@@ -541,8 +541,10 @@ async function saveStudent(id) {
 async function suggestContractNo() {
   const gender = el('f_gender') ? el('f_gender').value : 'female';
   const date = (el('f_cdate') && el('f_cdate').dataset.iso) || today();
-  const r = await guard(() => API.contractNoNext(gender, date));
-  if (r && r.contract_no) { el('f_cno').value = r.contract_no; toast('Số HĐ gợi ý: ' + r.contract_no); }
+  const sid = (window._detailStudent || {}).id || 0;   // số ĐÃ GIỮ CHỖ của chính hồ sơ này
+  const r = await guard(() => API.contractNoNext(gender, date, sid));
+  if (r && r.dung_chung) return toast('Phòng thuê trọn dùng chung HĐ của người ký — hồ sơ này không có số riêng', 'err');
+  if (r && r.contract_no) { el('f_cno').value = r.contract_no; toast('Số HĐ: ' + r.contract_no); }
 }
 async function studentDetail(id) {
   const s = await guard(() => API.student(id));
@@ -576,7 +578,7 @@ async function studentDetail(id) {
       <div class="panel" style="margin-top:12px"><div class="hd"><h2 style="font-size:14px">${IC.fileText} Hợp đồng</h2></div><div class="pad">
         <p style="margin:0">Số HĐ: ${s.contract_no
           ? `<strong>${esc(s.contract_no)}</strong>`
-          : `<span class="muted">chưa ký</span> <span class="badge gray" id="hd_dukien" title="Số kế tiếp CHƯA CẤP của pháp nhân này, ai ký trước lấy trước — không phải số dành riêng cho học viên này.">…</span>`
+          : `<span class="muted">chưa ký</span> <span class="badge blue" id="hd_dukien" title="Số đã giữ chỗ cho hồ sơ này theo thứ tự nhận phòng. Ký và scan hợp đồng xong mới thành số chính thức.">…</span>`
         } · Ngày ký: ${s.contract_date ? fmtDate(s.contract_date) : '<span class="muted">chưa ký</span>'} · <span class="badge ${CONTRACT_BADGE[s.contract_status] || 'gray'}">${CONTRACT_LABEL[s.contract_status] || '—'}</span></p>
         ${s.contract_no ? '' : hdThamChieu(s, true)}
         ${contractPending(s) ? `<div class="bang-tin" style="margin:10px 0 0;background:var(--amber-bg);border-color:var(--amber-ink);color:var(--amber-ink)">${IC.alert} <strong>Chưa ký HĐ:</strong> thuê trên ${shortTermMaxDays()} ngày — cần ký <strong>hợp đồng thuê phòng</strong>.</div>`
@@ -663,14 +665,14 @@ async function goScanHD(id) {
   await guard(() => API.deleteContractScan(id));
   toast('Đã gỡ bản scan'); studentDetail(id);
 }
-// Số kế tiếp CHƯA CẤP của pháp nhân — hỏi máy chủ thay vì đoán ở máy khách. Mọi hồ sơ chưa ký cùng
-// pháp nhân đều thấy CÙNG một số: đó là số của sổ hợp đồng, ai ký trước lấy trước.
-// Hỏi hụt thì bỏ nhãn đi, không hiện số sai.
+// Số HĐ GIỮ CHỖ của CHÍNH hồ sơ này — máy chủ xếp theo thứ tự nhận phòng nên mỗi người một số khác
+// nhau, không phải số chung của cả pháp nhân. Ký và scan xong mới thành số chính thức.
+// Hỏi hụt, hoặc hồ sơ dùng chung HĐ phòng thuê trọn, thì bỏ nhãn đi — không hiện số sai.
 async function hienSoHDDuKien(s) {
   const o = el('hd_dukien'); if (!o) return;
   try {
-    const r = await API.contractNoNext(s.gender || 'male', today());
-    if (el('hd_dukien') === o && r && r.contract_no) o.textContent = `số kế tiếp chưa cấp: ${r.contract_no}`;
+    const r = await API.contractNoNext(s.gender || 'male', today(), s.id);
+    if (el('hd_dukien') === o && r && r.contract_no) o.textContent = `giữ chỗ: ${r.contract_no}`;
     else o.remove();
   } catch { o.remove(); }
 }

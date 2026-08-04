@@ -1038,7 +1038,52 @@ func (h *Handlers) ContractNoNext(c *gin.Context) {
 		serverErr(c)
 		return
 	}
+	// Có student_id -> cấp số RIÊNG cho hồ sơ đó, không phải số chung của cả pháp nhân: cộng thêm số
+	// người chưa có HĐ đứng TRƯỚC họ (theo ngày nhận phòng, rồi id). Mỗi hồ sơ một số khác nhau, và
+	// số đó đứng yên khi người trước ký đúng thứ tự.
+	if sid := queryIntDefault(c, "student_id", 0); sid > 0 {
+		truoc, e := h.contractNoRank(ctx, sid, gender)
+		if e != nil {
+			serverErr(c)
+			return
+		}
+		if truoc < 0 { // thành viên phòng thuê trọn: dùng chung HĐ của người ký, không cấp số riêng
+			c.JSON(http.StatusOK, gin.H{"contract_no": "", "dung_chung": true, "entity": entity, "year": year})
+			return
+		}
+		n += truoc
+	}
 	c.JSON(http.StatusOK, gin.H{"contract_no": studentsFmtContractNo(n+1, year, entity), "entity": entity, "seq": n + 1, "year": year})
+}
+
+// contractNoRank: bao nhiêu hồ sơ CHƯA có số HĐ, cùng pháp nhân, đứng trước hồ sơ này.
+// Trả -1 khi hồ sơ này là thành viên phòng thuê trọn (không ký HĐ riêng).
+// Thành viên phòng thuê trọn bị loại khỏi phép đếm, nếu không họ chiếm chỗ làm số của người khác nhảy.
+func (h *Handlers) contractNoRank(ctx context.Context, studentID int, gender string) (int, error) {
+	const chuaCoHD = `(s.contract_no IS NULL OR btrim(s.contract_no) = '' OR lower(btrim(s.contract_no)) = 'x')`
+	const thanhVienTron = `(r.room_type = 'whole' AND NOT EXISTS (
+	    SELECT 1 FROM room_leaders rl WHERE rl.student_id = s.id AND rl.to_date IS NULL))`
+
+	var laThanhVien bool
+	if err := h.pool().QueryRow(ctx,
+		`SELECT COALESCE(`+thanhVienTron+`, false) FROM students s
+		   LEFT JOIN rooms r ON r.id = s.room_id
+		  WHERE s.id = $1`, studentID).Scan(&laThanhVien); err != nil {
+		return 0, err
+	}
+	if laThanhVien {
+		return -1, nil
+	}
+	var truoc int
+	err := h.pool().QueryRow(ctx,
+		`SELECT COUNT(*)::int FROM students s
+		   LEFT JOIN rooms r ON r.id = s.room_id
+		  WHERE s.deleted_at IS NULL AND s.gender = $2 AND `+chuaCoHD+`
+		    AND NOT COALESCE(`+thanhVienTron+`, false)
+		    AND (s.check_in_date, s.id) <
+		        (SELECT (COALESCE(x.check_in_date, DATE '9999-12-31'), x.id) FROM students x WHERE x.id = $1)`,
+		studentID, gender).Scan(&truoc)
+	return truoc, err
 }
 
 // GetStudent: GET /:id (admin,staff). Kèm vehicles, violations, _v (xmin). students.routes.js:219-241
