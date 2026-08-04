@@ -40,34 +40,24 @@ func RecalcQuanhKy(ctx context.Context, database *db.DB, studentID int, month st
 	return n
 }
 
-// ElectricLag: tiền điện phiếu kỳ `month` = phần kỳ month-1, cộng phần kỳ `month` tới ngày rời
-// nếu checkOut nằm trong kỳ đó. Luôn trả số (0 khi thiếu dữ liệu), không trả nil.
+// ElectricLag: tiền điện phiếu kỳ `month` = phần của KỲ month-1, không hơn — điện thu sau MỘT KỲ cho
+// mọi người. Kỳ điện chưa chốt cuối tháng thì tạm tính từ số công-tơ bàn giao.
+// Luôn trả số (0 khi thiếu dữ liệu), không trả nil.
 func ElectricLag(ctx context.Context, database *db.DB, studentID int, month string, unit float64, checkOut string) (PhanDien, error) {
 	var sum PhanDien
-	prev, err := StudentElectric(ctx, database, studentID, PrevMonthOf(month), unit)
+	kyDien := PrevMonthOf(month)
+	prev, err := StudentElectric(ctx, database, studentID, kyDien, unit)
 	if err != nil {
 		return sum, err
+	}
+	if prev == nil {
+		if prev, err = StudentElectricProvisional(ctx, database, studentID, kyDien, unit); err != nil {
+			return sum, err
+		}
 	}
 	if prev != nil {
 		sum.Tien += prev.Tien
 		sum.Kwh += prev.Kwh
-	}
-	if len(checkOut) >= 7 && checkOut[:7] == month {
-		cur, err := StudentElectric(ctx, database, studentID, month, unit)
-		if err != nil {
-			return sum, err
-		}
-		if cur == nil {
-			// Kỳ này chưa chốt cuối tháng -> tạm tính từ số công-tơ bàn giao (meter_reads).
-			cur, err = StudentElectricProvisional(ctx, database, studentID, month, unit)
-			if err != nil {
-				return sum, err
-			}
-		}
-		if cur != nil {
-			sum.Tien += cur.Tien
-			sum.Kwh += cur.Kwh
-		}
 	}
 	return sum, nil
 }

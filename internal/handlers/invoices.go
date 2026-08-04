@@ -485,9 +485,13 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 
 		mStart, mEnd := billing.FirstDay(body.Month), billing.LastDay(body.Month)
 
-		// HV có ở trong tháng. Đa cơ sở: điều hành tất cả/lọc ?facility; quản lý ép cơ sở. invoices.routes.js:152-164
+		// Mốc lùi tới đầu KỲ ĐIỆN (M-1), không phải đầu kỳ phiếu: điện thu sau một kỳ nên người rời
+		// tháng trước vẫn còn tiền điện tháng đó, phải có phiếu kỳ này để truy thu. Lấy đúng mốc M
+		// thì 14 người rời tháng 7 không ai được lập phiếu kỳ 8 (đo trên UAT 04/08).
+		eStart0 := billing.FirstDay(pmonth0)
+		// Đa cơ sở: điều hành tất cả/lọc ?facility; quản lý ép cơ sở. invoices.routes.js:152-164
 		stCond := []string{"deleted_at IS NULL", "check_in_date IS NOT NULL", "check_in_date <= $1", "(check_out_date IS NULL OR check_out_date >= $2)"}
-		stParams := []interface{}{mEnd, mStart}
+		stParams := []interface{}{mEnd, eStart0}
 		invoicesExecFacilityFilter(c, u, "facility_id", &stCond, &stParams)
 		stRows, err := tx.Query(ctx,
 			`SELECT id, room_id, rental_type, deposit_status, check_in_date, check_out_date, uses_washing, uses_parking, room_fee_discount_pct, `+
@@ -818,25 +822,10 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 					room = &billing.Room{Hang: rc.hang, MonthlyFee: rc.monthlyFee, RoomType: rc.roomType}
 				}
 			}
-			// Điện = trọn phần kỳ M-1; HV rời trong M thì cộng thêm phần kỳ M tới ngày rời.
-			// Không có phần nào -> 0 rõ ràng (KHÔNG rơi về chia roster tháng M cho khối M-1).
+			// Điện = TRỌN phần kỳ M-1, không cộng thêm phần kỳ M của người rời trong M — phần đó
+			// thuộc phiếu kỳ M+1. Không có phần nào -> 0 rõ ràng.
 			vv := elec[s.id]
 			vvKwh := elecKwh[s.id]
-			if len(s.checkOut) >= 7 && s.checkOut[:7] == body.Month {
-				cur, e := invoicecalc.StudentElectric(ctx, h.DB, s.id, body.Month, unit)
-				if e != nil {
-					return e
-				}
-				if cur == nil {
-					if cur, e = invoicecalc.StudentElectricProvisional(ctx, h.DB, s.id, body.Month, unit); e != nil {
-						return e
-					}
-				}
-				if cur != nil {
-					vv += cur.Tien
-					vvKwh += cur.Kwh
-				}
-			}
 			ec, ecKwh := &vv, &vvKwh
 			kwh := 0.0
 			if s.roomID != nil {
