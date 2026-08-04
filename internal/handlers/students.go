@@ -120,9 +120,11 @@ const studentsListSelect = `
       FROM room_leaders rl
       JOIN students ls ON ls.id = rl.student_id AND ls.deleted_at IS NULL
      WHERE rl.room_id = s.room_id
+       AND r.room_type = 'whole'
        AND rl.to_date IS NULL
        AND ls.id <> s.id
        AND COALESCE(btrim(ls.contract_no), '') <> ''
+       AND lower(btrim(ls.contract_no)) <> 'x'
        AND COALESCE(btrim(s.contract_no), '') = ''
      LIMIT 1
   ) cref ON TRUE`
@@ -1031,9 +1033,10 @@ func (h *Handlers) ContractNoNext(c *gin.Context) {
 	var n int
 	// Số kế tiếp = MAX(NN) trong HĐ ĐÃ CÓ cùng năm + pháp nhân (parse từ CHÍNH số HĐ, kể cả HĐ chưa có
 	// contract_date) + 1 -> nối tiếp số có sẵn, không đánh lại từ đầu, không trùng số đã cấp.
+	// KHÔNG lọc deleted_at: hồ sơ bị khoá vẫn giữ số của mình, số đã cấp thì không cấp lại.
 	if err := h.pool().QueryRow(ctx,
 		`SELECT COALESCE(MAX((split_part(contract_no,'/',1))::int), 0)::int c FROM students
-       WHERE deleted_at IS NULL AND contract_no ~ ('^[0-9]+/' || $1 || '/HDKTX-' || $2 || '$')`,
+       WHERE contract_no ~ ('^[0-9]+/' || $1 || '/HDKTX-' || $2 || '$')`,
 		year, entity).Scan(&n); err != nil {
 		serverErr(c)
 		return
