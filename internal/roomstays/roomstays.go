@@ -67,6 +67,22 @@ func LastStayOf(ctx context.Context, q db.Querier, studentID int) (*Stay, error)
 	return &s, nil
 }
 
+// MoveLastToDate: dời ngày kết thúc của lượt ở gần nhất — dùng khi SỬA ngày trả của hồ sơ đã rời.
+// CloseStay không làm được việc này: nó chỉ chạm lượt đang MỞ, mà hồ sơ đã trả phòng thì lượt đã đóng.
+// Ngày mới trước ngày bắt đầu lượt = lượt chưa từng xảy ra -> xoá, giống CloseStay.
+func MoveLastToDate(ctx context.Context, q db.Querier, studentID int, toDate string) error {
+	last, err := LastStayOf(ctx, q, studentID)
+	if err != nil || last == nil {
+		return err
+	}
+	if toDate < last.FromDate {
+		_, err = q.Exec(ctx, "DELETE FROM room_stays WHERE id=$1", last.ID)
+		return err
+	}
+	_, err = q.Exec(ctx, "UPDATE room_stays SET to_date=$1 WHERE id=$2", toDate, last.ID)
+	return err
+}
+
 // CloseStay: đóng lượt đang mở tại ngày toDate (tính trọn ngày đó). server/room-stays.js:23-33
 func CloseStay(ctx context.Context, q db.Querier, studentID int, toDate string) error {
 	cur, err := OpenStayOf(ctx, q, studentID)

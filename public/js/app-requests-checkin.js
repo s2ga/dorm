@@ -358,6 +358,38 @@ function checkOutForm(id) {
   attachDate(el('c_notice'), today());
   attachDate(el('c_date'), today());
 }
+// Sửa ngày trả của hồ sơ ĐÃ rời. Check-out chặn gọi lần hai nên phải đi đường riêng.
+function suaNgayTraForm(id) {
+  const s = studentById(id);
+  const cu = (s.check_out_date || '').slice(0, 10);
+  openModal(`
+    <div class="mh"><h3>${IC.calendar} Sửa ngày trả phòng: ${esc(s.name)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mb">
+      <div class="bang-tin">${IC.info} Đang ghi nhận trả phòng ngày <strong>${esc(fmtDate(cu))}</strong>.
+        Đổi ngày sẽ tính lại phiếu của <strong>cả tháng cũ lẫn tháng mới</strong>, và tính lại phần điện của bạn cùng phòng.</div>
+      <div class="field"><label>Ngày rời thực tế ${SAO}</label><input id="sn_date"></div>
+      <div class="field"><label>Lý do trả phòng</label><select id="sn_reason">
+        ${CHECKOUT_REASONS.map(([v, l]) => `<option value="${v}" ${s.checkout_reason === v ? 'selected' : ''}>${l}</option>`).join('')}
+      </select></div>
+      <div class="field"><label>Ghi chú</label><input id="sn_note" placeholder="VD: học viên báo nhầm ngày"></div>
+      ${s.room_id ? meterField('sn_meter', s.room_name, 'rời phòng') : ''}
+      <div class="hint">${IC.info}<span>Bỏ trống chỉ số công-tơ nếu không cần chốt lại — phần điện vẫn được chia lại theo ngày mới.</span></div>
+    </div>
+    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="doSuaNgayTra" data-args='[${id}]'>Lưu ngày mới</button></div>`);
+  attachDate(el('sn_date'), cu);
+}
+async function doSuaNgayTra(id) {
+  const iso = el('sn_date').dataset.iso;
+  if (!iso) return toast('Chưa chọn ngày rời', 'err');
+  const meter = el('sn_meter') ? el('sn_meter').value.trim() : '';
+  const r = await guard(() => API.suaNgayTra(id, {
+    date: iso, reason: el('sn_reason').value, note: el('sn_note').value.trim(), meter_reading: meter || undefined,
+  }));
+  await refreshCache(); closeModal();
+  const n = (r.recalced_roommates || []).length;
+  toast(`Đã đổi ngày trả ${fmtDate(r.cu)} → ${fmtDate(r.moi)}${n ? ` · ${n} bạn cùng phòng được tính lại tiền điện` : ''}`);
+  studentDetail(id);
+}
 async function doCheckOut(id) {
   const s = studentById(id);
   const meter = el('c_meter') ? el('c_meter').value.trim() : '';

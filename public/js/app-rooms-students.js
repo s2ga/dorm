@@ -448,7 +448,7 @@ async function studentForm(id) {
           <div class="field" style="margin:0"><label>Ngày trả phòng ${daRoi ? '' : '<span class="opt">(báo trước)</span>'}</label>
             ${daRoi
     ? `<div class="ro-in">${esc(fmtDate(coHienTai))}
-             <span class="muted">— đã trả phòng, không sửa ở đây.</span></div>`
+             <span class="muted">— đã trả phòng. Sửa bằng nút <strong>Sửa ngày trả</strong> trong hồ sơ.</span></div>`
     : '<input id="f_out">'}</div>
         </div>`)}
 
@@ -668,7 +668,10 @@ async function studentDetail(id) {
     <div class="mf">
       <button class="btn" data-act="studentForm" data-args='[${s.id}]'>${IC.pencil} Sửa</button>
       ${isOccupying(s) ? `<button class="btn" data-act="transferForm" data-args='[${s.id}]'>${IC.transfer} Chuyển phòng</button>` : ''}
-      ${isOccupying(s) ? `<button class="btn danger" data-act="checkOutForm" data-args='[${s.id}]'>Check-out</button>` : `<button class="btn green" data-act="checkInForm" data-args='[${s.id}]'>Check-in lại</button>`}
+      ${isOccupying(s)
+    ? `<button class="btn danger" data-act="checkOutForm" data-args='[${s.id}]'>Check-out</button>`
+    : `<button class="btn green" data-act="checkInForm" data-args='[${s.id}]'>Check-in lại</button>
+       ${s.check_out_date ? `<button class="btn" data-act="suaNgayTraForm" data-args='[${s.id}]' title="Nhập nhầm ngày rời thì sửa ở đây">${IC.calendar} Sửa ngày trả</button>` : ''}`}
       ${s.deleted_at ? '' : `<button class="btn danger" data-act="delStudent" data-args='[${s.id}]'>${IC.lock} Khoá hồ sơ</button>`}
     </div>`, true);
   if (!s.contract_no) hienSoHDDuKien(s);

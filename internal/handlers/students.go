@@ -2015,6 +2015,214 @@ func (h *Handlers) StudentCheckout(c *gin.Context) {
 	})
 }
 
+// UpdateCheckoutDate: PUT /:id/checkout-date (admin,staff). Sửa ngày trả của hồ sơ ĐÃ rời —
+// làm lại đúng việc check-out làm nhưng cho ngày mới, tính lại cả tháng cũ lẫn tháng mới.
+func (h *Handlers) UpdateCheckoutDate(c *gin.Context) {
+	u := auth.CurrentUser(c)
+	if !h.studentsFacilityGuard(c, u, c.Param("id")) {
+		return
+	}
+	id, ok := paramInt(c, "id")
+	if !ok {
+		notFound(c, "Không tìm thấy học viên")
+		return
+	}
+	ctx := c.Request.Context()
+	data, b := studentsReadBody(c)
+	if bad := studentsRejectUnknown(studentsOrderedKeys(data), []string{"date", "notice_date", "reason", "note", "meter_reading"}); bad != "" {
+		badRequest(c, bad)
+		return
+	}
+	d := studentsSlice10(studentsJSString(b["date"]))
+	if !valid.IsValidYmd(d) {
+		badRequest(c, "Ngày trả phòng không hợp lệ")
+		return
+	}
+	if nv := b["notice_date"]; nv != nil {
+		ns := studentsJSString(nv)
+		if ns != "" && !valid.IsValidYmd(ns) {
+			badRequest(c, "Ngày báo trả phòng không hợp lệ")
+			return
+		}
+	}
+	curRows, err := h.pool().Query(ctx,
+		"SELECT name, status, check_in_date, check_out_date, room_id FROM students WHERE id=$1 AND deleted_at IS NULL", id)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	cur, err := db.RowToMap(curRows)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	if cur == nil {
+		notFound(c, "Không tìm thấy học viên")
+		return
+	}
+	if studentsJSString(cur["status"]) != "out" {
+		conflict(c, gin.H{"error": "Học viên chưa trả phòng. Dùng nút Check-out để trả phòng lần đầu."})
+		return
+	}
+	cuStr := studentsSlice10(studentsJSString(cur["check_out_date"]))
+	badDate, err := checkout.BadCheckoutDate(ctx, h.pool(), id, d, studentsJSString(cur["check_in_date"]))
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	if badDate != "" {
+		badRequest(c, badDate)
+		return
+	}
+	roomID := intPtrFromDB(cur["room_id"])
+
+	// Chốt lại chỉ số công-tơ theo ngày MỚI — kiểm trước khi ghi, giống check-out.
+	hasMeter, reading, finite := studentsMeterVal(b["meter_reading"])
+	if hasMeter {
+		if roomID == nil {
+			badRequest(c, "Học viên không ở phòng nào — không có công-tơ để chốt chỉ số")
+			return
+		}
+		if !finite {
+			badRequest(c, "Chỉ số công-tơ phải là số không âm")
+			return
+		}
+		errMsg, e := meter.CheckRead(ctx, h.pool(), *roomID, d, reading)
+		if e != nil {
+			serverErr(c)
+			return
+		}
+		if errMsg != "" {
+			badRequest(c, errMsg)
+			return
+		}
+	}
+	sets := []string{"check_out_date=$1"}
+	args := []interface{}{d}
+	if b["notice_date"] != nil {
+		sets = append(sets, "checkout_notice_date=$"+itoa(len(args)+1))
+		args = append(args, studentsDateOrNull(b["notice_date"]))
+	}
+	if studentsCheckoutReasons[studentsJSString(b["reason"])] {
+		sets = append(sets, "checkout_reason=$"+itoa(len(args)+1))
+		args = append(args, studentsJSString(b["reason"]))
+	}
+	args = append(args, id)
+	upRows, err := h.pool().Query(ctx,
+		"UPDATE students SET "+strings.Join(sets, ", ")+" WHERE id=$"+itoa(len(args))+" RETURNING *", args...)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	student, err := db.RowToMap(upRows)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	// Lượt ở đã ĐÓNG rồi nên CloseStay không chạm tới được — phải dời thẳng ngày kết thúc.
+	if err := roomstays.MoveLastToDate(ctx, h.pool(), id, d); err != nil {
+		serverErr(c)
+		return
+	}
+	if err := roomleaders.CloseStudent(ctx, h.pool(), id, d); err != nil {
+		serverErr(c)
+		return
+	}
+	if hasMeter {
+		if _, e := meter.RecordRead(ctx, h.pool(), *roomID, d, reading, "checkout", &id,
+			"Sửa ngày trả — chốt lại chỉ số của "+studentsJSString(student["name"]), u.Username); e != nil {
+			serverErr(c)
+			return
+		}
+	}
+	note := studentsStrOr(b["note"])
+	if note == "" {
+		note = "Sửa ngày trả phòng: " + cuStr + " -> " + d
+	}
+	if _, err := h.pool().Exec(ctx, `INSERT INTO logs (student_id, type, date, room_id, note, source) VALUES ($1,'out',$2,$3,$4,'admin')`,
+		id, d, studentsPtrArg(roomID), note); err != nil {
+		serverErr(c)
+		return
+	}
+	// Dời ngày làm phiếu của CẢ HAI tháng sai: tháng cũ thừa/thiếu ngày, tháng mới chưa có phiếu.
+	// Dọn phiếu sau tháng mới trước, rồi mới tính lại — thứ tự ngược lại là vừa tính vừa xoá.
+	dropped := []string{}
+	rows, err := h.pool().Query(ctx,
+		"UPDATE invoices SET deleted_at=now() WHERE student_id=$1 AND month > $2 AND deleted_at IS NULL RETURNING month", id, d[:7])
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	for rows.Next() {
+		var m string
+		if e := rows.Scan(&m); e != nil {
+			rows.Close()
+			serverErr(c)
+			return
+		}
+		dropped = append(dropped, m)
+	}
+	rows.Close()
+	thang := map[string]bool{d[:7]: true}
+	if cuStr != "" {
+		thang[cuStr[:7]] = true
+	}
+	// Kéo ngày trả về SAU: những kỳ mà lần check-out trước đã dọn nay có người ở thật -> trả lại.
+	// Chỉ đụng đúng khoảng (kỳ cũ, kỳ mới], không đào lại phiếu bị xoá vì lý do khác.
+	restored := []string{}
+	if cuStr != "" && cuStr[:7] < d[:7] {
+		rRows, e := h.pool().Query(ctx,
+			`UPDATE invoices SET deleted_at=NULL WHERE student_id=$1 AND month > $2 AND month <= $3
+			   AND deleted_at IS NOT NULL AND status <> 'paid' RETURNING month`, id, cuStr[:7], d[:7])
+		if e != nil {
+			serverErr(c)
+			return
+		}
+		for rRows.Next() {
+			var m string
+			if rRows.Scan(&m) == nil {
+				restored = append(restored, m)
+				thang[m] = true
+			}
+		}
+		rRows.Close()
+	}
+	for m := range thang {
+		_, _ = invoicecalc.RecalcInvoice(ctx, h.DB, id, m)
+	}
+	// Bạn cùng phòng gánh phần điện của người rời -> đổi ngày rời là phần của họ đổi theo.
+	recalcedRoommates := []int{}
+	if roomID != nil {
+		nguoi := map[int]bool{}
+		for m := range thang {
+			if aff, e := meter.AffectedStudents(ctx, h.pool(), *roomID, m+"-01"); e == nil {
+				for _, sid := range aff {
+					if sid != id {
+						nguoi[sid] = true
+					}
+				}
+			}
+		}
+		for sid := range nguoi {
+			for m := range thang {
+				if invoicecalc.RecalcQuanhKy(ctx, h.DB, sid, m) > 0 {
+					recalcedRoommates = append(recalcedRoommates, sid)
+					break
+				}
+			}
+		}
+	}
+	studentsSignCccd(student)
+	c.JSON(http.StatusOK, gin.H{
+		"student":                 student,
+		"cu":                      cuStr,
+		"moi":                     d,
+		"recalced_roommates":      recalcedRoommates,
+		"dropped_future_invoices": dropped,
+		"restored_invoices":       restored,
+	})
+}
+
 // StudentTransfer: POST /:id/transfer (admin,staff). students.routes.js:533-593
 func (h *Handlers) StudentTransfer(c *gin.Context) {
 	u := auth.CurrentUser(c)

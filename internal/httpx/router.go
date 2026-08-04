@@ -221,6 +221,7 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	rs.PUT("/:id", h.UpdateStudent)
 	rs.DELETE("/:id", h.DeleteStudent)
 	rs.POST("/:id/restore", h.RestoreStudent)
+	rs.PUT("/:id/checkout-date", h.UpdateCheckoutDate)
 	rs.POST("/:id/contract-scan", h.UploadContractScan)
 	rs.DELETE("/:id/contract-scan", h.DeleteContractScan)
 	rs.POST("/:id/washing", h.StudentWashing)
