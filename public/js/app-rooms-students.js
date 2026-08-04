@@ -608,11 +608,21 @@ async function studentDetail(id) {
             : `<p class="muted" style="margin:0 0 6px;font-size:12px">Chưa đính kèm.</p>`}
           <div style="margin-top:6px"><input type="file" accept="image/*,application/pdf" id="hd_scan" data-change="tepScanHD" data-args='[${s.id}]'></div>
         </div>
-        ${(s.cccd_front || s.cccd_back || s.cccd_image) ? `<div style="margin-top:10px"><div class="muted" style="font-size:12px;margin-bottom:4px">Ảnh CCCD:</div><div style="display:flex;gap:8px;flex-wrap:wrap">
-          ${s.cccd_front ? `<img src="${s.cccd_front}" title="Mặt trước" style="max-width:48%;max-height:180px;border-radius:8px;border:1px solid var(--line)">` : ''}
-          ${s.cccd_back ? `<img src="${s.cccd_back}" title="Mặt sau" style="max-width:48%;max-height:180px;border-radius:8px;border:1px solid var(--line)">` : ''}
-          ${!s.cccd_front && !s.cccd_back && s.cccd_image ? `<img src="${s.cccd_image}" style="max-width:100%;max-height:200px;border-radius:8px;border:1px solid var(--line)">` : ''}
-        </div></div>` : '<p class="muted" style="margin:8px 0 0;font-size:12px">Chưa có ảnh CCCD</p>'}
+        ${/* Đính kèm CCCD ngay tại đây, KHÔNG bắt mở form Sửa — form đăng ký cho nộp 2 mặt thì chỗ
+              quản lý cũng phải cho. Chọn tệp là lưu ngay, giống bản scan HĐ ở trên. */''}
+        <div style="margin-top:10px"><div class="muted" style="font-size:12px;margin-bottom:4px">Ảnh CCCD <span class="opt">(2 mặt)</span>:</div>
+          ${!s.cccd_front && !s.cccd_back && s.cccd_image
+    ? `<div style="margin-bottom:6px"><div class="muted" style="font-size:12px;margin-bottom:4px">${IC.info} Ảnh cũ (1 mặt) — tải 2 mặt bên dưới để cập nhật:</div>
+             <img src="${s.cccd_image}" style="max-width:100%;max-height:200px;border-radius:8px;border:1px solid var(--line)"></div>` : ''}
+          <div class="grid2">
+            ${[['front', 'Mặt trước', s.cccd_front], ['back', 'Mặt sau', s.cccd_back]].map(([mat, nhan, anh]) => `
+              <div><div class="muted" style="font-size:12px;margin-bottom:4px">${nhan}</div>
+                ${anh ? `<a href="${anh}" target="_blank" rel="noopener" title="Bấm để xem cỡ đầy đủ"><img src="${anh}" style="max-width:100%;max-height:180px;border-radius:8px;border:1px solid var(--line)"></a>`
+    : '<p class="muted" style="margin:0 0 6px;font-size:12px">Chưa có.</p>'}
+                <div style="margin-top:6px"><input type="file" accept="image/*" data-change="tepCccdHV" data-args='[${s.id},"${mat}"]'></div></div>`).join('')}
+          </div>
+          <div class="hint">${IC.info}<span>Chọn ảnh là lưu ngay, không cần bấm gì thêm.</span></div>
+        </div>
       </div></div>
 
       ${/* Xem thôi — thêm/sửa/xoá xe ở màn Dịch vụ → Gửi xe, giống máy giặt. Một nơi quản, một nơi xem. */''}
@@ -678,6 +688,22 @@ function tepScanHD(id) {
     if (!trongForm) return studentDetail(id);
     const moi = await guard(() => API.student(id));
     if (moi) window._svV = moi._v || null;
+  };
+  r.readAsDataURL(f);
+}
+// Ảnh CCCD ở thẻ chi tiết: gửi RIÊNG một mặt. PUT /students/:id là MERGE nên các ô khác không
+// bị đụng; vẫn phải kèm _v vì máy chủ khoá lạc quan theo xmin.
+function tepCccdHV(id, mat) {
+  const f = this.files && this.files[0]; if (!f) return;
+  if (f.size > 9 * 1024 * 1024) { this.value = ''; return toast('Ảnh quá lớn (tối đa 9MB)', 'err'); }
+  const r = new FileReader();
+  r.onload = async () => {
+    const cu = await guard(() => API.student(id));
+    if (!cu) return;
+    const body = { _v: cu._v || undefined };
+    body[mat === 'back' ? 'cccd_back' : 'cccd_front'] = r.result;
+    await guard(() => API.updateStudent(id, body));
+    toast('Đã lưu ảnh CCCD ' + (mat === 'back' ? 'mặt sau' : 'mặt trước')); studentDetail(id);
   };
   r.readAsDataURL(f);
 }
