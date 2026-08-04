@@ -576,7 +576,7 @@ async function studentDetail(id) {
       <div class="panel" style="margin-top:12px"><div class="hd"><h2 style="font-size:14px">${IC.fileText} Hợp đồng</h2></div><div class="pad">
         <p style="margin:0">Số HĐ: ${s.contract_no
           ? `<strong>${esc(s.contract_no)}</strong>`
-          : `<span class="muted">chưa ký</span> <span class="badge gray" id="hd_dukien" title="Số sẽ được cấp nếu ký hôm nay — nối tiếp số đã có. Chưa phải số thật.">dự kiến …</span>`
+          : `<span class="muted">chưa ký</span> <span class="badge gray" id="hd_dukien" title="Số kế tiếp CHƯA CẤP của pháp nhân này, ai ký trước lấy trước — không phải số dành riêng cho học viên này.">…</span>`
         } · Ngày ký: ${s.contract_date ? fmtDate(s.contract_date) : '<span class="muted">chưa ký</span>'} · <span class="badge ${CONTRACT_BADGE[s.contract_status] || 'gray'}">${CONTRACT_LABEL[s.contract_status] || '—'}</span></p>
         ${s.contract_no ? '' : hdThamChieu(s, true)}
         ${contractPending(s) ? `<div class="bang-tin" style="margin:10px 0 0;background:var(--amber-bg);border-color:var(--amber-ink);color:var(--amber-ink)">${IC.alert} <strong>Chưa ký HĐ:</strong> thuê trên ${shortTermMaxDays()} ngày — cần ký <strong>hợp đồng thuê phòng</strong>.</div>`
@@ -663,13 +663,14 @@ async function goScanHD(id) {
   await guard(() => API.deleteContractScan(id));
   toast('Đã gỡ bản scan'); studentDetail(id);
 }
-// Số HĐ dự kiến: hỏi máy chủ số kế tiếp thay vì đoán ở máy khách, để trùng đúng số sẽ được cấp khi ký.
+// Số kế tiếp CHƯA CẤP của pháp nhân — hỏi máy chủ thay vì đoán ở máy khách. Mọi hồ sơ chưa ký cùng
+// pháp nhân đều thấy CÙNG một số: đó là số của sổ hợp đồng, ai ký trước lấy trước.
 // Hỏi hụt thì bỏ nhãn đi, không hiện số sai.
 async function hienSoHDDuKien(s) {
   const o = el('hd_dukien'); if (!o) return;
   try {
     const r = await API.contractNoNext(s.gender || 'male', today());
-    if (el('hd_dukien') === o && r && r.contract_no) o.textContent = 'dự kiến: ' + r.contract_no;
+    if (el('hd_dukien') === o && r && r.contract_no) o.textContent = `số kế tiếp chưa cấp: ${r.contract_no}`;
     else o.remove();
   } catch { o.remove(); }
 }
