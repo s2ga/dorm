@@ -735,13 +735,18 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 			return err
 		}
 
-		// Dọn phiếu rác của kỳ: người đã trả phòng TRƯỚC khi kỳ bắt đầu thì không được có phiếu.
+		// Dọn phiếu rác của kỳ: người đã trả phòng TRƯỚC khi kỳ bắt đầu, VÀ phiếu đó KHÔNG có khoản
+		// nào. Điện thu lùi một kỳ nên người rời tháng trước vẫn có tiền điện thật nằm ở phiếu kỳ này
+		// — xoá theo mỗi ngày trả phòng là xoá mất khoản phải truy thu.
 		// Chỉ dọn phiếu CHƯA THU; phiếu đã thu là tiền thật, để data-health chỉ mặt, người xử lý.
 		dRows, err := tx.Query(ctx,
 			`UPDATE invoices i SET deleted_at = now()
 			   FROM students s
 			  WHERE s.id = i.student_id AND i.month = $1 AND i.deleted_at IS NULL AND i.status <> 'paid'
 			    AND s.check_out_date IS NOT NULL AND s.check_out_date < $2
+			    AND i.room_charge = 0 AND i.electric_charge = 0 AND i.water_charge = 0
+			    AND i.service_charge = 0 AND i.washing_charge = 0 AND i.parking_charge = 0
+			    AND i.other_charge = 0 AND i.deposit_charge = 0
 			  RETURNING i.id`, body.Month, mStart)
 		if err != nil {
 			return err
