@@ -397,7 +397,7 @@ async function studentForm(id) {
   openModal(`
     <div class="mh"><h3>${id ? 'Sửa học viên' : 'Thêm học viên'}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      ${nhomForm(IC.user, 'Nhân thân', `
+      ${nhomForm(IC.user, 'Thông tin cá nhân', `
         <div class="grid2">
           <div class="field"><label>Họ tên ${SAO}</label><input id="f_name" value="${esc(s.name)}" placeholder="Nguyễn Văn A"></div>
           <div class="field"><label>Mã học viên (MSHV)</label><input id="f_code" value="${esc(s.code || '')}" placeholder="TXTS-S25..."></div>
@@ -406,59 +406,15 @@ async function studentForm(id) {
           <div class="field"><label>Ngày sinh</label><input id="f_birth"></div>
           <div class="field"><label>Giới tính</label><select id="f_gender" data-change="onFRoomFromGender">
             ${opt('female', s.gender, 'Nữ')}${opt('male', s.gender, 'Nam')}</select></div>
-        </div>`)}
-
-      ${nhomForm(IC.phone, 'Liên hệ', `
+        </div>
         <div class="grid2">
           <div class="field"><label>Số điện thoại</label><input id="f_phone" value="${esc(s.phone || '')}"></div>
           <div class="field"><label>SĐT phụ huynh <span class="opt">(khẩn cấp)</span></label><input id="f_pphone" value="${esc(s.parent_phone || '')}"></div>
         </div>
-        <div class="field" style="margin:0"><label>Email công ty <span class="opt">(để đăng nhập bằng Microsoft)</span></label>
+        <div class="field"><label>Email <span class="opt">(để đăng nhập bằng Microsoft)</span></label>
           <input id="f_email" type="email" value="${esc(s.email || '')}" placeholder="hoten@esuhai.com">
           <div class="hint">${IC.info}<span>Điền đúng email này thì lần đầu học viên bấm "Đăng nhập bằng Microsoft" là vào thẳng,
-            <strong>không phải chờ admin duyệt</strong>. Bỏ trống cũng được — khi đó admin duyệt tay ở màn Cài đặt → Người dùng.</span></div></div>`)}
-
-      ${nhomForm(IC.planeTakeoff, 'Học tập & xuất cảnh', `
-        <div class="grid2">
-          <div class="field"><label>Lớp</label><input id="f_class" value="${esc(s.class_name || '')}" placeholder="Esu684"></div>
-          <div class="field"><label>Ngày khai giảng</label><input id="f_cstart"></div>
-        </div>
-        <div class="field" style="margin:0"><label>Dự kiến xuất cảnh</label><input id="f_departure"></div>`)}
-
-      ${nhomForm(IC.bed, 'Ở tại ký túc xá', `
-        <div class="grid2">
-          <div class="field"><label>Phòng</label><select id="f_room" data-change="dongBoHinhThucThue">${roomOptions(s.room_id, s.gender)}</select></div>
-          <div class="field"><label>Hình thức thuê</label><select id="f_rental">
-            ${opt('ghep', s.rental_type, 'Thuê ghép (giá/người)')}${opt('phong', s.rental_type, 'Thuê nguyên phòng (giá theo hạng)')}</select>
-            <div id="f_rental_ro" class="ro-in" hidden>Thuê nguyên phòng <span class="muted">— theo loại phòng</span></div></div>
-        </div>
-        ${/* Ngày trả đã tới/đã qua thì KHOÁ — phiếu tháng đó đã phát, công-tơ đã chốt. Hiện dạng ô chỉ
-              đọc chứ không phải input readonly: input trông y hệt ô nhập được, bấm không ra lịch. */''}
-        <div class="grid2">
-          <div class="field"><label>Ngày vào (check-in)</label><input id="f_in"></div>
-          <div class="field"><label>Ngày trả phòng ${daRoi ? '' : '<span class="opt">(báo trước)</span>'}</label>
-            ${daRoi
-    ? `<div class="ro-in">${esc(fmtDate(coHienTai))}
-             <span class="muted">— đã trả phòng, không sửa ở đây.</span></div>`
-    : '<input id="f_out">'}</div>
-        </div>
-        <div class="field" style="margin:0"><label>Tạm trú</label><select id="f_residency">
-          ${opt('unregistered', s.residency_status, 'Chưa đăng ký')}${opt('processing', s.residency_status, 'Đang xử lý')}${opt('registered', s.residency_status, 'Đã đăng ký')}</select></div>`)}
-
-      ${nhomForm(IC.fileText, 'Hợp đồng', `
-        <div class="grid2">
-          <div class="field"><label>Số HĐ <span class="opt">(nhập tay · ⚡ gợi ý số kế tiếp)</span></label>
-            <div class="flex" style="gap:6px"><input id="f_cno" value="${esc(s.contract_no || '')}" placeholder="03/2026/HDKTX-E2" style="flex:1">
-            <button type="button" class="btn sm" data-act="suggestContractNo" data-args='[${id || 0}]' title="Điền số HĐ đã giữ chỗ cho hồ sơ này">${IC.zap}</button></div></div>
-          <div class="field"><label>Ngày ký HĐ</label><input id="f_cdate"></div>
-        </div>
-        <div class="field" style="margin:0"><label>Tình trạng HĐ</label><select id="f_cstatus">
-          ${['done', 'scanned', 'unsigned', 'none', 'handover'].map(k => opt(k, s.contract_status || 'unsigned', CONTRACT_LABEL[k])).join('')}</select>
-          <div class="hint">${IC.info}<span>Thuê <strong>trên ${shortTermMaxDays()} ngày</strong> (ghép hoặc nguyên phòng) → ký <strong>HĐ thuê phòng</strong>.
-            Thuê <strong>dưới ${shortTermMaxDays()} ngày</strong> hoặc <strong>nhân viên công tác</strong> → ký <strong>phiếu đăng ký & bàn giao</strong>.
-            Phòng an ninh không cần ký gì.</span></div></div>`)}
-
-      ${nhomForm(IC.userCheck, 'Giấy tờ tuỳ thân', `
+            <strong>không phải chờ admin duyệt</strong>. Bỏ trống cũng được — khi đó admin duyệt tay ở màn Cài đặt → Người dùng.</span></div></div>
         <div class="field" style="margin:0"><label>Ảnh CCCD <span class="opt">(2 mặt — chụp/chọn ảnh)</span></label>
           <div class="grid2">
             <div><div class="muted" style="font-size:12px;margin-bottom:4px">Mặt trước</div>
@@ -469,6 +425,62 @@ async function studentForm(id) {
               <div id="cccdBackPrev" style="margin-top:6px">${s.cccd_back ? `<img src="${s.cccd_back}" style="max-width:100%;max-height:180px;border-radius:8px;border:1px solid var(--line)">` : ''}</div></div>
           </div>
           ${!s.cccd_front && !s.cccd_back && s.cccd_image ? `<div style="margin-top:8px"><div class="muted" style="font-size:12px;margin-bottom:4px">${IC.info} Ảnh cũ (1 mặt) — tải 2 mặt ở trên để cập nhật:</div><img src="${s.cccd_image}" style="max-width:100%;max-height:160px;border-radius:8px;border:1px solid var(--line)"></div>` : ''}
+        </div>`)}
+
+      ${nhomForm(IC.planeTakeoff, 'Học tập & xuất cảnh', `
+        <div class="grid2">
+          <div class="field"><label>Lớp</label><input id="f_class" value="${esc(s.class_name || '')}" placeholder="Esu684"></div>
+          <div class="field"><label>Ngày khai giảng</label><input id="f_cstart"></div>
+        </div>
+        <div class="field" style="margin:0"><label>Dự kiến xuất cảnh</label><input id="f_departure"></div>`)}
+
+      ${nhomForm(IC.bed, 'Thông tin phòng', `
+        <div class="grid2">
+          <div class="field"><label>Phòng</label><select id="f_room" data-change="dongBoHinhThucThue">${roomOptions(s.room_id, s.gender)}</select></div>
+          <div class="field"><label>Hình thức thuê</label><select id="f_rental">
+            ${opt('ghep', s.rental_type, 'Thuê ghép (giá/người)')}${opt('phong', s.rental_type, 'Thuê nguyên phòng (giá theo hạng)')}</select>
+            <div id="f_rental_ro" class="ro-in" hidden>Thuê nguyên phòng <span class="muted">— theo loại phòng</span></div></div>
+        </div>
+        ${/* Ngày trả đã tới/đã qua thì KHOÁ — phiếu tháng đó đã phát, công-tơ đã chốt. Hiện dạng ô chỉ
+              đọc chứ không phải input readonly: input trông y hệt ô nhập được, bấm không ra lịch. */''}
+        <div class="grid2" style="margin:0">
+          <div class="field" style="margin:0"><label>Ngày vào (check-in)</label><input id="f_in"></div>
+          <div class="field" style="margin:0"><label>Ngày trả phòng ${daRoi ? '' : '<span class="opt">(báo trước)</span>'}</label>
+            ${daRoi
+    ? `<div class="ro-in">${esc(fmtDate(coHienTai))}
+             <span class="muted">— đã trả phòng, không sửa ở đây.</span></div>`
+    : '<input id="f_out">'}</div>
+        </div>`)}
+
+      ${nhomForm(IC.fileText, 'Thông tin hợp đồng', `
+        <div class="grid2">
+          <div class="field"><label>Số HĐ <span class="opt">(nhập tay · ⚡ gợi ý số kế tiếp)</span></label>
+            <div class="flex" style="gap:6px"><input id="f_cno" value="${esc(s.contract_no || '')}" placeholder="03/2026/HDKTX-E2" style="flex:1">
+            <button type="button" class="btn sm" data-act="suggestContractNo" data-args='[${id || 0}]' title="Điền số HĐ đã giữ chỗ cho hồ sơ này">${IC.zap}</button></div></div>
+          <div class="field"><label>Pháp nhân</label>
+            <div class="ro-in"><strong id="f_legal">${esc(legalEntity(s.gender))}</strong> <span class="muted">— theo giới tính, đổi ở mục Thông tin cá nhân</span></div></div>
+        </div>
+        <div class="grid2">
+          <div class="field"><label>Ngày ký HĐ</label><input id="f_cdate"></div>
+          <div class="field"><label>Tạm trú</label><select id="f_residency">
+            ${opt('unregistered', s.residency_status, 'Chưa đăng ký')}${opt('processing', s.residency_status, 'Đang xử lý')}${opt('registered', s.residency_status, 'Đã đăng ký')}</select></div>
+        </div>
+        <div class="field"><label>Tình trạng HĐ</label><select id="f_cstatus">
+          ${['done', 'scanned', 'unsigned', 'none', 'handover'].map(k => opt(k, s.contract_status || 'unsigned', CONTRACT_LABEL[k])).join('')}</select>
+          <div class="hint">${IC.info}<span>Thuê <strong>trên ${shortTermMaxDays()} ngày</strong> (ghép hoặc nguyên phòng) → ký <strong>HĐ thuê phòng</strong>.
+            Thuê <strong>dưới ${shortTermMaxDays()} ngày</strong> hoặc <strong>nhân viên công tác</strong> → ký <strong>phiếu đăng ký & bàn giao</strong>.
+            Phòng an ninh không cần ký gì.</span></div></div>
+        ${/* Tệp scan lưu NGAY khi chọn (cần có id), khác mọi ô còn lại vốn chờ nút Lưu. Hồ sơ mới
+              chưa có id nên chưa đính kèm được — nói thẳng thay vì để nút bấm không ăn. */''}
+        <div class="field" style="margin:0"><label>File đính kèm <span class="opt">(bản scan HĐ — ảnh hoặc PDF)</span></label>
+          ${!id ? '<div class="ro-in"><span class="muted">Lưu hồ sơ xong mới đính kèm được.</span></div>' : `
+            ${s.contract_scan
+    ? (s.contract_scan_ext === 'pdf'
+      ? `<a class="btn sm" href="${s.contract_scan}" target="_blank" rel="noopener">${IC.fileText} Mở bản scan (PDF)</a>`
+      : `<a href="${s.contract_scan}" target="_blank" rel="noopener" title="Bấm để xem cỡ đầy đủ"><img src="${s.contract_scan}" style="max-width:100%;max-height:200px;border-radius:8px;border:1px solid var(--line)"></a>`)
+    : '<p class="muted" style="margin:0 0 6px;font-size:12px">Chưa đính kèm.</p>'}
+            <div style="margin-top:6px"><input type="file" accept="image/*,application/pdf" id="hd_scan_form" data-change="tepScanHD" data-args='[${id}]'></div>
+            <div class="hint">${IC.info}<span>Chọn tệp là lưu ngay, không cần bấm Lưu.</span></div>`}
         </div>`)}
 
       ${!id ? nhomForm(IC.plus, 'Khởi tạo', `
@@ -656,10 +668,16 @@ async function studentDetail(id) {
 function tepScanHD(id) {
   const f = this.files && this.files[0]; if (!f) return;
   if (f.size > 9 * 1024 * 1024) { this.value = ''; return toast('Tệp quá lớn (tối đa 9MB)', 'err'); }
+  const trongForm = !!el('f_cno');   // f_cno chỉ có ở form Sửa học viên (f_name còn dùng ở form Phòng)
   const r = new FileReader();
   r.onload = async () => {
     await guard(() => API.uploadContractScan(id, r.result));
-    toast('Đã đính kèm bản scan hợp đồng'); studentDetail(id);
+    toast('Đã đính kèm bản scan hợp đồng');
+    // Đính kèm từ trong form thì KHÔNG nhảy sang thẻ chi tiết — nhảy là mất sạch ô đang nhập dở.
+    // Lấy lại dấu phiên bản vì bản ghi vừa đổi, không thì bấm Lưu báo "hồ sơ đã bị người khác sửa".
+    if (!trongForm) return studentDetail(id);
+    const moi = await guard(() => API.student(id));
+    if (moi) window._svV = moi._v || null;
   };
   r.readAsDataURL(f);
 }

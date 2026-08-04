@@ -281,7 +281,11 @@ function onIntroMedia() { uploadIntroMedia(this.dataset.mkey, this); }
 function onRulesDoc() { uploadRulesDoc(this); }
 function onApLoginToggle() { el('apLogin').style.display = this.checked ? 'block' : 'none'; }
 function onFCapFromType() { el('f_cap').value = HANG_CAP[this.value] || el('f_cap').value; }
-function onFRoomFromGender() { el('f_room').innerHTML = roomOptions('', this.value); }
+function onFRoomFromGender() {
+  el('f_room').innerHTML = roomOptions('', this.value);
+  // Pháp nhân suy từ giới tính -> đổi giới tính phải đổi theo ngay, không để hai ô nói ngược nhau.
+  if (el('f_legal')) el('f_legal').textContent = legalEntity(this.value);
+}
 function onLgHintGender() { el('lgHint').textContent = 'Pháp nhân: ' + (this.value === 'female' ? (ST.settings.legal_female || 'E2') : (ST.settings.legal_male || 'S2')); }
 function onLoginBoxToggle() { el('loginBox').style.display = this.checked ? 'block' : 'none'; }
 function onPlateBoxToggle() { el('plateBox').style.display = this.checked ? 'block' : 'none'; }
