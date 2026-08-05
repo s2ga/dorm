@@ -66,6 +66,30 @@ module.exports = {
       'trả phòng hẳn mà bị gắn nhãn chuyển phòng');
     t.eq('Người đang ở cũng không phải chuyển phòng', cua(dangO) && cua(dangO).chuyen_phong, false);
 
+    // ── TRẢ PHÒNG HẲN rồi hôm sau vào phòng khác: KHÔNG phải chuyển phòng ────────────
+    // Chỉ nhìn ngày thì hai ca giống hệt nhau; phân biệt bằng nhật ký 'out'.
+    const C = await mkRoom('_C');
+    const quayLai = await mkStu('_quayLai');
+    await stay(quayLai, A, '2026-05-01', '2026-06-30');
+    await stay(quayLai, C, '2026-07-01', null);
+    await t.db.query(
+      `INSERT INTO logs (student_id, type, date, room_id, note, source) VALUES ($1,'out','2026-06-30',$2,'Check-out','admin')`,
+      [quayLai, A]);
+    const ls2 = await lichSu(A);
+    const dongQuayLai = ls2.rows.find(x => x.student_id === quayLai);
+    t.eq('Có nhật ký trả phòng → KHÔNG gắn nhãn chuyển phòng', dongQuayLai && dongQuayLai.chuyen_phong, false,
+      'trả phòng hẳn rồi quay lại mà bị coi là chuyển phòng');
+    t.ok('Và không nêu phòng kế tiếp', !(dongQuayLai || {}).phong_ke, String((dongQuayLai || {}).phong_ke));
+
+    // ── Lượt CHỒNG NGÀY (dữ liệu hỏng) không được khoác áo chuyển phòng ─────────────
+    const chongNgay = await mkStu('_chongNgay');
+    await stay(chongNgay, A, '2026-06-01', '2026-06-30');
+    await stay(chongNgay, C, '2026-06-30', null);   // trùng ngày 30/06 ở hai phòng
+    const ls3 = await lichSu(A);
+    const dongChong = ls3.rows.find(x => x.student_id === chongNgay);
+    t.eq('Lượt chồng ngày KHÔNG được dán nhãn chuyển phòng để trông bình thường',
+      dongChong && dongChong.chuyen_phong, false, 'dữ liệu hỏng bị che bằng nhãn hợp lệ');
+
     // ── Mới nhất TRƯỚC ─────────────────────────────────────────────────────────────
     const ngay = ls.rows.map(x => x.from_date);
     t.ok('Sắp xếp mới nhất trước', ngay.join() === [...ngay].sort().reverse().join(), ngay.join(' · '));

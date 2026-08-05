@@ -743,7 +743,9 @@ async function hienSoHDDuKien(s) {
 // Lịch sử ở đọc từ room_stays — nguồn sự thật về ở/rời (thứ tính tiền dùng). Nhật ký chỉ bổ sung
 // ghi chú; mốc không có nhật ký được gắn nhãn "ghi từ hồ sơ" thay vì im lặng bỏ trống.
 const LSO_TU_HO_SO = '<span class="badge gray" title="Mốc này ghi thẳng vào hồ sơ, không qua nút Check-in/Check-out nên không có nhật ký thao tác">ghi từ hồ sơ</span>';
-const lsoMoc = (ngay, log) => `${fmtDate(ngay)}${log == null ? ' ' + LSO_TU_HO_SO : (log ? `<div class="sub2">${esc(log)}</div>` : '')}`;
+// `=== null` chứ không `== null`: màn PHÒNG không trả log_ra, undefined lọt vào là mọi dòng đều bị
+// dán "ghi từ hồ sơ" — nhãn kiểm toán dán lên tất cả thì thành nói dối.
+const lsoMoc = (ngay, log) => `${fmtDate(ngay)}${log === null ? ' ' + LSO_TU_HO_SO : (log ? `<div class="sub2">${esc(log)}</div>` : '')}`;
 // Rời phòng này rồi vào phòng khác ngay hôm sau = CHUYỂN PHÒNG, không phải trả phòng hẳn.
 const lsoKetThuc = t => !t.to_date
   ? '<span class="badge green">đang ở</span>'

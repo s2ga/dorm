@@ -11,22 +11,24 @@ import (
 	"ktx/internal/scope"
 )
 
-// staysChuyenPhong: lượt này kết thúc rồi CÙNG học viên mở lượt mới ở phòng KHÁC ngay hôm sau
-// (Transfer đóng lượt cũ ở D-1 rồi mở lượt mới ở D) -> chuyển phòng, không phải trả phòng hẳn.
-const staysChuyenPhong = `(SELECT 1 FROM room_stays n
-     WHERE n.student_id = rs.student_id AND n.id <> rs.id
-       AND rs.to_date IS NOT NULL
-       AND n.from_date BETWEEN rs.to_date AND rs.to_date + 1
+// Chuyển phòng: lượt mới mở ĐÚNG hôm sau ở phòng khác, và không có nhật ký 'out' (Transfer chỉ ghi
+// 'in'; có 'out' là trả phòng hẳn rồi quay lại). So `= to_date + 1` cho khớp electric_reads.go:63 —
+// nơi quyết định ngày chốt công-tơ.
+const staysDieuKienChuyen = `rs.to_date IS NOT NULL
+       AND n.from_date = rs.to_date + 1
        AND n.room_id IS DISTINCT FROM rs.room_id
+       AND NOT EXISTS (SELECT 1 FROM logs lo
+                        WHERE lo.student_id = rs.student_id AND lo.type = 'out'
+                          AND lo.date BETWEEN rs.to_date AND rs.to_date + 1)`
+
+const staysChuyenPhong = `(SELECT 1 FROM room_stays n
+     WHERE n.student_id = rs.student_id AND n.id <> rs.id AND ` + staysDieuKienChuyen + `
      ORDER BY n.from_date, n.id LIMIT 1)`
 
-const staysPhongKe = `(SELECT COALESCE(r2.name,'') FROM room_stays n2
-     LEFT JOIN rooms r2 ON r2.id = n2.room_id
-     WHERE n2.student_id = rs.student_id AND n2.id <> rs.id
-       AND rs.to_date IS NOT NULL
-       AND n2.from_date BETWEEN rs.to_date AND rs.to_date + 1
-       AND n2.room_id IS DISTINCT FROM rs.room_id
-     ORDER BY n2.from_date, n2.id LIMIT 1)`
+const staysPhongKe = `(SELECT COALESCE(r2.name,'') FROM room_stays n
+     LEFT JOIN rooms r2 ON r2.id = n.room_id
+     WHERE n.student_id = rs.student_id AND n.id <> rs.id AND ` + staysDieuKienChuyen + `
+     ORDER BY n.from_date, n.id LIMIT 1)`
 
 // StudentStays: GET /api/students/:id/stays — lịch sử ở của HV, đọc từ room_stays (nguồn sự thật
 // về ở/rời — thứ tính tiền dùng). Mỗi lượt kèm ghi chú nhật ký khớp ngày; NULL = không có nhật ký,
@@ -76,8 +78,10 @@ func (h *Handlers) roomsFacilityGuard(c *gin.Context, u *auth.User, idStr string
 	if scope.IsExecutive(u) {
 		return true
 	}
+	// id phi số: KHÔNG nhả cho qua. strconv.Atoi ở paramInt nhận "+12" nên nhả là mất luôn rào cơ sở.
 	if !studentsIsDigits(idStr) {
-		return true
+		notFound(c, "Không tìm thấy phòng")
+		return false
 	}
 	var fid *int
 	err := h.pool().QueryRow(c.Request.Context(), "SELECT facility_id FROM rooms WHERE id=$1", idStr).Scan(&fid)
