@@ -492,6 +492,38 @@ ALTER TABLE invoices ADD COLUMN IF NOT EXISTS deposit_charge NUMERIC(12,0) NOT N
 -- Phiếu cũ để NULL -> rơi về paid_date, chấp nhận thô vì đều đã nằm trong quá khứ.
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ;
 
+-- ===== Điểm danh bãi xe =====
+-- Mỗi ngày an ninh đi một vòng bãi, đánh dấu từng xe đã đăng ký là CÓ MẶT hay VẮNG, và ghi lại
+-- xe lạ (không có trong danh sách đăng ký). Một dòng = một xe × một ngày.
+--
+-- Bảng RIÊNG chứ không đụng vào `vehicles`: `internal/vehiclecount` đếm mọi hàng trong `vehicles`
+-- khớp khoảng ngày để ra tiền gửi xe, nên thêm/sửa/xoá hàng ở đó là ĐỔI TIỀN của học viên. Điểm
+-- danh chỉ để kiểm soát an ninh, tuyệt đối không được chạm tới đường tiền.
+CREATE TABLE IF NOT EXISTS parking_checks (
+  id          SERIAL PRIMARY KEY,
+  check_date  DATE NOT NULL,
+  facility_id INTEGER REFERENCES facilities(id) ON DELETE SET NULL,
+  -- NULL = xe lạ (không có trong danh sách đăng ký), hoặc xe đã bị gỡ khỏi danh sách sau này:
+  -- DeleteVehicle xoá CỨNG (DELETE FROM vehicles) nên SET NULL để lịch sử điểm danh không bốc hơi.
+  vehicle_id  INTEGER REFERENCES vehicles(id) ON DELETE SET NULL,
+  -- Bản chụp biển số tại thời điểm điểm danh. Giữ lại để lịch sử còn đọc được khi xe bị xoá,
+  -- và để tra cứu xe lạ. plate_norm = biển đã bỏ hết ký tự không phải chữ/số, viết hoa.
+  plate       TEXT NOT NULL DEFAULT '',
+  plate_norm  TEXT NOT NULL DEFAULT '',
+  status      TEXT NOT NULL,              -- 'present' (có gửi) | 'absent' (không gửi) | 'stranger' (xe lạ)
+  photo_key   TEXT,                       -- khoá ảnh trên S3 (khi an ninh chụp biển số)
+  note        TEXT DEFAULT '',
+  checked_by  TEXT DEFAULT '',
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- Một xe đã đăng ký chỉ có MỘT kết quả cho một ngày (đánh lại là ghi đè, không đẻ dòng thứ hai).
+-- Xe lạ (vehicle_id NULL) nằm ngoài ràng buộc này: một ngày có thể ghi nhiều xe lạ khác nhau.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_parking_check_ngay ON parking_checks (vehicle_id, check_date)
+  WHERE vehicle_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_parking_checks_ngay ON parking_checks (check_date DESC, facility_id);
+CREATE INDEX IF NOT EXISTS idx_parking_checks_xe   ON parking_checks (vehicle_id, check_date);
+
 DO $ktx$
 DECLARE
   r RECORD;
@@ -591,7 +623,15 @@ BEGIN
     ('ck_room_leaders_dates',
      $q$ALTER TABLE room_leaders ADD CONSTRAINT ck_room_leaders_dates CHECK (to_date IS NULL OR to_date >= from_date)$q$),
     ('ck_room_stays_dates',
-     $q$ALTER TABLE room_stays ADD CONSTRAINT ck_room_stays_dates CHECK (to_date IS NULL OR to_date >= from_date)$q$)
+     $q$ALTER TABLE room_stays ADD CONSTRAINT ck_room_stays_dates CHECK (to_date IS NULL OR to_date >= from_date)$q$),
+    -- Điểm danh bãi xe: chỉ nhận 3 trạng thái. Giá trị lạ lọt vào là báo cáo đếm sai trong im lặng.
+    ('ck_parking_checks_status',
+     $q$ALTER TABLE parking_checks ADD CONSTRAINT ck_parking_checks_status
+        CHECK (status IN ('present','absent','stranger'))$q$),
+    -- Xe lạ thì phải có biển số (không thì bản ghi vô nghĩa, không ai đối chiếu được).
+    ('ck_parking_checks_stranger_plate',
+     $q$ALTER TABLE parking_checks ADD CONSTRAINT ck_parking_checks_stranger_plate
+        CHECK (status <> 'stranger' OR btrim(plate) <> '')$q$)
   ) AS t(ten, sql)
   LOOP
     BEGIN

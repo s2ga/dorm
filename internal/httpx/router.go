@@ -203,6 +203,16 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	mnt.GET("/summary", h.MaintSummary)
 	mnt.POST("/tasks/:id/status", h.MaintTaskStatus)
 
+	// Điểm danh bãi xe — an ninh đi kiểm hằng ngày; quản lý/nhân viên xem báo cáo.
+	pk := api.Group("/maintenance/parking", a.RequireAuth(), a.RequireRole("maintenance", "admin", "staff"))
+	pk.GET("", h.ParkingList)
+	pk.GET("/report", h.ParkingReport)
+	pk.GET("/photo/:id", h.ParkingPhoto)
+	pk.POST("/mark", h.ParkingMark)
+	pk.POST("/stranger", h.ParkingStranger)
+	pk.POST("/finish", h.ParkingFinish)
+	pk.DELETE("/:id", h.ParkingUndo)
+
 	// Ảnh giới thiệu + nội quy (media) — chỉ admin
 	med := api.Group("/media", a.RequireAuth(), a.RequireRole("admin"))
 	med.GET("", h.ListMedia)

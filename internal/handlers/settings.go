@@ -95,6 +95,7 @@ var settingsAllowed = []string{
 	"room_price_A", "room_price_B", "room_price_C", "room_price_D",
 	"room_area_A", "room_area_B", "room_area_C", "room_area_D",
 	"security_day_phone", "security_night_phone", "security_day_from", "security_day_to",
+	"parking_absent_alert_days",
 	"wifi_ssid", "wifi_password",
 	"bravo_fee_type", "bravo_room", "bravo_water", "bravo_service", "bravo_electric", "bravo_parking", "bravo_washing", "bravo_other", "bravo_deposit",
 	"school_name", "school_email", "violation_mail_threshold",

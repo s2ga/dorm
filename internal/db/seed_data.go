@@ -30,6 +30,8 @@ func defaultSettings(dormName string) [][2]string {
 		// Số trực an ninh + khung giờ ca ngày (ca đêm là phần còn lại: day_to -> day_from).
 		{"security_day_phone", ""}, {"security_night_phone", ""},
 		{"security_day_from", "06:00"}, {"security_day_to", "18:00"},
+		// Điểm danh bãi xe: vắng liên tiếp bấy nhiêu ngày thì báo cáo gắn cờ "xe bỏ gửi lâu".
+		{"parking_absent_alert_days", "7"},
 		// Wifi dùng chung toàn KTX. Mật khẩu chỉ trả cho HV ĐANG Ở (me.go), không lọt ra /api/public.
 		{"wifi_ssid", ""}, {"wifi_password", ""},
 		{"bravo_fee_type", "T0704"},
