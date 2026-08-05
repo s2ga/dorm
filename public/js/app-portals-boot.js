@@ -848,6 +848,7 @@ const PK_O_CHU = 9;        // model có 9 ô ký tự
 const PK_SO_LOP = 37;      // mỗi ô chọn 1 trong 37 ký tự
 const PK_MODEL_W = 128, PK_MODEL_H = 64;
 const PK_KHUNG_TL = 1.35;  // khung ngắm rộng/cao — bằng tỉ lệ biển xe máy Việt Nam
+const PK_LANG_MS = 6000;   // xử lý xong một chuỗi thì làm ngơ đúng chuỗi đó bấy nhiêu mili giây
 let _pkOrt = null;         // phiên suy luận, nạp một lần rồi giữ lại
 let _pkCam = null;         // { stream, huy } của lượt quét đang chạy
 
@@ -898,6 +899,36 @@ function pkGiaiMa(logits) {
   }
   return bien;
 }
+// Các cặp ký tự bộ đọc hay lẫn trên biển số — lẫn đúng những cặp này thì phạt nhẹ thôi.
+const PK_HAY_LAN = ['0OQD', '1IL7', '2Z', '5S', '6G', '8B', '4A'];
+function pkPhat(a, b) {
+  if (a === b) return 0;
+  for (const nhom of PK_HAY_LAN) if (nhom.includes(a) && nhom.includes(b)) return 0.4;
+  return 1;
+}
+// Khoảng cách sửa lỗi giữa chuỗi MÁY ĐỌC và biển đã đăng ký.
+// KHÔNG dùng pkDiem ở đây: hàm đó đòi chuỗi là DÃY CON đúng thứ tự — hợp với người gõ tay, nhưng
+// máy đọc thì sai vài ký tự GIỮA chuỗi, nên xe đúng bị chấm 0 điểm và biến mất khỏi gợi ý.
+function pkKhoangCach(a, b) {
+  const m = a.length, n = b.length;
+  let truoc = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) {
+    const sau = [i];
+    for (let j = 1; j <= n; j++) {
+      sau[j] = Math.min(truoc[j] + 1, sau[j - 1] + 1, truoc[j - 1] + pkPhat(a[i - 1], b[j - 1]));
+    }
+    truoc = sau;
+  }
+  return truoc[n];
+}
+// Xếp hạng xe trong bãi theo độ gần với chuỗi máy đọc được.
+function pkXepGan(bien) {
+  if (!pkData) return [];
+  return pkData.vehicles
+    .map(x => ({ x, kc: pkKhoangCach(bien, pkChuanBien(x.plate)) }))
+    .sort((a, b) => a.kc - b.kc);
+}
+
 // Tiếng tít khi quét trúng — bảo vệ không phải nhìn màn hình.
 function pkTit(cao) {
   try {
@@ -913,17 +944,21 @@ function pkCameraForm() {
   openModal(`
     <div class="mh"><h3>${IC.search} Quét biển số</h3><button class="x" aria-label="Đóng" data-act="pkCamDong">×</button></div>
     <div class="mb" style="padding-top:8px">
-      <div id="pk_cam_box" style="position:relative;background:#000;border-radius:12px;overflow:hidden;aspect-ratio:3/4;max-height:56vh;margin:0 auto">
+      <div id="pk_cam_box" data-act="pkCamQuetLai" title="Chạm để quét lại"
+           style="position:relative;background:#000;border-radius:12px;overflow:hidden;aspect-ratio:3/4;max-height:56vh;margin:0 auto;cursor:pointer">
         <video id="pk_video" playsinline autoplay muted style="width:100%;height:100%;object-fit:cover"></video>
         <div id="pk_khung" style="position:absolute;border:3px solid #fff;border-radius:8px;box-shadow:0 0 0 9999px rgba(0,0,0,.45);pointer-events:none"></div>
       </div>
       <div id="pk_cam_tt" class="bang-tin" style="margin-top:10px">${IC.info} Đang chuẩn bị camera…</div>
       <div id="pk_cam_kq" style="margin-top:8px"></div>
       <div class="hint" style="font-size:12px">${IC.info} Đưa biển số vào trong khung trắng, giữ máy yên khoảng một giây.
-        Đọc xong app tự ghi "có gửi" và kêu một tiếng. Trời tối thì bật đèn pin điện thoại.</div>
+        App chỉ tự ghi "có gửi" khi đọc <strong>trùng khít</strong> biển đã đăng ký; lệch dù một ký tự là nó
+        hiện vài xe gần giống để <strong>bạn xác nhận</strong>, máy không tự quyết.
+        Đọc sai thì bấm <strong>Quét lại</strong> (hoặc chạm vào hình) — không phải tắt camera. Trời tối thì bật đèn pin.</div>
     </div>
     <div class="mf">
-      <button class="btn" data-act="pkCamSangGoTay">${IC.pencil} Gõ tay thay vì quét</button>
+      <button class="btn" data-act="pkCamQuetLai">${IC.refresh} Quét lại</button>
+      <button class="btn" data-act="pkCamSangGoTay">${IC.pencil} Gõ tay</button>
       <button class="btn" data-act="pkCamDong">Đóng</button>
     </div>`);
   pkCamChay();
@@ -968,9 +1003,15 @@ async function pkCamChay() {
   catch (e) { bao('Không tải được bộ đọc: ' + (e.message || '') + '. Dùng nút "Gõ tay thay vì quét".'); return; }
   bao('Đưa biển vào khung trắng…');
 
-  let lanTruoc = '', daGhi = {};
+  let lanTruoc = '';
+  _pkCam.daGhi = {};
+  _pkCam.choChon = false;   // đang chờ bảo vệ bấm chọn -> tạm ngưng tự nhận, khỏi nhấp nháy
+  _pkCam.bienCuoi = '';     // chuỗi vừa xử lý gần nhất
+  _pkCam.bienXong = '';     // chuỗi đang được làm ngơ (đã xử lý xong hoặc vừa bấm quét lại)
+  _pkCam.bienXongLuc = 0;
   const vong = async () => {
     if (!_pkCam || _pkCam.huy || !el('pk_video') || !el('overlay').classList.contains('show')) return pkCamDung();
+    if (_pkCam.choChon) return setTimeout(vong, 250);      // vẫn giữ camera, chỉ ngưng chấm
     const khung = pkCamDatKhung();
     if (!khung || !v.videoWidth) return setTimeout(vong, 250);
     // Khung ngắm đang tính theo pixel của THẺ VIDEO; object-fit:cover nên phải quy về pixel ảnh gốc.
@@ -983,30 +1024,86 @@ async function pkCamChay() {
       // Chốt hai lần đọc GIỐNG NHAU mới nhận — một khung hình mờ là đủ để đọc sai.
       if (bien && bien === lanTruoc && bien.length >= 7) {
         lanTruoc = '';
-        await pkCamNhan(bien, daGhi);
+        // Xử lý xong một chuỗi thì LÀM NGƠ đúng chuỗi đó một lúc: xe vẫn nằm trước camera nên
+        // khung sau đọc ra y hệt, không chặn thì nó ghi đè mất thông báo vừa hiện.
+        const lapLai = bien === _pkCam.bienXong && Date.now() - _pkCam.bienXongLuc < PK_LANG_MS;
+        if (!lapLai) await pkCamNhan(bien);
       } else lanTruoc = bien;
     } catch (e) { /* khung hình lỗi thì bỏ qua, thử khung sau */ }
     setTimeout(vong, 180);
   };
+  _pkCam.chay = vong;
   vong();
 }
-// Đã đọc ra chuỗi ổn định -> dò vào danh sách xe của bãi rồi tự ghi "có gửi".
-async function pkCamNhan(bien, daGhi) {
-  const kq = el('pk_cam_kq'); if (!kq || !pkData) return;
-  const top = pkData.vehicles
-    .map(x => ({ x, d: pkDiem(bien, pkChuanBien(x.plate)) }))
-    .filter(t => t.d > 0).sort((a, b) => b.d - a.d);
-  const nhat = top[0];
-  if (!nhat || nhat.d < 700) {
-    pkTit(false);
-    kq.innerHTML = `<div class="bang-tin" style="border-color:var(--amber-ink)">${IC.alert}
-      Đọc được <strong>${esc(bien)}</strong> nhưng không khớp xe nào đã đăng ký.
-      <button class="btn sm danger" style="margin-left:8px" data-act="pkCamXeLa" data-args='["${esc(bien)}"]'>${IC.plus} Ghi là xe lạ</button></div>`;
+// Quét lại: xoá kết quả cũ, cho vòng chấm chạy tiếp. Bảo vệ KHÔNG phải tắt/bật camera nữa.
+// Kèm làm ngơ chính chuỗi vừa đọc sai một lúc — không thì khung hình sau lại ra đúng nó và
+// màn hình hiện lại y hệt, nhìn như nút không có tác dụng.
+function pkCamQuetLai() {
+  const kq = el('pk_cam_kq'); if (kq) kq.innerHTML = '';
+  const tt = el('pk_cam_tt');
+  if (tt) tt.innerHTML = `${IC.info} Đang quét lại — chỉnh lại góc máy cho rõ biển, hoặc đưa xe khác vào khung.`;
+  if (_pkCam) {
+    _pkCam.bienXong = _pkCam.bienCuoi || '';
+    _pkCam.bienXongLuc = Date.now();
+    _pkCam.choChon = false;
+  }
+}
+// Đã đọc ra chuỗi ổn định -> dò vào danh sách xe của bãi.
+// Chỉ TỰ GHI khi gần như chắc chắn; hơi ngờ thì đưa 3 xe gần nhất cho bảo vệ bấm chọn.
+// Bộ đọc sai vài ký tự là chuyện thường, nên bế tắc ở đây là bảo vệ phải tắt/bật lại camera.
+async function pkCamNhan(bien) {
+  const kq = el('pk_cam_kq'); if (!kq || !pkData || !_pkCam) return;
+  _pkCam.bienCuoi = bien;
+  const gan = pkXepGan(bien);
+  const nhat = gan[0];
+  const nutQuetLai = `<button class="btn sm" data-act="pkCamQuetLai">${IC.refresh} Quét lại</button>`;
+  const theXe = (t, chinh) => `<div class="flex" style="justify-content:space-between;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)">
+      <div><strong>${esc(t.x.plate)}</strong>${t.x.status === 'present' ? ' <span class="badge green">đã ghi</span>' : ''}
+        <div class="muted" style="font-size:12px">${esc(t.x.student_name || '—')}${t.x.room_name ? ' · ' + esc(t.x.room_name) : ''}</div></div>
+      <button class="btn sm ${chinh ? 'green' : ''}" data-act="pkCamChon" data-args='[${t.x.vehicle_id},"${esc(bien)}"]'>${IC.check} Có gửi</button>
+    </div>`;
+
+  // CHỈ tự ghi khi đọc TRÙNG KHÍT biển đã đăng ký. Lệch dù một ký tự cũng phải người bấm xác nhận:
+  // đây là ghi nhận vào tài sản của người khác, máy không được tự quyết thay.
+  // Trọng số ký tự hay lẫn (8↔B, 0↔O…) chỉ dùng để XẾP HẠNG gợi ý, không dùng để tự ghi.
+  if (nhat && nhat.kc === 0) {
+    await pkCamGhi(nhat.x, bien);
     return;
   }
-  const v = nhat.x;
-  if (daGhi[v.vehicle_id]) return;                       // vừa ghi xong, đừng ghi lại
+  _pkCam.choChon = true;                                  // ngưng chấm, chờ người quyết
+  const ungVien = gan.filter(t => t.kc <= 4).slice(0, 3);
+  if (ungVien.length) {
+    pkTit(false);
+    kq.innerHTML = `<div class="bang-tin" style="border-color:var(--amber-ink)">${IC.alert}
+        Đọc được <strong>${esc(bien)}</strong> — <strong>không trùng khít</strong> biển nào, bạn xác nhận đúng xe:</div>
+      ${ungVien.map((t, i) => theXe(t, i === 0)).join('')}
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">${nutQuetLai}
+        <button class="btn sm danger" data-act="pkCamXeLa" data-args='["${esc(bien)}"]'>${IC.plus} Ghi là xe lạ</button></div>`;
+    return;
+  }
+  pkTit(false);
+  kq.innerHTML = `<div class="bang-tin" style="border-color:var(--amber-ink)">${IC.alert}
+      Đọc được <strong>${esc(bien)}</strong> nhưng không giống xe nào đã đăng ký.</div>
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">${nutQuetLai}
+      <button class="btn sm danger" data-act="pkCamXeLa" data-args='["${esc(bien)}"]'>${IC.plus} Ghi là xe lạ</button></div>`;
+}
+// Bảo vệ bấm chọn một xe trong danh sách gợi ý.
+async function pkCamChon(vehicleId, bien) {
+  const v = (pkData.vehicles || []).find(x => x.vehicle_id === vehicleId);
+  if (!v) return;
+  await pkCamGhi(v, bien);
+  if (_pkCam) _pkCam.choChon = false;                     // ghi xong thì quét tiếp ngay
+}
+// Ghi "có gửi" cho một xe + hiện kết quả.
+async function pkCamGhi(v, bien) {
+  const kq = el('pk_cam_kq'); if (!kq || !_pkCam) return;
+  const daGhi = _pkCam.daGhi || (_pkCam.daGhi = {});
+  if (daGhi[v.vehicle_id]) return;                        // vừa ghi xong, đừng ghi lại
   daGhi[v.vehicle_id] = true;
+  // Xe vẫn nằm trước camera nên khung sau đọc ra y hệt — làm ngơ chuỗi này một lúc, nếu không
+  // thông báo "đã ghi có gửi" bị chính nó ghi đè sau chưa tới nửa giây, bảo vệ không kịp thấy.
+  _pkCam.bienXong = bien;
+  _pkCam.bienXongLuc = Date.now();
   if (v.status === 'present') {
     pkTit(true);
     kq.innerHTML = `<div class="bang-tin">${IC.checkCircle} <strong>${esc(v.plate)}</strong> — ${esc(v.student_name || '')} đã ghi "có gửi" từ trước.</div>`;
