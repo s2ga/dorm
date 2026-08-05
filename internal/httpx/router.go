@@ -139,7 +139,8 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	rm.PUT("/:id", a.RequireRole("admin", "staff"), h.UpdateRoom)
 	rm.DELETE("/:id", a.RequireRole("admin", "staff"), h.DeleteRoom)
 	rm.POST("/:id/restore", a.RequireRole("admin", "staff"), h.RestoreRoom)
-	rm.GET("/:id/leader", h.GetRoomLeader) // mọi user đăng nhập
+	rm.GET("/:id/stays", a.RequireRole("admin", "staff"), h.RoomStays) // ai đã từng ở phòng này
+	rm.GET("/:id/leader", h.GetRoomLeader)                             // mọi user đăng nhập
 	rm.POST("/:id/leader", a.RequireRole("admin", "staff"), h.SetRoomLeader)
 	rm.DELETE("/:id/leader", a.RequireRole("admin", "staff"), h.UnsetRoomLeader)
 

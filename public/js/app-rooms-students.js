@@ -119,6 +119,11 @@ function roomDetail(id) {
       ${dsSapVao.length ? `<div class="panel"><div class="hd"><h2 style="font-size:14px">${IC.calendar} Sắp vào (${dsSapVao.length})</h2></div>
         ${bang(dsSapVao)}
       </div>` : ''}
+
+      ${/* Ai ĐÃ RỜI không còn trong ST.students theo phòng nữa -> phải đọc room_stays, không lọc
+            được từ dữ liệu sẵn có. Nạp sau khi mở modal cho khung hiện ngay. */''}
+      <h4 style="margin:18px 0 8px">${IC.history} Lịch sử ra/vào phòng</h4>
+      <div id="roomStays"><div class="spinner"></div></div>
     </div>
     <div class="mf">
       ${/* Xoá phòng CÓ MẶT ở đây để trên điện thoại còn một đường THẤY ĐƯỢC: ngoài kia nút thùng rác
@@ -128,6 +133,15 @@ function roomDetail(id) {
       <button class="btn" data-act="roomForm" data-args='[${id}]'>${IC.pencil} Sửa phòng</button>
       <button class="btn pri" data-act="closeModal">Đóng</button>
     </div>`, true);
+  napLichSuPhong(id);
+}
+// Nạp rời khỏi roomDetail: modal hiện ngay, bảng lịch sử điền sau. Kiểm lại ô còn đó chưa mới ghi —
+// người dùng đóng modal hoặc mở phòng khác trước khi mạng trả về là ghi nhầm chỗ.
+async function napLichSuPhong(id) {
+  let stays = null;
+  try { stays = ((await API.roomStays(id)) || {}).stays || []; } catch {}
+  const o = el('roomStays');
+  if (o) o.innerHTML = lichSuPhongHTML(stays);
 }
 
 /* ---- Phòng trưởng ----
@@ -662,7 +676,7 @@ async function studentDetail(id) {
           <td>${monthLabel(i.month)}</td><td class="num"><strong>${money(i.total)}</strong></td>
           <td class="num"><span class="row-chev" aria-hidden="true">${IC.chevronRight}</span></td></tr>`).join('')}
       </tbody></table></div>` : '<p class="muted">Chưa có phiếu báo.</p>'}
-      <h4 style="margin:18px 0 8px">${IC.history} Lịch sử ở (ra/vào)</h4>
+      <h4 style="margin:18px 0 8px">${IC.history} Lịch sử ở & chuyển phòng</h4>
       ${lichSuOHTML(stays)}
     </div>
     <div class="mf">
@@ -728,16 +742,38 @@ async function hienSoHDDuKien(s) {
 }
 // Lịch sử ở đọc từ room_stays — nguồn sự thật về ở/rời (thứ tính tiền dùng). Nhật ký chỉ bổ sung
 // ghi chú; mốc không có nhật ký được gắn nhãn "ghi từ hồ sơ" thay vì im lặng bỏ trống.
+const LSO_TU_HO_SO = '<span class="badge gray" title="Mốc này ghi thẳng vào hồ sơ, không qua nút Check-in/Check-out nên không có nhật ký thao tác">ghi từ hồ sơ</span>';
+const lsoMoc = (ngay, log) => `${fmtDate(ngay)}${log == null ? ' ' + LSO_TU_HO_SO : (log ? `<div class="sub2">${esc(log)}</div>` : '')}`;
+// Rời phòng này rồi vào phòng khác ngay hôm sau = CHUYỂN PHÒNG, không phải trả phòng hẳn.
+const lsoKetThuc = t => !t.to_date
+  ? '<span class="badge green">đang ở</span>'
+  : lsoMoc(t.to_date, t.log_ra) + (t.chuyen_phong
+    ? `<div class="sub2"><span class="badge blue">chuyển phòng</span>${t.phong_ke ? ' → ' + esc(t.phong_ke) : ''}</div>`
+    : '');
+
 function lichSuOHTML(stays) {
   if (stays == null) return `<div class="bang-tin">${IC.alert} Không đọc được lịch sử ở — tải lại trang rồi thử lại.</div>`;
   if (!stays.length) return '<p class="muted">Chưa có.</p>';
-  const tuHoSo = '<span class="badge gray" title="Mốc này ghi thẳng vào hồ sơ, không qua nút Check-in/Check-out nên không có nhật ký thao tác">ghi từ hồ sơ</span>';
-  const moc = (ngay, log) => `${fmtDate(ngay)}${log == null ? ' ' + tuHoSo : (log ? `<div class="sub2">${esc(log)}</div>` : '')}`;
   return `<div class="table-wrap"><table><thead><tr><th>Phòng</th><th>Vào</th><th>Rời</th></tr></thead><tbody>
     ${stays.map(t => `<tr>
       <td>${t.room_id ? `<span class="hd-ref" data-act="roomDetail" data-args='[${t.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng">${esc(t.room_name || '—')}</span>` : esc(t.room_name || '—')}</td>
-      <td>${moc(t.from_date, t.log_vao)}</td>
-      <td>${t.to_date ? moc(t.to_date, t.log_ra) : '<span class="badge green">đang ở</span>'}</td>
+      <td>${lsoMoc(t.from_date, t.log_vao)}</td>
+      <td>${lsoKetThuc(t)}</td>
+    </tr>`).join('')}
+  </tbody></table></div>`;
+}
+
+// Lịch sử ra/vào của MỘT PHÒNG — nghịch đảo của lichSuOHTML (theo phòng thay vì theo người).
+function lichSuPhongHTML(stays) {
+  if (stays == null) return `<div class="bang-tin">${IC.alert} Không đọc được lịch sử ra/vào — tải lại trang rồi thử lại.</div>`;
+  if (!stays.length) return '<p class="muted">Chưa có ai từng ở phòng này.</p>';
+  return `<div class="table-wrap"><table><thead><tr><th>Học viên</th><th>Vào</th><th>Rời</th></tr></thead><tbody>
+    ${stays.map(t => `<tr>
+      <td><span class="hd-ref" data-act="studentDetail" data-args='[${t.student_id}]' role="button" tabindex="0" title="Xem hồ sơ">${esc(t.student_name || '—')}</span>
+        ${t.student_code ? `<div class="sub2">${esc(t.student_code)}</div>` : ''}
+        ${t.da_khoa ? '<div class="sub2"><span class="badge gray" title="Hồ sơ đã khoá — vẫn giữ trong lịch sử vì họ đã ở thật">hồ sơ đã khoá</span></div>' : ''}</td>
+      <td>${fmtDate(t.from_date)}</td>
+      <td>${lsoKetThuc(t)}</td>
     </tr>`).join('')}
   </tbody></table></div>`;
 }

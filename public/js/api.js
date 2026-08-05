@@ -119,6 +119,7 @@ const API = {
   checkIn: (id, b) => api('/students/' + id + '/checkin', { method: 'POST', body: b }),
   checkOut: (id, b) => api('/students/' + id + '/checkout', { method: 'POST', body: b }),
   suaNgayTra: (id, b) => api('/students/' + id + '/checkout-date', { method: 'PUT', body: b }),
+  roomStays: id => api('/rooms/' + id + '/stays'),
   transfer: (id, b) => api('/students/' + id + '/transfer', { method: 'POST', body: b }),
   setAccount: (id, b) => api('/students/' + id + '/account', { method: 'POST', body: b }),
   setDeposit: (id, b) => api('/students/' + id + '/deposit', { method: 'POST', body: b }),

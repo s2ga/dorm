@@ -1,12 +1,32 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 	"ktx/internal/auth"
 	"ktx/internal/db"
+	"ktx/internal/scope"
 )
+
+// staysChuyenPhong: lượt này kết thúc rồi CÙNG học viên mở lượt mới ở phòng KHÁC ngay hôm sau
+// (Transfer đóng lượt cũ ở D-1 rồi mở lượt mới ở D) -> chuyển phòng, không phải trả phòng hẳn.
+const staysChuyenPhong = `(SELECT 1 FROM room_stays n
+     WHERE n.student_id = rs.student_id AND n.id <> rs.id
+       AND rs.to_date IS NOT NULL
+       AND n.from_date BETWEEN rs.to_date AND rs.to_date + 1
+       AND n.room_id IS DISTINCT FROM rs.room_id
+     ORDER BY n.from_date, n.id LIMIT 1)`
+
+const staysPhongKe = `(SELECT COALESCE(r2.name,'') FROM room_stays n2
+     LEFT JOIN rooms r2 ON r2.id = n2.room_id
+     WHERE n2.student_id = rs.student_id AND n2.id <> rs.id
+       AND rs.to_date IS NOT NULL
+       AND n2.from_date BETWEEN rs.to_date AND rs.to_date + 1
+       AND n2.room_id IS DISTINCT FROM rs.room_id
+     ORDER BY n2.from_date, n2.id LIMIT 1)`
 
 // StudentStays: GET /api/students/:id/stays — lịch sử ở của HV, đọc từ room_stays (nguồn sự thật
 // về ở/rời — thứ tính tiền dùng). Mỗi lượt kèm ghi chú nhật ký khớp ngày; NULL = không có nhật ký,
@@ -33,10 +53,72 @@ func (h *Handlers) StudentStays(c *gin.Context) {
 		        (SELECT COALESCE(l.note,'') FROM logs l
 		          WHERE l.student_id = rs.student_id AND l.type = 'out'
 		            AND rs.to_date IS NOT NULL AND l.date BETWEEN rs.to_date AND rs.to_date + 1
-		          ORDER BY l.id LIMIT 1) AS log_ra
+		          ORDER BY l.id LIMIT 1) AS log_ra,
+		        `+staysChuyenPhong+` IS NOT NULL AS chuyen_phong,
+		        `+staysPhongKe+` AS phong_ke
 		   FROM room_stays rs LEFT JOIN rooms r ON r.id = rs.room_id
 		  WHERE rs.student_id = $1
 		  ORDER BY rs.from_date, rs.id`, id)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	stays, err := db.RowsToMaps(rows)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"stays": stays})
+}
+
+// roomsFacilityGuard: phòng /:id phải thuộc cơ sở của người dùng. Giống studentsFacilityGuard.
+func (h *Handlers) roomsFacilityGuard(c *gin.Context, u *auth.User, idStr string) bool {
+	if scope.IsExecutive(u) {
+		return true
+	}
+	if !studentsIsDigits(idStr) {
+		return true
+	}
+	var fid *int
+	err := h.pool().QueryRow(c.Request.Context(), "SELECT facility_id FROM rooms WHERE id=$1", idStr).Scan(&fid)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return true
+		}
+		serverErr(c)
+		return false
+	}
+	if fe := scope.AssertFacility(u, fid); fe != nil {
+		c.JSON(fe.Status, gin.H{"error": fe.Error})
+		return false
+	}
+	return true
+}
+
+// RoomStays: GET /api/rooms/:id/stays — ai đã từng ở phòng này, vào/rời ngày nào. Mới nhất trước.
+// KHÔNG lọc students.deleted_at: hồ sơ bị khoá vẫn là người đã ở thật, bỏ đi là mất dấu lịch sử
+// và lệch phần chia tiền điện theo ngày ở.
+func (h *Handlers) RoomStays(c *gin.Context) {
+	u := auth.CurrentUser(c)
+	if !h.roomsFacilityGuard(c, u, c.Param("id")) {
+		return
+	}
+	id, ok := paramInt(c, "id")
+	if !ok {
+		notFound(c, "Không tìm thấy phòng")
+		return
+	}
+	ctx := c.Request.Context()
+	rows, err := h.pool().Query(ctx,
+		`SELECT rs.id, rs.student_id, COALESCE(s.name,'') AS student_name, COALESCE(s.code,'') AS student_code,
+		        to_char(rs.from_date,'YYYY-MM-DD') AS from_date,
+		        to_char(rs.to_date,'YYYY-MM-DD')   AS to_date,
+		        (s.deleted_at IS NOT NULL) AS da_khoa,
+		        `+staysChuyenPhong+` IS NOT NULL AS chuyen_phong,
+		        `+staysPhongKe+` AS phong_ke
+		   FROM room_stays rs LEFT JOIN students s ON s.id = rs.student_id
+		  WHERE rs.room_id = $1
+		  ORDER BY rs.from_date DESC, rs.id DESC`, id)
 	if err != nil {
 		serverErr(c)
 		return
