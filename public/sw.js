@@ -1,6 +1,6 @@
 // Service worker: ưu tiên MẠNG cho giao diện (luôn có bản mới nhất khi online),
 // dùng cache làm dự phòng khi offline. API luôn lấy trực tiếp từ mạng.
-const CACHE = 'ktx-shell-v238';
+const CACHE = 'ktx-shell-v240';
 // Số phiên bản SUY RA TỪ TÊN CACHE — không ghi tay lần thứ hai (lệch với index.html là tải sẵn nguyên
 // bộ asset cũ mà không dùng tới). tests/unit/version.test.js canh việc này.
 const V = (CACHE.match(/-v(\d+)$/) || [, '1'])[1];
@@ -28,6 +28,16 @@ self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET') return;
   if (url.pathname.startsWith('/api/')) return; // API: luôn qua mạng
+
+  // Bộ đọc biển số (~16MB) là tệp BẤT BIẾN, đã gắn ?v= nên đổi bản là đổi URL.
+  // Phải cache-first: để network-first thì mỗi lần bảo vệ mở màn quét là tải lại 16MB.
+  if (url.pathname.startsWith('/vendor/')) {
+    e.respondWith(caches.match(e.request).then(c => c || fetch(e.request).then(res => {
+      if (res && res.status === 200) { const copy = res.clone(); caches.open(CACHE).then(k => k.put(e.request, copy)); }
+      return res;
+    })));
+    return;
+  }
 
   // Giao diện: network-first → luôn cập nhật khi online, cache khi offline
   e.respondWith(

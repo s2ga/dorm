@@ -28,6 +28,7 @@ async function viewServices() {
     window._detailVehicles = allVeh;   // vehicleForm tra lại bản ghi khi bấm sửa
     el('svcBody').innerHTML = `<div class="panel"><div class="hd"><h2>${IC.bike} Gửi xe — HV đang ở (<span id="vehCount">${totalVeh}</span> xe)</h2>
       <div class="search"><span class="i">${IC.search}</span><input id="vs" placeholder="Tìm biển số, loại, chủ xe, phòng..." value="${esc(vehSearch)}"></div>
+      <button class="btn sm" data-act="pkBaoCaoForm">${IC.history} Lịch sử gửi xe</button>
       <button class="btn sm pri" data-act="vehicleForm" data-args='[0, 0]'>${IC.plus} Thêm xe</button></div>
       <div class="table-wrap">${totalVeh ? `<table><thead><tr><th>Biển số</th><th>Loại xe</th><th>Mã dán</th><th>Chủ xe</th><th>Phòng</th><th>Hiệu lực</th><th></th></tr></thead><tbody>
         ${veh.map(v => `<tr data-s="${esc((v.plate + ' ' + (v.vehicle_type || '') + ' ' + (v.student_name || '') + ' ' + (v.room_name || '') + ' ' + (v.sticker || '')).toLowerCase())}">

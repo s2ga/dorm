@@ -129,6 +129,15 @@ const API = {
   updateVehicle: (id, b) => api('/vehicles/' + id, { method: 'PUT', body: b }),
   deleteVehicle: id => api('/vehicles/' + id, { method: 'DELETE' }),
 
+  // Điểm danh bãi xe (an ninh đi kiểm hằng ngày)
+  parkingList: date => api('/maintenance/parking?date=' + encodeURIComponent(date || '') + facAmp(true)),
+  parkingMark: b => api('/maintenance/parking/mark', { method: 'POST', body: b }),
+  parkingStranger: b => api('/maintenance/parking/stranger', { method: 'POST', body: b }),
+  parkingFinish: date => api('/maintenance/parking/finish', { method: 'POST', body: { date } }),
+  parkingUndo: id => api('/maintenance/parking/' + id, { method: 'DELETE' }),
+  parkingReport: (from, to) => api('/maintenance/parking/report?from=' + encodeURIComponent(from || '')
+    + '&to=' + encodeURIComponent(to || '') + facAmp(true)),
+
   assets: () => api('/assets'),
   createAsset: b => api('/assets', { method: 'POST', body: b }),
   updateAsset: (id, b) => api('/assets/' + id, { method: 'PUT', body: b }),

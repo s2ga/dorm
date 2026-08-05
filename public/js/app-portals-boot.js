@@ -493,16 +493,26 @@ function startMaintPolling() {
     if (!Auth.user || Auth.user.role !== 'maintenance') { clearInterval(_maintTimer); _maintTimer = null; return; }
     if (document.hidden) return;
     if (el('overlay') && el('overlay').classList.contains('show')) return;  // đang mở form -> đừng đụng
+    if (maintTab !== 'viec') return;   // đang đi bãi xe -> đừng vẽ lại dưới tay người ta
     loadMaintenance();
   }, 60000);
 }
+// Cổng an ninh/bảo trì có 2 màn: hàng đợi sửa chữa + bàn giao phòng, và điểm danh bãi xe.
+let maintTab = 'viec';
+function maintGo(tab) { maintTab = tab; loadMaintenance(); }
 async function loadMaintenance() {
+  const pill = (k, ico, nhan) => `<button class="btn sm ${maintTab === k ? 'pri' : ''}" data-act="maintGo" data-args='["${k}"]'>${ico} ${nhan}</button>`;
+  el('content').innerHTML = `<div class="pill-row">${pill('viec', IC.wrench, 'Sửa chữa & bàn giao')}${pill('xe', IC.bike, 'Điểm danh bãi xe')}</div>
+    <div id="maintBody"><div class="spinner"></div></div>`;
+  return maintTab === 'xe' ? loadParkingCheck() : loadMaintViec();
+}
+async function loadMaintViec() {
   let tasks = [];
   try { tasks = await API.maintenanceTasks(); }
-  catch (e) { el('content').innerHTML = `<div class="bang-tin">${IC.alert} ${esc(e.message)}</div>`; return; }
+  catch (e) { el('maintBody').innerHTML = `<div class="bang-tin">${IC.alert} ${esc(e.message)}</div>`; return; }
   const pending = tasks.filter(t => t.status !== 'done');
   const done = tasks.filter(t => t.status === 'done');
-  el('content').innerHTML = `
+  el('maintBody').innerHTML = `
     <div class="cards">
       <div class="stat"><div class="l">${IC.bell} Bảo trì cần xử lý</div><div class="v sm" style="color:${pending.length ? 'var(--red)' : 'var(--green)'}">${pending.length}</div></div>
       <div class="stat"><div class="l">${IC.checkCircle} Đã hoàn thành</div><div class="v sm">${done.length}</div></div>
@@ -624,6 +634,529 @@ async function submitMaintBlock(id) {
   const reason = el('mt_reason').value.trim(); if (!reason) return toast('Nhập lý do chưa xử lý được', 'err');
   await guard(() => API.maintenanceTaskStatus(id, 'blocked', reason));
   closeModal(); toast('Đã ghi nhận lý do'); loadMaintenance();
+}
+
+/* ================================================================= */
+/* ==============      ĐIỂM DANH BÃI XE (an ninh)   ================= */
+/* ================================================================= */
+let pkNgay = '';            // ngày đang điểm danh (rỗng = hôm nay, server tự điền)
+let pkData = null;          // dữ liệu lượt kiểm đang mở (dùng cho tìm nhanh + gợi ý biển)
+let pkAnh = '';             // ảnh biển số vừa chụp ở form quét (data URL)
+
+// Chuẩn hoá biển số y hệt máy chủ: bỏ mọi ký tự không phải chữ/số, viết hoa.
+// "63-B4 508.58" và "63B450858" là CÙNG một xe.
+const pkChuanBien = p => String(p || '').toUpperCase().replace(/[^0-9A-Z]/g, '');
+
+async function loadParkingCheck() {
+  const body = el('maintBody'); if (!body) return;
+  let d;
+  try { d = await API.parkingList(pkNgay); }
+  catch (e) { body.innerHTML = `<div class="bang-tin">${IC.alert} ${esc(e.message)}</div>`; return; }
+  pkNgay = d.date; pkData = d;
+  const s = d.summary, laHomNay = d.date === d.hom_nay;
+  const conLai = s.chua_danh;
+
+  const hang = v => {
+    const tim = `${v.plate || ''} ${v.plate_norm || ''} ${v.student_name || ''} ${v.room_name || ''} ${v.vehicle_type || ''} ${v.sticker || ''}`.toLowerCase();
+    const nut = v.status
+      ? `<span class="badge ${v.status === 'present' ? 'green' : 'gray'}">${v.status === 'present' ? IC.checkCircle + ' Có gửi' : IC.undo + ' Không gửi'}</span>
+         <button class="btn sm ghost" title="Bỏ đánh dấu" data-act="pkBoDanhDau" data-args='[${v.check_id}]'>${IC.undo}</button>`
+      : `<button class="btn sm green" data-act="pkDanhDau" data-args='[${v.vehicle_id},"present"]'>${IC.check} Có gửi</button>
+         <button class="btn sm ghost" data-act="pkDanhDau" data-args='[${v.vehicle_id},"absent"]'>Không gửi</button>`;
+    return `<tr data-s="${esc(tim)}">
+      <td data-label="Biển số"><strong>${esc(v.plate || '—')}</strong>${v.sticker ? `<div class="muted" style="font-size:11px">Dán số ${esc(v.sticker)}</div>` : ''}</td>
+      <td data-label="Chủ xe">${esc(v.student_name || '—')}<div class="muted" style="font-size:11px">${esc(v.room_name || 'Chưa xếp phòng')}${v.vehicle_type ? ' · ' + esc(v.vehicle_type) : ''}</div></td>
+      <td class="num"><div class="rowbtns" style="justify-content:flex-end;flex-wrap:wrap;gap:4px">${nut}
+        ${v.has_photo ? `<button class="btn sm ghost" title="Xem ảnh đã chụp" data-act="pkXemAnh" data-args='[${v.check_id}]'>${IC.search}</button>` : ''}</div></td></tr>`;
+  };
+
+  body.innerHTML = `
+    <div class="cards">
+      <div class="stat"><div class="l">${IC.bike} Xe phải kiểm</div><div class="v sm">${s.tong}</div></div>
+      <div class="stat"><div class="l">${IC.checkCircle} Có gửi</div><div class="v sm" style="color:var(--green)">${s.co_mat}</div></div>
+      <div class="stat"><div class="l">${IC.undo} Không gửi</div><div class="v sm">${s.vang}</div></div>
+      <div class="stat"><div class="l">${IC.hourglass} Chưa đánh</div><div class="v sm" style="color:${conLai ? 'var(--amber-ink)' : 'var(--green)'}">${conLai}</div></div>
+    </div>
+    <div class="panel"><div class="hd">
+      <h2>${IC.bike} Điểm danh bãi xe — ${fmtDate(d.date)}${laHomNay ? ' (hôm nay)' : ''}</h2>
+      <div class="toolbar" style="flex-wrap:wrap;gap:6px">
+        <input id="pk_ngay" style="max-width:150px">
+        <button class="btn sm pri" data-act="pkCameraForm">${IC.search} Quét camera</button>
+        <button class="btn sm" data-act="pkQuetForm">${IC.pencil} Gõ biển</button>
+        <button class="btn sm" data-act="pkXeLaForm">${IC.plus} Xe lạ</button>
+        <button class="btn sm" data-act="pkBaoCaoForm">${IC.history} Báo cáo</button>
+      </div></div>
+      <div class="pad">
+        <div class="bang-tin">${IC.info} Đi hết bãi rồi bấm <strong>Chốt lượt kiểm</strong> — mọi xe chưa đánh dấu sẽ được ghi là <strong>không gửi</strong>.</div>
+        <div class="flex" style="gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">
+          <button class="btn ${conLai ? 'pri' : ''}" ${conLai ? '' : 'disabled'} data-act="pkChotLuot">${IC.check} Chốt lượt kiểm${conLai ? ` (${conLai} xe còn lại)` : ' — đã kiểm đủ'}</button>
+        </div>
+      </div>
+      <div class="search" style="margin:0 16px 10px"><span class="i">${IC.search}</span>
+        <input id="pk_tim" placeholder="Gõ vài số cuối biển, tên chủ xe hoặc phòng..."></div>
+      <div class="table-wrap card-tbl">${d.vehicles.length
+        ? `<table><thead><tr><th>Biển số</th><th>Chủ xe</th><th></th></tr></thead><tbody>
+            ${d.vehicles.map(hang).join('')}
+            <tr class="no-result" style="display:none"><td colspan="3"><div class="empty">Không tìm thấy xe phù hợp.</div></td></tr>
+          </tbody></table>`
+        : '<div class="empty">Ngày này không có xe nào đang đăng ký gửi.</div>'}</div>
+    </div>
+    <div class="panel"><div class="hd"><h2>${IC.alert} Xe lạ ghi nhận hôm nay (${d.strangers.length})</h2></div>
+      <div class="table-wrap card-tbl">${d.strangers.length
+        ? `<table><thead><tr><th>Biển số</th><th>Ghi chú</th><th>Người ghi</th><th></th></tr></thead><tbody>
+            ${d.strangers.map(x => `<tr>
+              <td data-label="Biển số"><strong>${esc(x.plate)}</strong></td>
+              <td data-label="Ghi chú" class="muted">${esc(x.note || '—')}</td>
+              <td data-label="Người ghi" class="muted">${esc(x.checked_by || '—')}</td>
+              <td class="num"><div class="rowbtns" style="justify-content:flex-end;gap:4px">
+                ${x.has_photo ? `<button class="btn sm ghost" title="Xem ảnh" data-act="pkXemAnh" data-args='[${x.id}]'>${IC.search}</button>` : ''}
+                <button class="btn sm ghost" title="Xoá bản ghi" data-act="pkBoDanhDau" data-args='[${x.id}]'>${IC.trash}</button>
+              </div></td></tr>`).join('')}
+          </tbody></table>`
+        : '<div class="empty">Chưa ghi nhận xe lạ nào.</div>'}</div>
+    </div>`;
+  attachDate(el('pk_ngay'), d.date, { max: d.hom_nay });
+  el('pk_ngay').addEventListener('change', () => { pkNgay = el('pk_ngay').dataset.iso; loadParkingCheck(); });
+  attachRowSearch(el('pk_tim'));
+}
+
+async function pkDanhDau(vehicleId, status) {
+  await guard(() => API.parkingMark({ vehicle_id: vehicleId, date: pkNgay, status }));
+  toast(status === 'present' ? 'Đã ghi: có gửi' : 'Đã ghi: không gửi');
+  loadParkingCheck();
+}
+async function pkBoDanhDau(id) {
+  if (!confirm('Bỏ ghi nhận này?')) return;
+  await guard(() => API.parkingUndo(id));
+  toast('Đã bỏ ghi nhận'); loadParkingCheck();
+}
+async function pkChotLuot() {
+  const conLai = pkData ? pkData.summary.chua_danh : 0;
+  if (!confirm(`Chốt lượt kiểm ngày ${fmtDate(pkNgay)}?\n\n${conLai} xe chưa đánh dấu sẽ được ghi là KHÔNG GỬI.`)) return;
+  const r = await guard(() => API.parkingFinish(pkNgay));
+  toast(`Đã chốt lượt · ghi ${r.da_ghi_vang} xe không gửi`);
+  loadParkingCheck();
+}
+function pkXemAnh(id) {
+  openModal(`
+    <div class="mh"><h3>${IC.search} Ảnh biển số</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mb" style="text-align:center"><img src="/api/maintenance/parking/photo/${id}" alt="Ảnh biển số"
+      style="max-width:100%;border-radius:10px" data-err="onImgFallback">
+      <div style="display:none;padding:24px" class="empty">Không tải được ảnh.</div></div>
+    <div class="mf"><button class="btn" data-act="closeModal">Đóng</button></div>`);
+}
+
+/* ---- Quét biển số: chụp ảnh + gõ vài ký tự -> app gợi ý 3 xe khớp nhất, bấm 1 lần là xong ---- */
+function pkQuetForm() {
+  pkAnh = '';
+  openModal(`
+    <div class="mh"><h3>${IC.search} Quét biển số</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mb">
+      <div class="field"><label>Ảnh biển số <span class="opt">(không bắt buộc — lưu làm bằng chứng)</span></label>
+        ${pkNutAnh('pk_cam', 'onPkCam')}
+        <div id="pk_xem" style="margin-top:8px"></div></div>
+      <div class="field"><label>Biển số — gõ vài ký tự là đủ</label>
+        <input id="pk_bien" placeholder="VD: 508 · 63B4 · 50858" autocomplete="off" data-input="onPkBien"></div>
+      <div id="pk_goiy"><div class="muted" style="font-size:13px">Gõ để tìm xe trong bãi.</div></div>
+    </div>
+    <div class="mf"><button class="btn" data-act="closeModal">Đóng</button></div>`);
+  setTimeout(() => { const i = el('pk_bien'); if (i) i.focus(); }, 60);
+}
+function onPkCam() { pkDocAnh(this, xong => { el('pk_xem').innerHTML = xong ? `<img src="${xong}" style="max-width:100%;border-radius:8px">` : ''; }); }
+
+// Ô chọn tệp gốc của trình duyệt in chữ Anh ("Choose File / No file chosen") — cả app tiếng Việt
+// thì không để một mẩu tiếng Anh giữa form. Giấu ô thật, bấm qua <label for> (CSP không chặn).
+// capture="environment": trên điện thoại mở thẳng camera sau, không phải đi vòng qua thư viện ảnh.
+function pkNutAnh(id, ham) {
+  // display/font ghi đè tại chỗ: `.field label` (styles.css:355) ép block + chữ nhỏ, nếu không nó
+  // kéo dài hết bề ngang và trông y như một ô nhập chứ không phải nút bấm.
+  return `<label class="btn" for="${id}" style="display:inline-flex;width:auto;cursor:pointer;font-size:14px;color:var(--ink);margin:0">${IC.search} Chụp ảnh biển số</label>
+    <input type="file" accept="image/*" capture="environment" id="${id}" data-change="${ham}" style="display:none">`;
+}
+
+// Ảnh máy điện thoại 3-8MB, mà body API chỉ nhận 2MB -> thu về tối đa 1280px, JPEG chất lượng 0,72.
+function pkDocAnh(input, xong) {
+  const f = input.files && input.files[0];
+  if (!f) { pkAnh = ''; return xong(''); }
+  const fr = new FileReader();
+  fr.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const canh = Math.max(img.width, img.height), ti = canh > 1280 ? 1280 / canh : 1;
+      const cv = document.createElement('canvas');
+      cv.width = Math.round(img.width * ti); cv.height = Math.round(img.height * ti);
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      pkAnh = cv.toDataURL('image/jpeg', 0.72);
+      xong(pkAnh);
+    };
+    img.onerror = () => { pkAnh = ''; toast('Không đọc được ảnh', 'err'); xong(''); };
+    img.src = String(fr.result);
+  };
+  fr.onerror = () => { pkAnh = ''; toast('Không đọc được ảnh', 'err'); xong(''); };
+  fr.readAsDataURL(f);
+}
+
+// Điểm giống nhau giữa chuỗi gõ vào và biển số. Bãi chỉ vài chục xe nên gõ 3 ký tự là đủ tách bạch;
+// khớp lệch vài ký tự vẫn ra đúng xe, và người bấm mới là người quyết định.
+function pkDiem(q, bien) {
+  if (!q) return 0;
+  if (bien === q) return 1000;
+  if (bien.indexOf(q) >= 0) return 800 + q.length * 4 - bien.indexOf(q);
+  let i = 0, khop = 0;
+  for (const ch of bien) { if (i < q.length && ch === q[i]) { i++; khop++; } }
+  if (i < q.length) return 0;                       // không chứa đủ ký tự đã gõ, theo đúng thứ tự
+  return 300 + khop * 4 - (bien.length - khop);
+}
+function onPkBien() {
+  const hop = el('pk_goiy'); if (!hop || !pkData) return;
+  const q = pkChuanBien(this.value);
+  if (!q) { hop.innerHTML = '<div class="muted" style="font-size:13px">Gõ để tìm xe trong bãi.</div>'; return; }
+  const top = pkData.vehicles
+    .map(v => ({ v, d: pkDiem(q, pkChuanBien(v.plate)) }))
+    .filter(x => x.d > 0).sort((a, b) => b.d - a.d).slice(0, 3);
+  if (!top.length) {
+    hop.innerHTML = `<div class="bang-tin">${IC.alert} Không có xe đăng ký nào khớp <strong>${esc(this.value)}</strong>.
+      <button class="btn sm danger" style="margin-left:8px" data-act="pkGhiXeLaTuQuet">${IC.plus} Ghi là xe lạ</button></div>`;
+    return;
+  }
+  hop.innerHTML = top.map(({ v }) => `
+    <div class="flex" style="justify-content:space-between;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)">
+      <div><strong>${esc(v.plate)}</strong>${v.status ? ` <span class="badge ${v.status === 'present' ? 'green' : 'gray'}">${v.status === 'present' ? 'Đã ghi: có gửi' : 'Đã ghi: không gửi'}</span>` : ''}
+        <div class="muted" style="font-size:12px">${esc(v.student_name || '—')} · ${esc(v.room_name || 'chưa xếp phòng')}</div></div>
+      <button class="btn sm green" data-act="pkQuetChon" data-args='[${v.vehicle_id}]'>${IC.check} Có gửi</button>
+    </div>`).join('')
+    + `<div style="margin-top:10px"><button class="btn sm ghost" data-act="pkGhiXeLaTuQuet">${IC.plus} Không phải xe nào ở trên — ghi là xe lạ</button></div>`;
+}
+async function pkQuetChon(vehicleId) {
+  await guard(() => API.parkingMark({ vehicle_id: vehicleId, date: pkNgay, status: 'present', photo: pkAnh || undefined }));
+  closeModal(); toast('Đã ghi: có gửi'); loadParkingCheck();
+}
+function pkGhiXeLaTuQuet() {
+  const bien = el('pk_bien') ? el('pk_bien').value.trim() : '';
+  const anh = pkAnh;
+  pkXeLaForm(bien);
+  pkAnh = anh;                                   // giữ lại tấm vừa chụp cho form xe lạ
+  if (anh && el('pk_xem2')) el('pk_xem2').innerHTML = `<img src="${anh}" style="max-width:100%;border-radius:8px">`;
+}
+
+/* ================= QUÉT BIỂN SỐ BẰNG CAMERA =================
+   Bộ đọc chạy NGAY TRÊN MÁY bảo vệ (WebAssembly), không gửi ảnh về máy chủ — nên quét được cả
+   khi mất mạng và không phải chờ máy chủ thức dậy.
+   Không có bước tự dò vùng biển: bảo vệ đưa biển vào KHUNG NGẮM, app chỉ đọc đúng vùng đó. */
+const PK_BANG_CHU = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_';
+const PK_O_CHU = 9;        // model có 9 ô ký tự
+const PK_SO_LOP = 37;      // mỗi ô chọn 1 trong 37 ký tự
+const PK_MODEL_W = 128, PK_MODEL_H = 64;
+const PK_KHUNG_TL = 1.35;  // khung ngắm rộng/cao — bằng tỉ lệ biển xe máy Việt Nam
+let _pkOrt = null;         // phiên suy luận, nạp một lần rồi giữ lại
+let _pkCam = null;         // { stream, huy } của lượt quét đang chạy
+
+// Phiên bản asset, lấy từ chính thẻ script đang nạp — khỏi phải sửa tay ở hai chỗ.
+const pkV = () => { const s = document.querySelector('script[src*="/js/"][src*="?v="]'); return s ? '?v=' + s.src.split('?v=')[1] : ''; };
+
+function pkNapScript(src) {
+  return new Promise((ok, hong) => {
+    if (window.ort) return ok();
+    const s = document.createElement('script');
+    s.src = src; s.onload = () => ok(); s.onerror = () => hong(new Error('Không tải được bộ đọc biển số'));
+    document.head.appendChild(s);
+  });
+}
+async function pkNapOrt(bao) {
+  if (_pkOrt) return _pkOrt;
+  bao('Đang tải bộ đọc biển số (chỉ lần đầu, ~15MB)…');
+  // Bản CHỈ-WASM, không phải bundle "all" — bundle all đòi thêm tệp jsep 25MB cho WebGPU mà ta không dùng.
+  await pkNapScript('/vendor/plate/ort.wasm.min.js' + pkV());
+  // Ghim tường minh từng tệp: để ORT tự đoán là nó đi tìm biến thể khác (jsep/asyncify) không có ở đây.
+  ort.env.wasm.wasmPaths = {
+    mjs: '/vendor/plate/ort-wasm-simd-threaded.mjs' + pkV(),
+    wasm: '/vendor/plate/ort-wasm-simd-threaded.wasm' + pkV(),
+  };
+  ort.env.wasm.numThreads = 1;
+  bao('Đang khởi động bộ đọc…');
+  _pkOrt = await ort.InferenceSession.create('/vendor/plate/plate-ocr.onnx' + pkV(), { executionProviders: ['wasm'] });
+  return _pkOrt;
+}
+
+// Cắt đúng vùng khung ngắm rồi nén về 128×64 — giống hệt cách đã đo được 5/5 trên ảnh thật.
+function pkLayTensor(video, khung) {
+  const cv = document.createElement('canvas');
+  cv.width = PK_MODEL_W; cv.height = PK_MODEL_H;
+  cv.getContext('2d').drawImage(video, khung.x, khung.y, khung.w, khung.h, 0, 0, PK_MODEL_W, PK_MODEL_H);
+  const px = cv.getContext('2d').getImageData(0, 0, PK_MODEL_W, PK_MODEL_H).data;   // RGBA
+  const rgb = new Uint8Array(PK_MODEL_W * PK_MODEL_H * 3);
+  for (let i = 0, j = 0; i < px.length; i += 4, j += 3) { rgb[j] = px[i]; rgb[j + 1] = px[i + 1]; rgb[j + 2] = px[i + 2]; }
+  return new ort.Tensor('uint8', rgb, [1, PK_MODEL_H, PK_MODEL_W, 3]);
+}
+function pkGiaiMa(logits) {
+  let bien = '';
+  for (let o = 0; o < PK_O_CHU; o++) {
+    let cao = -Infinity, chon = 0;
+    for (let c = 0; c < PK_SO_LOP; c++) { const v = logits[o * PK_SO_LOP + c]; if (v > cao) { cao = v; chon = c; } }
+    const ch = PK_BANG_CHU[chon];
+    if (ch !== '_') bien += ch;
+  }
+  return bien;
+}
+// Tiếng tít khi quét trúng — bảo vệ không phải nhìn màn hình.
+function pkTit(cao) {
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    const ac = new AC(), o = ac.createOscillator(), g = ac.createGain();
+    o.frequency.value = cao ? 880 : 300; o.connect(g); g.connect(ac.destination);
+    g.gain.setValueAtTime(0.12, ac.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.16);
+    o.start(); o.stop(ac.currentTime + 0.17);
+  } catch (e) { /* máy không cho phát tiếng thì thôi */ }
+}
+
+function pkCameraForm() {
+  openModal(`
+    <div class="mh"><h3>${IC.search} Quét biển số</h3><button class="x" aria-label="Đóng" data-act="pkCamDong">×</button></div>
+    <div class="mb" style="padding-top:8px">
+      <div id="pk_cam_box" style="position:relative;background:#000;border-radius:12px;overflow:hidden;aspect-ratio:3/4;max-height:56vh;margin:0 auto">
+        <video id="pk_video" playsinline autoplay muted style="width:100%;height:100%;object-fit:cover"></video>
+        <div id="pk_khung" style="position:absolute;border:3px solid #fff;border-radius:8px;box-shadow:0 0 0 9999px rgba(0,0,0,.45);pointer-events:none"></div>
+      </div>
+      <div id="pk_cam_tt" class="bang-tin" style="margin-top:10px">${IC.info} Đang chuẩn bị camera…</div>
+      <div id="pk_cam_kq" style="margin-top:8px"></div>
+      <div class="hint" style="font-size:12px">${IC.info} Đưa biển số vào trong khung trắng, giữ máy yên khoảng một giây.
+        Đọc xong app tự ghi "có gửi" và kêu một tiếng. Trời tối thì bật đèn pin điện thoại.</div>
+    </div>
+    <div class="mf">
+      <button class="btn" data-act="pkCamSangGoTay">${IC.pencil} Gõ tay thay vì quét</button>
+      <button class="btn" data-act="pkCamDong">Đóng</button>
+    </div>`);
+  pkCamChay();
+}
+function pkCamDatKhung() {
+  const box = el('pk_cam_box'), k = el('pk_khung'); if (!box || !k) return null;
+  const W = box.clientWidth, H = box.clientHeight;
+  const w = Math.round(W * 0.82), h = Math.round(w / PK_KHUNG_TL);
+  const x = Math.round((W - w) / 2), y = Math.round((H - h) / 2);
+  k.style.left = x + 'px'; k.style.top = y + 'px'; k.style.width = w + 'px'; k.style.height = h + 'px';
+  return { x, y, w, h, W, H };
+}
+async function pkCamChay() {
+  const bao = t => { const e = el('pk_cam_tt'); if (e) e.innerHTML = `${IC.info} ${esc(t)}`; };
+  // Trình duyệt CHỈ cho dùng camera ở ngữ cảnh an toàn (HTTPS hoặc localhost). Vào bằng địa chỉ IP
+  // trong mạng nội bộ thì navigator.mediaDevices không tồn tại — phải nói rõ, đừng để văng TypeError.
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    bao(location.protocol === 'https:' || location.hostname === 'localhost'
+      ? 'Trình duyệt này không hỗ trợ camera. Dùng nút "Gõ tay thay vì quét" bên dưới.'
+      : 'Chỉ quét được khi vào app bằng địa chỉ https:// (đang vào bằng ' + location.protocol + '//' + location.hostname + '). Dùng nút "Gõ tay thay vì quét" bên dưới.');
+    return;
+  }
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } } });
+  } catch (e) {
+    const n = e && e.name;
+    bao(n === 'NotAllowedError' ? 'Bạn đã từ chối quyền dùng camera. Mở lại quyền trong cài đặt trình duyệt rồi thử lại.'
+      : n === 'NotFoundError' ? 'Máy này không có camera. Dùng nút "Gõ tay thay vì quét" bên dưới.'
+      : 'Không mở được camera (' + (n || 'lỗi') + '). Dùng nút "Gõ tay thay vì quét" bên dưới.');
+    return;
+  }
+  const v = el('pk_video');
+  if (!v) { stream.getTracks().forEach(t => t.stop()); return; }
+  v.srcObject = stream;
+  _pkCam = { stream, huy: false };
+  await new Promise(r => { v.onloadedmetadata = r; setTimeout(r, 2500); });
+  try { await v.play(); } catch (e) { /* một số máy cần chạm mới phát */ }
+  pkCamDatKhung();
+
+  try { await pkNapOrt(bao); }
+  catch (e) { bao('Không tải được bộ đọc: ' + (e.message || '') + '. Dùng nút "Gõ tay thay vì quét".'); return; }
+  bao('Đưa biển vào khung trắng…');
+
+  let lanTruoc = '', daGhi = {};
+  const vong = async () => {
+    if (!_pkCam || _pkCam.huy || !el('pk_video') || !el('overlay').classList.contains('show')) return pkCamDung();
+    const khung = pkCamDatKhung();
+    if (!khung || !v.videoWidth) return setTimeout(vong, 250);
+    // Khung ngắm đang tính theo pixel của THẺ VIDEO; object-fit:cover nên phải quy về pixel ảnh gốc.
+    const ti = Math.max(khung.W / v.videoWidth, khung.H / v.videoHeight);
+    const leX = (v.videoWidth * ti - khung.W) / 2, leY = (v.videoHeight * ti - khung.H) / 2;
+    const g = { x: (khung.x + leX) / ti, y: (khung.y + leY) / ti, w: khung.w / ti, h: khung.h / ti };
+    try {
+      const out = await _pkOrt.run({ [_pkOrt.inputNames[0]]: pkLayTensor(v, g) });
+      const bien = pkGiaiMa(out[_pkOrt.outputNames[0]].data);
+      // Chốt hai lần đọc GIỐNG NHAU mới nhận — một khung hình mờ là đủ để đọc sai.
+      if (bien && bien === lanTruoc && bien.length >= 7) {
+        lanTruoc = '';
+        await pkCamNhan(bien, daGhi);
+      } else lanTruoc = bien;
+    } catch (e) { /* khung hình lỗi thì bỏ qua, thử khung sau */ }
+    setTimeout(vong, 180);
+  };
+  vong();
+}
+// Đã đọc ra chuỗi ổn định -> dò vào danh sách xe của bãi rồi tự ghi "có gửi".
+async function pkCamNhan(bien, daGhi) {
+  const kq = el('pk_cam_kq'); if (!kq || !pkData) return;
+  const top = pkData.vehicles
+    .map(x => ({ x, d: pkDiem(bien, pkChuanBien(x.plate)) }))
+    .filter(t => t.d > 0).sort((a, b) => b.d - a.d);
+  const nhat = top[0];
+  if (!nhat || nhat.d < 700) {
+    pkTit(false);
+    kq.innerHTML = `<div class="bang-tin" style="border-color:var(--amber-ink)">${IC.alert}
+      Đọc được <strong>${esc(bien)}</strong> nhưng không khớp xe nào đã đăng ký.
+      <button class="btn sm danger" style="margin-left:8px" data-act="pkCamXeLa" data-args='["${esc(bien)}"]'>${IC.plus} Ghi là xe lạ</button></div>`;
+    return;
+  }
+  const v = nhat.x;
+  if (daGhi[v.vehicle_id]) return;                       // vừa ghi xong, đừng ghi lại
+  daGhi[v.vehicle_id] = true;
+  if (v.status === 'present') {
+    pkTit(true);
+    kq.innerHTML = `<div class="bang-tin">${IC.checkCircle} <strong>${esc(v.plate)}</strong> — ${esc(v.student_name || '')} đã ghi "có gửi" từ trước.</div>`;
+    return;
+  }
+  try {
+    await API.parkingMark({ vehicle_id: v.vehicle_id, date: pkNgay, status: 'present' });
+    v.status = 'present';
+    pkTit(true);
+    kq.innerHTML = `<div class="bang-tin" style="border-color:var(--green)">${IC.checkCircle}
+      <strong>${esc(v.plate)}</strong> — ${esc(v.student_name || '')} · ${esc(v.room_name || '')} → <strong>đã ghi có gửi</strong>.
+      <span class="muted">(đọc: ${esc(bien)})</span></div>`;
+  } catch (e) {
+    pkTit(false);
+    kq.innerHTML = `<div class="bang-tin" style="border-color:var(--red)">${IC.alert} ${esc(e.message || 'Không ghi được')}</div>`;
+    delete daGhi[v.vehicle_id];
+  }
+}
+function pkCamXeLa(bien) { pkCamDung(); pkXeLaForm(bien); }
+function pkCamSangGoTay() { pkCamDung(); pkQuetForm(); }
+function pkCamDung() {
+  if (_pkCam) { _pkCam.huy = true; try { _pkCam.stream.getTracks().forEach(t => t.stop()); } catch (e) {} _pkCam = null; }
+}
+function pkCamDong() { pkCamDung(); closeModal(); loadParkingCheck(); }
+
+/* ---- Ghi nhận xe lạ (không có trong danh sách đăng ký) ---- */
+function pkXeLaForm(bienSan) {
+  if (!bienSan) pkAnh = '';
+  openModal(`
+    <div class="mh"><h3>${IC.alert} Ghi nhận xe lạ</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mb">
+      <div class="field"><label>Biển số *</label><input id="pk_la_bien" value="${esc(bienSan || '')}" placeholder="VD: 63-B4 508.58"></div>
+      <div class="field"><label>Ghi chú <span class="opt">(loại xe, màu, chỗ đậu, đã nhắc ai...)</span></label>
+        <textarea id="pk_la_note" rows="3" placeholder="VD: Xe Wave đỏ đậu sát cổng, không có mã dán"></textarea></div>
+      <div class="field"><label>Ảnh biển số <span class="opt">(không bắt buộc)</span></label>
+        ${pkNutAnh('pk_cam2', 'onPkCam2')}
+        <div id="pk_xem2" style="margin-top:8px"></div></div>
+    </div>
+    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="pkLuuXeLa">Ghi nhận</button></div>`);
+  setTimeout(() => { const i = el('pk_la_bien'); if (i && !bienSan) i.focus(); }, 60);
+}
+function onPkCam2() { pkDocAnh(this, xong => { el('pk_xem2').innerHTML = xong ? `<img src="${xong}" style="max-width:100%;border-radius:8px">` : ''; }); }
+async function pkLuuXeLa() {
+  const plate = el('pk_la_bien').value.trim();
+  if (!plate) return toast('Nhập biển số', 'err');
+  try {
+    await API.parkingStranger({ plate, date: pkNgay, note: el('pk_la_note').value.trim(), photo: pkAnh || undefined });
+  } catch (e) {
+    // Biển hoá ra đã đăng ký: mời điểm danh đúng chỗ thay vì tạo một bản ghi "xe lạ" sai.
+    const dk = e && e.status === 409 && e.data && e.data.registered;
+    if (dk) {
+      if (confirm(`${e.data.error}\n\n${dk.plate} — ${dk.student_name || ''}${dk.room_name ? ' · ' + dk.room_name : ''}\n\nĐánh dấu xe này CÓ GỬI luôn?`)) {
+        await guard(() => API.parkingMark({ vehicle_id: dk.vehicle_id, date: pkNgay, status: 'present', photo: pkAnh || undefined }));
+        closeModal(); toast('Đã ghi: có gửi'); loadParkingCheck();
+      }
+      return;
+    }
+    toast((e && e.message) || 'Có lỗi xảy ra', 'err'); return;
+  }
+  closeModal(); toast('Đã ghi nhận xe lạ'); loadParkingCheck();
+}
+
+/* ---- Báo cáo lịch sử gửi xe (dùng chung cho an ninh và quản lý) ---- */
+let pkBcTu = '', pkBcDen = '';
+function pkBaoCaoForm() {
+  const nay = today();
+  pkBcDen = pkBcDen || nay;
+  pkBcTu = pkBcTu || addDays(nay, -13);
+  openModal(`
+    <div class="mh"><h3>${IC.history} Lịch sử gửi xe</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mb">
+      <div class="flex" style="gap:8px;flex-wrap:wrap;align-items:flex-end">
+        <div class="field" style="margin:0"><label>Từ ngày</label><input id="pk_bc_tu" style="max-width:150px"></div>
+        <div class="field" style="margin:0"><label>Đến ngày</label><input id="pk_bc_den" style="max-width:150px"></div>
+        <button class="btn sm" data-act="pkBcNhanh" data-args='[7]'>7 ngày</button>
+        <button class="btn sm" data-act="pkBcNhanh" data-args='[14]'>14 ngày</button>
+        <button class="btn sm" data-act="pkBcNhanh" data-args='[30]'>30 ngày</button>
+        <button class="btn sm pri" data-act="pkBcTai">${IC.refresh} Xem</button>
+      </div>
+      <div id="pk_bc_body" style="margin-top:12px"><div class="spinner"></div></div>
+    </div>
+    <div class="mf"><button class="btn" data-act="closeModal">Đóng</button></div>`, 'x');
+  attachDate(el('pk_bc_tu'), pkBcTu, { max: nay });
+  attachDate(el('pk_bc_den'), pkBcDen, { max: nay });
+  pkBcTai();
+}
+function pkBcNhanh(n) {
+  const nay = today();
+  pkBcDen = nay; pkBcTu = addDays(nay, -(n - 1));
+  attachDate(el('pk_bc_tu'), pkBcTu, { max: nay });
+  attachDate(el('pk_bc_den'), pkBcDen, { max: nay });
+  pkBcTai();
+}
+async function pkBcTai() {
+  const hop = el('pk_bc_body'); if (!hop) return;
+  pkBcTu = el('pk_bc_tu').dataset.iso || pkBcTu;
+  pkBcDen = el('pk_bc_den').dataset.iso || pkBcDen;
+  hop.innerHTML = '<div class="spinner"></div>';
+  let d;
+  try { d = await API.parkingReport(pkBcTu, pkBcDen); }
+  catch (e) { hop.innerHTML = `<div class="bang-tin">${IC.alert} ${esc(e.message)}</div>`; return; }
+
+  const nhan = ds => { const p = ds.split('-'); return `${p[2]}/${p[1]}`; };
+  const o = st => st === 'present' ? '<span title="Có gửi" style="color:var(--green);font-weight:700">●</span>'
+    : st === 'absent' ? '<span title="Không gửi" style="color:var(--red-ink)">○</span>'
+    : '<span title="Chưa kiểm" class="muted">·</span>';
+  const tongCoMat = d.rows.reduce((a, r) => a + r.co_mat, 0);
+  const tongVang = d.rows.reduce((a, r) => a + r.vang, 0);
+  const canhBao = d.rows.filter(r => r.vang_lien_tiep >= d.alert_days);
+  const ngayChuaKiem = d.day_summary.filter(x => !x.da_kiem);
+
+  hop.innerHTML = `
+    <div class="cards">
+      <div class="stat"><div class="l">${IC.bike} Xe theo dõi</div><div class="v sm">${d.rows.length}</div></div>
+      <div class="stat"><div class="l">${IC.checkCircle} Lượt có gửi</div><div class="v sm" style="color:var(--green)">${tongCoMat}</div></div>
+      <div class="stat"><div class="l">${IC.undo} Lượt không gửi</div><div class="v sm">${tongVang}</div></div>
+      <div class="stat"><div class="l">${IC.alert} Bỏ gửi ≥ ${d.alert_days} ngày</div><div class="v sm" style="color:${canhBao.length ? 'var(--red)' : 'var(--green)'}">${canhBao.length}</div></div>
+    </div>
+    ${ngayChuaKiem.length ? `<div class="bang-tin" style="border-color:var(--amber-ink)">${IC.alert}
+      <strong>${ngayChuaKiem.length}</strong> ngày trong khoảng này không có ai đi kiểm bãi:
+      ${ngayChuaKiem.slice(0, 8).map(x => fmtDate(x.date)).join(' · ')}${ngayChuaKiem.length > 8 ? '…' : ''}</div>` : ''}
+    ${canhBao.length ? `<div class="bang-tin" style="border-color:var(--red)">${IC.alert}
+      Xe không gửi liên tiếp từ ${d.alert_days} ngày trở lên — kiểm tra lại đăng ký hoặc hỏi chủ xe:
+      ${canhBao.map(r => `<strong>${esc(r.plate)}</strong> (${esc(r.student_name || 'đã gỡ')} · ${r.vang_lien_tiep} ngày)`).join(' · ')}</div>` : ''}
+    <div class="table-wrap" style="max-height:56vh;overflow:auto">
+      ${d.rows.length ? `<table><thead><tr>
+        <th style="position:sticky;left:0;background:var(--card);z-index:2;min-width:190px">Xe · có gửi / không</th>
+        ${d.days.map(x => `<th style="text-align:center;font-size:11px;white-space:nowrap">${nhan(x)}</th>`).join('')}
+        </tr></thead><tbody>
+        ${d.rows.map(r => `<tr>
+          <td style="position:sticky;left:0;background:var(--card);min-width:190px">
+            <strong>${esc(r.plate || '—')}</strong>${r.da_go ? ' <span class="badge gray">đã gỡ</span>' : ''}
+            <span style="white-space:nowrap;margin-left:6px"><strong style="color:var(--green)">${r.co_mat}</strong><span class="muted"> / ${r.vang}</span></span>
+            ${r.vang_lien_tiep >= d.alert_days ? ` <span class="badge red" style="font-size:10px">bỏ ${r.vang_lien_tiep} ngày</span>` : ''}
+            <div class="muted" style="font-size:11px">${esc(r.student_name || '—')}${r.room_name ? ' · ' + esc(r.room_name) : ''}</div></td>
+          ${d.days.map(x => `<td style="text-align:center">${o(r.marks[x])}</td>`).join('')}
+        </tr>`).join('')}
+      </tbody></table>` : '<div class="empty">Không có xe nào trong khoảng đã chọn.</div>'}
+    </div>
+    <div class="muted" style="font-size:12px;margin-top:8px">
+      <span style="color:var(--green);font-weight:700">●</span> có gửi &nbsp;·&nbsp;
+      <span style="color:var(--red-ink)">○</span> không gửi &nbsp;·&nbsp; <span class="muted">·</span> chưa ai kiểm ngày đó
+    </div>
+    ${d.strangers.length ? `<div class="panel" style="margin-top:14px"><div class="hd"><h2>${IC.alert} Xe lạ ghi nhận trong khoảng (${d.strangers.length})</h2></div>
+      <div class="table-wrap card-tbl"><table><thead><tr><th>Ngày</th><th>Biển số</th><th>Ghi chú</th><th>Người ghi</th></tr></thead><tbody>
+        ${d.strangers.map(x => `<tr><td data-label="Ngày">${fmtDate(String(x.check_date).slice(0, 10))}</td>
+          <td data-label="Biển số"><strong>${esc(x.plate)}</strong></td>
+          <td data-label="Ghi chú" class="muted">${esc(x.note || '—')}</td>
+          <td data-label="Người ghi" class="muted">${esc(x.checked_by || '—')}</td></tr>`).join('')}
+      </tbody></table></div></div>` : ''}`;
 }
 
 /* ================= LỊCH CHỌN NGÀY (tiếng Việt, chỉ chọn) ================= */

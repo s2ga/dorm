@@ -5,8 +5,11 @@ import "github.com/gin-gonic/gin"
 
 // CSP + header bảo mật, khớp cấu hình helmet ở server/index.js:22-41.
 // scriptSrc CHỈ 'self' (không unsafe-inline) — frontend đã bỏ hết inline on* (event delegation).
+// 'wasm-unsafe-eval': CHỈ cho phép biên dịch WebAssembly, KHÔNG mở eval() của JavaScript.
+// Cần cho bộ đọc biển số chạy trên máy bảo vệ (public/vendor/plate). Không có nó thì trình duyệt
+// chặn thẳng WebAssembly.instantiate.
 const csp = "default-src 'self'; " +
-	"script-src 'self'; " +
+	"script-src 'self' 'wasm-unsafe-eval'; " +
 	"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
 	"font-src 'self' https://fonts.gstatic.com data:; " +
 	"img-src 'self' data: blob: https:; " +

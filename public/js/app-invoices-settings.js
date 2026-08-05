@@ -871,6 +871,9 @@ function viewSettings() {
         <div class="field"><label>HV tự xin trả phòng: xa nhất <span class="opt">(ngày tới)</span></label><input id="set_checkout_max_future_days" type="number" min="1" value="${esc(s.checkout_max_future_days ?? 365)}"></div>
         <div class="field"><label>Trần ảnh CCCD <span class="opt">(MB, ≤ 15)</span></label><input id="set_max_cccd_mb" type="number" min="1" max="15" value="${esc(s.max_cccd_mb ?? 12)}"></div>
       </div>
+      <div class="grid2">
+        <div class="field"><label>Báo "xe bỏ gửi" khi vắng liên tiếp <span class="opt">(ngày, dùng cho báo cáo bãi xe)</span></label><input id="set_parking_absent_alert_days" type="number" min="1" value="${esc(s.parking_absent_alert_days ?? 7)}"></div>
+      </div>
       <p class="muted" style="font-size:12px;margin:2px 0 0">${IC.info} Trần giường theo hạng gộp chung ở mục <strong>Đơn giá & quy tắc</strong> (bảng "Cấu hình theo hạng phòng").</p>
       <button class="btn pri" data-act="saveSettings">Lưu cài đặt</button>
     </div></div>
@@ -1676,7 +1679,7 @@ async function saveSettings() {
   // Ngưỡng nhắc / nghiệp vụ (Đợt 3) — gửi RAW (chuỗi) để backend validate khoảng + giữ số thập phân (0.5).
   ['overdue_remind_days', 'shortterm_max_days', 'deposit_notice_min_days', 'partial_half_factor',
     'room_cap_A', 'room_cap_B', 'room_cap_C', 'room_cap_D', 'checkout_max_future_days', 'max_cccd_mb',
-    'due_day_from', 'due_day_to',
+    'due_day_from', 'due_day_to', 'parking_absent_alert_days',
     'room_area_A', 'room_area_B', 'room_area_C', 'room_area_D']
     .forEach(k => { const inp = el('set_' + k); if (inp) body[k] = inp.value; });
   await guard(() => API.updateSettings(body));
