@@ -82,6 +82,31 @@ module.exports = {
     const xau = await t.api('PUT', `/api/students/${B}/checkout-date`, T, { date: '31/07/2026' });
     t.eq('Ngày sai khuôn → 400', xau.status, 400, `HTTP ${xau.status}`);
 
+    // ── ĐÃ CHUYỂN PHÒNG: lùi ngày về trước lần chuyển phải bị CHẶN ───────────────────
+    // Không chặn thì lượt ở phòng sau bị xoá, hồ sơ ghi một ngày còn lịch sử ở ghi ngày khác —
+    // chênh lệch đó chảy thẳng vào phần chia tiền điện của cả phòng.
+    const R2 = (await t.db.query(
+      `INSERT INTO rooms (name, facility_id, capacity, gender, hang, monthly_fee, room_type)
+       VALUES ($1,$2,4,'male','B',1200000,'shared') RETURNING id`, [P + '_R2', fac])).rows[0].id;
+    const C = await mkStu('_C');
+    await t.db.query(`INSERT INTO room_stays (student_id,room_id,from_date,to_date) VALUES ($1,$2,'2026-05-01',NULL)`, [C, R]);
+    const chuyen = await t.api('POST', `/api/students/${C}/transfer`, T, { room_id: R2, date: '2026-06-01' });
+    t.eq('Chuyển phòng → 200', chuyen.status, 200, `HTTP ${chuyen.status} ${chuyen.json && chuyen.json.error || ''}`);
+    await t.api('POST', `/api/students/${C}/checkout`, T, { date: '2026-06-20', reason: 'personal' });
+    const soLuotTruoc = (await t.db.query('SELECT count(*)::int c FROM room_stays WHERE student_id=$1', [C])).rows[0].c;
+
+    const luiQua = await t.api('PUT', `/api/students/${C}/checkout-date`, T, { date: '2026-05-15' });
+    t.eq('Lùi ngày trả về TRƯỚC lần chuyển phòng → chặn', luiQua.status, 400, `HTTP ${luiQua.status}`);
+    t.eq('Chặn rồi thì KHÔNG mất lượt ở nào', (await t.db.query(
+      'SELECT count(*)::int c FROM room_stays WHERE student_id=$1', [C])).rows[0].c, soLuotTruoc);
+    t.eq('Và hồ sơ giữ nguyên ngày trả cũ', (await hv(C)).co, '2026-06-20');
+
+    // Trong khoảng lượt cuối thì vẫn sửa được bình thường
+    const trongKhoang = await t.api('PUT', `/api/students/${C}/checkout-date`, T, { date: '2026-06-10' });
+    t.eq('Ngày mới nằm trong lượt cuối → vẫn sửa được', trongKhoang.status, 200, `HTTP ${trongKhoang.status}`);
+    t.eq('Lượt cuối dời đúng, lượt trước còn nguyên', (await t.db.query(
+      'SELECT count(*)::int c FROM room_stays WHERE student_id=$1', [C])).rows[0].c, soLuotTruoc);
+
     // ── Trường lạ trong body bị từ chối, không âm thầm bỏ qua ─────────────────────────
     const la = await t.api('PUT', `/api/students/${B}/checkout-date`, T, { date: '2026-07-11', room_id: 999 });
     t.eq('Gửi kèm trường lạ → 400, không âm thầm nuốt', la.status, 400, `HTTP ${la.status}`);

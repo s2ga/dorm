@@ -2074,6 +2074,19 @@ func (h *Handlers) UpdateCheckoutDate(c *gin.Context) {
 		badRequest(c, badDate)
 		return
 	}
+	// BadCheckoutDate chỉ soi lượt đang MỞ, mà hồ sơ đã rời thì lượt đã đóng -> nó bỏ qua.
+	// Không chặn ở đây thì lùi ngày về trước lần chuyển phòng cuối sẽ XOÁ lượt đó, để hồ sơ ghi một
+	// ngày còn lịch sử ở ghi một ngày khác — chênh lệch đó chảy thẳng vào phần chia tiền điện.
+	last, err := roomstays.LastStayOf(ctx, h.pool(), id)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	if last != nil && d < last.FromDate {
+		badRequest(c, "Ngày trả phòng ("+d+") không thể trước ngày bắt đầu lượt ở cuối ("+last.FromDate+
+			") — học viên đã chuyển phòng ngày đó. Chọn ngày ≥ ngày chuyển, hoặc sửa lại lịch sử chuyển phòng trước.")
+		return
+	}
 	roomID := intPtrFromDB(cur["room_id"])
 
 	// Chốt lại chỉ số công-tơ theo ngày MỚI — kiểm trước khi ghi, giống check-out.
