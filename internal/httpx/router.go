@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	ktxassets "ktx"
 	"ktx/internal/auth"
 	"ktx/internal/config"
 	"ktx/internal/db"
@@ -292,9 +293,8 @@ func (s *Server) serveStaticOrSPA(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Không tìm thấy"})
 		return
 	}
-	index := filepath.Join(s.Pub, "index.html")
 	if p == "/" || p == "" {
-		c.File(index)
+		s.serveIndex(c)
 		return
 	}
 	clean := filepath.Clean(p)
@@ -307,7 +307,17 @@ func (s *Server) serveStaticOrSPA(c *gin.Context) {
 			return
 		}
 	}
-	c.File(index)
+	s.serveIndex(c)
+}
+
+// serveIndex ưu tiên file trên đĩa (sửa index.html ở local là thấy ngay), thiếu thì dùng bản nhúng.
+func (s *Server) serveIndex(c *gin.Context) {
+	index := filepath.Join(s.Pub, "index.html")
+	if fi, err := os.Stat(index); err == nil && !fi.IsDir() {
+		c.File(index)
+		return
+	}
+	c.Data(http.StatusOK, "text/html; charset=utf-8", ktxassets.IndexHTML)
 }
 
 func envOr(key, def string) string {
