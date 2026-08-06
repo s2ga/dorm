@@ -425,6 +425,12 @@ select[size] option{padding:8px 9px;border-radius:8px}
   border-radius:13px;font-size:13.5px;margin-bottom:18px;line-height:1.55;overflow:hidden}
 .bang-tin .ic-svg{float:left;width:17px;height:17px;margin:1px 9px 0 0;color:var(--brand-d)}
 .bang-tin>span{display:block;overflow:hidden}
+/* Ô cảnh báo BẤM ĐƯỢC: gỡ mặc định của <button> để nó vẫn là một khối chữ, chỉ thêm dấu hiệu bấm. */
+button.bang-tin.canh-bao{font:inherit;font-size:13.5px;display:block;-webkit-appearance:none;appearance:none}
+button.bang-tin.canh-bao .ic-svg{color:inherit}
+button.bang-tin.canh-bao:hover{background:var(--amber-bg)}
+button.bang-tin.canh-bao[aria-pressed="true"]{background:var(--amber-bg);border-width:2px}
+button.bang-tin.canh-bao:focus-visible{outline:2px solid var(--amber-ink);outline-offset:2px}
 /* BL-95: note thu về một nút "Ghi chú" nhỏ; rê chuột, chạm hoặc tab tới mới bung nội dung.
    Mặt nút do gonNote() (ui.js) dựng nên luôn là ⓘ + chữ, cao 24px, không phụ thuộc note viết gì. */
 .hint{position:relative;display:inline-flex;align-items:center;gap:5px;vertical-align:middle;

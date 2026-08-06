@@ -493,18 +493,52 @@ function startMaintPolling() {
     if (!Auth.user || Auth.user.role !== 'maintenance') { clearInterval(_maintTimer); _maintTimer = null; return; }
     if (document.hidden) return;
     if (el('overlay') && el('overlay').classList.contains('show')) return;  // đang mở form -> đừng đụng
-    if (maintTab !== 'viec') return;   // đang đi bãi xe -> đừng vẽ lại dưới tay người ta
+    if (maintTab !== 'sua') return;   // đang ở tab khác -> đừng vẽ lại dưới tay người ta
     loadMaintenance();
   }, 60000);
 }
-// Cổng an ninh/bảo trì có 2 màn: hàng đợi sửa chữa + bàn giao phòng, và điểm danh bãi xe.
-let maintTab = 'viec';
-function maintGo(tab) { maintTab = tab; loadMaintenance(); }
+// Mỗi việc MỘT tab, tab nào chỉ hiện việc của tab đó. Nhồi nhiều bảng vào một màn thì trên điện
+// thoại thành cuộn vô tận, còn trên máy tính thì hai bảng cạnh nhau bị bóp cụt cột.
+let maintTab = 'nhan';
+let maintChiChuaXong = false;   // ô cảnh báo bật bộ lọc này -> bảng chỉ còn việc cần làm
+const MAINT_TABS = [
+  ['nhan', 'userCheck', 'Nhận phòng'],
+  ['tra', 'doorOpen', 'Trả phòng'],
+  ['sua', 'wrench', 'Sửa chữa'],
+  ['xe', 'bike', 'Xe'],
+];
+function maintGo(tab) {
+  if (tab !== maintTab) maintChiChuaXong = false;
+  maintTab = tab; loadMaintenance();
+}
+function maintLocChuaXong() { maintChiChuaXong = !maintChiChuaXong; loadMaintenance(); }
+// Đếm cho huy hiệu trên đầu tab. Hỏng thì bỏ huy hiệu, KHÔNG chặn cả trang.
+let _maintDem = { nhan: null, tra: null, sua: null };
+async function maintNapDem() {
+  try { const s = await API.handoverSummary(); _maintDem.nhan = s.pendingCheckin; _maintDem.tra = s.pendingCheckout; } catch {}
+  try { const s = await API.maintenanceSummary(); _maintDem.sua = s.pending; } catch {}
+}
 async function loadMaintenance() {
-  const pill = (k, ico, nhan) => `<button class="btn sm ${maintTab === k ? 'pri' : ''}" data-act="maintGo" data-args='["${k}"]'>${ico} ${nhan}</button>`;
-  el('content').innerHTML = `<div class="pill-row">${pill('viec', IC.wrench, 'Sửa chữa & bàn giao')}${pill('xe', IC.bike, 'Điểm danh bãi xe')}</div>
-    <div id="maintBody"><div class="spinner"></div></div>`;
-  return maintTab === 'xe' ? loadParkingCheck() : loadMaintViec();
+  const veTab = () => el('maintTabs') && (el('maintTabs').innerHTML = MAINT_TABS.map(([k, ico, nhan]) => {
+    const n = _maintDem[k];
+    return `<button class="btn sm ${maintTab === k ? 'pri' : ''}" data-act="maintGo" data-args='["${k}"]'>${IC[ico]} ${nhan}${
+      n ? ` <span class="badge red" style="margin-left:2px">${n}</span>` : ''}</button>`;
+  }).join(''));
+  el('content').innerHTML = `<div class="pill-row" id="maintTabs"></div><div id="maintBody"><div class="spinner"></div></div>`;
+  veTab();
+  maintNapDem().then(veTab);
+  if (maintTab === 'xe') return loadParkingCheck();
+  if (maintTab === 'sua') return loadMaintViec();
+  return loadHandovers();
+}
+// Ô cảnh báo: bấm được, bật/tắt bộ lọc "chỉ việc chưa xong". Còn việc thì màu hổ phách, hết thì xanh.
+function maintCanhBao(soViec, chuCoViec, chuXong) {
+  if (!soViec) return `<div class="bang-tin" style="border-color:var(--green);color:var(--green-ink)">${IC.checkCircle} ${chuXong}</div>`;
+  return `<button type="button" class="bang-tin canh-bao" data-act="maintLocChuaXong"
+    aria-pressed="${maintChiChuaXong}" title="Bấm để ${maintChiChuaXong ? 'xem lại tất cả' : 'chỉ xem việc chưa xong'}"
+    style="border-color:var(--amber-ink);color:var(--amber-ink);width:100%;text-align:left;cursor:pointer">
+    ${IC.bell} <span><strong>${soViec}</strong> ${chuCoViec} —
+    <u>${maintChiChuaXong ? 'đang lọc, bấm để xem tất cả' : 'bấm để xem riêng'}</u></span></button>`;
 }
 async function loadMaintViec() {
   let tasks = [];
@@ -513,13 +547,8 @@ async function loadMaintViec() {
   const pending = tasks.filter(t => t.status !== 'done');
   const done = tasks.filter(t => t.status === 'done');
   el('maintBody').innerHTML = `
-    <div class="cards">
-      <div class="stat"><div class="l">${IC.bell} Bảo trì cần xử lý</div><div class="v sm" style="color:${pending.length ? 'var(--red)' : 'var(--green)'}">${pending.length}</div></div>
-      <div class="stat"><div class="l">${IC.checkCircle} Đã hoàn thành</div><div class="v sm">${done.length}</div></div>
-    </div>
-    <div id="handoverArea"><div class="spinner"></div></div>
-    ${pending.length ? `<div class="bang-tin" style="border-color:var(--amber-ink)">${IC.bell} Bạn có <strong>${pending.length}</strong> công việc bảo trì cần xử lý.</div>` : ''}
-    <div class="panel"><div class="hd"><h2>${IC.wrench} Công việc cần xử lý</h2></div><div class="table-wrap card-tbl">
+    ${maintCanhBao(pending.length, 'việc sửa chữa chưa xong', 'Không còn việc sửa chữa nào.')}
+    <div class="panel"><div class="hd"><h2>${IC.wrench} Cần xử lý (${pending.length})</h2></div><div class="table-wrap card-tbl">
       ${pending.length ? `<table><thead><tr><th>Chuyển lúc</th><th>Phòng</th><th>Nội dung</th><th>Người báo</th><th>Trạng thái</th><th></th></tr></thead><tbody>
         ${pending.map(t => `<tr>
           <td data-label="Chuyển lúc">${fmtDate(String(t.assigned_at).slice(0, 10))}</td>
@@ -535,24 +564,21 @@ async function loadMaintViec() {
           </div></td></tr>`).join('')}
       </tbody></table>` : '<div class="empty">Không có công việc cần xử lý.</div>'}
     </div></div>
-    ${done.length ? `<div class="panel"><div class="hd"><h2>${IC.history} Đã hoàn thành (${done.length})</h2></div><div class="table-wrap">
+    ${!maintChiChuaXong && done.length ? `<div class="panel"><div class="hd"><h2>${IC.history} Đã hoàn thành (${done.length})</h2></div><div class="table-wrap card-tbl">
       <table><thead><tr><th>Xong lúc</th><th>Phòng</th><th>Nội dung</th><th>Ghi chú bảo trì</th></tr></thead><tbody>
-        ${done.map(t => `<tr><td>${fmtDate(String(t.resolved_at || t.assigned_at).slice(0, 10))}</td><td>${esc(t.room_name || '—')}</td><td>${esc(t.title)}</td><td class="muted">${esc(t.admin_note || '—')}</td></tr>`).join('')}
+        ${done.map(t => `<tr><td data-label="Xong lúc">${fmtDate(String(t.resolved_at || t.assigned_at).slice(0, 10))}</td><td data-label="Phòng">${esc(t.room_name || '—')}</td><td data-label="Nội dung">${esc(t.title)}</td><td data-label="Ghi chú" class="muted">${esc(t.admin_note || '—')}</td></tr>`).join('')}
       </tbody></table></div></div>` : ''}`;
-  loadHandovers();
 }
 /* ---- Bàn giao phòng (bảo trì xác nhận nhận/trả phòng thực tế) ---- */
 let hoMonth = '';
 async function loadHandovers(month) {
   if (month) hoMonth = month;
-  const area = el('handoverArea'); if (!area) return;
+  const area = el('maintBody'); if (!area) return;
   let d;
   try { d = await API.handovers(hoMonth); }
   catch (e) { area.innerHTML = `<div class="bang-tin">${IC.alert} ${esc(e.message)}</div>`; return; }
   hoMonth = d.month;
-  const pIn = d.checkins.filter(x => !x.checkin_confirmed_at).length;
-  const pOut = d.checkouts.filter(x => !x.checkout_confirmed_at).length;
-  const esq = s => esc(String(s || '')).replace(/'/g, '&#39;');
+  const laNhan = maintTab === 'nhan';
   const monthsList = [];
   for (let i = -1; i <= 12; i++) { const dt = new Date(); dt.setDate(1); dt.setMonth(dt.getMonth() - i); monthsList.push(dt.toISOString().slice(0, 7)); }
   const monthOpts = monthsList.map(m => `<option value="${m}" ${m === hoMonth ? 'selected' : ''}>${monthLabel(m)}</option>`).join('');
@@ -566,15 +592,25 @@ async function loadHandovers(month) {
     <td class="num">${x.checkout_confirmed_at
       ? `<span class="badge green">${IC.check} Đã trả ${fmtDate(x.checkout_actual_date)}</span>${x.checkout_confirm_note ? `<div class="muted" style="font-size:11px;white-space:normal">${esc(x.checkout_confirm_note)}</div>` : ''}`
       : `<button class="btn sm green" data-act="handoverCheckoutRow" data-args='[${x.id}]' data-hname="${esc(x.name)}" data-plandate="${esc(x.date || '')}">${IC.check} Đã trả phòng</button>`}</td></tr>`;
+
+  const tatCa = laNhan ? d.checkins : d.checkouts;
+  const xong = x => (laNhan ? x.checkin_confirmed_at : x.checkout_confirmed_at);
+  const chuaXong = tatCa.filter(x => !xong(x));
+  const hien = maintChiChuaXong ? chuaXong : tatCa;
+  const tieuDe = laNhan ? 'Nhận phòng' : 'Trả phòng';
+  const cotNgay = laNhan ? 'Ngày' : 'Ngày ĐK';
   area.innerHTML = `
-    <div class="panel"><div class="hd"><h2>${IC.key} Bàn giao phòng</h2>
-      <select data-change="onHandoverMonth" style="font-weight:600;padding:6px 8px;border-radius:8px">${monthOpts}</select></div>
-      <div class="pad"><div class="bang-tin">${IC.info} <strong>${monthLabel(hoMonth)}</strong>: ${d.checkins.length} nhận phòng (<strong>${pIn}</strong> chưa xác nhận) · ${d.checkouts.length} trả phòng (<strong>${pOut}</strong> chưa xác nhận). Xác nhận thực tế + kiểm tra tài sản, thu chìa khóa.</div></div>
-      <div class="grid2" style="align-items:start;padding:0 16px 16px;gap:16px">
-        <div><h4 style="margin:0 0 8px"><span class="dot-svg dot-green">${IC.dot}</span> Nhận phòng (${d.checkins.length})</h4>
-          <div class="table-wrap card-tbl">${d.checkins.length ? `<table><thead><tr><th>Học viên</th><th>Phòng</th><th>Ngày</th><th></th></tr></thead><tbody>${d.checkins.map(inRow).join('')}</tbody></table>` : '<div class="empty">Không có ai nhận phòng tháng này.</div>'}</div></div>
-        <div><h4 style="margin:0 0 8px"><span class="dot-svg dot-gray">${IC.dot}</span> Trả phòng (${d.checkouts.length})</h4>
-          <div class="table-wrap card-tbl">${d.checkouts.length ? `<table><thead><tr><th>Học viên</th><th>Phòng</th><th>Ngày ĐK</th><th></th></tr></thead><tbody>${d.checkouts.map(outRow).join('')}</tbody></table>` : '<div class="empty">Không có ai trả phòng tháng này.</div>'}</div></div>
+    <div class="panel"><div class="hd"><h2>${laNhan ? IC.userCheck : IC.doorOpen} ${tieuDe} — ${monthLabel(hoMonth)}</h2>
+      <select data-change="onHandoverMonth" aria-label="Chọn tháng" style="font-weight:600;padding:6px 8px;border-radius:8px;max-width:100%">${monthOpts}</select></div>
+      <div class="pad">
+        ${maintCanhBao(chuaXong.length, `học viên ${laNhan ? 'nhận' : 'trả'} phòng chưa xác nhận`,
+    `Đã xác nhận hết ${tatCa.length} lượt ${laNhan ? 'nhận' : 'trả'} phòng tháng này.`)}
+        <div class="hint">${IC.info}<span>Xác nhận thực tế: ${laNhan ? 'giao phòng, bàn giao tài sản, phát chìa khoá.' : 'kiểm tra tài sản, thu chìa khoá, ghi ngày rời thật.'}</span></div>
+      </div>
+      <div class="table-wrap card-tbl" style="padding:0 16px 16px">
+        ${hien.length ? `<table><thead><tr><th>Học viên</th><th>Phòng</th><th>${cotNgay}</th><th></th></tr></thead><tbody>
+          ${hien.map(laNhan ? inRow : outRow).join('')}</tbody></table>`
+    : `<div class="empty">${maintChiChuaXong ? 'Không còn ai chưa xác nhận.' : `Không có ai ${laNhan ? 'nhận' : 'trả'} phòng tháng này.`}</div>`}
       </div>
     </div>`;
 }
