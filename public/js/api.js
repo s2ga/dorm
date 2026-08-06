@@ -269,6 +269,8 @@ const API = {
   maintenanceTaskStatus: (id, status, note) => api('/maintenance/tasks/' + id + '/status', { method: 'POST', body: { status, note } }),
   handovers: month => api('/maintenance/handovers' + (month ? '?month=' + month : '')),
   handoverSummary: () => api('/maintenance/handovers/summary'),
+  maintSuaBienSo: (id, plate) => api('/maintenance/vehicles/' + id + '/plate', { method: 'PUT', body: { plate } }),
+  maintSuaNgayNhan: (id, date) => api('/maintenance/handovers/' + id + '/checkin-date', { method: 'PUT', body: { date } }),
   confirmHandoverCheckin: (id, note) => api('/maintenance/handovers/' + id + '/checkin', { method: 'POST', body: { note } }),
   confirmHandoverCheckout: (id, actual_date, note) => api('/maintenance/handovers/' + id + '/checkout', { method: 'POST', body: { actual_date, note } }),
   checkoutReqs: () => api('/requests/checkout' + facAmp(false)),

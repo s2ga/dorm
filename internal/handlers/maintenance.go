@@ -70,9 +70,14 @@ func (h *Handlers) MaintHandovers(c *gin.Context) {
 
 	pIn := []interface{}{month}
 	facIn := maintFacClause(u, c, &pIn, "s.facility_id")
+	// Kèm XE để an ninh đối chiếu biển thật với biển trên app ngay lúc cho nhận phòng.
 	rowsIn, err := h.pool().Query(ctx, `
 		SELECT s.id, s.name, r.name AS room_name, s.check_in_date AS date,
-		       s.checkin_confirmed_at, s.checkin_confirm_note
+		       s.checkin_confirmed_at, s.checkin_confirm_note,
+		       (SELECT COALESCE(json_agg(json_build_object(
+		                 'id', v.id, 'plate', v.plate, 'vehicle_type', v.vehicle_type
+		               ) ORDER BY v.id), '[]'::json)
+		          FROM vehicles v WHERE v.student_id = s.id AND v.deleted_at IS NULL) AS vehicles
 		FROM students s LEFT JOIN rooms r ON r.id = s.room_id
 		WHERE s.deleted_at IS NULL AND to_char(s.check_in_date,'YYYY-MM')=$1`+facIn+`
 		ORDER BY s.check_in_date, s.name`, pIn...)
@@ -203,10 +208,10 @@ func (h *Handlers) MaintHandoverCheckout(c *gin.Context) {
 	ctx := c.Request.Context()
 	// Ngày trả không thể trước ngày nhận / trước ngày bắt đầu lượt ở hiện tại (BLK-3). maintenance.routes.js:94
 	var (
-		checkIn     *time.Time
-		facID       *int
-		checkoutCA  *time.Time
-		status      string
+		checkIn    *time.Time
+		facID      *int
+		checkoutCA *time.Time
+		status     string
 	)
 	err := h.pool().QueryRow(ctx,
 		"SELECT check_in_date, facility_id, checkout_confirmed_at, status FROM students WHERE id=$1 AND deleted_at IS NULL", id).

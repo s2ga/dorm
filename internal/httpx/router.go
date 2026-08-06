@@ -201,6 +201,8 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	mnt.GET("/handovers/summary", h.MaintHandoversSummary)
 	mnt.POST("/handovers/:id/checkin", h.MaintHandoverCheckin)
 	mnt.POST("/handovers/:id/checkout", h.MaintHandoverCheckout)
+	mnt.PUT("/handovers/:id/checkin-date", h.MaintSuaNgayNhan) // đến nhận lệch ngày -> sửa tại chỗ
+	mnt.PUT("/vehicles/:id/plate", h.MaintSuaBienSo)           // biển trên app khác xe thật -> sửa tại chỗ
 	mnt.GET("/tasks", h.MaintTasks)
 	mnt.GET("/summary", h.MaintSummary)
 	mnt.POST("/tasks/:id/status", h.MaintTaskStatus)
