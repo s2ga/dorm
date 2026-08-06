@@ -13,6 +13,7 @@ function renderAdmin() {
           <button data-v="students"><span class="ico">${IC.users}</span><span class="lbl">Học viên</span></button>
           <button data-v="rooms"><span class="ico">${IC.doorOpen}</span><span class="lbl">Phòng</span></button>
           <button data-v="services"><span class="ico">${IC.sparkles}</span><span class="lbl">Dịch vụ</span></button>
+          <button data-v="hoso"><span class="ico">${IC.fileText}</span><span class="lbl">Hồ sơ lưu trữ</span></button>
           <div class="grp">Vận hành</div>
           <button data-v="checkin"><span class="ico">${IC.key}</span><span class="lbl">Check-in / out</span></button>
           <button data-v="invoices"><span class="ico">${IC.wallet}</span><span class="lbl">Tiền phòng</span></button>
@@ -57,7 +58,7 @@ function renderAdmin() {
   startTableResize();
   // Màn ban đầu: ƯU TIÊN đường dẫn (deep-link /hoc-vien...), rồi tới ?view= cũ (giữ tương thích link cũ),
   // cuối cùng mặc định Tổng quan. adminGo lần đầu dùng {replace} để không tạo bước lịch sử thừa.
-  const views = ['exec', 'dashboard', 'students', 'rooms', 'vehicles', 'services', 'checkin', 'invoices', 'revenue', 'reg', 'checkout', 'repair', 'violations', 'feedback', 'requests', 'audit', 'settings'];
+  const views = ['exec', 'dashboard', 'students', 'rooms', 'vehicles', 'services', 'hoso', 'checkin', 'invoices', 'revenue', 'reg', 'checkout', 'repair', 'violations', 'feedback', 'requests', 'audit', 'settings'];
   const legacy = new URLSearchParams(location.search).get('view');
   const fromPath = viewFromPath(location.pathname);
   // Ưu tiên đường dẫn khi nó chỉ tới một màn CỤ THỂ; còn '/' (→ dashboard) hoặc path lạ thì mới xét
@@ -297,6 +298,7 @@ function _escDrawer(e) { if (e.key === 'Escape' && document.querySelector('.side
    nên đổi URL không cần thêm gì ở server. '/' = Tổng quan (mặc định). */
 const VIEW_PATHS = {
   dashboard: '/', exec: '/dieu-hanh', students: '/hoc-vien', rooms: '/phong', services: '/dich-vu',
+  hoso: '/ho-so',
   checkin: '/check-in', invoices: '/tien-phong', revenue: '/doanh-thu', reg: '/dang-ky-noi-tru',
   checkout: '/tra-phong', repair: '/bao-hong', violations: '/vi-pham', feedback: '/gop-y',
   audit: '/lich-su', settings: '/cai-dat',
@@ -495,7 +497,7 @@ function adminGo(view, opts) {
     history.pushState({ view, d: navDepth() + 1 }, '', target);      // điều hướng thường -> sâu thêm 1 bước
   }
   updateBackBtn();  // BL-58: hiện/ẩn nút Quay lại theo độ sâu điều hướng
-  const _vp = ({ exec: viewExec, dashboard: viewDashboard, students: viewStudents, rooms: viewRooms, services: viewServices, checkin: viewCheckin, invoices: viewInvoices, revenue: viewRevenue, reg: viewRequests, checkout: viewRequests, repair: viewRequests, violations: viewRequests, feedback: viewRequests, audit: viewAudit, settings: viewSettings }[view])();
+  const _vp = ({ exec: viewExec, dashboard: viewDashboard, students: viewStudents, rooms: viewRooms, services: viewServices, hoso: viewHoSo, checkin: viewCheckin, invoices: viewInvoices, revenue: viewRevenue, reg: viewRequests, checkout: viewRequests, repair: viewRequests, violations: viewRequests, feedback: viewRequests, audit: viewAudit, settings: viewSettings }[view])();
   // Đổi màn -> trượt vào. fromPop = đến từ Back (kể cả cử chỉ vuốt) nên vào từ TRÁI; còn lại là đi tiếp.
   if (view !== prev) navHieuUng(opts.fromPop ? 'trai' : 'phai');
   // BL-21: màn async reject (lỗi tải) -> khối lỗi + Thử lại thay vì kẹt spinner. (Các màn tự bắt lỗi nội bộ thì không reject.)

@@ -101,6 +101,7 @@ const studentsListSelect = `
     (s.cccd_front IS NOT NULL OR s.cccd_back IS NOT NULL OR s.cccd_image IS NOT NULL) AS has_cccd,
     (s.cccd_front IS NOT NULL) AS has_cccd_front,
     (s.cccd_back IS NOT NULL) AS has_cccd_back,
+    (s.contract_scan IS NOT NULL) AS has_contract_scan,
     r.name AS room_name, r.floor AS room_floor, r.gender AS room_gender, r.hang AS room_hang,
     u.username AS login_username,
     (SELECT COUNT(*) FROM vehicles v WHERE v.student_id=s.id AND v.deleted_at IS NULL)::int AS vehicle_count,

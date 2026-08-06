@@ -1,5 +1,72 @@
 // === app-services-revenue-audit.js — tach tu app.js (CHANG 4 refactor). Classic script, GIU global scope cho onclick. ===
 // KHONG doi thu tu nap trong index.html; boot()/chong-bam/click-listener nam o app-portals-boot.js (cuoi).
+/* ================== HỒ SƠ LƯU TRỮ — hợp đồng + CCCD của toàn bộ học viên ==================
+   Trước nay giấy tờ nằm rải: ảnh CCCD ở form Sửa học viên và ở khối "Hợp đồng" của thẻ chi tiết,
+   bản scan HĐ ở chỗ khác — không có màn nào trả lời "ai còn thiếu giấy tờ". */
+let hsLoc = 'all';
+function hsGo(k) { hsLoc = hsLoc === k ? 'all' : k; viewHoSo(); }
+const hsCo = (co, nhan) => co
+  ? `<span class="badge green" title="${nhan}: đã có">${IC.check}</span>`
+  : `<span class="badge gray" title="${nhan}: chưa có">—</span>`;
+async function viewHoSo() {
+  const ds = ST.students.filter(s => !s.deleted_at)
+    .sort((a, b) => (a.room_name || '').localeCompare(b.room_name || '', 'vi', { numeric: true })
+      || (a.name || '').localeCompare(b.name || '', 'vi'));
+  const coHD = s => !!String(s.contract_no || '').trim() && String(s.contract_no).trim().toLowerCase() !== 'x';
+  const duCCCD = s => s.has_cccd_front && s.has_cccd_back;
+  const thieu = s => !coHD(s) || !s.has_contract_scan || !duCCCD(s);
+  const boLoc = {
+    all: () => true,
+    thieu_hd: s => !coHD(s),
+    thieu_scan: s => !s.has_contract_scan,
+    thieu_cccd: s => !duCCCD(s),
+    thieu: thieu,
+  };
+  const list = ds.filter(boLoc[hsLoc] || boLoc.all);
+  const dem = k => ds.filter(boLoc[k]).length;
+  const pill = (k, nhan, n, mau) => `<button class="btn sm ${hsLoc === k ? 'pri' : ''}" data-act="hsGo" data-args='["${k}"]'
+    aria-pressed="${hsLoc === k}">${nhan} <span class="badge ${hsLoc === k ? '' : (mau || 'gray')}">${n}</span></button>`;
+
+  el('topActions').innerHTML = '';
+  el('content').innerHTML = `
+    <div class="cards">
+      <div class="stat"><div class="l">${IC.users} Tổng hồ sơ</div><div class="v sm">${ds.length}</div></div>
+      <div class="stat"><div class="l">${IC.fileText} Đủ giấy tờ</div><div class="v sm" style="color:var(--green)">${ds.length - dem('thieu')}</div></div>
+      <div class="stat"><div class="l">${IC.alert} Còn thiếu</div><div class="v sm" style="color:${dem('thieu') ? 'var(--red)' : 'var(--green)'}">${dem('thieu')}</div></div>
+    </div>
+    <div class="panel"><div class="hd"><h2>${IC.fileText} Hồ sơ lưu trữ — hợp đồng & CCCD (<span id="hsCount">${list.length}</span>)</h2>
+      <div class="toolbar"><div class="search"><span class="i">${IC.search}</span>
+        <input id="hsSearch" placeholder="Tìm tên HV / mã / số phòng..."></div></div></div>
+      <div class="pill-row" style="padding:12px 16px 0;margin:0">
+        ${pill('all', 'Tất cả', ds.length)}
+        ${pill('thieu', `${IC.alert} Còn thiếu gì đó`, dem('thieu'), 'red')}
+        ${pill('thieu_hd', 'Chưa có số HĐ', dem('thieu_hd'), 'amber')}
+        ${pill('thieu_scan', 'Chưa scan HĐ', dem('thieu_scan'), 'amber')}
+        ${pill('thieu_cccd', 'Thiếu CCCD', dem('thieu_cccd'), 'amber')}
+      </div>
+      <div class="table-wrap card-tbl">
+        ${list.length ? `<table><thead><tr><th>Học viên</th><th>Phòng</th><th>Số HĐ</th><th>Ngày ký</th><th>Tình trạng</th>
+          <th class="num">Scan HĐ</th><th class="num">CCCD trước</th><th class="num">CCCD sau</th></tr></thead><tbody>
+          ${list.map(s => `<tr data-s="${esc(((s.name || '') + ' ' + (s.code || '') + ' ' + (s.room_name || '') + ' ' + (s.contract_no || '')).toLowerCase())}">
+            <td><div class="flex stu-name" data-act="studentDetail" data-args='[${s.id}]' role="button" tabindex="0" title="Mở hồ sơ để xem/nộp giấy tờ">
+              <div><strong>${esc(s.name)}</strong>${s.code ? `<div class="sub2">${esc(s.code)}</div>` : ''}</div>
+              <span class="row-chev">${IC.chevronRight}</span></div></td>
+            <td data-label="Phòng">${esc(s.room_name || '—')}</td>
+            <td data-label="Số HĐ">${coHD(s) ? `<strong>${esc(s.contract_no)}</strong>` : '<span class="badge amber">chưa có</span>'}</td>
+            <td data-label="Ngày ký">${s.contract_date ? fmtDate(s.contract_date) : '<span class="muted">—</span>'}</td>
+            <td data-label="Tình trạng"><span class="badge ${CONTRACT_BADGE[s.contract_status] || 'gray'}">${CONTRACT_LABEL[s.contract_status] || '—'}</span></td>
+            <td class="num" data-label="Scan HĐ">${hsCo(s.has_contract_scan, 'Bản scan hợp đồng')}</td>
+            <td class="num" data-label="CCCD trước">${hsCo(s.has_cccd_front, 'CCCD mặt trước')}</td>
+            <td class="num" data-label="CCCD sau">${hsCo(s.has_cccd_back, 'CCCD mặt sau')}</td>
+          </tr>`).join('')}
+        </tbody></table>` : `<div class="empty">Không có hồ sơ nào khớp bộ lọc này.</div>`}
+      </div>
+      <div class="pad"><div class="hint">${IC.info}<span>Bấm vào tên học viên để mở hồ sơ — nộp hoặc xem
+        bản scan hợp đồng và ảnh CCCD ngay tại đó.</span></div></div>
+    </div>`;
+  const sb = el('hsSearch'); if (sb) attachRowSearch(sb, 'hsCount');
+}
+
 async function viewServices() {
   const occ = ST.students.filter(isOccupying);
   const washFee = +ST.settings.washing_fee || 0, parkFee = +ST.settings.parking_fee || 0;
