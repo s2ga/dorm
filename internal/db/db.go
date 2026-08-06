@@ -6,6 +6,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -18,6 +19,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 	"ktx/internal/config"
+	sqlassets "ktx/server"
 )
 
 type DB struct {
@@ -85,12 +87,11 @@ func (d *DB) Init(ctx context.Context) error {
 	}
 	fmt.Println("🐘 Dùng PostgreSQL")
 
-	schemaPath := filepath.Join(d.cfg.SchemaDir, "schema.sql")
-	schema, err := os.ReadFile(schemaPath)
+	schema, err := d.schemaSQL()
 	if err != nil {
-		return fmt.Errorf("đọc %s: %w", schemaPath, err)
+		return err
 	}
-	if err := d.execScript(ctx, string(schema)); err != nil {
+	if err := d.execScript(ctx, schema); err != nil {
 		return fmt.Errorf("áp schema.sql: %w", err)
 	}
 	if err := d.reportSchemaGuard(ctx); err != nil {
@@ -104,6 +105,26 @@ func (d *DB) Init(ctx context.Context) error {
 	}
 	fmt.Println("✅ CSDL sẵn sàng")
 	return nil
+}
+
+// schemaSQL/migrationsFS: mặc định lấy bản nhúng trong binary; đặt SCHEMA_DIR để đọc từ đĩa.
+func (d *DB) schemaSQL() (string, error) {
+	if d.cfg.SchemaDir == "" {
+		return sqlassets.SchemaSQL, nil
+	}
+	p := filepath.Join(d.cfg.SchemaDir, "schema.sql")
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return "", fmt.Errorf("đọc %s: %w", p, err)
+	}
+	return string(b), nil
+}
+
+func (d *DB) migrationsFS() (fs.FS, error) {
+	if d.cfg.SchemaDir == "" {
+		return fs.Sub(sqlassets.MigrationsFS, "migrations")
+	}
+	return os.DirFS(filepath.Join(d.cfg.SchemaDir, "migrations")), nil
 }
 
 // execScript chạy SQL NHIỀU CÂU LỆNH (schema.sql/migration) qua simple protocol của pgConn.
@@ -154,10 +175,13 @@ func (d *DB) runMigrations(ctx context.Context) error {
 		applied_at TIMESTAMPTZ NOT NULL DEFAULT now())`); err != nil {
 		return err
 	}
-	dir := filepath.Join(d.cfg.SchemaDir, "migrations")
-	entries, err := os.ReadDir(dir)
+	mfs, err := d.migrationsFS()
 	if err != nil {
 		return nil // chưa có thư mục migrations -> chưa có migration nào
+	}
+	entries, err := fs.ReadDir(mfs, ".")
+	if err != nil {
+		return nil
 	}
 	var sqlFiles, misnamed, files []string
 	for _, e := range entries {
@@ -204,7 +228,7 @@ func (d *DB) runMigrations(ctx context.Context) error {
 		if applied[f] {
 			continue
 		}
-		b, err := os.ReadFile(filepath.Join(dir, f))
+		b, err := fs.ReadFile(mfs, f)
 		if err != nil {
 			return err
 		}

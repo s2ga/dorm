@@ -22,7 +22,7 @@ type Config struct {
 	DormName      string
 
 	Port      string
-	SchemaDir string // thư mục chứa schema.sql + migrations/ (mặc định "server")
+	SchemaDir string // đọc schema.sql + migrations/ từ đĩa; trống = dùng bản nhúng trong binary
 
 	// Môi trường đang chạy: "production" | "staging" | "uat" | "development"… Chỉ dùng để KHOÁ những
 	// tiện ích chỉ được phép có ở môi trường thử (xem LaProduction).
@@ -75,7 +75,7 @@ func Load() (*Config, error) {
 		AdminPassword: os.Getenv("ADMIN_PASSWORD"),
 		DormName:      envOr("DORM_NAME", "Ký túc xá Nội trú Esuhai"),
 		Port:          envOr("PORT", "3000"),
-		SchemaDir:     envOr("SCHEMA_DIR", "server"),
+		SchemaDir:     os.Getenv("SCHEMA_DIR"),
 		AppEnv:        envOr("APP_ENV", "development"),
 
 		S3Endpoint:    os.Getenv("S3_ENDPOINT"),
