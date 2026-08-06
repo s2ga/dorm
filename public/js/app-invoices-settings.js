@@ -89,6 +89,14 @@ async function viewInvoices() {
       <div class="toolbar">
         <div class="search"><span class="i">${IC.search}</span><input id="invs" placeholder="Tìm tên HV / số phòng..." value="${esc(invSearch)}"></div>
         ${all.length ? `<button class="btn sm" data-act="exportCSV">${IC.download} Xuất Excel (CSV)</button>` : ''}</div></div>
+      ${/* invFilter đã có sẵn logic lọc nhưng CHƯA TỪNG có nút bấm — chỉ vào được bằng ?loc= trên URL. */''}
+      <div class="pill-row" style="padding:12px 16px 0;margin:0">
+        ${[['all', 'Tất cả', all.length],
+    ['unpaid', `${IC.clock} Chưa thu`, all.filter(i => i.status !== 'paid').length],
+    ['paid', `${IC.checkCircle} Đã thu`, all.filter(i => i.status === 'paid').length]]
+    .map(([k, nhan, n]) => `<button class="btn sm ${invFilter === k ? 'pri' : ''}" data-act="invLoc" data-args='["${k}"]'
+      aria-pressed="${invFilter === k}">${nhan} <span class="badge ${invFilter === k ? '' : 'gray'}">${n}</span></button>`).join('')}
+      </div>
       ${soAn ? `<div class="pad muted" style="font-size:12.5px;padding-bottom:0">${IC.info}
         ${invHienThanhVienNP ? `Đang hiện <strong>${soAn}</strong> phiếu 0 đồng của thành viên phòng thuê nguyên phòng (tiền đã gộp vào phiếu người ký hợp đồng).`
           : `Đã ẩn <strong>${soAn}</strong> phiếu 0 đồng của thành viên phòng thuê nguyên phòng — tiền gộp vào phiếu người ký hợp đồng.`}
@@ -591,6 +599,8 @@ async function saveInvoice(id) {
   closeModal(); invMonth = body.month; toast('Đã lưu hóa đơn'); viewInvoices();
 }
 function toggleThanhVienNP() { invHienThanhVienNP = !invHienThanhVienNP; viewInvoices(); }
+// Lọc theo tình trạng thu tiền. Bấm lại pill đang chọn thì trả về "tất cả".
+function invLoc(k) { invFilter = invFilter === k ? 'all' : k; viewInvoices(); }
 async function phieuBao(inv) {
   if (typeof inv !== 'object') inv = _invAll.find(x => x.id === +inv);  // nut truyen id; noi khac (sau khi sinh HD) truyen thang object
   if (!inv) return toast('Không tìm thấy hóa đơn', 'err');
