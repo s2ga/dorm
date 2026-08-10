@@ -396,7 +396,7 @@ const cgkKhoa = k => k.replace(/[^a-zA-Z0-9]/g, '_');
 function onCgkNhap() {
   const k = cgkKhoa(this.dataset.mrkey);
   const v = this.value.trim();
-  const r = cgkDoiChieu(+this.dataset.room, this.dataset.ngay, v === '' ? null : +v);
+  const r = cgkDoiChieu(+this.dataset.cgkroom, this.dataset.ngay, v === '' ? null : +v);
   for (const [ten, noiDung] of [['cuoi', r.cuoi], ['kwh', r.kwh], ['tien', r.tien]]) {
     const o = el('cgk_' + ten + '_' + k); if (o) o.innerHTML = noiDung;
   }
@@ -421,7 +421,7 @@ function chotGiuaKyHTML(month, reads, rooms) {
       <td>${m.student_id ? `<span class="stu-name" data-act="studentDetail" data-args='[${m.student_id}]' role="button" tabindex="0" title="Xem chi tiết học viên"><strong>${esc(m.student_name || '—')}</strong></span>` : esc(m.student_name || '—')}</td>
       <td>${legalEntityCell(m.student_gender)}</td>
       <td class="num"><input type="number" min="0" step="0.1" id="mr_${i}" data-mrkey="${khoa}" data-mrten="${esc((m.room_name || '') + ' · ' + fmtDate(ngay))}"
-        data-input="onCgkNhap" data-room="${m.room_id}" data-ngay="${ngay}"
+        data-input="onCgkNhap" data-cgkroom="${m.room_id}" data-ngay="${ngay}"
         placeholder="Số trên đồng hồ" style="width:110px;text-align:right"></td>
       <td class="num" id="cgk_cuoi_${cgkKhoa(khoa)}">${cgkDoiChieu(m.room_id, ngay, null).cuoi}</td>
       <td class="num" id="cgk_kwh_${cgkKhoa(khoa)}"><span class="muted">—</span></td>

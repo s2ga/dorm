@@ -154,22 +154,22 @@ func StudentElectric(ctx context.Context, database *db.DB, studentID int, month 
 	}
 
 	var sum PhanDien
-	// MỘT phòng thiếu dữ liệu là cả phép tính không tin được: trước đây phòng khác có dữ liệu sẽ
-	// bật cờ chung, phần phòng thiếu âm thầm thành 0. Nay thiếu bất kỳ phòng nào -> trả nil để
-	// bên gọi rơi xuống đường tạm tính cho TOÀN BỘ, không nuốt phần nào.
-	thieuPhong := false
+	// Phòng nào tính được thì GIỮ phần đó. Trả nil khi có phòng thiếu nghe thì chặt chẽ hơn, nhưng
+	// đường tạm tính phía sau cũng bỏ qua phòng thiếu rồi trả 0 -> RecalcInvoice ghi 0 đè lên phiếu
+	// đã phát. Thà giữ phần tính được; việc chặn phòng thiếu là của cổng ThieuDienKyDenNgay.
+	found := false
 	for _, rid := range roomIDs {
 		segs, err := RoomSegments(ctx, database, rid, month)
 		if err != nil {
 			return nil, err
 		}
 		if segs == nil {
-			thieuPhong = true
 			continue
 		}
+		found = true
 		sum.Cong(segs, studentID, unit)
 	}
-	if thieuPhong || len(roomIDs) == 0 {
+	if !found {
 		return nil, nil
 	}
 	return &sum, nil
