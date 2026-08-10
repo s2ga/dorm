@@ -9,7 +9,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
 	"ktx/internal/auth"
+	"ktx/internal/billing"
 	"ktx/internal/db"
+	"ktx/internal/invoicecalc"
+	"ktx/internal/meter"
 	"ktx/internal/scope"
 	"ktx/internal/timeutil"
 	"ktx/internal/valid"
@@ -312,7 +315,23 @@ func (h *Handlers) SaveElectricBulk(c *gin.Context) {
 		serverErr(c)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true, "saved": len(chuan), "cleared": len(xoa)})
+	// Chốt kỳ xong PHẢI tính lại: phiếu lập lúc kỳ còn dở dang đang mang số của chặng chưa đủ.
+	// SaveMeterRead đã làm việc này, thiếu ở đây thì số sai nằm lì tới khi có người bấm tay.
+	dsPhong := append([]int{}, xoa...)
+	for _, r := range chuan {
+		dsPhong = append(dsPhong, r.roomID)
+	}
+	tinhLai := 0
+	for _, rid := range dsPhong {
+		ids, e := meter.AffectedStudents(ctx, h.pool(), rid, billing.LastDay(body.Month))
+		if e != nil {
+			continue
+		}
+		for _, sid := range ids {
+			tinhLai += invoicecalc.RecalcQuanhKy(ctx, h.DB, sid, body.Month)
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "saved": len(chuan), "cleared": len(xoa), "recalculated": tinhLai})
 }
 
 // replacePhong: thay "phòng #id" bằng "phòng <tên>" như Node (regex thay thế).

@@ -133,24 +133,35 @@ func (h *Handlers) phongTrongPhamVi(ctx context.Context, c *gin.Context, u *auth
 // thieuDienCuaHV: kỳ `month` còn thiếu gì để chia điện đúng cho MỘT học viên — gom mọi phòng
 // HV từng ở trong kỳ đó. Câu trả về đã kèm tên phòng, dùng thẳng làm thông báo lỗi.
 func (h *Handlers) thieuDienCuaHV(ctx context.Context, studentID int, month string) ([]string, error) {
+	// Kèm NGÀY CUỐI học viên ở phòng đó trong kỳ: rời hoặc chuyển đi giữa kỳ thì chặng của họ khép
+	// tại đó, không cần chỉ số cuối kỳ lẫn chỉ số của người rời sau họ (owner chốt 10/08/2026).
 	rows, err := h.pool().Query(ctx,
-		`SELECT DISTINCT rs.room_id, r.name
+		`SELECT rs.room_id, r.name,
+		        bool_or(rs.to_date IS NULL OR rs.to_date >= $2) AS toi_cuoi_ky,
+		        to_char(max(rs.to_date),'YYYY-MM-DD') AS ngay_cuoi
 		   FROM room_stays rs JOIN rooms r ON r.id = rs.room_id AND r.deleted_at IS NULL
-		  WHERE rs.student_id=$1 AND rs.from_date <= $2 AND (rs.to_date IS NULL OR rs.to_date >= $3)`,
+		  WHERE rs.student_id=$1 AND rs.from_date <= $2 AND (rs.to_date IS NULL OR rs.to_date >= $3)
+		  GROUP BY rs.room_id, r.name`,
 		studentID, billing.LastDay(month), billing.FirstDay(month))
 	if err != nil {
 		return nil, err
 	}
 	type phong struct {
-		id  int
-		ten string
+		id      int
+		ten     string
+		denNgay string
 	}
 	var ds []phong
 	for rows.Next() {
 		var p phong
-		if err := rows.Scan(&p.id, &p.ten); err != nil {
+		var toiCuoiKy bool
+		var ngayCuoi *string
+		if err := rows.Scan(&p.id, &p.ten, &toiCuoiKy, &ngayCuoi); err != nil {
 			rows.Close()
 			return nil, err
+		}
+		if !toiCuoiKy && ngayCuoi != nil {
+			p.denNgay = *ngayCuoi
 		}
 		ds = append(ds, p)
 	}
@@ -160,7 +171,7 @@ func (h *Handlers) thieuDienCuaHV(ctx context.Context, studentID int, month stri
 	}
 	var out []string
 	for _, p := range ds {
-		thieu, err := invoicecalc.ThieuDienKy(ctx, h.DB, p.id, month)
+		thieu, err := invoicecalc.ThieuDienKyDenNgay(ctx, h.DB, p.id, month, p.denNgay)
 		if err != nil {
 			return nil, err
 		}

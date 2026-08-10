@@ -51,12 +51,20 @@ func RoomRoster(ctx context.Context, database *db.DB, roomID int, month string) 
 // server/invoice-calc.js:23-43
 func RoomSegments(ctx context.Context, database *db.DB, roomID int, month string) ([]billing.BuiltSegment, error) {
 	var rs, re float64
+	daChotKy := true
 	err := database.Pool.QueryRow(ctx, "SELECT reading_start, reading_end FROM electric_readings WHERE room_id=$1 AND month=$2", roomID, month).Scan(&rs, &re)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return nil, err
+		}
+		// Chưa chốt cuối kỳ: mốc đầu lấy từ chỉ số cuối kỳ TRƯỚC. Chặng nào đã có mốc đóng thì
+		// vẫn tính được — không bắt người rời giữa kỳ đợi hết tháng.
+		daChotKy = false
+		if e := database.Pool.QueryRow(ctx,
+			"SELECT reading_end FROM electric_readings WHERE room_id=$1 AND month=$2",
+			roomID, PrevMonthOf(month)).Scan(&rs); e != nil {
 			return nil, nil
 		}
-		return nil, err
 	}
 	readRows, err := database.Pool.Query(ctx,
 		"SELECT read_date, reading FROM meter_reads WHERE room_id=$1 AND read_date >= $2 AND read_date <= $3 ORDER BY read_date",
@@ -107,6 +115,9 @@ func RoomSegments(ctx context.Context, database *db.DB, roomID int, month string
 	if len(stays) == 0 {
 		return nil, nil
 	}
+	if !daChotKy {
+		return billing.BuildSegmentsDangDo(month, rs, reads, stays), nil
+	}
 	return billing.BuildSegments(month, rs, re, reads, stays), nil
 }
 
@@ -143,19 +154,22 @@ func StudentElectric(ctx context.Context, database *db.DB, studentID int, month 
 	}
 
 	var sum PhanDien
-	found := false
+	// MỘT phòng thiếu dữ liệu là cả phép tính không tin được: trước đây phòng khác có dữ liệu sẽ
+	// bật cờ chung, phần phòng thiếu âm thầm thành 0. Nay thiếu bất kỳ phòng nào -> trả nil để
+	// bên gọi rơi xuống đường tạm tính cho TOÀN BỘ, không nuốt phần nào.
+	thieuPhong := false
 	for _, rid := range roomIDs {
 		segs, err := RoomSegments(ctx, database, rid, month)
 		if err != nil {
 			return nil, err
 		}
 		if segs == nil {
+			thieuPhong = true
 			continue
 		}
-		found = true
 		sum.Cong(segs, studentID, unit)
 	}
-	if !found {
+	if thieuPhong || len(roomIDs) == 0 {
 		return nil, nil
 	}
 	return &sum, nil

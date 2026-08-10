@@ -2,6 +2,7 @@ package invoicecalc
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"ktx/internal/billing"
@@ -60,6 +61,86 @@ func ElectricLag(ctx context.Context, database *db.DB, studentID int, month stri
 		sum.Kwh += prev.Kwh
 	}
 	return sum, nil
+}
+
+// ThieuDienKyDenNgay: kỳ `month` của MỘT phòng còn thiếu gì để tính đúng phần điện của người rời
+// (hoặc chuyển đi) ngày `denNgay`. denNgay rỗng = ở tới hết kỳ -> đòi đủ như ThieuDienKy.
+// Chặng của họ khép ở denNgay nên chỉ cần: mốc đầu kỳ + mọi mốc chốt từ đầu kỳ tới denNgay.
+func ThieuDienKyDenNgay(ctx context.Context, database *db.DB, roomID int, month, denNgay string) ([]string, error) {
+	if denNgay == "" || denNgay >= billing.LastDay(month) {
+		return ThieuDienKy(ctx, database, roomID, month)
+	}
+	var one int
+	if database.Pool.QueryRow(ctx,
+		"SELECT 1 FROM electric_readings WHERE room_id=$1 AND month=$2", roomID, month).Scan(&one) == nil {
+		// Đã chốt cuối kỳ -> mốc đầu có sẵn, chỉ còn kiểm các mốc giữa kỳ.
+		return thieuMocGiuaKy(ctx, database, roomID, month, denNgay)
+	}
+	// Chưa chốt: phải có chỉ số cuối kỳ TRƯỚC làm mốc đầu, không thì không trừ ra kWh được.
+	ky := PrevMonthOf(month)
+	var mocDau float64
+	if database.Pool.QueryRow(ctx,
+		"SELECT reading_end FROM electric_readings WHERE room_id=$1 AND month=$2", roomID, ky).Scan(&mocDau) != nil {
+		return []string{"chưa chốt chỉ số cuối kỳ " + ky + " (mốc đầu để tính kỳ " + month + ")"}, nil
+	}
+	if t, e := thieuMocGiuaKy(ctx, database, roomID, month, denNgay); e != nil || len(t) > 0 {
+		return t, e
+	}
+	return mocLuiNguoc(ctx, database, roomID, month, mocDau)
+}
+
+// mocLuiNguoc: công-tơ chỉ quay tới. Mốc nào nhỏ hơn mốc trước là dữ liệu mâu thuẫn — bộ dựng chặng
+// bỏ cả phòng khi gặp, nên phải chặn ở cổng thay vì để ra phiếu 0 đồng.
+func mocLuiNguoc(ctx context.Context, database *db.DB, roomID int, month string, mocDau float64) ([]string, error) {
+	rows, err := database.Pool.Query(ctx,
+		`SELECT to_char(read_date,'YYYY-MM-DD'), reading FROM meter_reads
+		  WHERE room_id=$1 AND read_date >= $2 AND read_date <= $3 ORDER BY read_date, id`,
+		roomID, billing.FirstDay(month), billing.LastDay(month))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	truoc, tenTruoc := mocDau, "đầu kỳ"
+	for rows.Next() {
+		var ngay string
+		var so float64
+		if err := rows.Scan(&ngay, &so); err != nil {
+			return nil, err
+		}
+		if so < truoc {
+			return []string{"chỉ số ngày " + ngay + " (" + fmtSo(so) + ") NHỎ HƠN chỉ số " + tenTruoc +
+				" (" + fmtSo(truoc) + ") — công-tơ không quay lùi, sửa lại rồi mới lập phiếu"}, nil
+		}
+		truoc, tenTruoc = so, "ngày "+ngay
+	}
+	return nil, rows.Err()
+}
+
+func fmtSo(v float64) string { return strconv.FormatFloat(v, 'f', -1, 64) }
+
+// thieuMocGiuaKy: những lượt kết thúc trong [đầu kỳ, denNgay] mà chưa có chỉ số chốt.
+func thieuMocGiuaKy(ctx context.Context, database *db.DB, roomID int, month, denNgay string) ([]string, error) {
+	rows, err := database.Pool.Query(ctx,
+		`SELECT s.name, to_char(rs.to_date,'YYYY-MM-DD')
+		   FROM room_stays rs JOIN students s ON s.id = rs.student_id
+		  WHERE rs.room_id=$1 AND rs.to_date >= $2 AND rs.to_date <= $3
+		    AND NOT EXISTS (SELECT 1 FROM meter_reads m WHERE m.room_id = rs.room_id
+		                     AND m.read_date BETWEEN rs.to_date AND rs.to_date + 1)
+		  ORDER BY rs.to_date`,
+		roomID, billing.FirstDay(month), denNgay)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var thieu []string
+	for rows.Next() {
+		var ten, ngay string
+		if err := rows.Scan(&ten, &ngay); err != nil {
+			return nil, err
+		}
+		thieu = append(thieu, "thiếu chỉ số ngày "+ngay+" ("+ten+" rời phòng)")
+	}
+	return thieu, rows.Err()
 }
 
 // ThieuDienKy: kiểm kỳ `month` của MỘT phòng còn thiếu gì để chia điện đúng.

@@ -337,22 +337,52 @@ type BuiltSegment struct {
 }
 
 // BuildSegments: cắt tháng thành các chặng theo lần chốt giữa kỳ. server/billing.js:110-144
-func BuildSegments(month string, startReading, endReading float64, reads []MeterRead, stays []Stay) []BuiltSegment {
+// BuildSegmentsDangDo: kỳ CHƯA chốt chỉ số cuối — chỉ dựng chặng ĐÃ xác định (tới lần chốt giữa
+// kỳ sau cùng). kWh mỗi chặng là hiệu hai mốc liền nhau nên chúng không đổi khi kỳ đóng sổ.
+func BuildSegmentsDangDo(month string, startReading float64, reads []MeterRead, stays []Stay) []BuiltSegment {
 	mStart, mEnd := FirstDay(month), LastDay(month)
-	start, end := startReading, endReading
-
-	// lần chốt NẰM TRONG tháng và TRƯỚC ngày cuối; trùng ngày -> lấy lần sau cùng
-	type mid struct {
-		date    string
-		reading float64
+	// Kỳ chưa chốt sổ thì mốc rơi ĐÚNG ngày cuối tháng chính là mốc đóng chặng cuối — phải nhận.
+	// BuildSegments không nhận vì nó tự khép kỳ bằng một điểm tại mEnd từ chỉ số cuối kỳ.
+	mids := gomMocGiuaKy(reads, mStart, mEnd, true)
+	if len(mids) == 0 {
+		return nil
 	}
-	var mids []mid
+	var segs []BuiltSegment
+	prev, from := startReading, mStart
+	for _, p := range mids {
+		if p.reading < prev {
+			return nil // chỉ số lùi -> dữ liệu mâu thuẫn, thà không tính còn hơn tính sai
+		}
+		segs = append(segs, BuiltSegment{
+			From: from, To: p.date, Kwh: p.reading - prev,
+			Roster: rosterTrongKhoang(stays, from, p.date),
+		})
+		prev, from = p.reading, AddDays(p.date, 1)
+	}
+	out := segs[:0]
+	for _, s := range segs {
+		if s.From <= s.To {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+type mocGiuaKy struct {
+	date    string
+	reading float64
+}
+
+// gomMocGiuaKy: lần chốt NẰM TRONG tháng; trùng ngày -> lấy lần sau cùng.
+// nhanNgayCuoi=false thì bỏ mốc rơi đúng ngày cuối tháng (bên gọi tự khép kỳ bằng chỉ số cuối kỳ).
+func gomMocGiuaKy(reads []MeterRead, mStart, mEnd string, nhanNgayCuoi bool) []mocGiuaKy {
+	var mids []mocGiuaKy
 	for _, r := range reads {
 		date := r.Date
 		if len(date) > 10 {
 			date = date[:10]
 		}
-		if date < mStart || date >= mEnd {
+		if date < mStart || date > mEnd || (!nhanNgayCuoi && date == mEnd) {
 			continue
 		}
 		idx := -1
@@ -363,32 +393,43 @@ func BuildSegments(month string, startReading, endReading float64, reads []Meter
 			}
 		}
 		if idx >= 0 {
-			mids[idx] = mid{date, r.Reading}
+			mids[idx] = mocGiuaKy{date, r.Reading}
 		} else {
-			mids = append(mids, mid{date, r.Reading})
+			mids = append(mids, mocGiuaKy{date, r.Reading})
 		}
 	}
 	sort.SliceStable(mids, func(i, j int) bool { return mids[i].date < mids[j].date })
+	return mids
+}
 
-	roster := func(from, to string) []RosterEntry {
-		acc := []RosterEntry{}
-		idxOf := map[int]int{}
-		for _, s := range stays {
-			d := DaysStayedInRange(s.From, s.To, from, to)
-			if d <= 0 {
-				continue
-			}
-			if i, ok := idxOf[s.StudentID]; ok {
-				acc[i].Days += d
-			} else {
-				idxOf[s.StudentID] = len(acc)
-				acc = append(acc, RosterEntry{StudentID: s.StudentID, Days: d})
-			}
+// rosterTrongKhoang: ai ở trong khoảng [from,to] và mấy ngày. Mỗi chặng chia theo ĐÚNG người của
+// chặng đó — chặng ở phòng 4 người chia tư, chặng sau ở phòng 3 người chia ba.
+func rosterTrongKhoang(stays []Stay, from, to string) []RosterEntry {
+	acc := []RosterEntry{}
+	idxOf := map[int]int{}
+	for _, s := range stays {
+		d := DaysStayedInRange(s.From, s.To, from, to)
+		if d <= 0 {
+			continue
 		}
-		return acc
+		if i, ok := idxOf[s.StudentID]; ok {
+			acc[i].Days += d
+		} else {
+			idxOf[s.StudentID] = len(acc)
+			acc = append(acc, RosterEntry{StudentID: s.StudentID, Days: d})
+		}
 	}
+	return acc
+}
 
-	points := append(append([]mid{}, mids...), mid{date: mEnd, reading: end})
+func BuildSegments(month string, startReading, endReading float64, reads []MeterRead, stays []Stay) []BuiltSegment {
+	mStart, mEnd := FirstDay(month), LastDay(month)
+	start, end := startReading, endReading
+
+	mids := gomMocGiuaKy(reads, mStart, mEnd, false)
+	roster := func(from, to string) []RosterEntry { return rosterTrongKhoang(stays, from, to) }
+
+	points := append(append([]mocGiuaKy{}, mids...), mocGiuaKy{date: mEnd, reading: end})
 	var segs []BuiltSegment
 	prev := start
 	from := mStart
@@ -485,16 +526,16 @@ type ComputeInput struct {
 
 // Invoice: kết quả tính, tên field khớp cột hoá đơn (JSON number).
 type Invoice struct {
-	DaysStayed     int `json:"days_stayed"`
-	RoomCharge     int `json:"room_charge"`
+	DaysStayed     int     `json:"days_stayed"`
+	RoomCharge     int     `json:"room_charge"`
 	ElectricKwh    float64 `json:"electric_kwh"`
-	ElectricCharge int `json:"electric_charge"`
-	WaterCharge    int `json:"water_charge"`
-	ServiceCharge  int `json:"service_charge"`
-	WashingCharge  int `json:"washing_charge"`
-	ParkingCharge  int `json:"parking_charge"`
-	LeaderDiscount int `json:"leader_discount"`
-	RoomDiscount   int `json:"room_discount"`
+	ElectricCharge int     `json:"electric_charge"`
+	WaterCharge    int     `json:"water_charge"`
+	ServiceCharge  int     `json:"service_charge"`
+	WashingCharge  int     `json:"washing_charge"`
+	ParkingCharge  int     `json:"parking_charge"`
+	LeaderDiscount int     `json:"leader_discount"`
+	RoomDiscount   int     `json:"room_discount"`
 	// FeeDiscount: tổng giảm % của các khoản ngoài tiền phòng (nước/điện/dịch vụ/máy giặt/xe).
 	FeeDiscount int `json:"fee_discount"`
 	OtherCharge int `json:"other_charge"`
