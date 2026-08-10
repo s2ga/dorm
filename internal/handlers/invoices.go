@@ -1076,6 +1076,17 @@ func (h *Handlers) GenerateOneInvoice(c *gin.Context) {
 		badRequest(c, "Chưa lập phiếu — điện kỳ "+pmonth+" còn thiếu dữ liệu:\n"+strings.Join(thieu, "\n"))
 		return
 	}
+	// Phiếu CUỐI của người rời trong chính kỳ này còn gánh phần điện tới ngày rời -> phải chặn cả
+	// khi kỳ NÀY thiếu chỉ số, không thì phiếu ra với 8 ngày tiền phòng mà 0 đồng điện tháng đó.
+	if co := invDateStr(co); co != "" && co >= billing.FirstDay(monthStr) && co <= billing.LastDay(monthStr) {
+		if thieu, e := h.thieuDienCuaHV(ctx, sid, monthStr); e != nil {
+			serverErr(c)
+			return
+		} else if len(thieu) > 0 {
+			badRequest(c, "Chưa lập phiếu — điện kỳ "+monthStr+" (tới ngày rời "+co+") còn thiếu dữ liệu:\n"+strings.Join(thieu, "\n"))
+			return
+		}
+	}
 	kwh := 0.0
 	if roomID != nil {
 		var k *float64

@@ -38,6 +38,17 @@ module.exports = {
     await t.db.query(
       `INSERT INTO electric_readings (room_id, month, reading_start, reading_end, kwh) VALUES ($1,'2026-06',1000,1300,300)`, [R]);
 
+    const D = await mkStu('_D');
+    await t.db.query(`INSERT INTO room_stays (student_id,room_id,from_date) VALUES ($1,$2,'2026-06-01')`, [D, R]);
+    await t.api('POST', `/api/students/${D}/checkout`, T, { date: '2026-07-05', reason: 'personal' });
+    const hut = await t.api('POST', '/api/invoices/generate-one', T, { student_id: D, month: '2026-07' });
+    t.eq('QUÊN chốt chỉ số lúc rời → CHẶN, không ra phiếu thiếu điện tháng đó', hut.status, 400,
+      `HTTP ${hut.status} — ${JSON.stringify(hut.json)}`);
+    t.ok('Báo rõ là thiếu chỉ số của KỲ NÀY, tới ngày rời',
+      String((hut.json && hut.json.error) || '').includes('tới ngày rời'), String((hut.json && hut.json.error) || ''));
+    await t.db.query('DELETE FROM room_stays WHERE student_id=$1', [D]);
+    await t.db.query('DELETE FROM students WHERE id=$1', [D]);
+
     const co = await t.api('POST', `/api/students/${A}/checkout`, T,
       { date: '2026-07-08', reason: 'personal', meter_reading: 1450 });
     t.eq('Check-out kèm chốt chỉ số → 200', co.status, 200, `HTTP ${co.status} — ${(co.json && co.json.error) || ''}`);

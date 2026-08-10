@@ -909,6 +909,16 @@ func (h *Handlers) BillCheckout(c *gin.Context) {
 		badRequest(c, "Chưa lập phiếu — điện kỳ "+invoicecalc.PrevMonthOf(month)+" còn thiếu dữ liệu:\n"+strings.Join(thieu, "\n"))
 		return
 	}
+	// Rời trong chính kỳ này -> phiếu còn gánh phần điện tới ngày rời, phải đủ chỉ số kỳ NÀY.
+	if coStr != "" && coStr >= billing.FirstDay(month) && coStr <= billing.LastDay(month) {
+		if thieu, e := h.thieuDienCuaHV(ctx, sid, month); e != nil {
+			serverErr(c)
+			return
+		} else if len(thieu) > 0 {
+			badRequest(c, "Chưa lập phiếu — điện kỳ "+month+" (tới ngày rời "+coStr+") còn thiếu dữ liệu:\n"+strings.Join(thieu, "\n"))
+			return
+		}
+	}
 	// Điện lùi MỘT KỲ + phần kỳ này tới ngày rời. Kwh hiển thị = khối kỳ trước của phòng hiện tại.
 	kwh := 0.0
 	if roomID != nil {
