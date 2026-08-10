@@ -706,11 +706,15 @@ async function phieuBao(inv) {
     money(nguyenPhong ? giaHang : set.room_fee),
     `${inv.days_stayed}/${soNgayThang} ngày`,
     inv.room_charge);
-  const tongKwh = er ? Math.round((+er.reading_end - +er.reading_start) * 10) / 10 : null;
+  // Kỳ chưa chốt sổ thì reading_end còn 0 — in "910 → 0" là số vô nghĩa, phải nói thẳng là chưa chốt.
+  const daChotKy = !!er && +er.reading_end > 0 && +er.reading_end >= +er.reading_start;
+  const tongKwh = daChotKy ? Math.round((+er.reading_end - +er.reading_start) * 10) / 10 : null;
   row(chu('Tiền điện' + phu('kỳ ' + monthLabel(kyDien)), nguyenPhong ? `Tính trọn công-tơ phòng kỳ ${monthLabel(kyDien)}`
-        : `Điện thu sau một kỳ: công-tơ kỳ ${monthLabel(kyDien)} chạy ${tongKwh == null ? '—' : tongKwh} kWh, chia theo ngày ở từng chặng`),
+        : `Điện thu sau một kỳ: công-tơ kỳ ${monthLabel(kyDien)} chạy ${tongKwh == null ? 'chưa chốt sổ' : tongKwh + ' kWh'}, chia theo ngày ở từng chặng`),
     money(unit),
-    `${kwh(inv.electric_kwh)} kWh` + phu(er ? `chỉ số ${er.reading_start} → ${er.reading_end}` : ''),
+    `${kwh(inv.electric_kwh)} kWh` + phu(!er ? ''
+      : daChotKy ? `chỉ số ${er.reading_start} → ${er.reading_end}`
+        : `chỉ số đầu kỳ ${er.reading_start} · kỳ chưa chốt sổ`),
     inv.electric_charge);
   // Từng chặng của kỳ điện, cắt tại mỗi lần chốt công-tơ.
   if (!nguyenPhong && segs.length > 1) {
