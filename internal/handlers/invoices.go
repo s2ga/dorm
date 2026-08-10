@@ -510,10 +510,10 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 
 		mStart, mEnd := billing.FirstDay(body.Month), billing.LastDay(body.Month)
 
-		// Mốc lùi tới đầu KỲ ĐIỆN (M-1), không phải đầu kỳ phiếu: điện thu sau một kỳ nên người rời
-		// tháng trước vẫn còn tiền điện tháng đó, phải có phiếu kỳ này để truy thu. Lấy đúng mốc M
-		// thì 14 người rời tháng 7 không ai được lập phiếu kỳ 8 (đo trên UAT 04/08).
-		eStart0 := billing.FirstDay(pmonth0)
+		// Mốc là đầu KỲ PHIẾU. Người rời kỳ trước KHÔNG lấy phiếu kỳ này nữa: phần điện kỳ đó của họ
+		// nay nằm ngay trên PHIẾU CUỐI (ElectricLag cộng phần trong kỳ khi hồ sơ rời giữa kỳ), lập
+		// thêm phiếu kỳ sau là thu hai lần đúng một khoản.
+		eStart0 := billing.FirstDay(body.Month)
 		// Đa cơ sở: điều hành tất cả/lọc ?facility; quản lý ép cơ sở. invoices.routes.js:152-164
 		stCond := []string{"deleted_at IS NULL", "check_in_date IS NOT NULL", "check_in_date <= $1", "(check_out_date IS NULL OR check_out_date >= $2)"}
 		stParams := []interface{}{mEnd, eStart0}

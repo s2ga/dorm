@@ -60,6 +60,32 @@ func ElectricLag(ctx context.Context, database *db.DB, studentID int, month stri
 		sum.Tien += prev.Tien
 		sum.Kwh += prev.Kwh
 	}
+	// PHIẾU CUỐI của người rời trong chính kỳ này: gánh thêm phần điện của họ TRONG kỳ, tính tới
+	// ngày rời — họ không còn phiếu kỳ sau để thu lùi. Đây là thứ chỉ số chốt lúc rời đo được.
+	// Lượt ở của họ khép ở ngày rời nên StudentElectric đã tự cắt đúng phần, không cần lọc thêm.
+	if checkOut == "" {
+		return sum, nil
+	}
+	co := checkOut
+	if len(co) > 10 {
+		co = co[:10]
+	}
+	if co < billing.FirstDay(month) || co > billing.LastDay(month) {
+		return sum, nil
+	}
+	nay, err := StudentElectric(ctx, database, studentID, month, unit)
+	if err != nil {
+		return sum, err
+	}
+	if nay == nil {
+		if nay, err = StudentElectricProvisional(ctx, database, studentID, month, unit); err != nil {
+			return sum, err
+		}
+	}
+	if nay != nil {
+		sum.Tien += nay.Tien
+		sum.Kwh += nay.Kwh
+	}
 	return sum, nil
 }
 
