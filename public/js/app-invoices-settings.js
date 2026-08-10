@@ -349,12 +349,60 @@ async function renderElectricForm(month) {
       <div class="field"><label>Kỳ (tháng)</label><input id="e_month" type="month" value="${month}" data-change="onElecMonth"></div>
       <div class="hint">Nhập số đầu (lần đầu để test) và số cuối ĐỌC CUỐI KỲ. Tháng sau số đầu tự nối tiếp. Tiền điện kỳ này lên <strong>phiếu kỳ sau</strong> (tiền phòng thu trước, điện thu sau khi có số).</div>
       ${electricTable(rooms, lichSu)}
-      <div id="chot_giua_ky">${chotGiuaKyHTML(month, reads)}</div>
+      <div id="chot_giua_ky">${chotGiuaKyHTML(month, reads, rooms)}</div>
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Đóng</button><button class="btn pri" data-act="saveElectric">Lưu chỉ số điện</button></div>`);
 }
 // Chốt giữa kỳ: chỉ số công-tơ hôm HV rời/chuyển phòng, nhập bù được cho lượt đã check-out.
-function chotGiuaKyHTML(month, reads) {
+// Mốc TRƯỚC của một lần chốt = lần chốt liền trước trong kỳ, không có thì lấy chỉ số đầu kỳ.
+// kWh của chặng = chỉ số lần này trừ mốc trước; tiền = kWh × đơn giá.
+let _cgkPhong = {};
+function cgkDungMocTruoc(reads, rooms) {
+  _cgkPhong = {};
+  (rooms || []).forEach(r => {
+    _cgkPhong[r.room_id] = { dau: +r.reading_start || 0, cuoi: +r.reading_end || 0, moc: [] };
+  });
+  ((reads && reads.reads) || []).forEach(r => {
+    const p = _cgkPhong[r.room_id]; if (!p) return;
+    p.moc.push({ ngay: String(r.read_date).slice(0, 10), so: +r.reading });
+  });
+  Object.values(_cgkPhong).forEach(p => p.moc.sort((a, b) => a.ngay.localeCompare(b.ngay)));
+}
+function cgkMocTruoc(roomID, ngay) {
+  const p = _cgkPhong[roomID]; if (!p) return null;
+  let truoc = p.dau;
+  for (const m of p.moc) { if (m.ngay < ngay) truoc = m.so; }
+  return truoc;
+}
+// Trả nội dung 3 ô: chỉ số cuối kỳ · kWh của chặng · tiền của chặng.
+function cgkDoiChieu(roomID, ngay, so) {
+  const p = _cgkPhong[roomID];
+  const truoc = cgkMocTruoc(roomID, ngay);
+  const cuoi = p && p.cuoi ? p.cuoi : null;
+  const donGia = +ST.settings.electric_unit || 0;
+  const oCuoi = cuoi ? so2(cuoi) : '<span class="muted">chưa chốt</span>';
+  if (so == null || !isFinite(so) || truoc == null) {
+    return { cuoi: oCuoi, kwh: '<span class="muted">—</span>', tien: '<span class="muted">—</span>' };
+  }
+  const kwh = so - truoc;
+  const loi = kwh < 0 ? 'Nhỏ hơn mốc đầu chặng — công-tơ không quay lùi'
+    : (cuoi && so > cuoi) ? 'Lớn hơn chỉ số cuối kỳ' : '';
+  const boc = s => loi ? `<span style="color:var(--red-ink);font-weight:700" title="${esc(loi)}">${s} ${IC.alert}</span>` : s;
+  return { cuoi: oCuoi, kwh: boc(so2(kwh)), tien: boc(money(Math.round(kwh * donGia))) };
+}
+const so2 = v => (Math.round((+v || 0) * 100) / 100).toLocaleString('vi-VN');
+const cgkKhoa = k => k.replace(/[^a-zA-Z0-9]/g, '_');
+// Gõ chỉ số xong hiện ngay kWh và tiền của chặng, khỏi phải lưu rồi mới biết đúng sai.
+function onCgkNhap() {
+  const k = cgkKhoa(this.dataset.mrkey);
+  const v = this.value.trim();
+  const r = cgkDoiChieu(+this.dataset.room, this.dataset.ngay, v === '' ? null : +v);
+  for (const [ten, noiDung] of [['cuoi', r.cuoi], ['kwh', r.kwh], ['tien', r.tien]]) {
+    const o = el('cgk_' + ten + '_' + k); if (o) o.innerHTML = noiDung;
+  }
+}
+function chotGiuaKyHTML(month, reads, rooms) {
+  if (rooms) cgkDungMocTruoc(reads, rooms);
   if (reads && reads.loi) {
     return `<h4 style="margin:18px 0 6px">Chốt giữa kỳ — chỉ số hôm học viên rời phòng</h4>
       <div class="bang-tin">${IC.alert} <strong>Không đọc được danh sách chốt giữa kỳ</strong> (${esc(reads.loi)}).
@@ -372,7 +420,12 @@ function chotGiuaKyHTML(month, reads) {
       <td>${fmtDate(m.to_date)}${m.la_chuyen_phong ? ' <span class="muted">(chuyển phòng — đọc ngày ' + fmtDate(ngay) + ')</span>' : ''}</td>
       <td>${m.student_id ? `<span class="stu-name" data-act="studentDetail" data-args='[${m.student_id}]' role="button" tabindex="0" title="Xem chi tiết học viên"><strong>${esc(m.student_name || '—')}</strong></span>` : esc(m.student_name || '—')}</td>
       <td>${legalEntityCell(m.student_gender)}</td>
-      <td class="num"><input type="number" min="0" step="0.1" id="mr_${i}" data-mrkey="${khoa}" data-mrten="${esc((m.room_name || '') + ' · ' + fmtDate(ngay))}" placeholder="Số trên đồng hồ" style="width:110px;text-align:right"></td>
+      <td class="num"><input type="number" min="0" step="0.1" id="mr_${i}" data-mrkey="${khoa}" data-mrten="${esc((m.room_name || '') + ' · ' + fmtDate(ngay))}"
+        data-input="onCgkNhap" data-room="${m.room_id}" data-ngay="${ngay}"
+        placeholder="Số trên đồng hồ" style="width:110px;text-align:right"></td>
+      <td class="num" id="cgk_cuoi_${cgkKhoa(khoa)}">${cgkDoiChieu(m.room_id, ngay, null).cuoi}</td>
+      <td class="num" id="cgk_kwh_${cgkKhoa(khoa)}"><span class="muted">—</span></td>
+      <td class="num" id="cgk_tien_${cgkKhoa(khoa)}"><span class="muted">—</span></td>
       <td><button class="btn sm pri" data-act="luuChotGiuaKy" data-args='[${i},${m.room_id},"${ngay}",${m.student_id || 0}]'>Lưu</button></td>
     </tr>`;
   }).join('');
@@ -383,14 +436,19 @@ function chotGiuaKyHTML(month, reads) {
       <td>${r.student_id ? `<span class="stu-name" data-act="studentDetail" data-args='[${r.student_id}]' role="button" tabindex="0" title="Xem chi tiết học viên"><strong>${esc(r.student_name || '—')}</strong></span>` : esc(r.student_name || '—')}</td>
       <td>${legalEntityCell(r.student_gender)}</td>
       <td class="num">${esc(String(r.reading))}</td>
+      ${(dc => `<td class="num">${dc.cuoi}</td><td class="num">${dc.kwh}</td><td class="num">${dc.tien}</td>`)(
+    cgkDoiChieu(r.room_id, String(r.read_date).slice(0, 10), +r.reading))}
       <td><button class="btn sm" data-act="xoaChotGiuaKy" data-args='[${r.id}]' title="Gỡ lần chốt ghi nhầm">${IC.trash} Gỡ</button></td>
     </tr>`).join('');
   return `
     <h4 style="margin:18px 0 6px">Chốt giữa kỳ — chỉ số hôm học viên rời phòng</h4>
     ${thieu.length ? `<div class="bang-tin">${IC.alert} <strong>${thieu.length} lượt rời phòng CHƯA có chỉ số.</strong> Không nhập thì phần điện của người rời đổ sang người ở lại, và phòng bị bỏ qua khi tạo hóa đơn kỳ sau.</div>` : ''}
     <div class="table-wrap" id="chot_cuon" style="max-height:300px;overflow:auto"><table>
-      <thead><tr><th>Phòng</th><th>Ngày</th><th>Học viên rời</th><th>Mã pháp nhân</th><th class="num">Chỉ số</th><th></th></tr></thead>
-      <tbody>${dongThieu}${dongDaCo || ''}${!thieu.length && !daCo.length ? '<tr><td colspan="6" class="muted">Kỳ này không có lượt rời/chuyển phòng nào.</td></tr>' : ''}</tbody>
+      <thead><tr><th>Phòng</th><th>Ngày</th><th>Học viên rời</th><th>Mã pháp nhân</th>
+        <th class="num">Chỉ số chốt</th><th class="num">Chỉ số cuối kỳ</th>
+        <th class="num" title="Số điện của chặng từ mốc trước tới lần chốt này — của CẢ PHÒNG, chưa chia theo người">kWh chặng</th>
+        <th class="num" title="kWh chặng × đơn giá — của CẢ PHÒNG, chưa chia theo người">Tiền chặng</th><th></th></tr></thead>
+      <tbody>${dongThieu}${dongDaCo || ''}${!thieu.length && !daCo.length ? '<tr><td colspan="9" class="muted">Kỳ này không có lượt rời/chuyển phòng nào.</td></tr>' : ''}</tbody>
     </table></div>
     ${thieu.length > 1 ? `<div style="margin-top:8px;text-align:right"><button class="btn pri" data-act="luuTatCaChotGiuaKy">${IC.check} Lưu tất cả ô đã nhập</button></div>` : ''}`;
 }
@@ -402,7 +460,10 @@ async function veLaiChotGiuaKy(month) {
   const cuon = (el('chot_cuon') || {}).scrollTop || 0;
   let reads = null;
   try { reads = await API.electricReads(month); } catch (e) { reads = { loi: (e && e.message) || 'không đọc được' }; }
-  box.innerHTML = chotGiuaKyHTML(month, reads);
+  // Lấy lại chỉ số đầu/cuối kỳ: vừa lưu một mốc là mốc đầu chặng của dòng sau đã khác.
+  let rooms = null;
+  try { rooms = await API.electric(month); } catch {}
+  box.innerHTML = chotGiuaKyHTML(month, reads, rooms);
   doLaiChotGiuaKy(giu);
   if (el('chot_cuon')) el('chot_cuon').scrollTop = cuon;
 }
@@ -414,7 +475,9 @@ function giuChotGiuaKy() {
 function doLaiChotGiuaKy(m) {
   Object.entries(m || {}).forEach(([k, v]) => {
     const inp = document.querySelector(`#modal input[data-mrkey="${k}"]`);
-    if (inp) inp.value = v;
+    if (!inp) return;
+    inp.value = v;
+    onCgkNhap.call(inp);   // đổ lại ô đang gõ thì kWh/tiền phải hiện theo, không để trống lệch
   });
 }
 // Lưu MỌI ô đã nhập trong một lượt. Chốt cùng phòng phải đi theo thứ tự ngày tăng dần vì
