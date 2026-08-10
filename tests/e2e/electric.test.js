@@ -126,17 +126,17 @@ module.exports = {
         co.json && (co.json.recalced_roommates || []).includes(C1), 'tính lại cho: ' + JSON.stringify(co.json && co.json.recalced_roommates));
 
       const eC7 = await elec([C1, C2], M);
-      // Chặng 1 (01→15/07): 100kWh = 350.000, C1 và C2 mỗi người 15 ngày -> 175.000/người.
-      t.eq('Người rời 15/07: phiếu CUỐI (kỳ 07) mang đúng phần điện tới ngày rời = 175.000', eC7[C2], 175000, `được ${fmt(eC7[C2])}`);
-      t.eq('Người ở lại: phiếu kỳ 07 KHÔNG mang điện kỳ 07 (sẽ lên phiếu kỳ 08)', eC7[C1] || 0, 0, `được ${fmt(eC7[C1] || 0)}`);
+      // Owner chốt 10/08: THU LÙI THUẦN — điện kỳ 07 nằm ở phiếu kỳ 08, kể cả người rời giữa kỳ 07.
+      t.eq('Người rời 15/07: phiếu kỳ 07 KHÔNG mang điện kỳ 07 (thu lùi)', eC7[C2] || 0, 0, `được ${fmt(eC7[C2] || 0)}`);
+      t.eq('Người ở lại: phiếu kỳ 07 cũng KHÔNG mang điện kỳ 07', eC7[C1] || 0, 0, `được ${fmt(eC7[C1] || 0)}`);
 
       const gC8 = await t.api('POST', '/api/invoices/generate', T, { month: M2 });
       t.ok('Lập phiếu kỳ 08 không bỏ qua phòng test (chỉ số ngày rời ĐÃ có)', !(gC8.json.warnings || []).some(w => w.includes(P)),
         JSON.stringify((gC8.json.warnings || []).filter(w => w.includes(P))));
       const eC8 = await elec([C1, C2], M2);
       t.eq('Người ở lại nhận phần kỳ 07 trên phiếu kỳ 08 = 175.000 + 700.000', eC8[C1], 875000, `được ${fmt(eC8[C1])}`);
-      t.ok('Người ĐÃ RỜI không có phiếu kỳ 08', eC8[C2] === undefined, `C2 = ${eC8[C2]}`);
-      t.eq('TỔNG (phiếu cuối C2 + phiếu 08 C1) khớp tuyệt đối tiền điện kỳ 07', eC7[C2] + eC8[C1], 300 * UNIT,
+      t.eq('Người ĐÃ RỜI cũng nhận phần kỳ 07 trên phiếu kỳ 08 = 175.000', eC8[C2], 175000, `được ${fmt(eC8[C2])}`);
+      t.eq('TỔNG hai phiếu kỳ 08 khớp tuyệt đối tiền điện kỳ 07', eC8[C2] + eC8[C1], 300 * UNIT,
         `tổng ${fmt(eC7[C2] + eC8[C1])}`);
 
       // ===== QUÊN nhập chỉ số lúc trả phòng -> kỳ sau phòng bị BỎ QUA kèm cảnh báo,
@@ -167,12 +167,9 @@ module.exports = {
       const eD = await elec([D1, D2], M2);
       t.eq('Người ở lại = 175.000 + 700.000 (đúng chặng, không chia bừa)', eD[D1], 875000, `được ${fmt(eD[D1])}`);
 
-      // Phiếu CUỐI của người rời (kỳ 07) lấy phần tới ngày rời qua lập phiếu lẻ
-      const g1 = await t.api('POST', '/api/invoices/generate-one', T, { student_id: D2, month: M });
-      t.ok('Lập phiếu cuối cho người rời chạy được', g1.status === 200, `HTTP ${g1.status} — ${g1.json && g1.json.error}`);
-      const eD7 = await elec([D2], M);
-      t.eq('Người rời trả đúng phần mình = 175.000', eD7[D2], 175000, `được ${fmt(eD7[D2])}`);
-      t.eq('TỔNG hai người khớp tuyệt đối tiền điện kỳ 07', eD[D1] + eD7[D2], 300 * UNIT, `tổng ${fmt(eD[D1] + eD7[D2])}`);
+      // Thu lùi thuần: phần kỳ 07 của người rời nằm ở phiếu kỳ 08, không ở phiếu kỳ 07.
+      t.eq('Người rời trả đúng phần mình trên phiếu kỳ 08 = 175.000', eD[D2], 175000, `được ${fmt(eD[D2])}`);
+      t.eq('TỔNG hai người khớp tuyệt đối tiền điện kỳ 07', eD[D1] + eD[D2], 300 * UNIT, `tổng ${fmt(eD[D1] + eD[D2])}`);
 
       // ===== SỬA chỉ số giữa kỳ SAU KHI đã phát phiếu: điện kỳ 07 nằm trên phiếu kỳ 08, nên tính
       // lại phải chạm tới phiếu kỳ 08 — tính lại mỗi kỳ 07 là no-op, số sai nằm im.
@@ -185,9 +182,8 @@ module.exports = {
       const eDsua = await elec([D1, D2], M2);
       t.eq('Phiếu kỳ 08 của người Ở LẠI được tính lại theo chỉ số mới = 350.000 + 350.000',
         eDsua[D1], 700000, `được ${fmt(eDsua[D1])} · nếu vẫn 875.000 là recalc SAI KỲ`);
-      const eD7sua = await elec([D2], M);
-      t.eq('Phiếu cuối kỳ 07 của người RỜI cũng theo số mới = 350.000', eD7sua[D2], 350000, `được ${fmt(eD7sua[D2])}`);
-      t.eq('TỔNG sau khi sửa vẫn khớp tuyệt đối', eDsua[D1] + eD7sua[D2], 300 * UNIT, `tổng ${fmt(eDsua[D1] + eD7sua[D2])}`);
+      t.eq('Phiếu kỳ 08 của người RỜI cũng theo số mới = 350.000', eDsua[D2], 350000, `được ${fmt(eDsua[D2])}`);
+      t.eq('TỔNG sau khi sửa vẫn khớp tuyệt đối', eDsua[D1] + eDsua[D2], 300 * UNIT, `tổng ${fmt(eDsua[D1] + eDsua[D2])}`);
 
       // ===== Chuyển phòng có chốt chỉ số: màn Điện KHÔNG được báo "còn thiếu" (lượt cũ đóng ở D-1,
       // chỉ số ghi ở D) — báo giả sẽ mời cán bộ nhập một chỉ số bịa vào ngày sai.

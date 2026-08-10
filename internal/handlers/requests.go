@@ -527,10 +527,8 @@ type checkoutHandoverBody struct {
 }
 
 // HandoverCheckout: POST /api/requests/checkout/:id/handover (admin,staff,maintenance).
-// BL-62 GĐ2c — an ninh nhận bàn giao: đơn 'approved' -> 'handed_over'. Đây là chỗ THẬT SỰ trả phòng.
-// Nhập: đã nhận chìa khóa, hư hao (tick theo danh mục — server tự tính từ assets.fee), số điện chốt.
-// App: HV -> đã trả phòng, chốt công-tơ, đóng lượt ở/phòng trưởng/dọn phiếu kỳ sau, lưu bàn giao vào đơn.
-// (Tính điện đúng "phương án A" để ở GĐ3; bước này chỉ LƯU số điện.)
+// An ninh nhận bàn giao: đơn 'approved' -> 'handed_over' — chỗ THẬT SỰ trả phòng. Nhập chìa khoá,
+// hư hao (server tự tính từ assets.fee), số điện chốt; rồi đóng lượt ở/phòng trưởng/dọn phiếu kỳ sau.
 func (h *Handlers) HandoverCheckout(c *gin.Context) {
 	u := auth.CurrentUser(c)
 	ctx := c.Request.Context()
@@ -908,16 +906,6 @@ func (h *Handlers) BillCheckout(c *gin.Context) {
 	} else if len(thieu) > 0 {
 		badRequest(c, "Chưa lập phiếu — điện kỳ "+invoicecalc.PrevMonthOf(month)+" còn thiếu dữ liệu:\n"+strings.Join(thieu, "\n"))
 		return
-	}
-	// Rời trong chính kỳ này -> phiếu còn gánh phần điện tới ngày rời, phải đủ chỉ số kỳ NÀY.
-	if coStr != "" && coStr >= billing.FirstDay(month) && coStr <= billing.LastDay(month) {
-		if thieu, e := h.thieuDienCuaHV(ctx, sid, month); e != nil {
-			serverErr(c)
-			return
-		} else if len(thieu) > 0 {
-			badRequest(c, "Chưa lập phiếu — điện kỳ "+month+" (tới ngày rời "+coStr+") còn thiếu dữ liệu:\n"+strings.Join(thieu, "\n"))
-			return
-		}
 	}
 	// Điện lùi MỘT KỲ + phần kỳ này tới ngày rời. Kwh hiển thị = khối kỳ trước của phòng hiện tại.
 	kwh := 0.0
