@@ -43,6 +43,13 @@ module.exports = {
         .rows.forEach(r => { o[r.student_id] = Number(r.electric_charge); });
       return o;
     };
+    // Σ kWh các phần PHẢI bằng kWh khối phòng — luật owner chốt 20/07, canh riêng vì tiền suy từ đây.
+    const elecKwh = async (ids, month) => {
+      const o = {};
+      (await t.db.query(`SELECT student_id, electric_kwh FROM invoices WHERE month=$1 AND student_id = ANY($2) AND deleted_at IS NULL`, [month, ids]))
+        .rows.forEach(r => { o[r.student_id] = Number(r.electric_kwh); });
+      return o;
+    };
 
     try {
       // ===== CHUYỂN PHÒNG giữa tháng — phòng A dùng 300 kWh kỳ 07, X chuyển đi 15/07, chốt 100 kWh.
@@ -77,9 +84,14 @@ module.exports = {
       // Chặng 1 (01→15/07): 100kWh = 350.000 — A1,A2 15 ngày + X 14 ngày (chuyển đi = hết ngày 14)
       // Chặng 2 (16→31/07): 200kWh = 700.000 — chỉ A1, A2
       t.ok('X VẪN PHẢI TRẢ phần điện đã dùng ở phòng cũ — trên phiếu kỳ 08', e[X] > 0, `X = ${fmt(e[X])}`);
-      t.near('X trả đúng phần chặng 1 theo ngày ở (≈111.364)', e[X], 111364, 2);
-      t.near('A1 không gánh thay (≈469.318)', e[A1], 469318, 2);
-      t.near('A2 không gánh thay (≈469.318)', e[A2], 469318, 2);
+      // Owner chốt 20/07: chia kWh ở đơn vị 0,01 rồi SUY tiền ra, không chia thẳng tiền.
+      // X: 100×14/44 = 31,82 kWh -> 111.370đ · A1/A2: 34,09 kWh -> 119.315 + 350.000 = 469.315đ.
+      t.eq('X trả đúng phần chặng 1 theo ngày ở = 31,82 kWh -> 111.370', e[X], 111370, `được ${fmt(e[X])}`);
+      t.eq('A1 không gánh thay = 469.315', e[A1], 469315, `được ${fmt(e[A1])}`);
+      t.eq('A2 không gánh thay = 469.315', e[A2], 469315, `được ${fmt(e[A2])}`);
+      const kA = await elecKwh([A1, A2, X], M2);
+      t.eq('Σ kWh chia ra = ĐÚNG kWh khối phòng, không lệch 0,01', kA[A1] + kA[A2] + kA[X], 300,
+        `${kA[A1]} + ${kA[A2]} + ${kA[X]} = ${kA[A1] + kA[A2] + kA[X]}`);
       t.eq('TỔNG 3 phiếu kỳ 08 = ĐÚNG tiền điện kỳ 07 phòng A, không rơi đồng nào', e[A1] + e[A2] + e[X], 300 * UNIT,
         `tổng ${fmt(e[A1] + e[A2] + e[X])} · phải ${fmt(300 * UNIT)}`);
 
