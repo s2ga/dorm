@@ -481,8 +481,10 @@ function adminGo(view, opts) {
   const prev = ST.view;
   ST.view = view; closeSide();
   document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('active', b.dataset.v === view));
-  el('pgTitle').textContent = AdminTitles[view][0];
-  el('pgSub').textContent = AdminTitles[view][1];
+  // Quên khai tiêu đề cho một màn thì trước đây ném TypeError ngay đây -> bấm menu KHÔNG RA GÌ CẢ.
+  const tieuDe = AdminTitles[view] || [view, ''];
+  el('pgTitle').textContent = tieuDe[0];
+  el('pgSub').textContent = tieuDe[1];
   el('topActions').innerHTML = '';
   // BL-17: trên đường "URL-là-nguồn" (nạp đầu {replace} / Back-Forward {fromPop}), nạp bộ lọc từ query
   // vào RAM TRƯỚC khi vẽ, để deep-link/F5 hiện đúng bộ lọc. Điều hướng thường: RAM là nguồn -> ghi ra URL.
