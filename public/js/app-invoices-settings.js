@@ -125,6 +125,7 @@ async function viewInvoices() {
             : '—'}</td>
           <td class="num" data-label="Tổng"><strong>${moneyN(i.total)}</strong></td>
           <td class="num"><div class="rowbtns" style="justify-content:flex-end">
+            ${nutThuTien(i)}
             <button class="btn sm pri" data-act="phieuBao" data-args='[${i.id}]'>${IC.fileText} Phiếu báo</button>
             <button class="btn sm ghost" title="Tính lại theo số ngày ở hiện tại" data-act="recalcInv" data-args='[${i.id}]'>${IC.refresh}</button>
             <button class="btn sm ghost" data-act="invoiceForm" data-args='[${i.id}]'>${IC.pencil}</button>
@@ -662,6 +663,23 @@ async function saveInvoice(id) {
   closeModal(); invMonth = body.month; toast('Đã lưu hóa đơn'); viewInvoices();
 }
 function toggleThanhVienNP() { invHienThanhVienNP = !invHienThanhVienNP; viewInvoices(); }
+// Nút đánh dấu thu tiền. Đã thu thì hiện huy hiệu xanh, bấm vào để MỞ KHOÁ về chưa thu — phiếu đã
+// thu bị khoá sửa/tính lại, không có đường mở là kẹt khi thu nhầm.
+function nutThuTien(i) {
+  return i.status === 'paid'
+    ? `<button class="btn sm green" title="Đã thu${i.paid_date ? ' ' + fmtDate(i.paid_date) : ''} — bấm để chuyển về CHƯA THU"
+         data-act="doiTrangThaiThu" data-args='[${i.id},"pending"]'>${IC.checkCircle} Đã thu</button>`
+    : `<button class="btn sm" title="Đánh dấu đã nhận tiền của phiếu này"
+         data-act="doiTrangThaiThu" data-args='[${i.id},"paid"]'>${IC.wallet} Chưa thu</button>`;
+}
+async function doiTrangThaiThu(id, status) {
+  const inv = (_invAll || []).find(x => x.id === id);
+  const ten = inv ? inv.student_name : '';
+  if (status === 'pending' && !confirm(`Chuyển phiếu của ${ten} về CHƯA THU?\n\nDùng khi ghi nhầm hoặc cần sửa lại phiếu. Thao tác được ghi nhật ký.`)) return;
+  await guard(() => API.setInvoiceStatus(id, status));
+  toast(status === 'paid' ? 'Đã ghi nhận thu tiền' : 'Đã chuyển về chưa thu');
+  viewInvoices();
+}
 // Lọc theo tình trạng thu tiền. Bấm lại pill đang chọn thì trả về "tất cả".
 function invLoc(k) { invFilter = invFilter === k ? 'all' : k; viewInvoices(); }
 async function phieuBao(inv) {
@@ -780,6 +798,7 @@ async function phieuBao(inv) {
     </div></div></div>
     <div class="mf rc-noprint">
       <button class="btn" data-act="closeModal">Đóng</button>
+      ${nutThuTien(inv)}
       <button class="btn" data-act="doPrint">${IC.printer} In phiếu</button>
       <button class="btn pri" data-act="downloadPhieuBao" data-args='["phieu-bao-${esc(String(s.code || inv.student_id))}-${inv.month}"]'>${IC.download} Tải phiếu báo</button>
     </div>`, true);
