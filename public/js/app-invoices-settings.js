@@ -127,9 +127,10 @@ async function viewInvoices() {
           <td class="num"><div class="rowbtns" style="justify-content:flex-end">
             ${nutThuTien(i)}
             <button class="btn sm pri" data-act="phieuBao" data-args='[${i.id}]'>${IC.fileText} Phiếu báo</button>
+            ${i.status === 'paid' ? `<span class="muted" title="Phiếu đã thu thì chốt — mở khoá về Chưa thu mới sửa được">${IC.lock}</span>` : `
             <button class="btn sm ghost" title="Tính lại theo số ngày ở hiện tại" data-act="recalcInv" data-args='[${i.id}]'>${IC.refresh}</button>
             <button class="btn sm ghost" data-act="invoiceForm" data-args='[${i.id}]'>${IC.pencil}</button>
-            <button class="btn sm ghost" data-act="delInvoice" data-args='[${i.id}]'>${IC.trash}</button>
+            <button class="btn sm ghost" data-act="delInvoice" data-args='[${i.id}]'>${IC.trash}</button>`}
           </div></td></tr>`).join('')}
         <tr class="no-result" style="display:none"><td colspan="${coCoc ? 14 : 13}"><div class="empty">Không tìm thấy hóa đơn phù hợp.</div></td></tr>
       </tbody><tfoot><tr class="tot-row">
@@ -663,21 +664,28 @@ async function saveInvoice(id) {
   closeModal(); invMonth = body.month; toast('Đã lưu hóa đơn'); viewInvoices();
 }
 function toggleThanhVienNP() { invHienThanhVienNP = !invHienThanhVienNP; viewInvoices(); }
-// Nút đánh dấu thu tiền. Đã thu thì hiện huy hiệu xanh, bấm vào để MỞ KHOÁ về chưa thu — phiếu đã
-// thu bị khoá sửa/tính lại, không có đường mở là kẹt khi thu nhầm.
+// Cặp gạt Chưa thu | Đã thu: hai trạng thái nằm cạnh nhau, cái đang đúng được tô và KHÔNG bấm được
+// (nó là trạng thái, không phải nút). Bấm cái kia để chuyển.
 function nutThuTien(i) {
-  return i.status === 'paid'
-    ? `<button class="btn sm green" title="Đã thu${i.paid_date ? ' ' + fmtDate(i.paid_date) : ''} — bấm để chuyển về CHƯA THU"
-         data-act="doiTrangThaiThu" data-args='[${i.id},"pending"]'>${IC.checkCircle} Đã thu</button>`
-    : `<button class="btn sm" title="Đánh dấu đã nhận tiền của phiếu này"
-         data-act="doiTrangThaiThu" data-args='[${i.id},"paid"]'>${IC.wallet} Chưa thu</button>`;
+  const daThu = i.status === 'paid';
+  const o = (nhan, ico, val, dang) => dang
+    ? `<span class="seg on" aria-current="true">${ico} ${nhan}</span>`
+    : `<button type="button" class="seg" data-act="doiTrangThaiThu" data-args='[${i.id},"${val}"]'>${ico} ${nhan}</button>`;
+  return `<div class="seg-thu" role="group" aria-label="Tình trạng thu tiền"
+      title="${daThu ? 'Đã thu' + (i.paid_date ? ' ngày ' + fmtDate(i.paid_date) : '') + ' — phiếu đã chốt' : 'Chưa nhận tiền phiếu này'}">
+    ${o('Chưa thu', IC.clock, 'pending', !daThu)}${o('Đã thu', IC.checkCircle, 'paid', daThu)}</div>`;
 }
 async function doiTrangThaiThu(id, status) {
   const inv = (_invAll || []).find(x => x.id === id);
   const ten = inv ? inv.student_name : '';
-  if (status === 'pending' && !confirm(`Chuyển phiếu của ${ten} về CHƯA THU?\n\nDùng khi ghi nhầm hoặc cần sửa lại phiếu. Thao tác được ghi nhật ký.`)) return;
+  if (status === 'pending' && !confirm(`Mở khoá phiếu của ${ten} về CHƯA THU?\n\nPhiếu đã thu được CHỐT — mở ra mới sửa hay tính lại được. Thao tác này có ghi nhật ký.`)) return;
   await guard(() => API.setInvoiceStatus(id, status));
-  toast(status === 'paid' ? 'Đã ghi nhận thu tiền' : 'Đã chuyển về chưa thu');
+  // Đang đứng ở tab ngược với trạng thái mới thì hàng vừa bấm sẽ biến mất — nhảy sang đúng tab để
+  // người dùng thấy nó đi đâu, thay vì tưởng mất phiếu.
+  if ((status === 'paid' && invFilter === 'unpaid') || (status === 'pending' && invFilter === 'paid')) {
+    invFilter = status === 'paid' ? 'paid' : 'unpaid';
+  }
+  toast(status === 'paid' ? 'Đã thu — phiếu chốt lại, không sửa được nữa' : 'Đã mở khoá, sửa được lại');
   viewInvoices();
 }
 // Lọc theo tình trạng thu tiền. Bấm lại pill đang chọn thì trả về "tất cả".

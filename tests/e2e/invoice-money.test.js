@@ -33,7 +33,9 @@ module.exports = {
 
     // TP-08/11 · PUT trừ khoản giảm -> total không nhảy lên bằng khoản giảm
     const cur = (await t.db.query(`SELECT * FROM invoices WHERE id=$1`, [id])).rows[0];
-    await t.api('PUT', `/api/invoices/${id}`, T, { room_charge: cur.room_charge, electric_charge: cur.electric_charge, water_charge: cur.water_charge, service_charge: cur.service_charge, washing_charge: cur.washing_charge, parking_charge: cur.parking_charge, other_charge: cur.other_charge, days_stayed: cur.days_stayed, electric_kwh: cur.electric_kwh });
+    // PUT là GHI ĐÈ TOÀN PHẦN, không hợp nhất: thiếu trường nào thì trường đó về 0. Gửi ĐỦ đúng
+    // như form Sửa hoá đơn gửi (saveInvoice), không thì mất tiền cọc rồi tưởng total sai.
+    await t.api('PUT', `/api/invoices/${id}`, T, { room_charge: cur.room_charge, electric_charge: cur.electric_charge, water_charge: cur.water_charge, service_charge: cur.service_charge, washing_charge: cur.washing_charge, parking_charge: cur.parking_charge, other_charge: cur.other_charge, deposit_charge: cur.deposit_charge, days_stayed: cur.days_stayed, electric_kwh: cur.electric_kwh });
     const afterPut = (await t.db.query(`SELECT total FROM invoices WHERE id=$1`, [id])).rows[0].total;
     t.eq('TP-08: PUT giữ đúng total (đã trừ giảm, không tăng bằng khoản giảm)', +afterPut, +inv.total);
 
