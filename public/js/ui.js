@@ -461,5 +461,66 @@ function enhanceColFilters(root) {
     }
   });
 }
-const _enhColScan = debounce(() => enhanceColFilters(document), 60);
+// Nhấp tiêu đề cột để SẮP XẾP — áp cho mọi bảng danh sách. Màn Học viên có sắp xếp riêng (dựng lại
+// từ dữ liệu, th mang data-sort) nên bỏ qua, không gắn đè.
+// Sắp ở lớp DOM: đảo thứ tự <tr> rồi gọi applyRowFilters để phễu/tìm kiếm/phân trang khớp lại.
+function _sortKhoa(s) {
+  const t = (s || '').trim();
+  if (!t || t === '—') return { n: null, s: '' };
+  // Ngày, kèm giờ nếu có (màn Lịch sử: "11/08/2026 · 17:06") — bỏ giờ thì mọi dòng cùng ngày
+  // ra khoá bằng nhau, nhấp vào không thấy đổi gì.
+  const ngay = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\D+(\d{1,2}):(\d{2}))?/);
+  if (ngay) {
+    const d = ngay[3] + ngay[2].padStart(2, '0') + ngay[1].padStart(2, '0');
+    const g = ngay[4] ? ngay[4].padStart(2, '0') + ngay[5] : '0000';
+    return { n: +(d + g), s: t };
+  }
+  const so = t.replace(/[.\s]/g, '').replace(',', '.');
+  if (/^[+-]?\d+(\.\d+)?$/.test(so)) return { n: parseFloat(so), s: t };
+  return { n: null, s: t.toLowerCase() };
+}
+function sapXepCot(table, idx) {
+  const st = _tableState(table);
+  st.sort = st.sort && st.sort.idx === idx ? { idx, dir: -st.sort.dir } : { idx, dir: 1 };
+  const body = table.tBodies[0];
+  const nCol = table.tHead.rows[0].cells.length;
+  const hang = [...body.rows].filter(tr => tr.cells.length === nCol && !tr.classList.contains('no-result'));
+  const khac = [...body.rows].filter(tr => !hang.includes(tr));
+  hang.sort((a, b) => {
+    const x = _sortKhoa(_cellText(a.cells[idx])), y = _sortKhoa(_cellText(b.cells[idx]));
+    if (x.n !== null && y.n !== null) return (x.n - y.n) * st.sort.dir;
+    if (x.n !== null) return -1;
+    if (y.n !== null) return 1;
+    return x.s.localeCompare(y.s, 'vi') * st.sort.dir;
+  });
+  hang.forEach(tr => body.appendChild(tr));
+  khac.forEach(tr => body.appendChild(tr));
+  for (const th of table.tHead.rows[0].cells) {
+    const ar = th.querySelector('.sort-ar');
+    if (ar) ar.textContent = th.cellIndex === idx ? (st.sort.dir === 1 ? '▲' : '▼') : '';
+  }
+  applyRowFilters(table);
+}
+function enhanceColSort(root) {
+  (root || document).querySelectorAll('.table-wrap table').forEach(table => {
+    if (table._sortEnhanced) return;
+    const head = table.tHead && table.tHead.rows[0], body = table.tBodies && table.tBodies[0];
+    if (!head || !body || !body.querySelector('tr')) return;
+    if ([...head.cells].some(th => th.dataset.sort)) return; // bảng tự lo sắp xếp
+    table._sortEnhanced = true; _tableState(table);
+    for (const th of head.cells) {
+      if (!_cellText(th)) continue;
+      th.classList.add('sortable');
+      th.title = th.title || 'Nhấp để sắp xếp theo cột này';
+      if (!th.querySelector('.sort-ar')) {
+        const a = document.createElement('span'); a.className = 'sort-ar'; th.appendChild(a);
+      }
+      th.addEventListener('click', e => {
+        if (e.target.closest && e.target.closest('.rz-handle,.col-filt')) return;
+        sapXepCot(table, th.cellIndex);
+      });
+    }
+  });
+}
+const _enhColScan = debounce(() => { enhanceColFilters(document); enhanceColSort(document); }, 60);
 if (typeof MutationObserver !== 'undefined') new MutationObserver(_enhColScan).observe(document.body, { childList: true, subtree: true });
