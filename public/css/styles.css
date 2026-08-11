@@ -161,9 +161,16 @@ td .sub2,td.muted,td .muted,td small,td p,td .rowbtns{white-space:normal}
 table.rz-fixed{min-width:100%;table-layout:fixed}
 table.rz-fixed td,table.rz-fixed th{overflow:hidden}
 table.rz-fixed td:not(.num),table.rz-fixed th:not(.num){white-space:normal}
-.rz-handle{position:absolute;top:0;right:-5px;width:11px;height:100%;cursor:col-resize;z-index:3;touch-action:none}
-.rz-handle::after{content:"";position:absolute;top:22%;bottom:22%;right:5px;width:2px;border-radius:2px;background:transparent;transition:background .14s}
-.rz-handle:hover::after{background:var(--brand)}
+/* Vạch kéo phải THẤY ĐƯỢC mới có người dùng — trước đây trong suốt, chỉ hiện khi rê trúng dải 11px
+   nên hầu như không ai biết bảng kéo giãn được. Nay mờ sẵn, đậm lên khi rê. */
+/* Tay cầm phải nằm TRỌN trong ô tiêu đề. Thò ra ngoài (right âm) thì bị ô cột kế bên đè lên —
+   th là position:sticky nên mỗi ô là một tầng riêng, ô sau vẽ chồng lên phần thò của ô trước. */
+.rz-handle{position:absolute;top:0;right:0;width:14px;height:100%;cursor:col-resize;z-index:3;touch-action:none}
+.rz-handle::after{content:"";position:absolute;top:18%;bottom:18%;right:2px;width:2px;border-radius:2px;
+  background:var(--line);transition:background .14s,transform .14s}
+.rz-handle:hover::after,.rz-handle:focus-visible::after{background:var(--brand);transform:scaleX(1.8)}
+.rz-handle:focus-visible{outline:none}
+th:hover .rz-handle::after{background:var(--brand-d)}
 .rz-active{cursor:col-resize;user-select:none}
 .rz-active .rz-handle::after{background:var(--brand)}
 /* Lọc cột: phễu ▾ trên tiêu đề + popover (danh sách tick / ô gõ chữ) */

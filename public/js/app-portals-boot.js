@@ -1527,20 +1527,26 @@ function setupResizable(table) {
   ths.forEach((th, i) => {
     if (i === ths.length - 1) return; // cột cuối không cần tay cầm
     const h = document.createElement('span');
-    h.className = 'rz-handle'; h.title = 'Kéo để chỉnh độ rộng cột · nhấp đúp để reset';
-    h.addEventListener('mousedown', e => {
+    h.className = 'rz-handle'; h.title = 'Kéo để chỉnh độ rộng cột · nhấp đúp để trả về mặc định';
+    // Pointer Events: một đường cho cả chuột, cảm ứng và bút. Trước đây chỉ bắt mousedown nên máy
+    // tính bảng không kéo được cột nào.
+    h.addEventListener('pointerdown', e => {
+      if (e.button > 0) return;
       e.preventDefault(); e.stopPropagation();
       _rzFreeze(table); // chỉ đóng băng khi bắt đầu kéo
-      const startX = e.pageX, startW = th.getBoundingClientRect().width;
+      const startX = e.clientX, startW = th.getBoundingClientRect().width;
       document.body.classList.add('rz-active');
-      const move = ev => { th.style.width = Math.max(56, startW + (ev.pageX - startX)) + 'px'; };
+      try { h.setPointerCapture(e.pointerId); } catch {}
+      const move = ev => { th.style.width = Math.max(56, startW + (ev.clientX - startX)) + 'px'; };
       const up = () => {
-        document.removeEventListener('mousemove', move);
-        document.removeEventListener('mouseup', up);
+        h.removeEventListener('pointermove', move);
+        h.removeEventListener('pointerup', up);
+        h.removeEventListener('pointercancel', up);
         document.body.classList.remove('rz-active'); _rzSave(table);
       };
-      document.addEventListener('mousemove', move);
-      document.addEventListener('mouseup', up);
+      h.addEventListener('pointermove', move);
+      h.addEventListener('pointerup', up);
+      h.addEventListener('pointercancel', up);
     });
     // Nhấp đúp: xóa độ rộng đã lưu, trở về mặc định (1 dòng)
     h.addEventListener('dblclick', e => {
