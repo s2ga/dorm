@@ -638,6 +638,23 @@ func studentsIsDigits(s string) bool {
 
 // studentsFacilityGuard: (router.param 'id') mọi thao tác /:id phải thuộc cơ sở người dùng. students.routes.js:25-35
 // Trả true = đi tiếp; false = ĐÃ phản hồi (403/500).
+// studentsChiSuaThongTin: hồ sơ ĐÃ rời phòng và lần lưu này KHÔNG đổi phòng -> chỉ là sửa thông
+// tin, đừng bắt qua luật xếp phòng.
+func studentsChiSuaThongTin(cur map[string]interface{}, b map[string]interface{}) bool {
+	if cur == nil {
+		return false
+	}
+	co := studentsSlice10(studentsJSString(cur["check_out_date"]))
+	if co == "" || co > timeutil.Today() {
+		return false
+	}
+	moi, cuID := studentsRoomIDPtr(b["room_id"]), intPtrFromDB(cur["room_id"])
+	if moi == nil && cuID == nil {
+		return true
+	}
+	return moi != nil && cuID != nil && *moi == *cuID
+}
+
 func (h *Handlers) studentsFacilityGuard(c *gin.Context, u *auth.User, idStr string) bool {
 	if scope.IsExecutive(u) {
 		return true
@@ -1516,14 +1533,18 @@ func (h *Handlers) UpdateStudent(c *gin.Context) {
 		conflict(c, gin.H{"error": dupMsg, "existing": dup, "duplicate": true})
 		return
 	}
-	// LUẬT XẾP PHÒNG — áp cả ở đường SỬA
-	chkU, err := roomrules.CheckRoomAssignment(ctx, h.pool(), &id, studentsJSString(b["gender"]), studentsJSString(b["rental_type"]), studentsRoomIDPtr(b["room_id"]))
-	if err != nil {
-		serverErr(c)
-		return
-	}
-	if studentsBlockOrConfirm(c, chkU, raw["confirm_overload"] == true) {
-		return
+	// LUẬT XẾP PHÒNG ở đường SỬA — bỏ qua khi hồ sơ đã rời mà phòng KHÔNG đổi: đó chỉ là sửa thông
+	// tin, không phải xếp ai vào đâu.
+	chkU := &roomrules.Result{Errors: []string{}, Warnings: []roomrules.Warning{}}
+	if !studentsChiSuaThongTin(cur, b) {
+		chkU, err = roomrules.CheckRoomAssignment(ctx, h.pool(), &id, studentsJSString(b["gender"]), studentsJSString(b["rental_type"]), studentsRoomIDPtr(b["room_id"]))
+		if err != nil {
+			serverErr(c)
+			return
+		}
+		if studentsBlockOrConfirm(c, chkU, raw["confirm_overload"] == true) {
+			return
+		}
 	}
 	params := studentsCoreFields(b, nil) // $1..$16
 	params = append(params,
