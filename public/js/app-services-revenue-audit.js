@@ -5,8 +5,10 @@
    bản scan HĐ ở chỗ khác — không có màn nào trả lời "ai còn thiếu giấy tờ". */
 let hsLoc = 'all';
 function hsGo(k) { hsLoc = hsLoc === k ? 'all' : k; viewHoSo(); }
-const hsCo = (co, nhan) => co
-  ? `<span class="badge green" title="${nhan}: đã có">${IC.check}</span>`
+// Ô giấy tờ: có tệp thì là ĐƯỜNG MỞ TỆP luôn (mở tab mới, máy chủ trả inline nên ảnh/PDF xem thẳng),
+// không bắt vào hồ sơ rồi mới bấm tiếp.
+const hsCo = (co, nhan, href) => co
+  ? `<a class="badge green tep-mo" href="${href}" target="_blank" rel="noopener" title="${nhan}: bấm để mở tệp">${IC.fileText} Xem</a>`
   : `<span class="badge gray" title="${nhan}: chưa có">—</span>`;
 async function viewHoSo() {
   const ds = ST.students.filter(s => !s.deleted_at)
@@ -55,14 +57,14 @@ async function viewHoSo() {
             <td data-label="Số HĐ">${coHD(s) ? `<strong>${esc(s.contract_no)}</strong>` : '<span class="badge amber">chưa có</span>'}</td>
             <td data-label="Ngày ký">${s.contract_date ? fmtDate(s.contract_date) : '<span class="muted">—</span>'}</td>
             <td data-label="Tình trạng"><span class="badge ${CONTRACT_BADGE[s.contract_status] || 'gray'}">${CONTRACT_LABEL[s.contract_status] || '—'}</span></td>
-            <td class="num" data-label="Scan HĐ">${hsCo(s.has_contract_scan, 'Bản scan hợp đồng')}</td>
-            <td class="num" data-label="CCCD trước">${hsCo(s.has_cccd_front, 'CCCD mặt trước')}</td>
-            <td class="num" data-label="CCCD sau">${hsCo(s.has_cccd_back, 'CCCD mặt sau')}</td>
+            <td class="num" data-label="Scan HĐ">${hsCo(s.has_contract_scan, 'Bản scan hợp đồng', `/api/students/${s.id}/contract-scan`)}</td>
+            <td class="num" data-label="CCCD trước">${hsCo(s.has_cccd_front, 'CCCD mặt trước', `/api/students/${s.id}/cccd/front`)}</td>
+            <td class="num" data-label="CCCD sau">${hsCo(s.has_cccd_back, 'CCCD mặt sau', `/api/students/${s.id}/cccd/back`)}</td>
           </tr>`).join('')}
         </tbody></table>` : `<div class="empty">Không có hồ sơ nào khớp bộ lọc này.</div>`}
       </div>
-      <div class="pad"><div class="hint">${IC.info}<span>Bấm vào tên học viên để mở hồ sơ — nộp hoặc xem
-        bản scan hợp đồng và ảnh CCCD ngay tại đó.</span></div></div>
+      <div class="pad"><div class="hint">${IC.info}<span>Bấm <strong>Xem</strong> ở ba cột cuối để mở thẳng tệp
+        (ảnh hoặc PDF) trong tab mới. Bấm tên học viên để mở hồ sơ — nộp giấy tờ còn thiếu tại đó.</span></div></div>
     </div>`;
   const sb = el('hsSearch'); if (sb) attachRowSearch(sb, 'hsCount');
 }

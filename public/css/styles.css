@@ -435,6 +435,10 @@ select[size] option{padding:8px 9px;border-radius:8px}
 /* Lỗi chọn tệp: nằm lại ngay dưới ô, không trôi mất như toast. */
 .tep-loi{margin-top:6px;padding:7px 10px;border-radius:8px;font-size:12.5px;line-height:1.45;
   background:var(--red-bg);color:var(--red-ink);border:1px solid var(--red)}
+/* Chip "Xem" ở màn Hồ sơ lưu trữ: là thẻ <a> nên phải trông bấm được, không giống nhãn tĩnh. */
+.tep-mo{display:inline-flex;align-items:center;gap:4px;text-decoration:none;cursor:pointer}
+.tep-mo svg{width:13px;height:13px}
+.tep-mo:hover{filter:brightness(.94);text-decoration:underline}
 /* Cặp gạt Chưa thu | Đã thu — hai trạng thái cạnh nhau, cái đang đúng được tô và không bấm được. */
 .seg-thu{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;flex:0 0 auto}
 .seg-thu .seg{font:inherit;font-size:12px;font-weight:600;padding:5px 10px;border:0;background:var(--card);
