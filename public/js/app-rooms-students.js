@@ -432,10 +432,10 @@ async function studentForm(id) {
         <div class="field" style="margin:0"><label>Ảnh CCCD <span class="opt">(2 mặt — chụp/chọn ảnh)</span></label>
           <div class="grid2">
             <div><div class="muted" style="font-size:12px;margin-bottom:4px">Mặt trước</div>
-              <input type="file" id="f_cccd_front" accept="image/*" data-change="onCccdFront">
+              <input type="file" id="f_cccd_front" accept="image/png,image/jpeg" data-change="onCccdFront">
               <div id="cccdFrontPrev" style="margin-top:6px">${s.cccd_front ? `<img src="${s.cccd_front}" style="max-width:100%;max-height:180px;border-radius:8px;border:1px solid var(--line)">` : ''}</div></div>
             <div><div class="muted" style="font-size:12px;margin-bottom:4px">Mặt sau</div>
-              <input type="file" id="f_cccd_back" accept="image/*" data-change="onCccdBack">
+              <input type="file" id="f_cccd_back" accept="image/png,image/jpeg" data-change="onCccdBack">
               <div id="cccdBackPrev" style="margin-top:6px">${s.cccd_back ? `<img src="${s.cccd_back}" style="max-width:100%;max-height:180px;border-radius:8px;border:1px solid var(--line)">` : ''}</div></div>
           </div>
           ${!s.cccd_front && !s.cccd_back && s.cccd_image ? `<div style="margin-top:8px"><div class="muted" style="font-size:12px;margin-bottom:4px">${IC.info} Ảnh cũ (1 mặt) — tải 2 mặt ở trên để cập nhật:</div><img src="${s.cccd_image}" style="max-width:100%;max-height:160px;border-radius:8px;border:1px solid var(--line)"></div>` : ''}
@@ -493,8 +493,9 @@ async function studentForm(id) {
       ? `<a class="btn sm" href="${s.contract_scan}" target="_blank" rel="noopener">${IC.fileText} Mở bản scan (PDF)</a>`
       : `<a href="${s.contract_scan}" target="_blank" rel="noopener" title="Bấm để xem cỡ đầy đủ"><img src="${s.contract_scan}" style="max-width:100%;max-height:200px;border-radius:8px;border:1px solid var(--line)"></a>`)
     : '<p class="muted" style="margin:0 0 6px;font-size:12px">Chưa đính kèm.</p>'}
-            <div style="margin-top:6px"><input type="file" accept="image/*,application/pdf" id="hd_scan_form" data-change="tepScanHD" data-args='[${id}]'></div>
-            <div class="hint">${IC.info}<span>Chọn tệp là lưu ngay, không cần bấm Lưu.</span></div>`}
+            ${s.contract_scan ? ` <button type="button" class="btn sm ghost" data-act="goScanHD" data-args='[${id}]' title="Gỡ bản scan đang có">${IC.trash} Gỡ</button>` : ''}
+            <div style="margin-top:6px"><input type="file" accept="application/pdf,image/png,image/jpeg" id="hd_scan_form" data-change="tepScanHD" data-args='[${id}]'></div>
+            <div class="hint">${IC.info}<span>Chọn tệp là lưu ngay, không cần bấm Lưu. Nhận PDF · PNG · JPG, tối đa ${TEP_TOI_DA_MB}MB.</span></div>`}
         </div>`)}
 
       ${!id ? nhomForm(IC.plus, 'Khởi tạo', `
@@ -618,12 +619,10 @@ async function studentDetail(id) {
             ? (s.contract_scan_ext === 'pdf'
               ? `<a class="btn sm" href="${s.contract_scan}" target="_blank" rel="noopener">${IC.fileText} Mở bản scan (PDF)</a>`
               : `<a href="${s.contract_scan}" target="_blank" rel="noopener" title="Bấm để xem cỡ đầy đủ"><img src="${s.contract_scan}" style="max-width:100%;max-height:220px;border-radius:8px;border:1px solid var(--line)"></a>`)
-              + ` <button class="btn sm ghost" data-act="goScanHD" data-args='[${s.id}]' title="Gỡ bản scan">${IC.trash} Gỡ</button>`
             : `<p class="muted" style="margin:0 0 6px;font-size:12px">Chưa đính kèm.</p>`}
-          <div style="margin-top:6px"><input type="file" accept="image/*,application/pdf" id="hd_scan" data-change="tepScanHD" data-args='[${s.id}]'></div>
         </div>
-        ${/* Đính kèm CCCD ngay tại đây, KHÔNG bắt mở form Sửa — form đăng ký cho nộp 2 mặt thì chỗ
-              quản lý cũng phải cho. Chọn tệp là lưu ngay, giống bản scan HĐ ở trên. */''}
+        ${/* Thẻ này CHỈ ĐỂ XEM. Trước đây ô chọn tệp nằm ngay đây, chọn nhầm là ghi đè luôn, không
+              hỏi câu nào — đã có ca dính biên lai chuyển khoản vào ô hợp đồng. */''}
         <div style="margin-top:10px"><div class="muted" style="font-size:12px;margin-bottom:4px">Ảnh CCCD <span class="opt">(2 mặt)</span>:</div>
           ${!s.cccd_front && !s.cccd_back && s.cccd_image
     ? `<div style="margin-bottom:6px"><div class="muted" style="font-size:12px;margin-bottom:4px">${IC.info} Ảnh cũ (1 mặt) — tải 2 mặt bên dưới để cập nhật:</div>
@@ -632,10 +631,10 @@ async function studentDetail(id) {
             ${[['front', 'Mặt trước', s.cccd_front], ['back', 'Mặt sau', s.cccd_back]].map(([mat, nhan, anh]) => `
               <div><div class="muted" style="font-size:12px;margin-bottom:4px">${nhan}</div>
                 ${anh ? `<a href="${anh}" target="_blank" rel="noopener" title="Bấm để xem cỡ đầy đủ"><img src="${anh}" style="max-width:100%;max-height:180px;border-radius:8px;border:1px solid var(--line)"></a>`
-    : '<p class="muted" style="margin:0 0 6px;font-size:12px">Chưa có.</p>'}
-                <div style="margin-top:6px"><input type="file" accept="image/*" data-change="tepCccdHV" data-args='[${s.id},"${mat}"]'></div></div>`).join('')}
+    : '<p class="muted" style="margin:0 0 6px;font-size:12px">Chưa có.</p>'}</div>`).join('')}
           </div>
-          <div class="hint">${IC.info}<span>Chọn ảnh là lưu ngay, không cần bấm gì thêm.</span></div>
+          <div class="hint">${IC.info}<span>Đây là màn XEM. Nộp hoặc thay giấy tờ thì bấm
+            <button class="btn sm" data-act="studentForm" data-args='[${s.id}]'>${IC.pencil} Sửa hồ sơ</button></span></div>
         </div>
       </div></div>
 
@@ -708,26 +707,13 @@ function tepScanHD(id) {
   };
   r.readAsDataURL(f);
 }
-// Ảnh CCCD ở thẻ chi tiết: gửi RIÊNG một mặt. PUT /students/:id là MERGE nên các ô khác không
-// bị đụng; vẫn phải kèm _v vì máy chủ khoá lạc quan theo xmin.
-function tepCccdHV(id, mat) {
-  const f = this.files && this.files[0]; if (!f) return;
-  if (!tepHopLe(this, f, 'Ảnh CCCD', ['image/png', 'image/jpeg'])) return;
-  const r = new FileReader();
-  r.onload = async () => {
-    const cu = await guard(() => API.student(id));
-    if (!cu) return;
-    const body = { _v: cu._v || undefined };
-    body[mat === 'back' ? 'cccd_back' : 'cccd_front'] = r.result;
-    await guard(() => API.updateStudent(id, body));
-    toast('Đã lưu ảnh CCCD ' + (mat === 'back' ? 'mặt sau' : 'mặt trước')); studentDetail(id);
-  };
-  r.readAsDataURL(f);
-}
 async function goScanHD(id) {
   if (!confirm('Gỡ bản scan hợp đồng?\n\nTệp bị xoá khỏi kho, không khôi phục được.')) return;
   await guard(() => API.deleteContractScan(id));
-  toast('Đã gỡ bản scan'); studentDetail(id);
+  toast('Đã gỡ bản scan');
+  // Nút này nay nằm trong form Sửa: mở lại form để thấy ngay, đừng nhảy sang thẻ chi tiết làm mất
+  // những ô đang nhập dở.
+  if (el('f_cno')) studentForm(id); else studentDetail(id);
 }
 // Số HĐ GIỮ CHỖ của CHÍNH hồ sơ này — máy chủ xếp theo thứ tự nhận phòng nên mỗi người một số khác
 // nhau, không phải số chung của cả pháp nhân. Ký và scan xong mới thành số chính thức.

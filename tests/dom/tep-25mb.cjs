@@ -24,15 +24,16 @@ const ok = (t, d, x = '') => { if (d) console.log('  [OK] ' + t); else { fail++;
   const goi = [];
   page.on('response', r => { if (/contract-scan/.test(r.url())) goi.push(r.status()); });
 
+  // Ô chọn tệp nay nằm ở form Sửa, không còn ở thẻ chi tiết.
   const mo = async () => {
     await page.goto('/hoc-vien'); await page.waitForTimeout(2500);
-    await page.evaluate(id => studentDetail(+id), SID);
+    await page.evaluate(id => studentForm(+id), SID);
     await page.waitForTimeout(2000);
   };
 
   await mo();
   goi.length = 0;
-  await page.locator('#hd_scan').setInputFiles({ name: 'to.png', mimeType: 'image/png', buffer: PNG30 });
+  await page.locator('#hd_scan_form').setInputFiles({ name: 'to.png', mimeType: 'image/png', buffer: PNG30 });
   await page.waitForTimeout(900);
   ok('Tệp 30MB → báo lỗi NẰM LẠI cạnh ô, không gửi lên',
     await page.locator('.tep-loi').count() > 0 && goi.length === 0,
@@ -41,14 +42,14 @@ const ok = (t, d, x = '') => { if (d) console.log('  [OK] ' + t); else { fail++;
   ok('Câu báo nói rõ cỡ tệp và mức cho phép', /30\.0MB/.test(chu) && /25MB/.test(chu), chu);
 
   await mo();
-  await page.locator('#hd_scan').setInputFiles({ name: 'x.txt', mimeType: 'text/plain', buffer: Buffer.from('abc') });
+  await page.locator('#hd_scan_form').setInputFiles({ name: 'x.txt', mimeType: 'text/plain', buffer: Buffer.from('abc') });
   await page.waitForTimeout(900);
   ok('Sai định dạng → báo rõ chỉ nhận PDF/PNG/JPG',
     /PDF/.test(await page.locator('.tep-loi').first().textContent() || ''), await page.locator('.tep-loi').first().textContent());
 
   await mo();
   goi.length = 0;
-  await page.locator('#hd_scan').setInputFiles({ name: 'ok.png', mimeType: 'image/png', buffer: PNG20 });
+  await page.locator('#hd_scan_form').setInputFiles({ name: 'ok.png', mimeType: 'image/png', buffer: PNG20 });
   await page.waitForTimeout(9000);
   ok('Tệp 20MB (trong mức) → GỬI LÊN và máy chủ nhận', goi.length > 0 && goi[0] === 200,
     'phản hồi = ' + JSON.stringify(goi));
