@@ -432,6 +432,9 @@ select[size] option{padding:8px 9px;border-radius:8px}
   border-radius:13px;font-size:13.5px;margin-bottom:18px;line-height:1.55;overflow:hidden}
 .bang-tin .ic-svg{float:left;width:17px;height:17px;margin:1px 9px 0 0;color:var(--brand-d)}
 .bang-tin>span{display:block;overflow:hidden}
+/* Lỗi chọn tệp: nằm lại ngay dưới ô, không trôi mất như toast. */
+.tep-loi{margin-top:6px;padding:7px 10px;border-radius:8px;font-size:12.5px;line-height:1.45;
+  background:var(--red-bg);color:var(--red-ink);border:1px solid var(--red)}
 /* Cặp gạt Chưa thu | Đã thu — hai trạng thái cạnh nhau, cái đang đúng được tô và không bấm được. */
 .seg-thu{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;flex:0 0 auto}
 .seg-thu .seg{font:inherit;font-size:12px;font-weight:600;padding:5px 10px;border:0;background:var(--card);

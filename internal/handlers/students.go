@@ -880,8 +880,9 @@ func (h *Handlers) UploadContractScan(c *gin.Context) {
 		Data string `json:"data"`
 	}
 	_ = c.ShouldBindJSON(&body)
-	if len(body.Data) > 12*1024*1024 {
-		badRequest(c, "Tệp quá lớn (tối đa ~9MB)")
+	// Chuỗi base64 phồng ~4/3 so với tệp gốc: 34MB chuỗi ≈ 25MB tệp (owner chốt 12/08/2026).
+	if len(body.Data) > 34*1024*1024 {
+		badRequest(c, "Tệp quá lớn (tối đa 25MB)")
 		return
 	}
 	p := storage.ParseDataUrl(body.Data)

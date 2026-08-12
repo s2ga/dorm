@@ -388,7 +388,7 @@ function roomOptions(sel, gender) {
 let _cccdFront = null, _cccdBack = null, _cccdFrontChanged = false, _cccdBackChanged = false;
 function previewCccd(input, side) {
   const f = input.files[0]; if (!f) return;
-  if (f.size > cccdMaxBytes()) { input.value = ''; return toast(`Ảnh CCCD quá lớn (tối đa ${cccdMaxBytes() / 1024 / 1024}MB)`, 'err'); }
+  if (!tepHopLe(input, f, 'Ảnh CCCD', ['image/png', 'image/jpeg'])) return;
   const r = new FileReader();
   r.onload = () => {
     if (side === 'back') { _cccdBack = r.result; _cccdBackChanged = true; }
@@ -694,7 +694,7 @@ async function studentDetail(id) {
 // đẩy lên bucket riêng tư. Không giữ ảnh trong hồ sơ dạng data URL.
 function tepScanHD(id) {
   const f = this.files && this.files[0]; if (!f) return;
-  if (f.size > 9 * 1024 * 1024) { this.value = ''; return toast('Tệp quá lớn (tối đa 9MB)', 'err'); }
+  if (!tepHopLe(this, f, 'Bản scan hợp đồng')) return;
   const trongForm = !!el('f_cno');   // f_cno chỉ có ở form Sửa học viên (f_name còn dùng ở form Phòng)
   const r = new FileReader();
   r.onload = async () => {
@@ -712,7 +712,7 @@ function tepScanHD(id) {
 // bị đụng; vẫn phải kèm _v vì máy chủ khoá lạc quan theo xmin.
 function tepCccdHV(id, mat) {
   const f = this.files && this.files[0]; if (!f) return;
-  if (f.size > 9 * 1024 * 1024) { this.value = ''; return toast('Ảnh quá lớn (tối đa 9MB)', 'err'); }
+  if (!tepHopLe(this, f, 'Ảnh CCCD', ['image/png', 'image/jpeg'])) return;
   const r = new FileReader();
   r.onload = async () => {
     const cu = await guard(() => API.student(id));

@@ -461,6 +461,36 @@ function enhanceColFilters(root) {
     }
   });
 }
+// Trần một tệp gửi lên: 25MB (owner chốt 12/08/2026). Body máy chủ để 36MB vì base64 phồng ~4/3.
+const TEP_TOI_DA_MB = 25;
+const TEP_NHAN = ['application/pdf', 'image/png', 'image/jpeg'];
+// Báo lỗi NẰM LẠI ngay dưới ô chọn tệp — toast trôi mất thì người ta tưởng bấm xong là xong.
+function _tepLoi(input, chu) {
+  input.value = '';
+  let o = input.parentElement && input.parentElement.querySelector('.tep-loi');
+  if (!o) {
+    o = document.createElement('div'); o.className = 'tep-loi';
+    (input.parentElement || document.body).appendChild(o);
+  }
+  o.textContent = chu;
+  toast(chu, 'err');
+  return false;
+}
+function tepHopLe(input, f, nhan, loai) {
+  const o = input.parentElement && input.parentElement.querySelector('.tep-loi');
+  if (o) o.remove();
+  const nhanLoai = loai || TEP_NHAN;
+  const mb = (f.size / 1024 / 1024).toFixed(1);
+  if (f.size > TEP_TOI_DA_MB * 1024 * 1024) {
+    return _tepLoi(input, `${nhan}: tệp ${mb}MB, vượt mức cho phép ${TEP_TOI_DA_MB}MB. Nén hoặc chụp lại nhỏ hơn.`);
+  }
+  if (f.type && !nhanLoai.includes(f.type)) {
+    const ten = nhanLoai.map(x => ({ 'application/pdf': 'PDF', 'image/png': 'PNG', 'image/jpeg': 'JPG' }[x] || x)).join(' · ');
+    return _tepLoi(input, `${nhan}: chỉ nhận ${ten}. Tệp bạn chọn là "${f.type}" — ảnh iPhone (HEIC) phải đổi sang JPG trước.`);
+  }
+  return true;
+}
+
 // Nhấp tiêu đề cột để SẮP XẾP — áp cho mọi bảng danh sách. Màn Học viên có sắp xếp riêng (dựng lại
 // từ dữ liệu, th mang data-sort) nên bỏ qua, không gắn đè.
 // Sắp ở lớp DOM: đảo thứ tự <tr> rồi gọi applyRowFilters để phễu/tìm kiếm/phân trang khớp lại.

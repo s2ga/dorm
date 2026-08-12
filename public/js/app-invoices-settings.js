@@ -973,7 +973,8 @@ function viewSettings() {
       </div>
       <div class="grid2">
         <div class="field"><label>HV tự xin trả phòng: xa nhất <span class="opt">(ngày tới)</span></label><input id="set_checkout_max_future_days" type="number" min="1" value="${esc(s.checkout_max_future_days ?? 365)}"></div>
-        <div class="field"><label>Trần ảnh CCCD <span class="opt">(MB, ≤ 15)</span></label><input id="set_max_cccd_mb" type="number" min="1" max="15" value="${esc(s.max_cccd_mb ?? 12)}"></div>
+        <div class="field"><label>Trần dung lượng tệp</label>
+          <div class="ro-in">${TEP_TOI_DA_MB}MB mỗi tệp <span class="muted">— áp cho scan hợp đồng, ảnh CCCD, tài liệu</span></div></div>
       </div>
       <div class="grid2">
         <div class="field"><label>Báo "xe bỏ gửi" khi vắng liên tiếp <span class="opt">(ngày, dùng cho báo cáo bãi xe)</span></label><input id="set_parking_absent_alert_days" type="number" min="1" value="${esc(s.parking_absent_alert_days ?? 7)}"></div>
@@ -1536,7 +1537,7 @@ async function unlockUser(id, name) {
 /* Ảnh trang giới thiệu (upload trong Cài đặt) */
 function uploadIntroMedia(key, input) {
   const f = input.files[0]; if (!f) return;
-  if (f.size > 6 * 1024 * 1024) { input.value = ''; return toast('Ảnh quá lớn (tối đa 6MB)', 'err'); }
+  if (!tepHopLe(input, f, 'Ảnh trang giới thiệu', ['image/png', 'image/jpeg'])) return;
   const r = new FileReader();
   r.onload = async () => {
     try {
@@ -1554,8 +1555,7 @@ async function removeIntroMedia(key) {
 /* Nội quy ký túc xá (PDF) — học viên xem ở trang "Phòng của tôi" */
 function uploadRulesDoc(input) {
   const f = input.files[0]; if (!f) return;
-  if (f.type !== 'application/pdf') { input.value = ''; return toast('Chỉ nhận file PDF', 'err'); }
-  if (f.size > 15 * 1024 * 1024) { input.value = ''; return toast('File quá lớn (tối đa 15MB)', 'err'); }
+  if (!tepHopLe(input, f, 'Tài liệu', ['application/pdf'])) return;
   const r = new FileReader();
   r.onload = async () => {
     try { await guard(() => API.uploadDoc('noi-quy', r.result)); toast('Đã cập nhật nội quy'); viewSettings(); }

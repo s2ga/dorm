@@ -85,8 +85,9 @@ func (h *Handlers) UploadDoc(c *gin.Context) {
 		badRequest(c, "Chỉ nhận file PDF")
 		return
 	}
-	if len(body.Data) > 14*1024*1024 {
-		badRequest(c, "File PDF quá lớn (tối đa ~10MB). Vui lòng nén lại rồi tải lên.")
+	// Chuỗi base64 phồng ~4/3 so với tệp gốc: 34MB chuỗi ≈ 25MB tệp (owner chốt 12/08/2026).
+	if len(body.Data) > 34*1024*1024 {
+		badRequest(c, "File PDF quá lớn (tối đa 25MB). Vui lòng nén lại rồi tải lên.")
 		return
 	}
 	if storage.ParsePdfDataUrl(body.Data) == nil {
@@ -126,8 +127,8 @@ func (h *Handlers) UploadMedia(c *gin.Context) {
 		badRequest(c, "Ảnh không hợp lệ")
 		return
 	}
-	if len(body.Data) > 8*1024*1024 {
-		badRequest(c, "Ảnh quá lớn (tối đa ~6MB)")
+	if len(body.Data) > 34*1024*1024 {
+		badRequest(c, "Ảnh quá lớn (tối đa 25MB)")
 		return
 	}
 	p := storage.ParseDataUrl(body.Data)

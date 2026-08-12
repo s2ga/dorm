@@ -10,8 +10,10 @@ import (
 // Nhóm path nhận ảnh base64 (CCCD/giới thiệu/PDF) -> body lớn 16MB. Còn lại 2MB. server/index.js:45-47
 var bigBodyPrefixes = []string{"/api/public", "/api/students", "/api/applications", "/api/media", "/api/invoices", "/api/settings"}
 
+// Tệp gửi lên dạng base64 nên PHỒNG ~4/3: cho phép 25MB/tệp thì body phải chịu được ~34MB.
+// Để 36MB cho dư phần JSON bọc ngoài.
 const (
-	bigLimit   = 16 << 20 // 16MB
+	bigLimit   = 36 << 20 // 36MB — đủ cho một tệp 25MB sau khi base64
 	smallLimit = 2 << 20  // 2MB
 )
 

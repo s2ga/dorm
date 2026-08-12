@@ -299,7 +299,7 @@ async function normalizeImage(file, maxDim = 1600, quality = 0.85) {
 }
 async function pubCccd(input, side) {
   const f = input.files[0]; if (!f) return;
-  if (f.size > cccdMaxBytes()) { input.value = ''; return toast(`Ảnh CCCD quá lớn (tối đa ${cccdMaxBytes() / 1024 / 1024}MB)`, 'err'); }
+  if (!tepHopLe(input, f, 'Ảnh CCCD', ['image/png', 'image/jpeg'])) return;
   const box = el(side === 'front' ? 'cccdFrontPrev' : 'cccdBackPrev');
   box.innerHTML = '<span class="muted" style="font-size:12px">Đang xử lý ảnh…</span>';
   try {
@@ -555,7 +555,7 @@ const DAY_MS = 86400000;
 // Ngưỡng nghiệp vụ LẤY TỪ Cài đặt (Đợt 3 — dọn hard-code), có fallback nếu setting rỗng/NaN.
 const overdueDays = () => +(ST.settings && ST.settings.overdue_remind_days) || 7;      // quá N ngày chưa ký HĐ/tạm trú → nhắc
 const shortTermMaxDays = () => +(ST.settings && ST.settings.shortterm_max_days) || 60; // ở dưới N ngày = ngắn hạn
-const cccdMaxBytes = () => (+(ST.settings && ST.settings.max_cccd_mb) || 12) * 1024 * 1024;
+// Trần riêng cho CCCD đã bỏ — mọi tệp dùng chung mức 25MB ở tepHopLe (owner chốt 12/08/2026).
 function stayDays(s) { // số ngày đã vào ở tính đến hôm nay
   const ci = s.check_in_date && s.check_in_date.slice(0, 10); if (!ci) return 0;
   return Math.floor((Date.parse(today()) - Date.parse(ci)) / DAY_MS);
