@@ -1216,7 +1216,7 @@ function gotoUsers() {
   }));
 }
 /* ---------- Quản lý tài khoản nhân viên (chỉ quản trị) ---------- */
-const ROLE_LABEL = { admin: ['Quản trị viên', 'gray'], staff: ['Nhân viên', 'blue'], maintenance: ['Bảo trì', 'amber'] };
+const ROLE_LABEL = { admin: ['Quản trị viên', 'gray'], staff: ['Nhân viên', 'blue'], maintenance: ['Bảo trì', 'amber'], secretary: ['Thư ký', 'green'] };
 async function loadAdminUsers() {
   const box = el('usrRows'); if (!box) return;
   let users = [];
@@ -1353,6 +1353,7 @@ function duyetTaiKhoanForm(id) {
         <div class="field"><label>Vai trò</label><select id="ap_role">
           <option value="staff">Nhân viên — thao tác nghiệp vụ</option>
           <option value="maintenance">Bảo trì / An ninh — xử lý báo hư hỏng</option>
+          <option value="secretary">Thư ký — chỉ xem hồ sơ lưu trữ</option>
           <option value="admin">Quản trị viên — toàn quyền</option>
         </select></div>
         <div class="field"><label>Cơ sở phụ trách</label><select id="ap_facility">
@@ -1432,7 +1433,7 @@ function userForm(id) {
     <div class="mb">
       <div class="field"><label>Tên đăng nhập *</label><input id="u_username" value="${esc(u.username)}" ${id ? 'disabled' : ''} placeholder="vd: nhanvien01"></div>
       <div class="field"><label>Họ tên</label><input id="u_full" value="${esc(u.full_name || '')}" placeholder="Nguyễn Văn A"></div>
-      <div class="field"><label>Vai trò</label><select id="u_role">${roleOpt('staff', 'Nhân viên — thao tác nghiệp vụ')}${roleOpt('maintenance', 'Bảo trì / An ninh — xử lý báo hư hỏng')}${roleOpt('admin', 'Quản trị viên — toàn quyền')}</select></div>
+      <div class="field"><label>Vai trò</label><select id="u_role">${roleOpt('staff', 'Nhân viên — thao tác nghiệp vụ')}${roleOpt('maintenance', 'Bảo trì / An ninh — xử lý báo hư hỏng')}${roleOpt('secretary', 'Thư ký — chỉ xem hồ sơ lưu trữ')}${roleOpt('admin', 'Quản trị viên — toàn quyền')}</select></div>
       <div class="field"><label>Cơ sở phụ trách</label><select id="u_facility">
         <option value="">Tất cả cơ sở (điều hành)</option>
         ${(ST.facilities || []).map(f => `<option value="${f.id}" ${u.facility_id === f.id ? 'selected' : ''}>${esc(f.name)}</option>`).join('')}

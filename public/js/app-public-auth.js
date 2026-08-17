@@ -82,6 +82,7 @@ async function boot() {
   if (user.approved === false) return renderChoDuyet();
   if (user.role === 'admin' || user.role === 'staff') renderAdmin();
   else if (user.role === 'maintenance') renderMaintenance();
+  else if (user.role === 'secretary') renderSecretary();
   else renderStudent();
 }
 

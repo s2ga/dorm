@@ -1570,6 +1570,60 @@ function startTableResize() {
   ['content', 'modal'].forEach(id => { const e = el(id); if (e) { _rzObs.observe(e, { childList: true, subtree: true }); scan(e); } });
 }
 
+/* ================================================================= */
+/* ==============      CỔNG BAN THƯ KÝ (chỉ xem)     ================ */
+/* ================================================================= */
+// Ban thư ký chỉ có MỘT màn: hồ sơ lưu trữ rút gọn (API /students/archive).
+// Không dùng renderAdmin: các API nền (rooms/settings/facilities...) đều 403 với vai này.
+function renderSecretary() {
+  el('app').innerHTML = `
+    <div class="app"><div class="main" style="margin:0 auto;max-width:1180px;width:100%">
+      <div class="top">
+        <div><h1>${IC.fileText} Hồ sơ lưu trữ</h1><div class="sub">Xin chào, ${esc(Auth.user.full_name || Auth.user.username)} — Ban thư ký</div></div>
+        <div class="toolbar"><button class="btn sm" data-act="loadSecretary">${IC.refresh} Tải lại</button>${dungMatKhau() ? `<button class="btn sm" data-act="changePwd">${IC.key} Đổi mật khẩu</button>` : ''}<button class="btn sm" data-act="logout">${IC.logOut} Đăng xuất</button></div>
+      </div>
+      <div class="content" id="content"><div class="spinner"></div></div>
+    </div></div>`;
+  startTableResize();
+  loadSecretary();
+}
+async function loadSecretary() {
+  el('content').innerHTML = '<div class="spinner"></div>';
+  let ds = [];
+  try { ds = await API.studentsArchive(); }
+  catch (e) {
+    el('content').innerHTML = `<div class="bang-tin">${IC.alert} <span>${esc(e.message || 'Lỗi kết nối máy chủ')}</span>
+      <button class="btn sm" data-act="loadSecretary" style="margin-left:8px">${IC.refresh} Thử lại</button></div>`;
+    return;
+  }
+  const coHD = s => !!String(s.contract_no || '').trim() && String(s.contract_no).trim().toLowerCase() !== 'x';
+  el('content').innerHTML = `
+    <div class="panel"><div class="hd"><h2>${IC.fileText} Hợp đồng & CCCD (<span id="tkCount">${ds.length}</span>)</h2>
+      <div class="toolbar"><div class="search"><span class="i">${IC.search}</span>
+        <input id="tkSearch" placeholder="Tìm họ tên / số HĐ / lớp..."></div></div></div>
+      <div class="table-wrap card-tbl">
+        ${ds.length ? `<table><thead><tr><th>Họ tên</th><th>Ngày sinh</th><th>Trường / lớp</th><th>Số HĐ</th>
+          <th>Ngày nhận phòng</th><th>Ngày trả phòng</th>
+          <th class="num">Scan HĐ</th><th class="num">CCCD trước</th><th class="num">CCCD sau</th></tr></thead><tbody>
+          ${ds.map(s => `<tr data-s="${esc(((s.name || '') + ' ' + (s.contract_no || '') + ' ' + (s.class_name || '')).toLowerCase())}">
+            <td data-label="Họ tên"><strong>${esc(s.name)}</strong></td>
+            <td data-label="Ngày sinh">${s.birth_date ? fmtDate(s.birth_date) : '<span class="muted">—</span>'}</td>
+            <td data-label="Trường / lớp">${esc(s.class_name || '—')}</td>
+            <td data-label="Số HĐ">${coHD(s) ? `<strong>${esc(s.contract_no)}</strong>` : '<span class="badge amber">chưa có</span>'}</td>
+            <td data-label="Ngày nhận phòng">${s.check_in_date ? fmtDate(s.check_in_date) : '<span class="muted">—</span>'}</td>
+            <td data-label="Ngày trả phòng">${s.check_out_date ? fmtDate(s.check_out_date) : '<span class="muted">—</span>'}</td>
+            <td class="num" data-label="Scan HĐ">${hsCo(s.has_contract_scan, 'Bản scan hợp đồng', `/api/students/${s.id}/contract-scan`)}</td>
+            <td class="num" data-label="CCCD trước">${hsCo(s.has_cccd_front, 'CCCD mặt trước', `/api/students/${s.id}/cccd/front`)}</td>
+            <td class="num" data-label="CCCD sau">${hsCo(s.has_cccd_back, 'CCCD mặt sau', `/api/students/${s.id}/cccd/back`)}</td>
+          </tr>`).join('')}
+          <tr class="no-result" style="display:none"><td colspan="9"><div class="empty">Không tìm thấy hồ sơ phù hợp.</div></td></tr>
+        </tbody></table>` : '<div class="empty">Chưa có hồ sơ nào.</div>'}
+      </div>
+      <div class="pad"><div class="hint">${IC.info}<span>Bấm <strong>Xem</strong> ở ba cột cuối để mở tệp (ảnh hoặc PDF) trong tab mới.</span></div></div>
+    </div>`;
+  const sb = el('tkSearch'); if (sb) attachRowSearch(sb, 'tkCount');
+}
+
 /* ================= CHỐNG BẤM 2 LẦN =================
    Bấm "Lưu" phát thứ hai trong lúc phát đầu chưa xong = 2 request = 2 bản ghi trùng.
    Đây CHÍNH LÀ GỐC của việc thu dư 10.907.925đ/tháng đã phải dọn tay ngày 16/07/2026:

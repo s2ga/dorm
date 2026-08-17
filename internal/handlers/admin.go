@@ -228,11 +228,11 @@ func (h *Handlers) ListAudit(c *gin.Context) {
 }
 
 /* ---------- Quản lý tài khoản nhân viên ---------- */
-// Chỉ 3 vai này được tạo/sửa qua trang quản trị. KHÔNG ép thầm lặng vai lạ thành 'staff'. admin.routes.js:89
-var adminValidRoles = map[string]bool{"admin": true, "staff": true, "maintenance": true}
+// Chỉ 4 vai này được tạo/sửa qua trang quản trị. KHÔNG ép thầm lặng vai lạ thành 'staff'. admin.routes.js:89
+var adminValidRoles = map[string]bool{"admin": true, "staff": true, "maintenance": true, "secretary": true}
 
 // MANAGEABLE_ROLES = VALID_ROLES + 'pending' (tài khoản SSO chờ duyệt phải quản lý được). admin.routes.js:95-96
-const adminManagedRolesSQL = "'admin','staff','maintenance','pending'"
+const adminManagedRolesSQL = "'admin','staff','maintenance','secretary','pending'"
 
 // adminBodyStr: đọc field chuỗi từ body (giống `req.body[key] || ”`; non-string/null/absent -> "").
 func adminBodyStr(body map[string]json.RawMessage, key string) string {
@@ -438,7 +438,7 @@ func (h *Handlers) CreateUser(c *gin.Context) {
 		role = "staff"
 	}
 	if !adminValidRoles[role] {
-		badRequest(c, `Vai trò không hợp lệ: "`+rawRole+`". Chỉ nhận: nhân viên, bảo trì, quản trị.`)
+		badRequest(c, `Vai trò không hợp lệ: "`+rawRole+`". Chỉ nhận: nhân viên, bảo trì, thư ký, quản trị.`)
 		return
 	}
 	fullNameRaw := adminBodyStr(body, "full_name")

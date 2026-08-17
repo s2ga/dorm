@@ -228,6 +228,7 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	st := api.Group("/students", a.RequireAuth())
 	st.GET("/:id/cccd/:side", h.StudentCccdImage)       // chỉ requireAuth (nay 501 stub)
 	st.GET("/:id/contract-scan", h.StudentContractScan) // học viên xem được bản scan HĐ của chính mình
+	st.GET("/archive", a.RequireRole("admin", "staff", "secretary"), h.ListStudentsArchive)
 	rs := st.Group("", a.RequireRole("admin", "staff"))
 	rs.GET("", h.ListStudents)
 	rs.GET("/contract-no/next", h.ContractNoNext)

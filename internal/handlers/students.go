@@ -785,7 +785,7 @@ func (h *Handlers) StudentCccdImage(c *gin.Context) {
 	}
 	u := auth.CurrentUser(c)
 	id, _ := paramInt(c, "id")
-	isStaff := u.Role == "admin" || u.Role == "staff"
+	isStaff := u.Role == "admin" || u.Role == "staff" || u.Role == "secretary"
 	if !isStaff && (u.StudentID == nil || *u.StudentID != id) {
 		c.Status(http.StatusForbidden)
 		return
@@ -816,12 +816,12 @@ func (h *Handlers) StudentCccdImage(c *gin.Context) {
 	_, _ = io.Copy(c.Writer, obj.Body)
 }
 
-// studentsXemDuocHoSo: nhân viên xem được mọi hồ sơ; học viên chỉ xem hồ sơ của chính mình.
+// studentsXemDuocHoSo: nhân viên + thư ký xem được mọi hồ sơ; học viên chỉ xem hồ sơ của chính mình.
 func studentsXemDuocHoSo(u *auth.User, id int) bool {
 	if u == nil {
 		return false
 	}
-	if u.Role == "admin" || u.Role == "staff" {
+	if u.Role == "admin" || u.Role == "staff" || u.Role == "secretary" {
 		return true
 	}
 	return u.StudentID != nil && *u.StudentID == id
@@ -1016,6 +1016,32 @@ func (h *Handlers) ListStudents(c *gin.Context) {
 		return
 	}
 	rows, err := h.pool().Query(ctx, studentsListSelect+" "+where+" ORDER BY s.name", params...)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	list, err := db.RowsToMaps(rows)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	c.JSON(http.StatusOK, list)
+}
+
+// ListStudentsArchive: GET /archive (admin,staff,secretary) — hồ sơ lưu trữ rút gọn: họ tên, ngày
+// sinh, trường/lớp, số HĐ, ngày nhận/trả phòng + cờ scan HĐ/CCCD. Cắt các trường khác từ server.
+func (h *Handlers) ListStudentsArchive(c *gin.Context) {
+	u := auth.CurrentUser(c)
+	cond := []string{"s.deleted_at IS NULL"}
+	params := []interface{}{}
+	scope.ApplyFacilityFilter(u, "s.facility_id", &cond, &params)
+	rows, err := h.pool().Query(c.Request.Context(), `
+	  SELECT s.id, s.name, s.birth_date, s.class_name, s.contract_no,
+	    s.check_in_date, s.check_out_date,
+	    (s.contract_scan IS NOT NULL) AS has_contract_scan,
+	    (s.cccd_front IS NOT NULL) AS has_cccd_front,
+	    (s.cccd_back IS NOT NULL) AS has_cccd_back
+	  FROM students s WHERE `+joinAnd(cond)+` ORDER BY s.name`, params...)
 	if err != nil {
 		serverErr(c)
 		return

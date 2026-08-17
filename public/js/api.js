@@ -105,6 +105,7 @@ const API = {
   unsetLeader: (id, date) => api('/rooms/' + id + '/leader?date=' + encodeURIComponent(date || ''), { method: 'DELETE' }),
 
   students: deleted => api('/students' + (deleted ? '?deleted=1' : '') + facAmp(!!deleted)),
+  studentsArchive: () => api('/students/archive'),
   student: id => api('/students/' + id),
   createStudent: b => api('/students', { method: 'POST', body: b }),
   updateStudent: (id, b) => api('/students/' + id, { method: 'PUT', body: b }),
