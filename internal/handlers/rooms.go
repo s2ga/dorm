@@ -169,13 +169,25 @@ func (h *Handlers) ListRooms(c *gin.Context) {
 	} else {
 		scope.ApplyFacilityFilter(u, "r.facility_id", &cond, &params)
 	}
+	// BL-107: ?date=YYYY-MM-DD dịch MỐC đếm sang ngày đó thay vì hôm nay. Xếp phòng cho người vào ngày
+	// 21 phải trừ người rời ngày 15 và cộng người đã xếp vào ngày 20 — tính theo hôm nay thì phòng còn
+	// chỗ vẫn báo "đầy", còn phòng sắp kín lại trông thoáng. Không truyền thì giữ y hành vi cũ.
+	moc := "CURRENT_DATE"
+	if d := c.Query("date"); d != "" {
+		if !valid.IsValidYmd(d) {
+			badRequest(c, "Ngày không hợp lệ (cần dạng YYYY-MM-DD)")
+			return
+		}
+		params = append(params, d)
+		moc = "$" + itoa(len(params)) + "::date"
+	}
 	rows, err := h.pool().Query(c.Request.Context(), `
 		SELECT r.*, f.name AS facility_name,
 		  (SELECT COUNT(*) FROM students s WHERE s.room_id = r.id AND s.deleted_at IS NULL
-		     AND s.check_in_date <= CURRENT_DATE AND (s.check_out_date IS NULL OR s.check_out_date > CURRENT_DATE))::int AS occupancy,
-		  (SELECT COUNT(*) FROM students s WHERE s.room_id = r.id AND s.deleted_at IS NULL AND s.check_in_date > CURRENT_DATE)::int AS upcoming,
+		     AND s.check_in_date <= `+moc+` AND (s.check_out_date IS NULL OR s.check_out_date > `+moc+`))::int AS occupancy,
+		  (SELECT COUNT(*) FROM students s WHERE s.room_id = r.id AND s.deleted_at IS NULL AND s.check_in_date > `+moc+`)::int AS upcoming,
 		  (SELECT COUNT(*) FROM students s WHERE s.room_id = r.id AND s.deleted_at IS NULL
-		     AND s.check_out_date IS NOT NULL AND s.check_out_date > CURRENT_DATE)::int AS leaving
+		     AND s.check_out_date IS NOT NULL AND s.check_out_date > `+moc+`)::int AS leaving
 		FROM rooms r
 		LEFT JOIN facilities f ON f.id = r.facility_id
 		WHERE `+joinAnd(cond)+`

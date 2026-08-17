@@ -374,15 +374,47 @@ function depositBadge(s) {
   if (s.deposit_status === 'forfeited') return '<span class="badge gray">Không hoàn</span>';
   return '<span class="muted">—</span>';
 }
+// BL-107: sức chứa phải tính theo NGÀY HỌC VIÊN NHẬN PHÒNG, không phải hôm nay. ST.rooms là ảnh chụp
+// hôm nay (các màn khác dùng), nên ô Xếp phòng hỏi lại máy chủ theo mốc ngày rồi giữ ở đây.
+let _phongMoc = { ngay: '', ds: null };
+// Mốc là biến CHUNG: modal trước để lại mốc 21/08 thì modal sau mở ra sẽ hiện số của ngày đó. Mọi form
+// vẽ roomOptions phải quên mốc cũ trước khi vẽ lần đầu.
+function quenPhongMoc() { _phongMoc = { ngay: '', ds: null }; }
+async function napPhongTheoNgay(ngay) {
+  const n = (ngay || '').slice(0, 10);
+  if (!n || n === today()) { _phongMoc = { ngay: '', ds: null }; return; }
+  if (_phongMoc.ngay === n && _phongMoc.ds) return;
+  // Hỏng thì về mốc hôm nay chứ KHÔNG để danh sách rỗng — thà số hơi lệch còn hơn không xếp được ai.
+  try { _phongMoc = { ngay: n, ds: await API.roomsAtDate(n) }; }
+  catch (e) { _phongMoc = { ngay: '', ds: null }; toast('Không tính được chỗ trống theo ngày, đang hiện theo hôm nay', 'err'); }
+}
 function roomOptions(sel, gender) {
+  const nguon = _phongMoc.ds || ST.rooms;
+  const moc = _phongMoc.ds ? ` vào ${fmtDate(_phongMoc.ngay)}` : '';
   // Chỉ xếp học viên vào phòng CHO THUÊ GHÉP (giữ lại phòng đang chọn nếu là phòng đặc biệt)
-  const rooms = ST.rooms.filter(r => (!gender || r.gender === gender) && (roomIsShared(r) || r.id === sel));
+  const rooms = nguon.filter(r => (!gender || r.gender === gender) && (roomIsShared(r) || r.id === sel));
   return `<option value="">— Chưa xếp phòng —</option>` + rooms.map(r => {
     // Phòng đầy KHÔNG bị khoá: vượt sức chứa là CỐ Ý (HV vào chờ bạn xuất cảnh) — chỉ ghi nhãn "đầy",
     // cảnh báo + xác nhận khi LƯU qua withOverloadConfirm (doApprove/doCheckIn/studentForm). Xem BL-61.
+    const trong = Math.max(0, (+r.capacity || 0) - (+r.occupancy || 0));
     const full = r.occupancy >= r.capacity && sel !== r.id;
-    return `<option value="${r.id}" ${sel === r.id ? 'selected' : ''}>${esc(r.name)} · Tầng ${r.floor} (${r.occupancy}/${r.capacity || 0})${full ? ' - đầy' : ''}</option>`;
+    const duoi = full ? ' - đầy' : (trong ? ` - còn ${trong}` : '');
+    return `<option value="${r.id}" ${sel === r.id ? 'selected' : ''}>${esc(r.name)} · Tầng ${r.floor} (${r.occupancy}/${r.capacity || 0}${moc})${duoi}</option>`;
   }).join('');
+}
+// Nối ô NGÀY với ô XẾP PHÒNG: đổi ngày là tính lại chỗ trống ngay, không đợi bấm Lưu.
+function noNgayVoiPhong(oNgay, idSelect, gender) {
+  if (!oNgay) return;
+  const ve = async () => {
+    const s = el(idSelect); if (!s) return;
+    const dangChon = s.value ? +s.value : '';
+    await napPhongTheoNgay(oNgay.dataset.iso);
+    const s2 = el(idSelect); if (!s2) return;   // modal có thể đã đóng trong lúc chờ mạng
+    s2.innerHTML = roomOptions(dangChon, gender);
+    s2.value = dangChon || '';
+  };
+  oNgay.addEventListener('change', ve);
+  ve();
 }
 // BL-86: CCCD 2 mặt (đồng bộ form đăng ký) — ghi cột cccd_front/cccd_back, không phải cột cũ cccd_image.
 let _cccdFront = null, _cccdBack = null, _cccdFrontChanged = false, _cccdBackChanged = false;
@@ -401,6 +433,7 @@ function previewCccd(input, side) {
 // một mạch không có mốc nào để bám.
 const nhomForm = (ico, ten, noiDung) => `<div class="form-nhom"><h4>${ico || ''}${ten}</h4>${noiDung}</div>`;
 async function studentForm(id) {
+  quenPhongMoc();
   const s = id ? await guard(() => API.student(id)) : { name: '', code: '', gender: 'female', phone: '', id_card: '', room_id: '', check_in_date: today(), note: '', uses_washing: false, rental_type: 'ghep', residency_status: 'unregistered', contract_status: 'unsigned', class_name: '', birth_date: '', contract_no: '', contract_date: '', class_start_date: '', expected_departure: '', parent_phone: '' };
   window._svV = s._v || null;   // ghi nhớ hồ sơ này ở phiên bản nào lúc mình MỞ form
   _cccdFront = null; _cccdBack = null; _cccdFrontChanged = false; _cccdBackChanged = false;
@@ -513,6 +546,7 @@ async function studentForm(id) {
   attachDate(el('f_cstart'), s.class_start_date);
   attachDate(el('f_departure'), s.expected_departure);
   attachDate(el('f_in'), s.check_in_date || today());
+  noNgayVoiPhong(el('f_in'), 'f_room', s.gender);
   attachDate(el('f_cdate'), s.contract_date);
   attachDate(el('f_out'), daRoi ? '' : coHienTai, { min: addDays(today(), 1) });
   dongBoHinhThucThue();
@@ -877,6 +911,7 @@ function meterField(id, roomName, verb) {
 /* Chuyển phòng */
 function transferForm(id) {
   const s = studentById(id);
+  quenPhongMoc();
   const chuaXep = !s.room_id; // BL-87: HV chưa có phòng -> "Xếp phòng" (lần đầu), không phải "Chuyển phòng"
   openModal(`
     <div class="mh"><h3>${IC.transfer} ${chuaXep ? 'Xếp phòng' : 'Chuyển phòng'}: ${esc(s.name)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
@@ -891,6 +926,7 @@ function transferForm(id) {
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="doTransfer" data-args='[${id}]'>${chuaXep ? 'Xếp phòng' : 'Chuyển'}</button></div>`);
   attachDate(el('t_date'), today());
+  noNgayVoiPhong(el('t_date'), 't_room', s.gender);
 }
 async function doTransfer(id) {
   const room_id = el('t_room').value; if (!room_id) return toast('Chọn phòng mới', 'err');

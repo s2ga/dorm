@@ -229,6 +229,7 @@ async function violationStatsModal() {
 function approveForm(id) {
   const a = (ST.applications || []).find(x => x.id === id);   // viewRequests da dong bo ST.applications
   if (!a) return toast('Không tìm thấy đơn', 'err');
+  quenPhongMoc();
   openModal(`
     <div class="mh"><h3>${IC.plus} Thêm vào phòng: ${esc(a.name)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
@@ -249,6 +250,7 @@ function approveForm(id) {
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="doApprove" data-args='[${a.id}]'>Xác nhận thêm</button></div>`);
   attachDate(el('ap_date'), (a.desired_check_in || '').slice(0, 10) || today());
+  noNgayVoiPhong(el('ap_date'), 'ap_room', a.gender);   // BL-107: chỗ trống theo ngày vào, không theo hôm nay
 }
 async function doApprove(id) {
   // Không gửi hợp đồng/cọc: máy chủ để mặc định "chưa ký HĐ" + "chưa đóng cọc" khi vắng các ô này.
@@ -320,6 +322,7 @@ async function rejectCout(id) { if (!confirm('Từ chối đơn trả phòng?'))
 /* ---------- CHECK-IN / OUT ---------- */
 function checkInForm(id) {
   const s = studentById(id);
+  quenPhongMoc();
   openModal(`
     <div class="mh"><h3>${IC.key} Check-in: ${esc(s.name)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
@@ -331,6 +334,7 @@ function checkInForm(id) {
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn green" data-act="doCheckIn" data-args='[${id}]'>Xác nhận check-in</button></div>`);
   attachDate(el('c_date'), today());
+  noNgayVoiPhong(el('c_date'), 'c_room', s.gender);
 }
 async function doCheckIn(id) {
   const r = await guard(() => withOverloadConfirm(ok =>
