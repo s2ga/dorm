@@ -90,6 +90,50 @@ async function viewExec() {
 
 /* ---------- TỔNG QUAN ---------- */
 // Popup "Đăng ký tạm trú": 3 trạng thái, bấm từng trạng thái xem danh sách
+// BL-112: ai CẦN phiếu kỳ này — người đang ở, CỘNG người đã trả phòng trong kỳ (họ vẫn ở một phần
+// tháng nên vẫn phải thu, và đây là ca dễ mất tiền nhất vì đợt lập phiếu bỏ qua họ). Người sắp vào thì chưa.
+const canPhieuKyNay = s => !s.deleted_at && (isOccupying(s)
+  || (liveStatus(s) === 'left' && (s.check_out_date || '').slice(0, 7) === curMonth()));
+const dsQuaHanPhieu = daCoPhieu => ST.students
+  .filter(s => canPhieuKyNay(s) && !daCoPhieu.has(s.id) && stayDays(s) > overdueDays())
+  .sort((a, b) => stayDays(b) - stayDays(a));
+
+async function billOverdueModal() {
+  openModal(`<div class="mh"><h3>${IC.receipt} Chưa lập phiếu thu</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mb"><div class="spinner"></div></div>`, true);
+  let inv = [];
+  try { inv = await API.invoices(curMonth()); }
+  catch (e) {
+    return modalThay(`<div class="mh"><h3>${IC.receipt} Chưa lập phiếu thu</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+      <div class="mb"><div class="bang-tin">${IC.alert} <span>Không tải được danh sách phiếu: ${esc(e.message || 'lỗi kết nối')}</span></div></div>
+      <div class="mf"><button class="btn" data-act="closeModal">Đóng</button></div>`);
+  }
+  const ds = dsQuaHanPhieu(new Set(inv.map(i => i.student_id)));
+  const daRoi = s => liveStatus(s) === 'left';
+  modalThay(`
+    <div class="mh"><h3>${IC.receipt} Chưa lập phiếu thu kỳ ${curMonth()} (${ds.length})</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mb">
+      <div class="hint">${IC.info} Đã ở quá ${overdueDays()} ngày mà kỳ này chưa có phiếu. Gồm cả người
+        <strong>đã trả phòng trong kỳ</strong> — đợt lập phiếu hàng tháng bỏ qua họ nên dễ đi rồi mới nhớ chưa thu.</div>
+      ${ds.length ? `<div class="table-wrap card-tbl" style="margin-top:10px"><table>
+        <thead><tr><th>Học viên</th><th>Phòng</th><th>Ngày vào</th><th class="num">Đã ở</th><th>Tình trạng</th></tr></thead>
+        <tbody>${ds.map(s => `<tr>
+          <td><div class="flex stu-name" data-act="studentDetail" data-args='[${s.id}]' role="button" tabindex="0" title="Mở hồ sơ">
+            <div><strong>${esc(s.name)}</strong>${s.code ? `<div class="sub2">${esc(s.code)}</div>` : ''}</div>
+            <span class="row-chev">${IC.chevronRight}</span></div></td>
+          <td data-label="Phòng">${esc(s.room_name || '—')}</td>
+          <td data-label="Ngày vào">${fmtDate(s.check_in_date)}</td>
+          <td class="num" data-label="Đã ở">${stayDays(s)} ngày</td>
+          <td data-label="Tình trạng">${daRoi(s)
+    ? `<span class="badge red">Đã trả ${fmtDate(s.check_out_date)}</span>`
+    : statusBadge(s)}</td>
+        </tr>`).join('')}</tbody></table></div>`
+    : `<div class="empty" style="margin-top:10px">${IC.checkCircle} Không sót ai — mọi người cần thu kỳ này đều đã có phiếu.</div>`}
+    </div>
+    <div class="mf">${ds.length ? `<button class="btn pri" data-act="adminGo" data-args='["invoices"]'>${IC.receipt} Sang màn Tiền phòng để lập</button>` : ''}
+      <button class="btn" data-act="closeModal">Đóng</button></div>`);
+}
+
 function residencyModal() {
   const occ = ST.students.filter(isOccupying);
   const over = occ.filter(s => s.residency_status === 'unregistered' && stayDays(s) > overdueDays()).length;
@@ -246,6 +290,10 @@ async function viewDashboard() {
   const billedLastMonth = invAll.filter(i => i.month === prevMonth).reduce((a, i) => a + (+i.total || 0), 0);
   const billStudents = new Set(invAll.filter(i => i.month === curMonth()).map(i => i.student_id));
   const noBill = occ.filter(s => !billStudents.has(s.id)).length; // HV đang ở chưa lập phiếu tháng này
+  // BL-112: quá hạn lập phiếu. Gác bằng overdueDays() vì mùng 1 thì CẢ KTX chưa có phiếu — không gác
+  // thì ô nhắc thành báo động giả rồi bị phớt. Đây cũng là phần "chưa lập phiếu" mà nhãn ô cài đặt
+  // "Nhắc khi ở quá N ngày" vốn đã hứa nhưng chưa nối.
+  const billOverdue = dsQuaHanPhieu(billStudents).length;
 
   // act = onclick đầy đủ → mọi ô KPI đều drill-through tới đúng danh sách đằng sau con số
   const kpi = (cls, ico, val, label, act, sub) => `<div class="kpi${act ? ' clickable' : ''}" ${act ? act + ' role="button" tabindex="0"' : ''}><span class="ic ${cls}">${ico}</span><div><div class="v">${val}</div><div class="l">${label}${sub ? ` · ${sub}` : ''}</div></div></div>`;
@@ -272,6 +320,7 @@ async function viewDashboard() {
         ${todo(IC.wrench, 'Bảo trì', pDmg, actAttr('adminGo', 'repair'), 'warn')}
         ${todo(IC.flag, 'Đăng ký Tạm Trú', resiOverdue, actAttr('residencyModal'), 'warn')}
         ${todo(IC.fileText, 'Hợp đồng', contractIncomplete, actAttr('contractIssuesModal'), 'warn')}
+        ${todo(IC.receipt, 'Lập phiếu thu', billOverdue, actAttr('billOverdueModal'), 'bad')}
         ${todo(IC.handCoins, 'Tiền cọc', refundPending + occ.filter(s => s.deposit_status === 'none').length, actAttr('depositModal'), 'warn')}
         ${todo(IC.planeTakeoff, 'Dự kiến xuất cảnh (điều phối phòng)', depExpected, actAttr('stuGoAdmin', 'departure_expected'), 'on')}
         ${todo(IC.alert, 'Quản lý vi phạm', needMail, actAttr('adminGo', 'violations'), 'bad')}
