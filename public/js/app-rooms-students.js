@@ -1086,7 +1086,10 @@ function appForm() {
         <div class="field"><label>Mã học viên (MSHV)</label><input id="ap_code" placeholder="TXTS-..."></div>
         <div class="field"><label>Lớp</label><input id="ap_class" placeholder="Esu..."></div>
       </div>
-      <div class="field"><label>Cơ sở</label><select id="ap_fac">${facOpts}</select></div>
+      <div class="grid2">
+        <div class="field"><label>Cơ sở</label><select id="ap_fac">${facOpts}</select></div>
+        <div class="field"><label>Ngày muốn nhận phòng *</label><input id="ap_movein" placeholder="dd/mm/yyyy" readonly></div>
+      </div>
       <div class="field"><label>Nguyện vọng phòng</label><input id="ap_pref" placeholder="VD: tầng thấp, gần thang máy..."></div>
       <div class="grid2">
         <label class="check" style="align-self:center"><input type="checkbox" id="ap_wash"> Đăng ký máy giặt</label>
@@ -1097,13 +1100,18 @@ function appForm() {
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveApp">Tạo đơn</button></div>`);
   attachDate(el('ap_birth'), '', { max: today() });
+  attachDate(el('ap_movein'), '', { min: today() });  // nhận phòng thì từ hôm nay trở đi
 }
 async function saveApp() {
   const name = el('ap_name').value.trim(), phone = el('ap_phone').value.trim();
   if (!name) return toast('Nhập họ tên', 'err');
   if (!phone) return toast('Nhập số điện thoại', 'err');
+  const ngayVao = el('ap_movein').dataset.iso || '';
+  if (!ngayVao) { toast('Chọn ngày muốn nhận phòng', 'err'); el('ap_movein').focus(); return; }
+  if (ngayVao < today()) { toast('Ngày muốn nhận phòng đã qua — chọn lại', 'err'); el('ap_movein').focus(); return; }
   const body = {
     name, phone, gender: el('ap_gender').value, birth_date: el('ap_birth').dataset.iso || null,
+    desired_check_in: ngayVao,
     code: el('ap_code').value.trim(), class_name: el('ap_class').value.trim(),
     rental_type: 'ghep', // KTX không cho thuê nguyên phòng nữa — bỏ ô chọn, mọi đơn mới đều là thuê ghép
     facility_id: +el('ap_fac').value || null,
