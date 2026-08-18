@@ -391,15 +391,17 @@ async function napPhongTheoNgay(ngay) {
 function roomOptions(sel, gender) {
   const nguon = _phongMoc.ds || ST.rooms;
   const moc = _phongMoc.ds ? ` vào ${fmtDate(_phongMoc.ngay)}` : '';
-  // Chỉ xếp học viên vào phòng CHO THUÊ GHÉP (giữ lại phòng đang chọn nếu là phòng đặc biệt)
-  const rooms = nguon.filter(r => (!gender || r.gender === gender) && (roomIsShared(r) || r.id === sel));
+  // Xếp được vào phòng ghép + phòng nhân viên/an ninh (nhân viên kiêm khách thuê ở phòng nhân viên —
+  // server miễn tiền phòng, khoản khác vẫn thu). Ẩn phòng thuê NGUYÊN PHÒNG (đã bỏ), trừ khi đang chọn sẵn.
+  const rooms = nguon.filter(r => (!gender || r.gender === gender) && (roomType(r) !== 'whole' || r.id === sel));
   return `<option value="">— Chưa xếp phòng —</option>` + rooms.map(r => {
     // Phòng đầy KHÔNG bị khoá: vượt sức chứa là CỐ Ý (HV vào chờ bạn xuất cảnh) — chỉ ghi nhãn "đầy",
     // cảnh báo + xác nhận khi LƯU qua withOverloadConfirm (doApprove/doCheckIn/studentForm). Xem BL-61.
     const trong = Math.max(0, (+r.capacity || 0) - (+r.occupancy || 0));
     const full = r.occupancy >= r.capacity && sel !== r.id;
     const duoi = full ? ' - đầy' : (trong ? ` - còn ${trong}` : '');
-    return `<option value="${r.id}" ${sel === r.id ? 'selected' : ''}>${esc(r.name)} · Tầng ${r.floor} (${r.occupancy}/${r.capacity || 0}${moc})${duoi}</option>`;
+    const loai = roomIsShared(r) ? '' : ` · ${ROOM_TYPE[roomType(r)][0]}${roomType(r) === 'whole' ? '' : ' (miễn tiền phòng)'}`;
+    return `<option value="${r.id}" ${sel === r.id ? 'selected' : ''}>${esc(r.name)} · Tầng ${r.floor} (${r.occupancy}/${r.capacity || 0}${moc})${duoi}${loai}</option>`;
   }).join('');
 }
 // Nối ô NGÀY với ô XẾP PHÒNG: đổi ngày là tính lại chỗ trống ngay, không đợi bấm Lưu.
