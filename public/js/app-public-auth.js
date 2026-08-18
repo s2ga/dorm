@@ -61,6 +61,12 @@ async function ssoHandleReturn() {
 }
 
 /* ================= ĐIỀU PHỐI CHÍNH ================= */
+// Nhân viên kiêm khách thuê phòng: vai nhân viên + gắn hồ sơ (student_id) -> được chuyển 2 cổng.
+const laKiemNhiem = () => !!(Auth.user && Auth.user.student_id && Auth.user.role !== 'student');
+// Cổng đang mở ('admin'|'student'|'maintenance'|'secretary') — các vòng poll tự tắt theo cờ này,
+// KHÔNG theo role (người kiêm nhiệm đổi cổng nhưng role không đổi).
+let _congDangMo = null;
+
 async function boot() {
   if (await ssoHandleReturn()) return; // quay về từ Microsoft (SSO SPA) -> đổi mã + cấp cookie rồi thôi
   if (location.pathname.replace(/\/$/, '') === '/dang-ky') return renderPublicRegister();
@@ -80,6 +86,8 @@ async function boot() {
   }
   if (user.must_change_password) return renderForceChangePw();
   if (user.approved === false) return renderChoDuyet();
+  // Kiêm nhiệm đã chọn cổng khách thuê -> giữ lựa chọn qua F5; server vẫn phân quyền theo DB.
+  if (laKiemNhiem() && localStorage.getItem('ktx_portal') === 'tenant') return renderStudent();
   if (user.role === 'admin' || user.role === 'staff') renderAdmin();
   else if (user.role === 'maintenance') renderMaintenance();
   else if (user.role === 'secretary') renderSecretary();

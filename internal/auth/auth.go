@@ -193,6 +193,20 @@ func (a *Auth) RequireRole(roles ...string) gin.HandlerFunc {
 	}
 }
 
+// RequireStudentLink: cổng khách thuê mở theo LIÊN KẾT HỒ SƠ (users.student_id), không theo vai —
+// nhân viên kiêm khách thuê phòng (role giữ nguyên, chỉ gắn thêm hồ sơ) vẫn vào được /me/*.
+func (a *Auth) RequireStudentLink() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		u := CurrentUser(c)
+		if u == nil || u.StudentID == nil {
+			// Cùng câu với meStudentID (handlers/me.go) để client hiển thị nhất quán.
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Tài khoản chưa được gắn với hồ sơ học viên. Vui lòng liên hệ ban quản lý."})
+			return
+		}
+		c.Next()
+	}
+}
+
 // CurrentUser lấy User đã xác thực từ context.
 func CurrentUser(c *gin.Context) *User {
 	if v, ok := c.Get(ctxUserKey); ok {

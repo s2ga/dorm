@@ -1244,7 +1244,9 @@ async function loadAdminUsers() {
         ${u.auth_provider && u.auth_provider !== 'local' ? `<span class="badge blue" style="font-size:10px" title="Đăng nhập bằng Microsoft">${esc(u.auth_provider === 'sso' ? 'Microsoft' : 'MK + Microsoft')}</span>` : ''}
         ${u.email ? `<div class="muted" style="font-size:11px">${esc(u.email)}</div>` : ''}</td>
       <td>${esc(u.full_name || '—')}</td>
-      <td><span class="badge ${rc}">${rl}</span></td>
+      <td><span class="badge ${rc}">${rl}</span>
+        ${u.student_id ? `<div style="margin-top:3px"><span class="badge ${u.student_deleted ? 'red' : 'green'}" style="font-size:10px" title="${u.student_deleted ? 'Hồ sơ thuê phòng đã bị khoá — nên gỡ liên kết (bấm Sửa)' : 'Kiêm khách thuê phòng — chuyển được sang cổng khách thuê'}">${IC.home} Kiêm khách thuê${u.student_deleted ? ' · hồ sơ đã khoá' : ''}</span>
+          <div class="muted" style="font-size:11px">${esc((u.student_code ? u.student_code + ' · ' : '') + (u.student_room || 'chưa xếp phòng'))}</div></div>` : ''}</td>
       <td>${u.facility_id ? esc(u.facility_name || facilityName(u.facility_id)) : '<span class="badge gray" title="Điều hành — thấy tất cả cơ sở">Tất cả</span>'}</td>
       <td class="num"><div class="rowbtns" style="justify-content:flex-end">
         <button class="btn sm" data-act="userForm" data-args='[${u.id}]'>Sửa</button>
@@ -1326,7 +1328,7 @@ function apFilterHV() {
   box.innerHTML =
     (gy.length ? nhan(`${IC.bulb} Có thể là những hồ sơ này`) + gy.map(g => apDongHV(g.s, g.vi)).join('') + nhan('Tất cả hồ sơ') : '') +
     (conLai.length ? conLai.map(s => apDongHV(s)).join('')
-      : `<div class="muted" style="padding:10px">Không hồ sơ nào khớp. Để trống thì app tạo hồ sơ mới bằng thông tin bên dưới.</div>`);
+      : `<div class="muted" style="padding:10px">Không hồ sơ nào khớp.${el('ap_new') ? ' Để trống thì app tạo hồ sơ mới bằng thông tin bên dưới.' : ''}</div>`);
   dem.textContent = q ? `${ds.length}/${_apHV.length} hồ sơ khớp` : `${_apHV.length} hồ sơ`;
   apToggle();
 }
@@ -1386,7 +1388,8 @@ function duyetTaiKhoanForm(id) {
   apFilterHV(); // vẽ danh sách hồ sơ lần đầu (gợi ý lên trước) — modal vừa dựng xong nên el() có DOM
 }
 function apToggle() {
-  const la = el('ap_kind').value;
+  const k = el('ap_kind'); if (!k) return; // userForm tái dùng bộ chọn hồ sơ nhưng không có cặp nhánh NV/HV
+  const la = k.value;
   el('ap_staff').hidden = la !== 'staff';
   el('ap_student').hidden = la !== 'student';
   el('ap_new').hidden = !!el('ap_hvid').value; // đã chọn hồ sơ có sẵn -> không cần form tạo mới
@@ -1440,8 +1443,42 @@ function userForm(id) {
       </select><div class="sub2" style="margin-top:4px">Để "Tất cả cơ sở" = điều hành, thấy &amp; quản lý mọi cơ sở. Chọn một cơ sở = chỉ thấy dữ liệu cơ sở đó.</div></div>
       ${id ? '' : `<div class="field"><label>Mật khẩu *</label><input id="u_pass" type="text" placeholder="Tối thiểu 6 ký tự"></div>`}
       ${id === Auth.user.id ? `<div class="bang-tin">${IC.info} Bạn không thể tự hạ quyền chính mình.</div>` : ''}
+      ${id ? `<div class="field" style="border-top:1px solid var(--line);padding-top:12px;margin-top:4px"><label>Kiêm khách thuê phòng</label>
+        ${u.student_id ? `<div class="bang-tin">${IC.home} Đang gắn hồ sơ: <strong>${esc(u.student_name || '—')}</strong>${u.student_code ? ` (${esc(u.student_code)})` : ''}${u.student_room ? ` · phòng ${esc(u.student_room)}` : ''}
+          ${u.student_deleted ? `<div style="font-size:12px;margin-top:4px">${IC.alert} Hồ sơ đã bị khoá — nên gỡ liên kết.</div>` : ''}
+          <div style="margin-top:8px"><button type="button" class="btn sm ghost" data-act="unlinkTenant" data-args='[${id}]'>Gỡ liên kết</button></div></div>`
+      : `<div class="sub2" style="margin-bottom:6px">Nhân viên thuê phòng trong KTX: gắn hồ sơ để chuyển được sang cổng khách thuê, vai trò giữ nguyên. Chỉ chọn được hồ sơ chưa có tài khoản đăng nhập.</div>
+        <input id="ap_hvq" data-input="apFilterHV" placeholder="Gõ vài chữ: mã HV, họ tên hoặc SĐT — bấm một dòng để chọn" autocomplete="off">
+        <input type="hidden" id="ap_hvid" value="">
+        <div id="ap_hvbox" style="max-height:180px;overflow:auto;border:1px solid var(--line);border-radius:10px;margin-top:6px"></div>
+        <div class="sub2" id="ap_hvcount" style="margin-top:4px"></div>
+        <div style="margin-top:8px"><button type="button" class="btn sm pri" data-act="linkTenant" data-args='[${id}]'>${IC.home} Gắn hồ sơ đã chọn</button></div>`}
+      </div>` : ''}
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveUser" data-args='[${id || 0}]'>Lưu</button></div>`);
+  if (id && !u.student_id) {
+    // Tái dùng bộ chọn hồ sơ của duyetTaiKhoanForm; chỉ hồ sơ CHƯA có tài khoản (login_username rỗng).
+    _apHV = (ST.students || []).filter(s => !s.login_username)
+      .slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'vi'));
+    _apGY = [];
+    apFilterHV();
+  }
+}
+// Gắn/gỡ hồ sơ kiêm nhiệm — endpoint riêng, KHÔNG đi chung saveUser (thiếu field ≠ gỡ, tránh vết V2-71).
+async function linkTenant(id) {
+  const sid = +((el('ap_hvid') || {}).value || 0);
+  if (!sid) return toast('Chọn một hồ sơ trong danh sách trước đã', 'err');
+  await guard(() => API.linkStudent(id, sid));
+  closeModal(); toast('Đã gắn hồ sơ — tài khoản này chuyển được sang cổng khách thuê');
+  await napLai('students'); // login_username của hồ sơ vừa gắn đổi -> danh sách chọn phải tươi
+  loadAdminUsers();
+}
+async function unlinkTenant(id) {
+  if (!confirm('Gỡ hồ sơ thuê phòng khỏi tài khoản này? Người này sẽ không vào được cổng khách thuê nữa.')) return;
+  await guard(() => API.unlinkStudent(id));
+  closeModal(); toast('Đã gỡ liên kết hồ sơ');
+  await napLai('students');
+  loadAdminUsers();
 }
 async function saveUser(id) {
   const body = { full_name: el('u_full').value.trim(), role: el('u_role').value, facility_id: el('u_facility').value };

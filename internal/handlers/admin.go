@@ -405,8 +405,12 @@ func (h *Handlers) ListUsers(c *gin.Context) {
 		// Trả CẢ tài khoản đã khoá (cờ locked) — trước đây lọc bỏ nên admin khoá xong là mất dấu,
 		// không còn đường mở khoá. Đang hoạt động xếp trước, đã khoá xuống cuối.
 		`SELECT u.id, u.username, u.role, u.full_name, u.facility_id, f.name AS facility_name, u.created_at,
-                u.email, u.auth_provider, u.approved, (u.deleted_at IS NOT NULL) AS locked
+                u.email, u.auth_provider, u.approved, (u.deleted_at IS NOT NULL) AS locked,
+                u.student_id, s.name AS student_name, s.code AS student_code,
+                r2.name AS student_room, (s.deleted_at IS NOT NULL) AS student_deleted
            FROM users u LEFT JOIN facilities f ON f.id = u.facility_id
+                LEFT JOIN students s ON s.id = u.student_id
+                LEFT JOIN rooms r2   ON r2.id = s.room_id
           WHERE u.role IN (`+adminManagedRolesSQL+`)
           ORDER BY (u.deleted_at IS NOT NULL), u.role, u.username`)
 	if err != nil {
@@ -759,6 +763,83 @@ func (h *Handlers) ApproveUserAsStudent(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true, "student_id": studentID})
+}
+
+// AdminLinkStudent: POST /api/admin/users/:id/link-student — gắn hồ sơ khách thuê phòng vào tài khoản
+// nhân viên (KIÊM NHIỆM: role giữ nguyên, chỉ gắn student_id). Khác ApproveUserAsStudent (ghi đè
+// role='student'), đường này dành cho nhân viên thuê phòng trong KTX: một tài khoản, hai giao diện.
+func (h *Handlers) AdminLinkStudent(c *gin.Context) {
+	id, ok := paramInt(c, "id")
+	if !ok {
+		notFound(c, "Không tìm thấy tài khoản")
+		return
+	}
+	var body struct {
+		StudentID int `json:"student_id"`
+	}
+	_ = c.ShouldBindJSON(&body)
+	if body.StudentID <= 0 {
+		badRequest(c, "Chọn hồ sơ học viên để gắn.")
+		return
+	}
+	ctx := c.Request.Context()
+	var curRole string
+	var curSID *int
+	if h.pool().QueryRow(ctx, "SELECT role, student_id FROM users WHERE id=$1 AND deleted_at IS NULL", id).
+		Scan(&curRole, &curSID) != nil {
+		notFound(c, "Không tìm thấy tài khoản")
+		return
+	}
+	if !adminValidRoles[curRole] {
+		badRequest(c, "Chỉ tài khoản nhân viên mới gắn kiêm khách thuê phòng được. Tài khoản học viên/chờ duyệt xử lý ở màn riêng.")
+		return
+	}
+	if curSID != nil {
+		badRequest(c, "Tài khoản đang gắn một hồ sơ khác — gỡ liên kết hiện tại trước.")
+		return
+	}
+	var tenHV string
+	if h.pool().QueryRow(ctx, "SELECT name FROM students WHERE id=$1 AND deleted_at IS NULL", body.StudentID).
+		Scan(&tenHV) != nil {
+		badRequest(c, "Không tìm thấy hồ sơ học viên (hoặc hồ sơ đã bị khoá).")
+		return
+	}
+	// Một hồ sơ chỉ một tài khoản (cùng quy ước với sso.go/students.go: KHÔNG lọc deleted_at —
+	// tài khoản bị khoá vẫn giữ hồ sơ, tránh hồ sơ có 2 lối đăng nhập khi mở khoá lại).
+	var giu string
+	if h.pool().QueryRow(ctx, "SELECT username FROM users WHERE student_id=$1 AND id<>$2", body.StudentID, id).
+		Scan(&giu) == nil {
+		badRequest(c, `Hồ sơ "`+tenHV+`" đang thuộc tài khoản "`+giu+`" — một hồ sơ chỉ gắn một tài khoản.`)
+		return
+	}
+	if _, err := h.pool().Exec(ctx, "UPDATE users SET student_id=$1 WHERE id=$2", body.StudentID, id); err != nil {
+		serverErr(c)
+		return
+	}
+	// Không RevokeTokens: quyền đọc lại từ CSDL mỗi request, liên kết có hiệu lực ngay request sau.
+	c.JSON(http.StatusOK, gin.H{"ok": true, "student_id": body.StudentID})
+}
+
+// AdminUnlinkStudent: DELETE /api/admin/users/:id/link-student — gỡ hồ sơ kiêm nhiệm khỏi tài khoản
+// nhân viên (thôi thuê phòng). Điều kiện role nằm trong SQL: không bao giờ rút được hồ sơ khỏi
+// tài khoản role='student' (tài khoản đó mất hồ sơ là thành tài khoản rỗng).
+func (h *Handlers) AdminUnlinkStudent(c *gin.Context) {
+	id, ok := paramInt(c, "id")
+	if !ok {
+		notFound(c, "Không tìm thấy tài khoản")
+		return
+	}
+	tag, err := h.pool().Exec(c.Request.Context(),
+		"UPDATE users SET student_id=NULL WHERE id=$1 AND role IN ("+adminManagedRolesSQL+") AND deleted_at IS NULL AND student_id IS NOT NULL", id)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	if tag.RowsAffected() == 0 {
+		notFound(c, "Tài khoản không có hồ sơ kiêm nhiệm để gỡ")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
 // ResetPassword: POST /api/admin/users/:id/password. admin.routes.js:197-208

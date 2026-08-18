@@ -4,6 +4,7 @@
 /* ==============          CỔNG HỌC VIÊN            ================= */
 /* ================================================================= */
 async function renderStudent() {
+  _congDangMo = 'student';
   el('app').innerHTML = `
     <div class="app"><div class="main" style="margin:0 auto;max-width:760px;width:100%">
       <div class="top">
@@ -13,7 +14,7 @@ async function renderStudent() {
         <div class="flex" style="gap:10px">
           <button class="notif-bell" id="hvNotifBell" title="Thông báo" aria-haspopup="dialog" aria-expanded="false" data-act="toggleHvNotif">${IC.bell}<span class="notif-dot" id="hvNotifDot" style="display:none"></span></button>
         </div>
-        <div class="toolbar">${dungMatKhau() ? `<button class="btn sm" data-act="changePwd">${IC.key} Đổi mật khẩu</button>` : ''}<button class="btn sm" data-act="logout">${IC.logOut} Đăng xuất</button></div>
+        <div class="toolbar">${laKiemNhiem() ? `<button class="btn sm" data-act="switchPortal" data-args='["work"]'>${IC.arrowLeft} Về cổng làm việc</button>` : ''}${dungMatKhau() ? `<button class="btn sm" data-act="changePwd">${IC.key} Đổi mật khẩu</button>` : ''}<button class="btn sm" data-act="logout">${IC.logOut} Đăng xuất</button></div>
       </div>
       <div class="content" id="content"><div class="spinner"></div></div>
     </div></div>`;
@@ -392,7 +393,7 @@ let _hvNotif = [], _hvNotifTimer = null;
 // Chỉ đổi CON SỐ trên chuông, không vẽ lại trang: người ta đang đọc dở mà đập lại cả trang là mất
 // chỗ đang cuộn. Nội dung được làm mới khi họ bấm vào một thông báo.
 async function hvNotifTai() {
-  if (!Auth.user || Auth.user.role !== 'student') return;
+  if (!Auth.user || _congDangMo !== 'student') return;   // theo CỔNG đang mở, không theo role (kiêm nhiệm)
   let d;
   try { d = await API.meNotifications(); } catch (e) { return; }   // lỗi mạng tạm -> lần sau thử lại
   _hvNotif = (d && d.items) || [];
@@ -403,7 +404,7 @@ async function hvNotifTai() {
 function startHvNotifPolling() {
   if (_hvNotifTimer) clearInterval(_hvNotifTimer);
   _hvNotifTimer = setInterval(() => {
-    if (!Auth.user || Auth.user.role !== 'student') { clearInterval(_hvNotifTimer); _hvNotifTimer = null; return; }
+    if (!Auth.user || _congDangMo !== 'student') { clearInterval(_hvNotifTimer); _hvNotifTimer = null; return; }
     if (document.hidden) return;
     hvNotifTai();
   }, 60000);
@@ -471,11 +472,12 @@ async function hvNotifDi(neo) {
 /* ==============          CỔNG BẢO TRÌ             ================= */
 /* ================================================================= */
 async function renderMaintenance() {
+  _congDangMo = 'maintenance';
   el('app').innerHTML = `
     <div class="app"><div class="main" style="margin:0 auto;max-width:940px;width:100%">
       <div class="top">
         <div><h1>${IC.wrench} Bảo trì ký túc xá</h1><div class="sub">Xin chào, ${esc(Auth.user.full_name || Auth.user.username)}</div></div>
-        <div class="toolbar"><button class="btn sm" data-act="loadMaintenance">${IC.refresh} Tải lại</button>${dungMatKhau() ? `<button class="btn sm" data-act="changePwd">${IC.key} Đổi mật khẩu</button>` : ''}<button class="btn sm" data-act="logout">${IC.logOut} Đăng xuất</button></div>
+        <div class="toolbar"><button class="btn sm" data-act="loadMaintenance">${IC.refresh} Tải lại</button>${laKiemNhiem() ? `<button class="btn sm" data-act="switchPortal" data-args='["tenant"]'>${IC.home} Cổng khách thuê</button>` : ''}${dungMatKhau() ? `<button class="btn sm" data-act="changePwd">${IC.key} Đổi mật khẩu</button>` : ''}<button class="btn sm" data-act="logout">${IC.logOut} Đăng xuất</button></div>
       </div>
       <div class="content" id="content"><div class="spinner"></div></div>
     </div></div>`;
@@ -490,7 +492,7 @@ let _maintTimer = null;
 function startMaintPolling() {
   if (_maintTimer) clearInterval(_maintTimer);
   _maintTimer = setInterval(() => {
-    if (!Auth.user || Auth.user.role !== 'maintenance') { clearInterval(_maintTimer); _maintTimer = null; return; }
+    if (!Auth.user || _congDangMo !== 'maintenance') { clearInterval(_maintTimer); _maintTimer = null; return; }
     if (document.hidden) return;
     if (el('overlay') && el('overlay').classList.contains('show')) return;  // đang mở form -> đừng đụng
     if (maintTab !== 'sua') return;   // đang ở tab khác -> đừng vẽ lại dưới tay người ta
@@ -1576,11 +1578,12 @@ function startTableResize() {
 // Ban thư ký chỉ có MỘT màn: hồ sơ lưu trữ rút gọn (API /students/archive).
 // Không dùng renderAdmin: các API nền (rooms/settings/facilities...) đều 403 với vai này.
 function renderSecretary() {
+  _congDangMo = 'secretary';
   el('app').innerHTML = `
     <div class="app"><div class="main" style="margin:0 auto;max-width:1180px;width:100%">
       <div class="top">
         <div><h1>${IC.fileText} Hồ sơ lưu trữ</h1><div class="sub">Xin chào, ${esc(Auth.user.full_name || Auth.user.username)} — Ban thư ký</div></div>
-        <div class="toolbar"><button class="btn sm" data-act="loadSecretary">${IC.refresh} Tải lại</button>${dungMatKhau() ? `<button class="btn sm" data-act="changePwd">${IC.key} Đổi mật khẩu</button>` : ''}<button class="btn sm" data-act="logout">${IC.logOut} Đăng xuất</button></div>
+        <div class="toolbar"><button class="btn sm" data-act="loadSecretary">${IC.refresh} Tải lại</button>${laKiemNhiem() ? `<button class="btn sm" data-act="switchPortal" data-args='["tenant"]'>${IC.home} Cổng khách thuê</button>` : ''}${dungMatKhau() ? `<button class="btn sm" data-act="changePwd">${IC.key} Đổi mật khẩu</button>` : ''}<button class="btn sm" data-act="logout">${IC.logOut} Đăng xuất</button></div>
       </div>
       <div class="content" id="content"><div class="spinner"></div></div>
     </div></div>`;
@@ -1661,7 +1664,7 @@ function chongBam2Lan(fn) {
   'saveStudent', 'saveRoom', 'saveVehicle', 'saveAsset', 'saveFacility', 'saveUser', 'saveApp',
   'saveViolation', 'saveVtype', 'saveInvoice', 'saveOneInvoice', 'saveElectric', 'saveDeposit',
   'saveAccount', 'saveSettings', 'saveIntro', 'saveBravo', 'saveMailSettings', 'saveSsoSettings', 'saveNote',
-  'saveHocVienInfo',
+  'saveHocVienInfo', 'linkTenant', 'unlinkTenant',
   'doApprove', 'doTransfer', 'doCheckOut', 'doCheckIn', 'doSetLeader', 'unsetLeader',
   'doChangePwd', 'doResetUserPw', 'doKhoaHoSo', 'runGenerate',
   'settleDepositAndClose', 'submitCheckoutReq', 'submitDamage', 'submitHandoverCheckin',
@@ -1672,6 +1675,17 @@ function chongBam2Lan(fn) {
   if (typeof window[ten] === 'function') window[ten] = chongBam2Lan(window[ten]);
   else console.warn('[chống bấm 2 lần] không thấy hàm:', ten); // đổi tên hàm mà quên sửa đây -> báo ngay
 });
+
+/* ================= CHUYỂN CỔNG (kiêm nhiệm) ================= */
+// p = 'tenant' (cổng khách thuê) | 'work' (cổng theo vai). Chỉ là lựa chọn UI — server phân quyền theo DB.
+function switchPortal(p) {
+  try { localStorage.setItem('ktx_portal', p); } catch {}
+  // Tắt hết các vòng poll của cổng cũ; _notifTimer (cổng quản lý) KHÔNG có guard nên phải clear tay.
+  if (typeof _notifTimer !== 'undefined' && _notifTimer) { clearInterval(_notifTimer); _notifTimer = null; }
+  if (_hvNotifTimer) { clearInterval(_hvNotifTimer); _hvNotifTimer = null; }
+  if (_maintTimer) { clearInterval(_maintTimer); _maintTimer = null; }
+  boot();
+}
 
 /* ================= KHỞI ĐỘNG ================= */
 boot();

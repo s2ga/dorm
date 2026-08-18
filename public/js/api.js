@@ -12,7 +12,9 @@ const Auth = {
         headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ all: !!moiThietBi }),
       });
     } catch {}
-    this.user = null; location.reload();
+    this.user = null;
+    try { localStorage.removeItem('ktx_portal'); } catch {}   // lựa chọn cổng là của người vừa thoát
+    location.reload();
   },
 };
 
@@ -35,8 +37,12 @@ async function api(path, { method = 'GET', body } = {}) {
     // đọc không hiểu. Toàn app tiếng Việt, riêng lúc hỏng nhất lại nói tiếng Anh.
     throw new Error('Mất kết nối — chưa gửi được. Kiểm tra mạng rồi thử lại (dữ liệu bạn vừa nhập vẫn còn).');
   }
-  // Phiên hết hạn khi đang đăng nhập -> xóa hint + tải lại về màn đăng nhập
-  if (res.status === 401 && Auth.user) { Auth.user = null; location.reload(); throw new Error('Hết phiên đăng nhập'); }
+  // Phiên hết hạn khi đang đăng nhập -> xóa hint + lựa chọn cổng + tải lại về màn đăng nhập
+  if (res.status === 401 && Auth.user) {
+    Auth.user = null;
+    try { localStorage.removeItem('ktx_portal'); } catch {}
+    location.reload(); throw new Error('Hết phiên đăng nhập');
+  }
   let data = null;
   try { data = await res.json(); } catch {}
   if (!res.ok) {
@@ -223,6 +229,9 @@ const API = {
   updateUser: (id, b) => api('/admin/users/' + id, { method: 'PUT', body: b }),
   // Duyệt tài khoản chờ thành HỌC VIÊN: b = {student_id} ghép hồ sơ có sẵn, hoặc {new_student:{...}} tạo mới.
   approveUserAsStudent: (id, b) => api('/admin/users/' + id + '/approve-student', { method: 'POST', body: b }),
+  // Nhân viên KIÊM khách thuê phòng: gắn/gỡ hồ sơ, vai giữ nguyên (khác approveUserAsStudent — ghi đè vai).
+  linkStudent: (id, student_id) => api('/admin/users/' + id + '/link-student', { method: 'POST', body: { student_id } }),
+  unlinkStudent: id => api('/admin/users/' + id + '/link-student', { method: 'DELETE' }),
   resetUserPw: (id, password) => api('/admin/users/' + id + '/password', { method: 'POST', body: { password } }),
   // DELETE = KHOÁ tài khoản (chặn đăng nhập, giữ nguyên dữ liệu) — mở lại bằng unlockUser.
   deleteUser: id => api('/admin/users/' + id, { method: 'DELETE' }),

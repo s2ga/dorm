@@ -116,8 +116,9 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	veh.PUT("/:id", h.UpdateVehicle)
 	veh.DELETE("/:id", h.DeleteVehicle)
 
-	// Cổng học viên (me) — role student
-	me := api.Group("/me", a.RequireAuth(), a.RequireRole("student"))
+	// Cổng học viên (me) — mở theo liên kết hồ sơ (student_id), không theo vai:
+	// tài khoản nhân viên kiêm khách thuê phòng cũng vào được.
+	me := api.Group("/me", a.RequireAuth(), a.RequireStudentLink())
 	me.GET("/profile", h.MeProfile)
 	me.GET("/roommates", h.MeRoommates)
 	me.GET("/assets", h.MeAssets)
@@ -166,6 +167,8 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	adm.POST("/users", h.CreateUser)
 	adm.PUT("/users/:id", h.UpdateUser)
 	adm.POST("/users/:id/approve-student", h.ApproveUserAsStudent) // duyệt tài khoản chờ thành học viên (ghép hồ sơ)
+	adm.POST("/users/:id/link-student", h.AdminLinkStudent)        // nhân viên kiêm khách thuê: gắn hồ sơ, role giữ nguyên
+	adm.DELETE("/users/:id/link-student", h.AdminUnlinkStudent)    // gỡ hồ sơ kiêm nhiệm (thôi thuê phòng)
 	adm.POST("/users/:id/password", h.ResetPassword)
 	adm.POST("/users/:id/unlock", h.UnlockUser) // mở khoá (DELETE = khoá, không xoá dữ liệu)
 	adm.DELETE("/users/:id", h.DeleteUser)

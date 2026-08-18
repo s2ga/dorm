@@ -1,6 +1,7 @@
 // === app-admin-core.js — tach tu app.js (CHANG 4 refactor). Classic script, GIU global scope cho onclick. ===
 // KHONG doi thu tu nap trong index.html; boot()/chong-bam/click-listener nam o app-portals-boot.js (cuoi).
 function renderAdmin() {
+  _congDangMo = 'admin';
   const isAdmin = Auth.user.role === 'admin';
   el('app').innerHTML = `
     <div class="app">
@@ -31,6 +32,7 @@ function renderAdmin() {
         <div class="foot">
           <div class="u">${esc(Auth.user.full_name || Auth.user.username)}</div>
           <div class="r muted" style="font-size:11px">${isAdmin ? 'Quản trị viên' : 'Nhân viên'}</div>
+          ${laKiemNhiem() ? `<button data-act="switchPortal" data-args='["tenant"]'>${IC.home} Cổng khách thuê</button>` : ''}
           ${dungMatKhau() ? `<button data-act="changePwd">${IC.key} Đổi mật khẩu</button>` : ''}
           <button data-act="logout">${IC.logOut} Đăng xuất</button>
         </div>
