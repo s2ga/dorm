@@ -400,6 +400,26 @@ const FILTERS = {
       return p;
     },
   },
+  // Phòng: tab (danh sách / lịch chỗ trống) + bộ lọc + ngày/giới tính đang xem lên URL.
+  // Giá trị lạ nắn về mặc định — URL rác không được làm trắng màn.
+  rooms: {
+    read: q => {
+      roomTab = q.get('tab') === 'lich' ? 'lich' : 'ds';
+      roomFilter = ['trong', 'vuot'].includes(q.get('loc')) ? q.get('loc') : 'all';
+      roomSearch = q.get('q') || '';
+      lichNgay = /^\d{4}-\d{2}-\d{2}$/.test(q.get('ngay') || '') ? q.get('ngay') : '';
+      lichGT = ['male', 'female'].includes(q.get('gt')) ? q.get('gt') : '';
+    },
+    write: () => {
+      const p = new URLSearchParams();
+      if (roomTab === 'lich') p.set('tab', 'lich');
+      if (roomFilter && roomFilter !== 'all') p.set('loc', roomFilter);
+      if (roomSearch) p.set('q', roomSearch);
+      if (roomTab === 'lich' && lichNgay) p.set('ngay', lichNgay);
+      if (roomTab === 'lich' && lichGT) p.set('gt', lichGT);
+      return p;
+    },
+  },
   // Cài đặt: nhóm (tab) đang mở lên URL -> /cai-dat?tab=gioithieu mở THẲNG nhóm đó, F5 giữ nguyên
   // nhóm, gửi link cho đồng nghiệp là họ vào đúng chỗ. Giá trị lạ -> viewSettings tự nắn về 'gia'.
   settings: {

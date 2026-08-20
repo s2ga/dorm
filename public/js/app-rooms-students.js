@@ -1,12 +1,13 @@
 // === app-rooms-students.js — tach tu app.js (CHANG 4 refactor). Classic script, GIU global scope cho onclick. ===
 // KHONG doi thu tu nap trong index.html; boot()/chong-bam/click-listener nam o app-portals-boot.js (cuoi).
 async function viewRooms() {
+  if (roomTab === 'lich' && !roomShowDeleted) return viewLichChoTrong();
   // Nút chuyển qua/lại "phòng đã xoá" nay ở HÀNG NÚT TRÊN, cạnh "Thêm phòng" (trước nó nằm trong
   // thanh công cụ của panel, lẫn với ô tìm kiếm). Cùng MỘT VỊ TRÍ đổi nhãn theo chế độ đang xem:
   // bấm đi và bấm về là cùng chỗ, không phải đi tìm nút quay lại ở nơi khác.
   el('topActions').innerHTML = roomShowDeleted
     ? `<button class="btn" data-act="roomDel" data-args='[false]'>← Danh sách phòng</button>`
-    : `<button class="btn pri" data-act="roomForm">${IC.plus} Thêm phòng</button>
+    : `${segTabPhong()}<button class="btn pri" data-act="roomForm">${IC.plus} Thêm phòng</button>
        <button class="btn" data-act="roomDel" data-args='[true]'>${IC.trash} Đã xóa</button>`;
   const tatCa = roomShowDeleted ? await guard(() => API.rooms(true)) : ST.rooms;
   const del = roomShowDeleted;
@@ -71,7 +72,136 @@ async function viewRooms() {
       <tr class="no-result" style="display:none"><td colspan="7"><div class="empty">Không tìm thấy phòng phù hợp.</div></td></tr>
       </tbody></table>` : `<div class="empty">${del ? 'Không có phòng đã xóa.' : `Chưa có phòng nào. Bấm <strong>${IC.plus} Thêm phòng</strong>.`}</div>`}
     </div></div>`;
-  const rs = el('rs'); if (rs) { rs.addEventListener('input', () => roomSearch = rs.value); attachRowSearch(rs, 'roomCount'); }
+  const rs = el('rs'); if (rs) { rs.addEventListener('input', () => { roomSearch = rs.value; syncFilterUrl(); }); attachRowSearch(rs, 'roomCount'); }
+  syncFilterUrl();
+}
+
+/* ---------- LỊCH CHỖ TRỐNG (tab của màn Phòng) ---------- */
+let roomTab = 'ds';       // 'ds' | 'lich'
+let lichNgay = '';        // ngày đang chọn ('' = chưa chọn)
+let lichThangGoc = '';    // 'YYYY-MM' tháng đang xem ('' = tháng hiện tại)
+let lichGT = '';          // '' | 'male' | 'female'
+const segTabPhong = () => `<div class="seg-thu tab">
+  <button class="seg ${roomTab === 'ds' ? 'on' : ''}" data-act="roomTabGo" data-args='["ds"]'>Danh sách</button>
+  <button class="seg ${roomTab === 'lich' ? 'on' : ''}" data-act="roomTabGo" data-args='["lich"]'>${IC.calendar} Lịch chỗ trống</button>
+</div>`;
+function roomTabGo(t) { roomTab = t === 'lich' ? 'lich' : 'ds'; viewRooms(); }
+function lichThang(huong) {
+  const [y, m] = (lichThangGoc || curMonth()).split('-').map(Number);
+  const d = new Date(y, m - 1 + huong, 1);
+  lichThangGoc = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  viewLichChoTrong();
+}
+function lichHomNay() { lichThangGoc = ''; lichNgay = today(); viewLichChoTrong(); }
+function lichChonNgay(iso) { lichNgay = lichNgay === iso ? '' : iso; viewLichChoTrong(); }
+function lichGioiTinh(g) { lichGT = lichGT === g ? '' : g; viewLichChoTrong(); }
+
+async function viewLichChoTrong() {
+  el('topActions').innerHTML = `${segTabPhong()}<button class="btn pri" data-act="roomForm">${IC.plus} Thêm phòng</button>`;
+  el('content').innerHTML = '<div class="spinner"></div>';
+  const ym = lichThangGoc || curMonth();
+  const [y, m] = ym.split('-').map(Number);
+  const dau = `${ym}-01`, cuoi = `${ym}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
+  const co = await napLich(dau, cuoi);
+  if (!co) {
+    el('content').innerHTML = `<div class="panel"><div class="pad"><div class="empty">${IC.alert} Không tải được lịch chỗ trống.
+      <button class="btn sm" data-act="roomTabGo" data-args='["lich"]' style="margin-left:8px">${IC.refresh} Thử lại</button></div></div></div>`;
+    return;
+  }
+  const homNay = today();
+  if (lichNgay && (lichNgay < _lich.tu || lichNgay > _lich.den)) lichNgay = '';
+
+  // Dải thẻ tổng — SỐ CỦA NGÀY ĐANG CHỌN (mặc định hôm nay), cùng nguồn tongChiSo với mọi màn khác
+  const ngayThe = lichNgay || homNay;
+  const T = tongNgay(ngayThe, lichGT) || tongChiSo([]);
+  // "Sắp có giường trong cửa sổ" = Σ theo phòng (max(trong các ngày) − trong hôm đầu), chỉ phòng đếm giường
+  const soNgayCua = soNgayGiua(_lich.tu, _lich.den) + 1;
+  let sapCo = 0;
+  (_lich.ds || []).forEach(p => {
+    if (!['shared', 'security', 'staff'].includes(p.room_type)) return;
+    if (lichGT && p.gender !== lichGT) return;
+    let dau0 = 0, max0 = 0;
+    for (let i = 0; i < soNgayCua; i++) {
+      const tr = Math.max(0, (+p.capacity || 0) - p.dang_o[i]);
+      if (i === 0) dau0 = tr;
+      if (tr > max0) max0 = tr;
+    }
+    sapCo += Math.max(0, max0 - dau0);
+  });
+
+  // Lưới tháng: 7 cột, bắt đầu Thứ 2
+  const start = (new Date(y, m - 1, 1).getDay() + 6) % 7;
+  const days = new Date(y, m, 0).getDate();
+  let oCell = '';
+  for (let i = 0; i < start; i++) oCell += '<span class="lct-d mo" aria-hidden="true"></span>';
+  for (let d = 1; d <= days; d++) {
+    const iso = `${ym}-${String(d).padStart(2, '0')}`;
+    const Tn = tongNgay(iso, lichGT);
+    const Tnam = lichGT ? null : tongNgay(iso, 'male');
+    const Tnu = lichGT ? null : tongNgay(iso, 'female');
+    const cls = Tn ? (Tn.vuot ? ' vuot' : Tn.trong ? ' co' : ' het') : '';
+    const kyHieu = Tn ? `${Tn.datCho ? `<span class="lct-vao">▾${Tn.datCho}</span>` : ''}${Tn.sapRa ? `<span class="lct-ra">▴${Tn.sapRa}</span>` : ''}` : '';
+    oCell += `<button type="button" class="lct-d${cls}${iso === homNay ? ' nay' : ''}${iso === lichNgay ? ' chon' : ''}"
+      data-act="lichChonNgay" data-args='["${iso}"]'
+      aria-label="${fmtDMY(iso)}: ${Tn ? `còn ${Tn.trong} giường${lichGT ? (lichGT === 'female' ? ' nữ' : ' nam') : ''}` : 'không có dữ liệu'}">
+      <span class="lct-n">${d}</span>
+      ${lichGT
+    ? `<span class="lct-v">${Tn ? (Tn.trong || (Tn.vuot ? '⌀' : '▨')) : '·'}</span>`
+    : `<span class="lct-gt">${Tnam ? `♂${Tnam.trong}` : ''} ${Tnu ? `♀${Tnu.trong}` : ''}</span>`}
+      <span class="lct-k">${kyHieu}</span></button>`;
+  }
+
+  const nutGT = (g, nhan) => `<button class="btn sm ${lichGT === g ? 'pri' : ''}" data-act="lichGioiTinh" data-args='["${g}"]' aria-pressed="${lichGT === g}">${nhan}</button>`;
+  el('content').innerHTML = `
+    <div class="cards">
+      <div class="stat"><div class="l">${IC.bed} Trống ${lichNgay ? fmtDMY(ngayThe) : 'hôm nay'}</div><div class="v sm">${T.trong} <span class="muted" style="font-size:13px">giường · ${T.soPhongConCho} phòng</span></div></div>
+      <div class="stat"><div class="l">▾ Đã đặt chỗ</div><div class="v sm">${T.datCho} <span class="muted" style="font-size:13px">→ thực còn ${T.thucCon}</span></div></div>
+      <div class="stat"><div class="l">▴ Sắp có giường</div><div class="v sm">+${sapCo} <span class="muted" style="font-size:13px">trong ${soNgayCua} ngày</span></div></div>
+      <div class="stat"><div class="l">${IC.alert} Đang quá tải</div><div class="v sm" style="color:${T.vuot ? 'var(--amber-ink)' : 'inherit'}">${T.vuot} <span class="muted" style="font-size:13px">người</span></div></div>
+    </div>
+    <div class="grid2" style="align-items:start">
+      <div class="panel" style="margin:0"><div class="hd">
+        <h2>${IC.calendar} Tháng ${m}/${y}</h2>
+        <div class="rowbtns">
+          <button class="btn sm" data-act="lichThang" data-args='[-1]' aria-label="Tháng trước">‹</button>
+          <button class="btn sm" data-act="lichHomNay">Hôm nay</button>
+          <button class="btn sm" data-act="lichThang" data-args='[1]' aria-label="Tháng sau">›</button>
+        </div></div>
+        <div class="pad" style="padding-bottom:6px"><div class="rowbtns">${nutGT('male', '♂ Nam')}${nutGT('female', '♀ Nữ')}
+          <span class="muted" style="font-size:12px;margin-left:6px">${lichGT ? '' : 'ô lịch: ♂ nam · ♀ nữ'}</span></div></div>
+        <div class="lct-dow">${['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map(w => `<span>${w}</span>`).join('')}</div>
+        <div class="lct-grid" id="lctGrid">${oCell}</div>
+        <div class="pad"><div class="hint">${IC.info}<span>Số trong ô = giường trống. ▨ hết chỗ · ⌀ quá tải · ▾ sắp vào · ▴ sắp ra. Bấm một ngày để xem từng phòng.</span></div></div>
+      </div>
+      <div class="panel" style="margin:0" id="lctNgayPanel">${lichNgayPanelHTML(ngayThe)}</div>
+    </div>`;
+  syncFilterUrl();
+}
+
+// Panel phải: danh sách phòng của MỘT ngày, nhóm còn chỗ lên trước.
+function lichNgayPanelHTML(iso) {
+  const ds = latCatNgay(iso);
+  if (!ds) return `<div class="pad"><div class="empty">Chưa có dữ liệu ngày này.</div></div>`;
+  const loc = ds.filter(r => phongTinhGiuong(r) && (!lichGT || r.gender === lichGT));
+  const conCho = loc.filter(r => chiSoPhong(r).trong > 0).sort((a, b) => chiSoPhong(b).trong - chiSoPhong(a).trong);
+  const kin = loc.filter(r => chiSoPhong(r).trong === 0);
+  const hang = r => {
+    const c = chiSoPhong(r);
+    return `<tr>
+      <td><div class="flex stu-name" data-act="roomDetail" data-args='[${r.id}]' role="button" tabindex="0" title="Xem chi tiết phòng">
+        <div><strong>${esc(r.name)}</strong><div class="sub2">Tầng ${r.floor || '—'} · ${r.gender === 'female' ? 'Nữ' : 'Nam'}</div></div>
+        <span class="row-chev">${IC.chevronRight}</span></div></td>
+      <td class="num" data-label="Đang ở"><span class="badge ${c.vuot ? 'amber' : c.trong ? 'green' : 'gray'}">${c.dangO}/${c.cap}</span></td>
+      <td class="num" data-label="Còn">${c.trong ? `<strong>${c.trong}</strong>` : c.vuot ? `<span class="badge amber">⌀ vượt ${c.vuot}</span>` : '<span class="muted">▨</span>'}</td>
+      <td class="num" data-label="Biến động">${c.datCho ? `<span class="lct-vao">▾${c.datCho}</span> ` : ''}${c.sapRa ? `<span class="lct-ra">▴${c.sapRa}</span>` : ''}</td>
+    </tr>`;
+  };
+  return `<div class="hd"><h2>${fmtDMY(iso)}${lichGT ? (lichGT === 'female' ? ' · Nữ' : ' · Nam') : ''}</h2>
+      <span class="muted" style="font-size:12.5px">${conCho.reduce((a, r) => a + chiSoPhong(r).trong, 0)} giường / ${conCho.length} phòng còn chỗ</span></div>
+    ${conCho.length || kin.length ? `<div class="table-wrap"><table>
+      <thead><tr><th>Phòng</th><th class="num">Đang ở</th><th class="num">Còn</th><th class="num">Biến động</th></tr></thead>
+      <tbody>${conCho.map(hang).join('')}${kin.map(hang).join('')}</tbody></table></div>`
+    : `<div class="pad"><div class="empty">Không có phòng nào khớp bộ lọc.</div></div>`}`;
 }
 /* ---------- CHI TIẾT PHÒNG ----------
    Bấm vào phòng ở danh sách -> xem phòng đó ĐANG CÓ NHỮNG AI. Trước đây bấm vào phòng không ra gì:
