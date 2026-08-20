@@ -10,15 +10,23 @@ async function viewRooms() {
        <button class="btn" data-act="roomDel" data-args='[true]'>${IC.trash} Đã xóa</button>`;
   const tatCa = roomShowDeleted ? await guard(() => API.rooms(true)) : ST.rooms;
   const del = roomShowDeleted;
-  // Lọc "còn giường trống" phải khớp ĐÚNG cách availBedsOf đếm (chỉ phòng ghép còn slot), nếu không
-  // thẻ KPI nói 1 giường mà bấm vào ra danh sách rỗng hoặc thừa phòng.
+  // Bộ lọc phải khớp ĐÚNG cách tongChiSo đếm, nếu không thẻ KPI nói 1 giường mà bấm vào ra danh sách
+  // rỗng hoặc thừa phòng. 'vuot' = drill-down từ cảnh báo quá tải.
   const list = roomFilter === 'trong' && !del
-    ? tatCa.filter(giuongTrongCua).slice().sort((a, b) => giuongTrongCua(b) - giuongTrongCua(a))  // trống nhiều lên trước
-    : tatCa;
+    ? tatCa.filter(phongConCho).slice().sort((a, b) => chiSoPhong(b).trong - chiSoPhong(a).trong)
+    : roomFilter === 'vuot' && !del
+      ? tatCa.filter(phongQuaTai).slice().sort((a, b) => chiSoPhong(b).vuot - chiSoPhong(a).vuot)
+      : tatCa;
+  const TL = tongChiSo(tatCa);
   el('content').innerHTML = `
     ${roomFilter === 'trong' && !del ? `<div class="pill-row" style="align-items:center">
       <span class="muted" style="font-size:13px">Đang lọc:</span>
-      <span class="badge gray" style="font-size:13px">${IC.bed} Còn giường trống — ${tatCa.reduce((a, r) => a + giuongTrongCua(r), 0)} giường ở ${list.length} phòng</span>
+      <span class="badge gray" style="font-size:13px">${IC.bed} Còn giường trống — ${TL.trong} giường ở ${TL.soPhongConCho} phòng${TL.datCho ? ` · đã đặt ${TL.datCho} → thực còn ${TL.thucCon}` : ''}</span>
+      <button class="btn sm ghost" data-act="roomGo" data-args='["all"]' title="Bỏ lọc, xem tất cả phòng">✕ Bỏ lọc</button>
+    </div>` : ''}
+    ${roomFilter === 'vuot' && !del ? `<div class="pill-row" style="align-items:center">
+      <span class="muted" style="font-size:13px">Đang lọc:</span>
+      <span class="badge amber" style="font-size:13px">${IC.alert} Đang quá tải — ${TL.vuot} người ở ${TL.soPhongVuot} phòng</span>
       <button class="btn sm ghost" data-act="roomGo" data-args='["all"]' title="Bỏ lọc, xem tất cả phòng">✕ Bỏ lọc</button>
     </div>` : ''}
     <div class="panel"><div class="hd">
@@ -33,19 +41,21 @@ async function viewRooms() {
       ${del || !list.length ? '' : `<div class="hint only-touch" style="margin:12px 12px 0">${IC.info}<span><strong>Giữ</strong> hoặc <strong>kéo ngang</strong> một hàng để xoá phòng.</span></div>`}
     <div class="table-wrap card-tbl">
       ${list.length ? `<table><thead><tr><th>Phòng</th><th>Loại</th><th>Mã pháp nhân</th><th class="num">Đang ở</th><th>${IC.star} Phòng trưởng</th><th class="num">Giá thuê</th><th></th></tr></thead><tbody>
-      ${list.map(r => { const full = r.occupancy >= r.capacity && r.capacity > 0; return `<tr data-s="${esc((r.name + ' ' + genderLabel(r.gender) + ' ' + legalEntityCell(r.gender) + ' tầng' + r.floor + ' hạng' + (r.hang || 'b')).toLowerCase())}"${del ? ''
+      ${list.map(r => { const c = chiSoPhong(r); return `<tr data-s="${esc((r.name + ' ' + genderLabel(r.gender) + ' ' + legalEntityCell(r.gender) + ' tầng' + r.floor + ' hạng' + (r.hang || 'b')).toLowerCase())}"${del ? ''
         // Cả hàng bấm được. KHÔNG đặt role="button" lên <tr>: role đó lược hết <td> con với trình đọc
         // màn hình; bàn phím đi bằng .stu-name bên dưới. data-del/data-delid: cử chỉ giữ/kéo để xoá trên
         // điện thoại (app-actions.js), ở đó nút thùng rác bị ẩn.
         : ` data-act="roomDetail" data-args='[${r.id}]' title="Xem chi tiết phòng — ai đang ở" data-del="delRoom" data-delid="${r.id}"`}>
         ${/* Phòng ĐÃ XOÁ: để trần, không khoác .stu-name — class đó có cursor:pointer + gạch chân khi rê,
               trông bấm được mà bấm không ra gì (hàng đã xoá không có data-act). */''}
-        <td><div class="flex${del ? '' : ' stu-name'}"${del ? '' : ` data-act="roomDetail" data-args='[${r.id}]' role="button" tabindex="0" title="Xem chi tiết phòng — ai đang ở"`}><div><strong>${esc(r.name)}</strong>${r.upcoming ? ` <span class="badge blue" title="Sắp vào">+${r.upcoming}</span>` : ''}
+        <td><div class="flex${del ? '' : ' stu-name'}"${del ? '' : ` data-act="roomDetail" data-args='[${r.id}]' role="button" tabindex="0" title="Xem chi tiết phòng — ai đang ở"`}><div><strong>${esc(r.name)}</strong>
           <div class="sub2">Tầng ${r.floor || '—'}</div>${r.note ? `<div class="sub2" style="white-space:pre-wrap;margin-top:3px">${esc(r.note)}</div>` : ''}</div>
           ${del ? '' : `<span class="row-chev" aria-hidden="true">${IC.chevronRight}</span>`}</div></td>
         <td class="ct-gon" data-label="Loại"><span>${r.gender === 'female' ? '<span class="badge sage">Nữ</span>' : '<span class="badge blue">Nam</span>'} <span class="badge gray">Hạng ${esc(r.hang || 'B')}</span> ${roomTypeBadge(r)}</span></td>
         <td class="ct-gon" data-label="Mã pháp nhân">${legalEntityCell(r.gender)}</td>
-        <td class="num ct-gon" data-label="Đang ở">${roomIsShared(r) ? `<span class="badge ${full ? 'amber' : r.occupancy ? 'green' : 'gray'}">${r.occupancy}/${r.capacity || 0}</span>` : `<span class="badge gray">${r.occupancy} người</span>`}</td>
+        <td class="num ct-gon" data-label="Đang ở">${c.dem
+          ? `<span class="badge ${c.vuot ? 'amber' : c.trong ? 'green' : 'gray'}">${c.dangO}/${c.cap}</span>${c.vuot ? ` <span class="badge amber" title="Vượt sức chứa — cố ý được phép, xem BL-61">${IC.alert} vượt ${c.vuot}</span>` : ''}${c.datCho ? ` <span class="badge blue" title="Đã đặt chỗ, chưa tới ngày vào">▾${c.datCho}</span>` : ''}${c.sapRa ? ` <span class="badge gray" title="Đã có ngày trả phòng">▴${c.sapRa}</span>` : ''}`
+          : `<span class="badge gray">${c.dangO} người</span>`}</td>
         ${/* data-trong: ô rỗng thì ở chế độ thẻ (điện thoại) ẩn hẳn dòng — "PHÒNG TRƯỞNG —" không
               đáng chiếm một dòng, không hiện tức là chưa cử. Máy tính vẫn giữ cột cho thẳng hàng. */''}
         <td data-label="Phòng trưởng"${leaderOf(r.id) ? '' : ' data-trong="1"'}>${leaderCell(r)}</td>
@@ -75,9 +85,10 @@ function roomDetail(id) {
   if (!r) return toast('Không tìm thấy phòng này', 'err');
   const dsDangO = ST.students.filter(s => s.room_id === id && isOccupying(s));
   const dsSapVao = ST.students.filter(s => s.room_id === id && liveStatus(s) === 'upcoming');
-  const cap = +r.capacity || 0, shared = roomIsShared(r);
-  const conTrong = Math.max(0, cap - dsDangO.length);
-  const vuot = shared && cap > 0 && dsDangO.length > cap;
+  // dsDangO/dsSapVao chỉ để dựng BẢNG NGƯỜI; mọi CON SỐ lấy từ chiSoPhong — một nguồn duy nhất.
+  const c = chiSoPhong(r);
+  const cap = c.cap, shared = c.dem;
+  const vuot = c.vuot > 0;
   const L = leaderOf(id);
   const giaGhep = +r.monthly_fee > 0 ? r.monthly_fee : ST.settings.room_fee;
 
@@ -101,15 +112,18 @@ function roomDetail(id) {
     <div class="mb">
       <div class="cards" style="margin-bottom:16px">
         <div class="stat"><div class="l">Đang ở</div><div class="v sm">${shared
-          ? `<span class="badge ${vuot ? 'amber' : dsDangO.length ? 'green' : 'gray'}">${dsDangO.length}/${cap}</span>${conTrong ? `<div class="sub2">còn ${conTrong} giường trống</div>` : ''}`
-          : `<span class="badge gray">${dsDangO.length} người</span>`}</div></div>
-        <div class="stat"><div class="l">Giá thuê${shared ? ' / người' : ''}</div><div class="v sm">${money(giaGhep)}${roomType(r) === 'whole' ? `<div class="sub2">Nguyên phòng: ${money(ST.settings['room_price_' + (r.hang || 'B')])}</div>` : ''}</div></div>
+          ? `<span class="badge ${vuot ? 'amber' : c.dangO ? 'green' : 'gray'}">${c.dangO}/${cap}</span>${vuot ? `<div class="sub2" style="color:var(--amber-ink)">${IC.alert} vượt ${c.vuot} người</div>` : ''}`
+          : `<span class="badge gray">${c.dangO} người</span>`}</div></div>
+        ${shared ? `<div class="stat"><div class="l">Chỗ trống</div><div class="v sm">${c.trong}
+          ${c.datCho ? `<div class="sub2" style="color:var(--blue-ink)">▾ ${c.datCho} đã đặt · thực còn ${c.thucCon}</div>` : ''}
+          ${c.sapRa ? `<div class="sub2">▴ ${c.sapRa} sẽ rời → sắp có ${c.sapTrong || c.sapRa}</div>` : ''}</div></div>` : ''}
+        <div class="stat"><div class="l">Giá thuê${roomIsShared(r) ? ' / người' : ''}</div><div class="v sm">${money(giaGhep)}${roomType(r) === 'whole' ? `<div class="sub2">Nguyên phòng: ${money(ST.settings['room_price_' + (r.hang || 'B')])}</div>` : ''}</div></div>
         <div class="stat"><div class="l">Phòng trưởng</div><div class="v sm">${L ? `<span class="hd-ref" data-act="studentDetail" data-args='[${L.id}]' role="button" tabindex="0" title="Xem chi tiết học viên">${IC.star} ${esc(L.name)}</span>` : '<span class="muted">Chưa cử</span>'}</div></div>
       </div>
       <p><strong>Tầng:</strong> ${r.floor || roomFloorOf(r.name)} &nbsp;•&nbsp; <strong>Sức chứa:</strong> ${cap || '—'} giường &nbsp;•&nbsp; <strong>Pháp nhân:</strong> ${esc(legalEntity(r.gender))}${showFacilityUI() ? ` &nbsp;•&nbsp; <strong>Cơ sở:</strong> ${esc(facilityName(r.facility_id))}` : ''}</p>
       ${r.note ? `<p style="white-space:pre-wrap"><strong>Ghi chú:</strong> ${esc(r.note)}</p>` : ''}
       ${vuot ? `<div class="bang-tin" style="background:var(--amber-bg);border-color:var(--amber-ink);color:var(--amber-ink)">${IC.alert}
-        <span><strong>Đang vượt sức chứa</strong> (${dsDangO.length} người / ${cap} giường). Nghiệp vụ CHO PHÉP việc này —
+        <span><strong>Đang vượt sức chứa</strong> (${c.dangO} người / ${cap} giường). Nghiệp vụ CHO PHÉP việc này —
         thường là xếp người vào chờ bạn cũ xuất cảnh — nên đây chỉ là nhắc để bạn biết, không phải lỗi.</span></div>` : ''}
 
       <div class="panel" style="margin-top:12px"><div class="hd"><h2 style="font-size:14px">${IC.users} Người đang ở (${dsDangO.length})</h2></div>
@@ -118,6 +132,7 @@ function roomDetail(id) {
 
       ${dsSapVao.length ? `<div class="panel"><div class="hd"><h2 style="font-size:14px">${IC.calendar} Sắp vào (${dsSapVao.length})</h2></div>
         ${bang(dsSapVao)}
+        ${c.dem && dsSapVao.length !== c.datCho ? `<div class="pad"><p class="muted" style="margin:0;font-size:12px">Máy chủ đếm ${c.datCho}, danh sách hiện ${dsSapVao.length} — dữ liệu vừa đổi, tải lại trang.</p></div>` : ''}
       </div>` : ''}
 
       ${/* Ai ĐÃ RỜI không còn trong ST.students theo phòng nữa -> phải đọc room_stays, không lọc
@@ -239,7 +254,7 @@ function roomForm(id) {
       })()}
       <div class="field"><label>Loại phòng</label><select id="f_rtype">
         ${Object.keys(ROOM_TYPE).map(k => `<option value="${k}" ${roomType(r) === k ? 'selected' : ''}>${ROOM_TYPE[k][0]}</option>`).join('')}
-      </select><div class="muted" style="font-size:11.5px;margin-top:4px">${IC.info} "Thuê nguyên phòng / An ninh / Nhân viên công tác" sẽ <strong>không tính vào giường trống</strong> cho thuê ghép.</div></div>
+      </select><div class="muted" style="font-size:11.5px;margin-top:4px">${IC.info} "Thuê nguyên phòng" <strong>không tính vào giường trống</strong> (bán trọn phòng). Phòng an ninh / nhân viên <strong>có</strong> tính, vì đã cho xếp người vào.</div></div>
       <div class="field"><label>Ghi chú <span class="opt">(mỗi dòng một ghi chú)</span></label><textarea id="f_note" rows="3">${esc(r.note || '')}</textarea></div>
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveRoom" data-args='[${id || 0}]'>Lưu</button></div>`);
@@ -397,11 +412,12 @@ function roomOptions(sel, gender) {
   return `<option value="">— Chưa xếp phòng —</option>` + rooms.map(r => {
     // Phòng đầy KHÔNG bị khoá: vượt sức chứa là CỐ Ý (HV vào chờ bạn xuất cảnh) — chỉ ghi nhãn "đầy",
     // cảnh báo + xác nhận khi LƯU qua withOverloadConfirm (doApprove/doCheckIn/studentForm). Xem BL-61.
-    const trong = Math.max(0, (+r.capacity || 0) - (+r.occupancy || 0));
-    const full = r.occupancy >= r.capacity && sel !== r.id;
-    const duoi = full ? ' - đầy' : (trong ? ` - còn ${trong}` : '');
+    const c = chiSoPhong(r);
+    const full = c.dem && c.trong === 0 && sel !== r.id;
+    const duoi = full ? ' - đầy' : (c.trong ? ` - còn ${c.trong}` : '');
+    const dat = c.datCho ? ` · ▾${c.datCho} đã đặt` : '';
     const loai = roomIsShared(r) ? '' : ` · ${ROOM_TYPE[roomType(r)][0]}${roomType(r) === 'whole' ? '' : ' (miễn tiền phòng)'}`;
-    return `<option value="${r.id}" ${sel === r.id ? 'selected' : ''}>${esc(r.name)} · Tầng ${r.floor} (${r.occupancy}/${r.capacity || 0}${moc})${duoi}${loai}</option>`;
+    return `<option value="${r.id}" ${sel === r.id ? 'selected' : ''}>${esc(r.name)} · Tầng ${r.floor} (${c.dangO}/${c.cap || 0}${moc})${duoi}${dat}${loai}</option>`;
   }).join('');
 }
 // Nối ô NGÀY với ô XẾP PHÒNG: đổi ngày là tính lại chỗ trống ngay, không đợi bấm Lưu.
@@ -1206,7 +1222,5 @@ function quyCoc() {
 let vehSearch = '';
 /* ---------- DỊCH VỤ (Máy giặt · Gửi xe — mọi dịch vụ tùy chọn ở 1 nơi) ---------- */
 let svcTab = 'washing';
-let roomFilter = 'all';   // 'trong' = chỉ phòng ghép còn giường (drill-down từ thẻ KPI Tổng quan)
-// Số giường còn trống của MỘT phòng — dùng chung với availBedsOf để hai chỗ không lệch nhau.
-const giuongTrongCua = r => (roomIsShared(r) ? Math.max(0, (+r.capacity || 0) - (+r.occupancy || 0)) : 0);
+let roomFilter = 'all';   // 'trong' = còn giường (drill-down từ KPI Tổng quan) · 'vuot' = đang quá tải
 function roomGo(f) { roomFilter = f; adminGo('rooms'); }

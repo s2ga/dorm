@@ -471,12 +471,43 @@ const HANG_CAP = { A: 5, B: 4, C: 4, D: 3 };
 // Nhãn dùng chung cho thẻ phòng, form sửa phòng và cột xuất CSV.
 const ROOM_TYPE = { shared: ['Thuê ghép', 'gray'], whole: ['Thuê nguyên phòng', 'blue'], security: ['Phòng an ninh', 'amber'], staff: ['Nhân viên công tác', 'amber'] };
 const roomType = r => (ROOM_TYPE[r.room_type] ? r.room_type : 'shared');
-const roomIsShared = r => roomType(r) === 'shared';          // chỉ phòng ghép mới tính giường trống
-const roomForRent = r => ['shared', 'whole'].includes(roomType(r)); // thuộc quỹ cho thuê (có doanh thu)
+const roomIsShared = r => roomType(r) === 'shared';          // CHỈ dùng cho nhãn/giá ("/người"), cấm dùng để đếm giường
 const roomTypeBadge = r => { const [l, c] = ROOM_TYPE[roomType(r)]; return `<span class="badge ${c}">${l}</span>`; };
-// Giường trống chỉ đến từ phòng CHO THUÊ GHÉP còn slot (bỏ nguyên phòng / an ninh / nhân viên)
-const availBedsOf = rooms => rooms.reduce((a, r) => a + giuongTrongCua(r), 0);   // giuongTrongCua: app-rooms-students.js
-const rentCapOf = rooms => rooms.filter(roomForRent).reduce((a, r) => a + (+r.capacity || 0), 0);
+// Phòng xếp/đếm THEO GIƯỜNG. 'whole' bán trọn phòng nên ra khỏi cả tử lẫn mẫu số giường trống;
+// phòng an ninh / nhân viên CÓ đếm vì ô Xếp phòng cho xếp người vào đó (owner chốt 20/08).
+const phongTinhGiuong = r => ['shared', 'security', 'staff'].includes(roomType(r));
+// Chỉ số MỘT phòng — nguồn số DUY NHẤT của toàn app. Chỉ đọc occupancy/upcoming/leaving máy chủ trả
+// (đã theo mốc ngày nếu gọi kèm ?date=), không tự đếm lại từ ST.students.
+function chiSoPhong(r) {
+  const dem = phongTinhGiuong(r);
+  const cap = dem ? (+r.capacity || 0) : 0;
+  const dangO = +r.occupancy || 0;
+  const datCho = dem ? (+r.upcoming || 0) : 0;
+  const sapRa = dem ? (+r.leaving || 0) : 0;
+  const trong = dem ? Math.max(0, cap - dangO) : 0;
+  return {
+    dem, cap, dangO, datCho, sapRa, trong,
+    vuot: dem ? Math.max(0, dangO - cap) : 0,
+    sapTrong: dem ? Math.max(0, cap - dangO + sapRa) - trong : 0,
+    thucCon: Math.max(0, trong - datCho),
+  };
+}
+// thucCon cộng theo TỪNG phòng rồi mới tổng — chỗ đã đặt ở phòng này không lấp được giường phòng khác.
+function tongChiSo(rooms) {
+  const t = { cap: 0, dangO: 0, datCho: 0, sapRa: 0, trong: 0, vuot: 0, sapTrong: 0, thucCon: 0,
+    soPhong: 0, soPhongConCho: 0, soPhongVuot: 0 };
+  (rooms || []).forEach(r => {
+    if (!phongTinhGiuong(r)) return;
+    const c = chiSoPhong(r);
+    ['cap', 'dangO', 'datCho', 'sapRa', 'trong', 'vuot', 'sapTrong', 'thucCon'].forEach(k => { t[k] += c[k]; });
+    t.soPhong++;
+    if (c.trong > 0) t.soPhongConCho++;
+    if (c.vuot > 0) t.soPhongVuot++;
+  });
+  return t;
+}
+const phongConCho = r => chiSoPhong(r).trong > 0;
+const phongQuaTai = r => chiSoPhong(r).vuot > 0;
 const SAO = '<span class="sao" aria-hidden="true">*</span>'; // dấu bắt buộc, đỏ
 const RENTAL_LABEL = { ghep: 'Thuê ghép', phong: 'Thuê nguyên phòng' };
 // Hình thức thuê của một hồ sơ do LOẠI PHÒNG quyết định — rooms.room_type cũng chính là thứ công thức

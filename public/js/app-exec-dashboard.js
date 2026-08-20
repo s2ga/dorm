@@ -11,13 +11,12 @@ async function viewExec() {
   // Chỉ so cùng kỳ khi năm trước có dữ liệu đủ ý nghĩa (>=5% năm nay), tránh % ảo
   const yoy = (prevYear > totalYear * 0.05) ? Math.round((totalYear - prevYear) / prevYear * 100) : null;
   const occ = ST.students.filter(isOccupying).length;
-  const capacity = rentCapOf(ST.rooms);               // giường thuộc quỹ cho thuê (ghép + nguyên phòng)
-  const availBeds = availBedsOf(ST.rooms);            // giường trống: chỉ phòng ghép còn slot
-  const usedBeds = Math.max(0, capacity - availBeds); // giường ĐANG có người trong quỹ cho thuê (khớp với %)
+  const T = tongChiSo(ST.rooms);                      // một nguồn số duy nhất — xem chiSoPhong
+  const capacity = T.cap;
+  const availBeds = T.trong;
+  const usedBeds = T.cap - T.trong;
   const occRate = capacity ? Math.round(usedBeds / capacity * 100) : 0;
-  // QUÁ TẢI: phòng ghép có số người > công suất (HV vào ở chờ bạn cùng phòng xuất cảnh) — cấp trên cần thấy
-  const overRooms = ST.rooms.filter(r => roomIsShared(r) && r.capacity > 0 && r.occupancy > r.capacity);
-  const overPeople = overRooms.reduce((a, r) => a + (r.occupancy - r.capacity), 0);
+  const overPeople = T.vuot, overRoomCount = T.soPhongVuot;
   const outstanding = totalYear - paidYear;
   const dep = ST.students.filter(s => s.check_out_date && DEPARTURE_REASONS.includes(s.checkout_reason) && String(s.check_out_date).slice(0, 4) === year).length;
   const svcs = [
@@ -63,7 +62,7 @@ async function viewExec() {
   el('content').innerHTML = `<div id="printArea">
     <div class="print-only" style="margin-bottom:14px"><h2 style="font-family:var(--serif);margin:0">${esc(ST.settings.dorm_name || 'Ký túc xá')} — Báo cáo điều hành ${year}</h2><div class="muted">Xuất ngày ${fmtDate(today())}</div></div>
     <div class="kpis">
-      ${kpi(IC.userCheck, 'ic-green', occRate + '%', 'Tỉ lệ lấp đầy', `${usedBeds}/${capacity} giường${overPeople ? ` · <strong style="color:var(--red-ink)">${IC.alert} quá tải ${overPeople} người (${overRooms.length} phòng)</strong>` : ''}`, actAttr('adminGo', 'rooms'))}
+      ${kpi(IC.userCheck, 'ic-green', occRate + '%', 'Tỉ lệ lấp đầy', `${usedBeds}/${capacity} giường${overPeople ? ` · <strong style="color:var(--red-ink)">${IC.alert} quá tải ${overPeople} người (${overRoomCount} phòng)</strong>` : ''}`, actAttr('adminGo', 'rooms'))}
       ${kpi(IC.trendingUp, 'ic-brand', money(totalYear), 'Dự báo doanh thu ' + year, yoy != null ? (yoy >= 0 ? '▲' : '▼') + Math.abs(yoy) + '% vs ' + (+year - 1) : '', actAttr('adminGo', 'revenue'))}
       ${kpi(IC.users, 'ic-blue', occ, 'Học viên đang ở', '', actAttr('stuGoAdmin', 'in'))}
       ${kpi(IC.planeTakeoff, 'ic-gray', dep, 'Đã xuất cảnh (năm ' + year + ')', '', actAttr('stuGoAdmin', 'departure'))}
@@ -262,8 +261,8 @@ async function viewDashboard() {
   const inCount = occ.length;
   const checkinToday = ST.students.filter(s => s.check_in_date && s.check_in_date.slice(0, 10) === today()).length;   // nhận phòng hôm nay
   const checkoutToday = ST.students.filter(s => s.check_out_date && s.check_out_date.slice(0, 10) === today()).length; // trả phòng hôm nay
-  const capacity = rentCapOf(ST.rooms);           // tổng giường thuộc quỹ cho thuê (ghép + nguyên phòng)
-  const beds = availBedsOf(ST.rooms);             // giường trống: CHỈ phòng cho thuê ghép còn slot
+  const T = tongChiSo(ST.rooms);                  // một nguồn số duy nhất — xem chiSoPhong
+  const capacity = T.cap, beds = T.trong;
   const resiOverdue = occ.filter(s => s.residency_status === 'unregistered' && stayDays(s) > overdueDays()).length; // chưa ĐK tạm trú, đã ở >7 ngày
   // Gộp 3 loại "hợp đồng chưa hoàn thiện" (đếm không trùng): cần ký chưa ký + ngắn hạn chưa ký bàn giao
   const contractIncomplete = occ.filter(s => contractPending(s) || handoverPending(s)).length;
@@ -309,7 +308,7 @@ async function viewDashboard() {
   el('content').innerHTML = `
     <div class="kpis">
       ${kpi('ic-green', IC.userCheck, inCount, 'Học viên đang ở', actAttr('stuGoAdmin', 'in'))}
-      ${kpi('ic-blue', IC.bed, `${beds}<span class="muted" style="font-size:15px;font-weight:600"> / ${capacity}</span>`, 'Giường còn trống', actAttr('roomGo', 'trong'))}
+      ${kpi('ic-blue', IC.bed, `${beds}<span class="muted" style="font-size:15px;font-weight:600"> / ${capacity}</span>`, `Giường còn trống${T.datCho ? ` · đã đặt ${T.datCho} → thực còn ${T.thucCon}` : ''}${T.vuot ? ` · <strong style="color:var(--amber-ink)">${IC.alert} quá tải ${T.vuot}</strong>` : ''}`, actAttr('roomGo', 'trong'))}
       ${kpi('ic-brand', IC.receipt, money(billedThisMonth), 'Phiếu báo tháng này', actAttr('adminGo', 'invoices'), billedLastMonth ? 'Tháng trước ' + money(billedLastMonth) : '')}
       ${kpi('ic-amber', IC.filePen, `${noBill}<span class="muted" style="font-size:15px;font-weight:600"> / ${occ.length}</span>`, 'HV chưa lập phiếu tháng này', actAttr('adminGo', 'invoices'))}
     </div>
