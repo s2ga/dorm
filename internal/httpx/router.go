@@ -137,6 +137,7 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	// Phòng (rooms) + phòng trưởng
 	rm := api.Group("/rooms", a.RequireAuth())
 	rm.GET("", a.RequireRole("admin", "staff"), h.ListRooms)
+	rm.GET("/lich", a.RequireRole("admin", "staff"), h.RoomsCalendar)
 	rm.POST("", a.RequireRole("admin", "staff"), h.CreateRoom)
 	rm.PUT("/:id", a.RequireRole("admin", "staff"), h.UpdateRoom)
 	rm.DELETE("/:id", a.RequireRole("admin", "staff"), h.DeleteRoom)

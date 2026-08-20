@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"ktx/internal/auth"
@@ -187,6 +188,7 @@ func (h *Handlers) ListRooms(c *gin.Context) {
 		     AND s.check_in_date <= `+moc+` AND (s.check_out_date IS NULL OR s.check_out_date > `+moc+`))::int AS occupancy,
 		  (SELECT COUNT(*) FROM students s WHERE s.room_id = r.id AND s.deleted_at IS NULL AND s.check_in_date > `+moc+`)::int AS upcoming,
 		  (SELECT COUNT(*) FROM students s WHERE s.room_id = r.id AND s.deleted_at IS NULL
+		     AND s.check_in_date <= `+moc+`
 		     AND s.check_out_date IS NOT NULL AND s.check_out_date > `+moc+`)::int AS leaving
 		FROM rooms r
 		LEFT JOIN facilities f ON f.id = r.facility_id
@@ -202,6 +204,79 @@ func (h *Handlers) ListRooms(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, list)
+}
+
+// RoomsCalendar: GET /rooms/lich?tu=&den=[&facility=] (admin,staff) — ma trận phòng × ngày cho lịch
+// chỗ trống. Ba mệnh đề FILTER sao y ListRooms để lịch KHÔNG đẻ thêm định nghĩa "ai đang ở" mới;
+// truyền tu=den=X phải ra đúng con số ?date=X (tests/e2e/lich-cho-trong.test.js canh).
+func (h *Handlers) RoomsCalendar(c *gin.Context) {
+	u := auth.CurrentUser(c)
+	tu, den := c.Query("tu"), c.Query("den")
+	if !valid.IsValidYmd(tu) || !valid.IsValidYmd(den) {
+		badRequest(c, "Ngày không hợp lệ (cần dạng YYYY-MM-DD)")
+		return
+	}
+	t1, _ := time.Parse("2006-01-02", tu)
+	t2, _ := time.Parse("2006-01-02", den)
+	soNgay := int(t2.Sub(t1).Hours()/24) + 1
+	if soNgay < 1 {
+		badRequest(c, "Ngày kết thúc phải từ ngày bắt đầu trở đi")
+		return
+	}
+	if soNgay > 180 {
+		badRequest(c, "Khoảng ngày tối đa 180 ngày")
+		return
+	}
+	cond := []string{"r.deleted_at IS NULL"}
+	params := []interface{}{tu, den}
+	if scope.IsExecutive(u) {
+		if f := c.Query("facility"); f != "" {
+			if n, ok := jsNum(json.RawMessage(f)); ok {
+				params = append(params, int(n))
+				cond = append(cond, "r.facility_id = $"+itoa(len(params)))
+			}
+		}
+	} else {
+		scope.ApplyFacilityFilter(u, "r.facility_id", &cond, &params)
+	}
+	rows, err := h.pool().Query(c.Request.Context(), `
+		SELECT r.id, r.name, r.floor, r.gender, r.capacity, r.facility_id,
+		       COALESCE(r.room_type,'shared') AS room_type,
+		       (COALESCE(r.room_type,'shared') IN ('shared','security','staff')) AS dem_giuong,
+		       x.dang_o, x.sap_vao, x.sap_ra
+		  FROM rooms r
+		  CROSS JOIN LATERAL (
+		    SELECT json_agg(t.o ORDER BY t.ngay) AS dang_o,
+		           json_agg(t.u ORDER BY t.ngay) AS sap_vao,
+		           json_agg(t.l ORDER BY t.ngay) AS sap_ra
+		      FROM (
+		        SELECT d.ngay,
+		               COUNT(s.id) FILTER (WHERE s.check_in_date <= d.ngay
+		                 AND (s.check_out_date IS NULL OR s.check_out_date > d.ngay))::int AS o,
+		               COUNT(s.id) FILTER (WHERE s.check_in_date > d.ngay)::int AS u,
+		               COUNT(s.id) FILTER (WHERE s.check_in_date <= d.ngay
+		                 AND s.check_out_date IS NOT NULL AND s.check_out_date > d.ngay)::int AS l
+		          FROM (SELECT g::date AS ngay
+		                  FROM generate_series($1::date, $2::date, interval '1 day') g) d
+		          LEFT JOIN students s
+		                 ON s.room_id = r.id AND s.deleted_at IS NULL
+		                AND (s.check_in_date > $1::date
+		                  OR s.check_out_date IS NULL OR s.check_out_date > $1::date)
+		         GROUP BY d.ngay
+		      ) t
+		  ) x
+		 WHERE `+joinAnd(cond)+`
+		 ORDER BY r.floor, r.name`, params...)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	list, err := db.RowsToMaps(rows)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"tu": tu, "den": den, "so_ngay": soNgay, "phong": list})
 }
 
 func bindRoomBody(c *gin.Context) roomBody {

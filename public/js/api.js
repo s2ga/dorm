@@ -104,6 +104,8 @@ const API = {
   rooms: deleted => api('/rooms' + (deleted ? '?deleted=1' : '') + facAmp(!!deleted)),
   // BL-107: sức chứa tính theo MỘT MỐC NGÀY, không phải hôm nay — dùng cho ô Xếp phòng.
   roomsAtDate: ngay => api('/rooms?date=' + encodeURIComponent(ngay) + facAmp(true)),
+  // Ma trận phòng × ngày cho lịch chỗ trống.
+  roomsLich: (tu, den) => api('/rooms/lich?tu=' + encodeURIComponent(tu) + '&den=' + encodeURIComponent(den) + facAmp(true)),
   createRoom: b => api('/rooms', { method: 'POST', body: b }),
   updateRoom: (id, b) => api('/rooms/' + id, { method: 'PUT', body: b }),
   deleteRoom: id => api('/rooms/' + id, { method: 'DELETE' }),
