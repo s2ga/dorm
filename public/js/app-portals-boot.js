@@ -1381,6 +1381,9 @@ function attachDate(input, iso, opt) {
   input.classList.add('date-in');
   if (opt && opt.max) input.dataset.max = opt.max;
   if (opt && opt.min) input.dataset.min = opt.min;
+  // choTrong: ô ngày của modal xếp phòng — lịch tô màu + số giường trống từng ngày (lọc theo gt).
+  if (opt && opt.choTrong) input.dataset.choTrong = '1';
+  if (opt && opt.gt) input.dataset.gt = opt.gt;
   input.onclick = () => openCalendar(input);
   input.onfocus = () => openCalendar(input);
 }
@@ -1402,11 +1405,18 @@ function openCalendar(input) {
     let cells = '';
     const max = input.dataset.max || '', min = input.dataset.min || '';
     for (let i = 0; i < start; i++) cells += '<span class="cal-d empty"></span>';
+    const coCT = input.dataset.choTrong === '1', gt = input.dataset.gt || '';
     for (let d = 1; d <= days; d++) {
       const ds = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       // Ngày ngoài khoảng cho phép: hiện mờ, KHÔNG bấm được (thà chặn còn hơn cho chọn rồi vứt đi)
       const cam = (max && ds > max) || (min && ds < min);
-      cells += `<span class="cal-d${ds === sel ? ' sel' : ''}${cam ? ' cam' : ''}" ${cam ? '' : `data-d="${ds}"`}>${d}</span>`;
+      const T = coCT && !cam ? tongNgay(ds, gt) : null;
+      const cls = T ? (T.vuot ? ' vuot' : T.trong ? ' co' : ' het') : '';
+      // Ô có số giường là nơi RA QUYẾT ĐỊNH -> <button> để bàn phím focus được; ô thường giữ <span>.
+      if (T) cells += `<button type="button" class="cal-d${ds === sel ? ' sel' : ''}${cls}" data-d="${ds}"
+        title="${T.trong} giường trống${T.datCho ? ', ' + T.datCho + ' đã đặt' : ''}${T.vuot ? ', quá tải ' + T.vuot : ''}"
+        aria-label="${fmtDMY(ds)}: còn ${T.trong} giường${gt ? (gt === 'female' ? ' nữ' : ' nam') : ''}${T.datCho ? ', ' + T.datCho + ' đã đặt' : ''}">${d}<b class="cd-so">${T.trong}</b></button>`;
+      else cells += `<span class="cal-d${ds === sel ? ' sel' : ''}${cam ? ' cam' : ''}" ${cam ? '' : `data-d="${ds}"`}>${d}</span>`;
     }
     cal.innerHTML = `
       <div class="cal-hd">
@@ -1425,15 +1435,25 @@ function openCalendar(input) {
       <div class="cal-grid">${cells}</div>
       <div class="cal-ft"><button type="button" class="btn sm" data-today>Hôm nay</button><button type="button" class="btn sm ghost" data-clear>Xóa</button></div>`;
     cal.querySelectorAll('[data-d]').forEach(e => e.onclick = () => pick(e.dataset.d));
-    cal.querySelector('[data-nav="-1"]').onclick = () => { view = new Date(y, m - 1, 1); render(); };
-    cal.querySelector('[data-nav="1"]').onclick = () => { view = new Date(y, m + 1, 1); render(); };
-    cal.querySelector('.cal-m').onchange = e => { view = new Date(y, +e.target.value, 1); render(); };
-    cal.querySelector('.cal-y').onchange = e => { view = new Date(+e.target.value, m, 1); render(); };
+    cal.querySelector('[data-nav="-1"]').onclick = () => { view = new Date(y, m - 1, 1); render(); napThang(); };
+    cal.querySelector('[data-nav="1"]').onclick = () => { view = new Date(y, m + 1, 1); render(); napThang(); };
+    cal.querySelector('.cal-m').onchange = e => { view = new Date(y, +e.target.value, 1); render(); napThang(); };
+    cal.querySelector('.cal-y').onchange = e => { view = new Date(+e.target.value, m, 1); render(); napThang(); };
     cal.querySelector('[data-today]').onclick = () => { const t = new Date(); pick(`${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`); };
     cal.querySelector('[data-clear]').onclick = () => pick('');
   };
+  // Nạp ma trận chỗ trống BẤT ĐỒNG BỘ rồi vẽ lại — chậm hay hỏng thì lịch vẫn mở ngay, chỉ thiếu số.
+  const napThang = () => {
+    if (input.dataset.choTrong !== '1') return;
+    const y = view.getFullYear(), m = view.getMonth();
+    const dau = `${y}-${String(m + 1).padStart(2, '0')}-01`;
+    const cuoi = `${y}-${String(m + 1).padStart(2, '0')}-${String(new Date(y, m + 1, 0).getDate()).padStart(2, '0')}`;
+    napLich(dau, cuoi).then(ok => { if (ok && _calEl === cal) render(); });
+  };
+  if (input.dataset.choTrong === '1') cal.classList.add('cal-ct');
   document.body.appendChild(cal);
   render();   // BL-27: dựng nội dung TRƯỚC để đo chiều cao thật (cần cho việc lật-lên)
+  napThang();
   const r = input.getBoundingClientRect();
   const calH = cal.offsetHeight || 300, calW = cal.offsetWidth || 288;
   // BL-27: mặc định mở XUỐNG; nếu gần đáy màn (tràn viewport) thì LẬT LÊN để hàng ngày cuối + nút

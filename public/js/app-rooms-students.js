@@ -395,6 +395,37 @@ let _phongMoc = { ngay: '', ds: null };
 // Mốc là biến CHUNG: modal trước để lại mốc 21/08 thì modal sau mở ra sẽ hiện số của ngày đó. Mọi form
 // vẽ roomOptions phải quên mốc cũ trước khi vẽ lần đầu.
 function quenPhongMoc() { _phongMoc = { ngay: '', ds: null }; }
+
+/* ---------- Đệm ma trận lịch chỗ trống (GET /rooms/lich) ---------- */
+const soNgayGiua = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
+let _lich = { tu: '', den: '', fac: '', ds: null, luc: 0 };
+function quenLich() { _lich = { tu: '', den: '', fac: '', ds: null, luc: 0 }; }
+// Tải dư 14 ngày mỗi đầu để lật tháng qua lại không gọi mạng liên tục. Hỏng thì trả false —
+// lịch chỉ mất phần tô màu, KHÔNG chặn việc xếp phòng (cùng tinh thần napPhongTheoNgay).
+async function napLich(tu, den) {
+  const fac = String(_apiFacility || '');   // let cấp cao nhất của api.js — cùng global scope classic script
+  if (_lich.ds && _lich.fac === fac && tu >= _lich.tu && den <= _lich.den && Date.now() - _lich.luc < 90000) return true;
+  const t = addDays(tu, -14), d = addDays(den, 14);
+  try {
+    const r = await API.roomsLich(t, d);
+    _lich = { tu: t, den: d, fac, ds: r.phong || [], luc: Date.now() };
+    return true;
+  } catch (e) { quenLich(); return false; }
+}
+// Ảnh chụp MỘT phòng ở MỘT ngày — đúng hình dạng chiSoPhong() nhận.
+const anhPhongNgay = (p, i) => ({ id: p.id, name: p.name, floor: p.floor, gender: p.gender,
+  capacity: p.capacity, room_type: p.room_type,
+  occupancy: p.dang_o[i], upcoming: p.sap_vao[i], leaving: p.sap_ra[i] });
+function latCatNgay(iso) {
+  if (!_lich.ds || iso < _lich.tu || iso > _lich.den) return null;
+  const i = soNgayGiua(_lich.tu, iso);
+  return _lich.ds.map(p => anhPhongNgay(p, i));
+}
+// Tổng MỘT ngày, lọc giới tính — gọi ĐÚNG tongChiSo, lịch không có phép trừ riêng.
+function tongNgay(iso, gt) {
+  const ds = latCatNgay(iso);
+  return ds ? tongChiSo(gt ? ds.filter(r => r.gender === gt) : ds) : null;
+}
 async function napPhongTheoNgay(ngay) {
   const n = (ngay || '').slice(0, 10);
   if (!n || n === today()) { _phongMoc = { ngay: '', ds: null }; return; }
@@ -563,7 +594,7 @@ async function studentForm(id) {
   attachDate(el('f_birth'), s.birth_date, { max: today() });
   attachDate(el('f_cstart'), s.class_start_date);
   attachDate(el('f_departure'), s.expected_departure);
-  attachDate(el('f_in'), s.check_in_date || today());
+  attachDate(el('f_in'), s.check_in_date || today(), { choTrong: 1, gt: s.gender });
   noNgayVoiPhong(el('f_in'), 'f_room', s.gender);
   attachDate(el('f_cdate'), s.contract_date);
   attachDate(el('f_out'), daRoi ? '' : coHienTai, { min: addDays(today(), 1) });
@@ -943,7 +974,7 @@ function transferForm(id) {
       ${s.room_id ? meterField('t_meter', s.room_name, 'chuyển đi') : ''}
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="doTransfer" data-args='[${id}]'>${chuaXep ? 'Xếp phòng' : 'Chuyển'}</button></div>`);
-  attachDate(el('t_date'), today());
+  attachDate(el('t_date'), today(), { choTrong: 1, gt: s.gender });
   noNgayVoiPhong(el('t_date'), 't_room', s.gender);
 }
 async function doTransfer(id) {

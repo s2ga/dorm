@@ -249,7 +249,7 @@ function approveForm(id) {
       </div>
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="doApprove" data-args='[${a.id}]'>Xác nhận thêm</button></div>`);
-  attachDate(el('ap_date'), (a.desired_check_in || '').slice(0, 10) || today());
+  attachDate(el('ap_date'), (a.desired_check_in || '').slice(0, 10) || today(), { choTrong: 1, gt: a.gender });
   noNgayVoiPhong(el('ap_date'), 'ap_room', a.gender);   // BL-107: chỗ trống theo ngày vào, không theo hôm nay
 }
 async function doApprove(id) {
@@ -333,7 +333,7 @@ function checkInForm(id) {
       <div class="field"><label>Ghi chú</label><input id="c_note" placeholder="VD: quay lại ở"></div>
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn green" data-act="doCheckIn" data-args='[${id}]'>Xác nhận check-in</button></div>`);
-  attachDate(el('c_date'), today());
+  attachDate(el('c_date'), today(), { choTrong: 1, gt: s.gender });
   noNgayVoiPhong(el('c_date'), 'c_room', s.gender);
 }
 async function doCheckIn(id) {

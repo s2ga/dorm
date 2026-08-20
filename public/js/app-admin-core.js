@@ -131,6 +131,7 @@ async function refreshCache() {
   // Admin: đếm tài khoản chờ duyệt (SSO tự tạo role='pending') để BÁO qua chuông + badge Cài đặt.
   // Staff không có quyền endpoint này -> bỏ qua.
   if (Auth.user && Auth.user.role === 'admin') { try { ST.pendingCount = ((await API.pendingCount()) || {}).pending || 0; } catch (e) { /* giữ giá trị cũ */ } }
+  if (typeof quenLich === 'function') quenLich();   // ma trận lịch chỗ trống đã cũ sau mọi lượt ghi
   updateNavBadges();
   renderFacilitySelector();
 }
@@ -139,8 +140,8 @@ async function refreshCache() {
 // người dùng đang chờ sau khi bấm Lưu.
 const NAP_NHOM = {
   settings: async () => { ST.settings = await API.settings(); },
-  students: async () => { ST.students = await API.students(); },
-  rooms: async () => { ST.rooms = await API.rooms(); },
+  students: async () => { ST.students = await API.students(); if (typeof quenLich === 'function') quenLich(); },
+  rooms: async () => { ST.rooms = await API.rooms(); if (typeof quenLich === 'function') quenLich(); },
   assets: async () => { ST.assets = await API.assets(); },
   vtypes: async () => { ST.vtypes = await API.violationTypes(); },
   applications: async () => { ST.applications = await API.applications(); },

@@ -647,6 +647,16 @@ a.ci-row:hover{border-color:var(--brand)}
 .cal-d.sel{background:var(--ink);color:#f7f2e8;font-weight:700}
 .cal-d.empty{cursor:default}
 .cal-ft{display:flex;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
+/* Lịch CHỌN NGÀY của modal xếp phòng (choTrong): mỗi ô mang số giường trống. Nền = tình trạng,
+   ký hiệu/chữ số = kênh không-màu (deuteranopia: green-bg và gray-bg gần bằng độ sáng). */
+.cal-pop.cal-ct{width:320px}
+.cal-ct .cal-d{padding:5px 0 6px;line-height:1.15;border:0;background:none;font:inherit;width:100%}
+.cal-ct .cd-so{display:block;font-size:12px;font-weight:800}
+.cal-ct .cal-d.co{background:var(--green-bg);color:var(--green-ink)}
+.cal-ct .cal-d.het{background:repeating-linear-gradient(45deg,var(--gray-bg) 0 5px,var(--line) 5px 10px);color:var(--gray-ink)}
+.cal-ct .cal-d.vuot{box-shadow:inset 0 0 0 2px var(--amber-ink);color:var(--amber-ink)}
+.cal-ct .cal-d.sel{background:var(--ink);color:#f7f2e8}
+.cal-ct .cal-d:focus-visible{outline:2px solid var(--brand);outline-offset:-2px}
 /* Bộ chọn THÁNG (kỳ): lưới 12 tháng */
 .cal-mgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:4px}
 .mo-cell{text-align:center;padding:12px 4px;border-radius:9px;cursor:pointer;font-size:13.5px;font-weight:600;color:var(--ink);transition:background .12s,color .12s}
