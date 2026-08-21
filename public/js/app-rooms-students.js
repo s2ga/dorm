@@ -422,6 +422,7 @@ function stuSortVal(s) {
     case 'contract': return ['done', 'scanned', 'unsigned', 'none'].indexOf(s.contract_status);
     case 'deposit': return ['held', 'refunded', 'forfeited', 'none'].indexOf(s.deposit_status);
     case 'status': return ['upcoming', 'staying', 'leaving', 'left'].indexOf(liveStatus(s));
+    case 'checkin': return (s.check_in_date || '').slice(0, 10);
     default: return 0;
   }
 }
@@ -466,7 +467,7 @@ function viewStudents() {
   const sTh = (key, label, cls, attrs) => `<th class="sortable${cls ? ' ' + cls : ''}${stuSort.key === key ? (stuSort.dir === 1 ? ' asc' : ' desc') : ''}" data-sort="${key}"${attrs ? ' ' + attrs : ''}>${label}<span class="sort-ar">${stuSort.key === key ? (stuSort.dir === 1 ? '▲' : '▼') : ''}</span></th>`;
   const xcOf = s => s.expected_departure || (DEPARTURE_REASONS.includes(s.checkout_reason) && s.check_out_date ? s.check_out_date : '');
   const hasXC = list.some(xcOf); // không ai có ngày dự kiến xuất cảnh -> ẩn cột cho đỡ rỗng
-  const nCols = hasXC ? 8 : 7;
+  const nCols = hasXC ? 9 : 8;
   el('content').innerHTML = `
     ${stuFilter !== 'all' ? `<div class="pill-row" style="align-items:center">
       <span class="muted" style="font-size:13px">Đang lọc:</span>
@@ -480,7 +481,7 @@ function viewStudents() {
             chúng nằm chung một dòng (.ct-gon) thay vì mỗi thứ một dòng — thẻ thấp đi, xem được nhiều
             người hơn trong một màn. Trên máy tính thì đây cũng là thứ tự dễ đọc hơn: ở phòng nào và
             đang ở hay đã trả là hai câu hỏi đi liền nhau. */''}
-      ${list.length ? `<table><thead><tr>${sTh('name', 'Học viên')}${sTh('room', 'Phòng', '', 'data-filt="list"')}${sTh('status', 'Trạng thái')}<th>Mã pháp nhân</th>${sTh('contract', 'Hợp đồng')}${sTh('deposit', 'Cọc')}${hasXC ? '<th>Dự kiến XC</th>' : ''}<th></th></tr></thead><tbody>
+      ${list.length ? `<table><thead><tr>${sTh('name', 'Học viên')}${sTh('room', 'Phòng', '', 'data-filt="list"')}${sTh('status', 'Trạng thái')}${sTh('checkin', 'Ngày vào')}<th>Mã pháp nhân</th>${sTh('contract', 'Hợp đồng')}${sTh('deposit', 'Cọc')}${hasXC ? '<th>Dự kiến XC</th>' : ''}<th></th></tr></thead><tbody>
       ${list.map(s => {
         const flags = `${isOccupying(s) && s.residency_status !== 'registered' ? `<span title="Chưa đăng ký tạm trú"> ${IC.flag}</span>` : ''}${s.uses_washing ? `<span title="Máy giặt"> ${IC.washer}</span>` : ''}${s.vehicle_count ? `<span title="Xe gửi"> ${IC.bike}${s.vehicle_count}</span>` : ''}${s.violation_count ? `<span title="Vi phạm ${s.violation_count} lần" style="color:${s.violation_count >= vthr ? 'var(--red-ink)' : 'var(--amber-ink)'}"> ${IC.alert}${s.violation_count}</span>` : ''}`;
         const ds = esc((s.name + ' ' + (s.code || '') + ' ' + (s.phone || '') + ' ' + (s.class_name || '') + ' ' + (s.room_name || '') + ' ' + legalEntityCell(s.gender)).toLowerCase());
@@ -491,6 +492,7 @@ function viewStudents() {
         </div><span class="row-chev" aria-hidden="true">${IC.chevronRight}</span></div></td>
         <td class="ct-gon" data-label="Phòng">${s.room_name ? `<span class="hd-ref" data-act="roomDetail" data-args='[${s.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng — ai đang ở"><strong>${esc(s.room_name)}</strong></span>` : `<button class="btn sm" style="white-space:nowrap" title="Xếp phòng cho học viên này" data-act="transferForm" data-args='[${s.id}]'>${IC.transfer} Xếp phòng</button>`}${thueNguyenPhong(s) ? '<div class="sub2">Thuê nguyên phòng</div>' : ''}</td>
         <td class="ct-gon" data-label="Trạng thái">${statusBadge(s)}</td>
+        <td class="ct-gon" data-label="Ngày vào" style="white-space:nowrap">${s.check_in_date ? fmtDate(s.check_in_date) : '<span class="muted">—</span>'}${s.check_out_date ? `<div class="sub2">trả ${fmtDate(s.check_out_date)}</div>` : ''}</td>
         <td class="ct-gon" data-label="Mã pháp nhân">${legalEntityCell(s.gender)}</td>
         <td data-label="Hợp đồng"><span class="badge ${CONTRACT_BADGE[s.contract_status] || 'gray'}">${CONTRACT_LABEL[s.contract_status] || '—'}</span>${s.contract_no ? `<div class="sub2">${esc(s.contract_no)}</div>` : hdThamChieu(s)}</td>
         <td data-label="Cọc">${depositBadge(s)}${s.deposit_status === 'none' && isOccupying(s) ? ` <button class="btn sm ghost" style="white-space:nowrap" title="Ghi nhận đóng cọc" data-act="depositForm" data-args='[${s.id}]'>＋ Thu cọc</button>` : ''}</td>
