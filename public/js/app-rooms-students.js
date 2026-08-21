@@ -14,7 +14,7 @@ async function viewRooms() {
   // Bộ lọc phải khớp ĐÚNG cách tongChiSo đếm, nếu không thẻ KPI nói 1 giường mà bấm vào ra danh sách
   // rỗng hoặc thừa phòng. 'vuot' = drill-down từ cảnh báo quá tải.
   const list = roomFilter === 'trong' && !del
-    ? tatCa.filter(phongConCho).slice().sort((a, b) => chiSoPhong(b).trong - chiSoPhong(a).trong)
+    ? tatCa.filter(phongConCho).slice().sort((a, b) => chiSoPhong(b).thucCon - chiSoPhong(a).thucCon)
     : roomFilter === 'vuot' && !del
       ? tatCa.filter(phongQuaTai).slice().sort((a, b) => chiSoPhong(b).vuot - chiSoPhong(a).vuot)
       : tatCa;
@@ -22,7 +22,7 @@ async function viewRooms() {
   el('content').innerHTML = `
     ${roomFilter === 'trong' && !del ? `<div class="pill-row" style="align-items:center">
       <span class="muted" style="font-size:13px">Đang lọc:</span>
-      <span class="badge gray" style="font-size:13px">${IC.bed} Còn giường trống — ${TL.trong} giường ở ${TL.soPhongConCho} phòng${TL.datCho ? ` · đã đặt ${TL.datCho} → thực còn ${TL.thucCon}` : ''}</span>
+      <span class="badge gray" style="font-size:13px">${IC.bed} Còn giường trống — ${TL.thucCon} giường ở ${TL.soPhongThucCon} phòng${TL.datCho ? ` · đã trừ ${TL.datCho} chỗ đặt trước` : ''}</span>
       <button class="btn sm ghost" data-act="roomGo" data-args='["all"]' title="Bỏ lọc, xem tất cả phòng">✕ Bỏ lọc</button>
     </div>` : ''}
     ${roomFilter === 'vuot' && !del ? `<div class="pill-row" style="align-items:center">
@@ -55,7 +55,7 @@ async function viewRooms() {
         <td class="ct-gon" data-label="Loại"><span>${r.gender === 'female' ? '<span class="badge sage">Nữ</span>' : '<span class="badge blue">Nam</span>'} <span class="badge gray">Hạng ${esc(r.hang || 'B')}</span> ${roomTypeBadge(r)}</span></td>
         <td class="ct-gon" data-label="Mã pháp nhân">${legalEntityCell(r.gender)}</td>
         <td class="num ct-gon" data-label="Đang ở">${c.dem
-          ? `<span class="badge ${c.vuot ? 'amber' : c.trong ? 'green' : 'gray'}">${c.dangO}/${c.cap}</span>${c.vuot ? ` <span class="badge amber" title="Vượt sức chứa — cố ý được phép, xem BL-61">${IC.alert} vượt ${c.vuot}</span>` : ''}${c.datCho ? ` <span class="badge blue" title="Đã đặt chỗ, chưa tới ngày vào">▾${c.datCho}</span>` : ''}${c.sapRa ? ` <span class="badge gray" title="Đã có ngày trả phòng">▴${c.sapRa}</span>` : ''}`
+          ? `<span class="badge ${c.vuot ? 'amber' : c.thucCon ? 'green' : 'gray'}">${c.dangO}/${c.cap}</span>${c.vuot ? ` <span class="badge amber" title="Vượt sức chứa — cố ý được phép, xem BL-61">${IC.alert} vượt ${c.vuot}</span>` : ''}${c.datCho ? ` <span class="badge blue" title="Đã đặt chỗ, chưa tới ngày vào">▾${c.datCho}</span>` : ''}${c.sapRa ? ` <span class="badge gray" title="Đã có ngày trả phòng">▴${c.sapRa}</span>` : ''}`
           : `<span class="badge gray">${c.dangO} người</span>`}</td>
         ${/* data-trong: ô rỗng thì ở chế độ thẻ (điện thoại) ẩn hẳn dòng — "PHÒNG TRƯỞNG —" không
               đáng chiếm một dòng, không hiện tức là chưa cử. Máy tính vẫn giữ cột cho thẳng hàng. */''}
@@ -139,23 +139,23 @@ async function viewLichChoTrong() {
     const Tn = tongNgay(iso, lichGT);
     const Tnam = lichGT ? null : tongNgay(iso, 'male');
     const Tnu = lichGT ? null : tongNgay(iso, 'female');
-    const cls = Tn ? (Tn.vuot ? ' vuot' : Tn.trong ? ' co' : ' het') : '';
+    const cls = Tn ? (Tn.vuot ? ' vuot' : Tn.thucCon ? ' co' : ' het') : '';
     const kyHieu = Tn ? `${Tn.datCho ? `<span class="lct-vao">▾${Tn.datCho}</span>` : ''}${Tn.sapRa ? `<span class="lct-ra">▴${Tn.sapRa}</span>` : ''}` : '';
     oCell += `<button type="button" class="lct-d${cls}${iso === homNay ? ' nay' : ''}${iso === lichNgay ? ' chon' : ''}"
       data-act="lichChonNgay" data-args='["${iso}"]'
-      aria-label="${fmtDMY(iso)}: ${Tn ? `còn ${Tn.trong} giường${lichGT ? (lichGT === 'female' ? ' nữ' : ' nam') : ''}` : 'không có dữ liệu'}">
+      aria-label="${fmtDMY(iso)}: ${Tn ? `còn ${Tn.thucCon} giường${lichGT ? (lichGT === 'female' ? ' nữ' : ' nam') : ''} (đã trừ chỗ đặt trước)` : 'không có dữ liệu'}">
       <span class="lct-n">${d}</span>
       ${lichGT
-    ? `<span class="lct-v">${Tn ? (Tn.trong || (Tn.vuot ? '⌀' : '▨')) : '·'}</span>`
-    : `<span class="lct-gt">${Tnam ? `♂${Tnam.trong}` : ''} ${Tnu ? `♀${Tnu.trong}` : ''}</span>`}
+    ? `<span class="lct-v">${Tn ? (Tn.thucCon || (Tn.vuot ? '⌀' : '▨')) : '·'}</span>`
+    : `<span class="lct-gt">${Tnam ? `♂${Tnam.thucCon}` : ''} ${Tnu ? `♀${Tnu.thucCon}` : ''}</span>`}
       <span class="lct-k">${kyHieu}</span></button>`;
   }
 
   const nutGT = (g, nhan) => `<button class="btn sm ${lichGT === g ? 'pri' : ''}" data-act="lichGioiTinh" data-args='["${g}"]' aria-pressed="${lichGT === g}">${nhan}</button>`;
   el('content').innerHTML = `
     <div class="cards">
-      <div class="stat"><div class="l">${IC.bed} Trống ${lichNgay ? fmtDMY(ngayThe) : 'hôm nay'}</div><div class="v sm">${T.trong} <span class="muted" style="font-size:13px">giường · ${T.soPhongConCho} phòng</span></div></div>
-      <div class="stat"><div class="l">▾ Đã đặt chỗ</div><div class="v sm">${T.datCho} <span class="muted" style="font-size:13px">→ thực còn ${T.thucCon}</span></div></div>
+      <div class="stat"><div class="l">${IC.bed} Còn nhận được ${lichNgay ? fmtDMY(ngayThe) : 'hôm nay'}</div><div class="v sm">${T.thucCon} <span class="muted" style="font-size:13px">giường · ${T.soPhongThucCon} phòng</span></div></div>
+      <div class="stat"><div class="l">▾ Đã đặt chỗ</div><div class="v sm">${T.datCho} <span class="muted" style="font-size:13px">chỗ chờ tới ngày vào</span></div></div>
       <div class="stat"><div class="l">▴ Sắp có giường</div><div class="v sm">+${sapCo} <span class="muted" style="font-size:13px">trong ${soNgayCua} ngày</span></div></div>
       <div class="stat"><div class="l">${IC.alert} Đang quá tải</div><div class="v sm" style="color:${T.vuot ? 'var(--amber-ink)' : 'inherit'}">${T.vuot} <span class="muted" style="font-size:13px">người</span></div></div>
     </div>
@@ -171,7 +171,7 @@ async function viewLichChoTrong() {
           <span class="muted" style="font-size:12px;margin-left:6px">${lichGT ? '' : 'ô lịch: ♂ nam · ♀ nữ'}</span></div></div>
         <div class="lct-dow">${['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map(w => `<span>${w}</span>`).join('')}</div>
         <div class="lct-grid" id="lctGrid">${oCell}</div>
-        <div class="pad"><div class="hint">${IC.info}<span>Số trong ô = giường trống. ▨ hết chỗ · ⌀ quá tải · ▾ sắp vào · ▴ sắp ra. Bấm một ngày để xem từng phòng.</span></div></div>
+        <div class="pad"><div class="hint">${IC.info}<span>Số trong ô = giường <strong>còn nhận được</strong> (đã trừ chỗ đặt trước). ▨ hết chỗ · ⌀ quá tải · ▾ sắp vào · ▴ sắp ra. Bấm một ngày để xem từng phòng.</span></div></div>
       </div>
       <div class="panel" style="margin:0" id="lctNgayPanel">${lichNgayPanelHTML(ngayThe)}</div>
     </div>`;
@@ -183,21 +183,21 @@ function lichNgayPanelHTML(iso) {
   const ds = latCatNgay(iso);
   if (!ds) return `<div class="pad"><div class="empty">Chưa có dữ liệu ngày này.</div></div>`;
   const loc = ds.filter(r => phongTinhGiuong(r) && (!lichGT || r.gender === lichGT));
-  const conCho = loc.filter(r => chiSoPhong(r).trong > 0).sort((a, b) => chiSoPhong(b).trong - chiSoPhong(a).trong);
-  const kin = loc.filter(r => chiSoPhong(r).trong === 0);
+  const conCho = loc.filter(r => chiSoPhong(r).thucCon > 0).sort((a, b) => chiSoPhong(b).thucCon - chiSoPhong(a).thucCon);
+  const kin = loc.filter(r => chiSoPhong(r).thucCon === 0);
   const hang = r => {
     const c = chiSoPhong(r);
     return `<tr>
       <td><div class="flex stu-name" data-act="roomDetail" data-args='[${r.id}]' role="button" tabindex="0" title="Xem chi tiết phòng">
         <div><strong>${esc(r.name)}</strong><div class="sub2">Tầng ${r.floor || '—'} · ${r.gender === 'female' ? 'Nữ' : 'Nam'}</div></div>
         <span class="row-chev">${IC.chevronRight}</span></div></td>
-      <td class="num" data-label="Đang ở"><span class="badge ${c.vuot ? 'amber' : c.trong ? 'green' : 'gray'}">${c.dangO}/${c.cap}</span></td>
-      <td class="num" data-label="Còn">${c.trong ? `<strong>${c.trong}</strong>` : c.vuot ? `<span class="badge amber">⌀ vượt ${c.vuot}</span>` : '<span class="muted">▨</span>'}</td>
+      <td class="num" data-label="Đang ở"><span class="badge ${c.vuot ? 'amber' : c.thucCon ? 'green' : 'gray'}">${c.dangO}/${c.cap}</span></td>
+      <td class="num" data-label="Còn">${c.thucCon ? `<strong>${c.thucCon}</strong>` : c.vuot ? `<span class="badge amber">⌀ vượt ${c.vuot}</span>` : c.trong ? '<span class="badge blue" title="Còn giường nhưng đã có người đặt">▾ đặt hết</span>' : '<span class="muted">▨</span>'}</td>
       <td class="num" data-label="Biến động">${c.datCho ? `<span class="lct-vao">▾${c.datCho}</span> ` : ''}${c.sapRa ? `<span class="lct-ra">▴${c.sapRa}</span>` : ''}</td>
     </tr>`;
   };
   return `<div class="hd"><h2>${fmtDMY(iso)}${lichGT ? (lichGT === 'female' ? ' · Nữ' : ' · Nam') : ''}</h2>
-      <span class="muted" style="font-size:12.5px">${conCho.reduce((a, r) => a + chiSoPhong(r).trong, 0)} giường / ${conCho.length} phòng còn chỗ</span></div>
+      <span class="muted" style="font-size:12.5px">còn nhận được ${conCho.reduce((a, r) => a + chiSoPhong(r).thucCon, 0)} giường / ${conCho.length} phòng</span></div>
     ${conCho.length || kin.length ? `<div class="table-wrap"><table>
       <thead><tr><th>Phòng</th><th class="num">Đang ở</th><th class="num">Còn</th><th class="num">Biến động</th></tr></thead>
       <tbody>${conCho.map(hang).join('')}${kin.map(hang).join('')}</tbody></table></div>`
@@ -244,9 +244,9 @@ function roomDetail(id) {
         <div class="stat"><div class="l">Đang ở</div><div class="v sm">${shared
           ? `<span class="badge ${vuot ? 'amber' : c.dangO ? 'green' : 'gray'}">${c.dangO}/${cap}</span>${vuot ? `<div class="sub2" style="color:var(--amber-ink)">${IC.alert} vượt ${c.vuot} người</div>` : ''}`
           : `<span class="badge gray">${c.dangO} người</span>`}</div></div>
-        ${shared ? `<div class="stat"><div class="l">Chỗ trống</div><div class="v sm">${c.trong}
-          ${c.datCho ? `<div class="sub2" style="color:var(--blue-ink)">▾ ${c.datCho} đã đặt · thực còn ${c.thucCon}</div>` : ''}
-          ${c.sapRa ? `<div class="sub2">▴ ${c.sapRa} sẽ rời → sắp có ${c.sapTrong || c.sapRa}</div>` : ''}</div></div>` : ''}
+        ${shared ? `<div class="stat"><div class="l">Còn nhận được</div><div class="v sm">${c.thucCon}
+          ${c.datCho ? `<div class="sub2" style="color:var(--blue-ink)">▾ ${c.datCho} chỗ đã có người đặt</div>` : ''}
+          ${c.sapRa ? `<div class="sub2">▴ ${c.sapRa} sẽ rời → sắp có thêm</div>` : ''}</div></div>` : ''}
         <div class="stat"><div class="l">Giá thuê${roomIsShared(r) ? ' / người' : ''}</div><div class="v sm">${money(giaGhep)}${roomType(r) === 'whole' ? `<div class="sub2">Nguyên phòng: ${money(ST.settings['room_price_' + (r.hang || 'B')])}</div>` : ''}</div></div>
         <div class="stat"><div class="l">Phòng trưởng</div><div class="v sm">${L ? `<span class="hd-ref" data-act="studentDetail" data-args='[${L.id}]' role="button" tabindex="0" title="Xem chi tiết học viên">${IC.star} ${esc(L.name)}</span>` : '<span class="muted">Chưa cử</span>'}</div></div>
       </div>
@@ -574,8 +574,7 @@ function roomOptions(sel, gender) {
     // Phòng đầy KHÔNG bị khoá: vượt sức chứa là CỐ Ý (HV vào chờ bạn xuất cảnh) — chỉ ghi nhãn "đầy",
     // cảnh báo + xác nhận khi LƯU qua withOverloadConfirm (doApprove/doCheckIn/studentForm). Xem BL-61.
     const c = chiSoPhong(r);
-    const full = c.dem && c.trong === 0 && sel !== r.id;
-    const duoi = full ? ' - đầy' : (c.trong ? ` - còn ${c.trong}` : '');
+    const duoi = c.thucCon ? ` - còn ${c.thucCon}` : (c.dem ? (c.trong ? ' - đã đặt hết' : ' - đầy') : '');
     const dat = c.datCho ? ` · ▾${c.datCho} đã đặt` : '';
     const loai = roomIsShared(r) ? '' : ` · ${ROOM_TYPE[roomType(r)][0]}${roomType(r) === 'whole' ? '' : ' (miễn tiền phòng)'}`;
     return `<option value="${r.id}" ${sel === r.id ? 'selected' : ''}>${esc(r.name)} · Tầng ${r.floor} (${c.dangO}/${c.cap || 0}${moc})${duoi}${dat}${loai}</option>`;

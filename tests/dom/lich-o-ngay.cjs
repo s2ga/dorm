@@ -47,9 +47,9 @@ const ok = (t, d, x = '') => { if (d) console.log('  [OK] ' + t); else { fail++;
     const s = ST.students.find(x => x.id === +sid2);
     const b = document.querySelector('.cal-ct button.cal-d');
     const T = tongNgay(b.dataset.d, s.gender);
-    return { o: +b.querySelector('.cd-so').textContent, tinh: T ? T.trong : null };
+    return { o: +b.querySelector('.cd-so').textContent, tinh: T ? T.thucCon : null };
   }, sid);
-  ok('Số trên ô == tongNgay (lọc đúng giới tính)', so.o === so.tinh, JSON.stringify(so));
+  ok('Số trên ô == thực còn của tongNgay (đã trừ đặt trước, đúng giới tính)', so.o === so.tinh, JSON.stringify(so));
 
   // Chọn một ngày: <select> phòng phải nạp lại qua ?date= — BL-107 còn sống
   goiDate.length = 0;

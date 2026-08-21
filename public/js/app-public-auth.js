@@ -495,18 +495,21 @@ function chiSoPhong(r) {
 // thucCon cộng theo TỪNG phòng rồi mới tổng — chỗ đã đặt ở phòng này không lấp được giường phòng khác.
 function tongChiSo(rooms) {
   const t = { cap: 0, dangO: 0, datCho: 0, sapRa: 0, trong: 0, vuot: 0, sapTrong: 0, thucCon: 0,
-    soPhong: 0, soPhongConCho: 0, soPhongVuot: 0 };
+    soPhong: 0, soPhongConCho: 0, soPhongThucCon: 0, soPhongVuot: 0 };
   (rooms || []).forEach(r => {
     if (!phongTinhGiuong(r)) return;
     const c = chiSoPhong(r);
     ['cap', 'dangO', 'datCho', 'sapRa', 'trong', 'vuot', 'sapTrong', 'thucCon'].forEach(k => { t[k] += c[k]; });
     t.soPhong++;
     if (c.trong > 0) t.soPhongConCho++;
+    if (c.thucCon > 0) t.soPhongThucCon++;
     if (c.vuot > 0) t.soPhongVuot++;
   });
   return t;
 }
-const phongConCho = r => chiSoPhong(r).trong > 0;
+// "Còn chỗ" HIỂN THỊ ở mọi màn = thucCon (đã trừ chỗ đặt trước) — owner chốt 21/08: một con số,
+// người đọc không phải tự làm toán. trong/datCho chỉ còn là chi tiết phụ.
+const phongConCho = r => chiSoPhong(r).thucCon > 0;
 const phongQuaTai = r => chiSoPhong(r).vuot > 0;
 const SAO = '<span class="sao" aria-hidden="true">*</span>'; // dấu bắt buộc, đỏ
 const RENTAL_LABEL = { ghep: 'Thuê ghép', phong: 'Thuê nguyên phòng' };

@@ -29,18 +29,21 @@ const ok = (t, d, x = '') => { if (d) console.log('  [OK] ' + t); else { fail++;
   });
 
   ok('Σ từng phòng == tổng (không lệch tích luỹ)', s.tungPhong === s.trong, `${s.tungPhong} vs ${s.trong}`);
-  ok('KPI Tổng quan hiện đúng tử số/mẫu số của tongChiSo',
-    s.kpiText.includes(`${s.trong}`) && s.kpiText.includes(`/ ${s.cap}`), s.kpiText.slice(0, 120));
+  // Owner chốt 21/08: KPI hiện MỘT con số = thực còn (đã trừ chỗ đặt trước), không bắt người đọc làm toán
+  ok('KPI Tổng quan: số to là THỰC CÒN / mẫu số tongChiSo',
+    s.kpiText.includes(`${s.thucCon}`) && s.kpiText.includes(`/ ${s.cap}`), s.kpiText.slice(0, 120));
+  ok('KPI KHÔNG còn chuỗi ba số gây rối (→ thực còn / quá tải)',
+    !s.kpiText.includes('→') && !/quá tải/.test(s.kpiText), s.kpiText.slice(0, 160));
   ok('Phòng whole KHÔNG góp vào mẫu số', s.mauWhole === s.cap, `bỏ whole=${s.mauWhole} vs mẫu=${s.cap}`);
   if (s.datCho > 0) {
-    ok('KPI nói rõ số đã đặt và thực còn', s.kpiText.includes(`đã đặt ${s.datCho}`) && s.kpiText.includes(`thực còn ${s.thucCon}`), s.kpiText.slice(0, 160));
+    ok('KPI ghi chú đã trừ N chỗ đặt trước', s.kpiText.includes(`đã trừ ${s.datCho} chỗ đặt trước`), s.kpiText.slice(0, 160));
   } else console.log('  [BỎ QUA] CSDL này không có ai đặt chỗ trước');
 
   // Màn Phòng, lọc còn trống: dải "Đang lọc" phải nói đúng con số của tongChiSo
   await page.evaluate(() => roomGo('trong'));
   await page.waitForTimeout(1800);
   const dai = await page.locator('.pill-row .badge.gray').first().textContent();
-  ok('Dải lọc "còn trống" khớp tongChiSo', dai.includes(`${s.trong} giường`), dai);
+  ok('Dải lọc "còn trống" khớp KPI (cùng số thực còn)', dai.includes(`${s.thucCon} giường`), dai);
 
   // Thẻ chi tiết một phòng còn chỗ: số trên thẻ == chiSoPhong của đúng phòng đó
   const p1 = await page.evaluate(() => {
@@ -51,7 +54,7 @@ const ok = (t, d, x = '') => { if (d) console.log('  [OK] ' + t); else { fail++;
     await page.evaluate(id => roomDetail(id), p1.id);
     await page.waitForTimeout(1500);
     const the = await page.locator('#modal .cards').textContent();
-    ok('Thẻ phòng: ô "Chỗ trống" đúng chiSoPhong', the.includes('Chỗ trống') && the.includes(`${p1.trong}`), the.slice(0, 200));
+    ok('Thẻ phòng: ô "Còn nhận được" đúng thucCon', the.includes('Còn nhận được') && the.includes(`${p1.thucCon}`), the.slice(0, 200));
     await page.evaluate(() => closeModal());
   } else console.log('  [BỎ QUA] không có phòng nào còn chỗ');
 

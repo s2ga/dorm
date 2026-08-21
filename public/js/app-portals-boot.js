@@ -1411,11 +1411,12 @@ function openCalendar(input) {
       // Ngày ngoài khoảng cho phép: hiện mờ, KHÔNG bấm được (thà chặn còn hơn cho chọn rồi vứt đi)
       const cam = (max && ds > max) || (min && ds < min);
       const T = coCT && !cam ? tongNgay(ds, gt) : null;
-      const cls = T ? (T.vuot ? ' vuot' : T.trong ? ' co' : ' het') : '';
-      // Ô có số giường là nơi RA QUYẾT ĐỊNH -> <button> để bàn phím focus được; ô thường giữ <span>.
+      const cls = T ? (T.vuot ? ' vuot' : T.thucCon ? ' co' : ' het') : '';
+      // Số trong ô = CÒN NHẬN ĐƯỢC (đã trừ chỗ đặt trước — owner chốt 21/08, một con số duy nhất).
+      // Ô có số là nơi RA QUYẾT ĐỊNH -> <button> để bàn phím focus được; ô thường giữ <span>.
       if (T) cells += `<button type="button" class="cal-d${ds === sel ? ' sel' : ''}${cls}" data-d="${ds}"
-        title="${T.trong} giường trống${T.datCho ? ', ' + T.datCho + ' đã đặt' : ''}${T.vuot ? ', quá tải ' + T.vuot : ''}"
-        aria-label="${fmtDMY(ds)}: còn ${T.trong} giường${gt ? (gt === 'female' ? ' nữ' : ' nam') : ''}${T.datCho ? ', ' + T.datCho + ' đã đặt' : ''}">${d}<b class="cd-so">${T.trong}</b></button>`;
+        title="còn nhận được ${T.thucCon} giường${T.datCho ? ' (đã trừ ' + T.datCho + ' chỗ đặt trước)' : ''}"
+        aria-label="${fmtDMY(ds)}: còn ${T.thucCon} giường${gt ? (gt === 'female' ? ' nữ' : ' nam') : ''}">${d}<b class="cd-so">${T.thucCon}</b></button>`;
       else cells += `<span class="cal-d${ds === sel ? ' sel' : ''}${cam ? ' cam' : ''}" ${cam ? '' : `data-d="${ds}"`}>${d}</span>`;
     }
     cal.innerHTML = `

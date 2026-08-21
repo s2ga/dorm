@@ -13,7 +13,7 @@ async function viewExec() {
   const occ = ST.students.filter(isOccupying).length;
   const T = tongChiSo(ST.rooms);                      // một nguồn số duy nhất — xem chiSoPhong
   const capacity = T.cap;
-  const availBeds = T.trong;
+  const availBeds = T.thucCon;   // "còn trống" hiển thị = đã trừ chỗ đặt trước (owner chốt 21/08)
   const usedBeds = T.cap - T.trong;
   const occRate = capacity ? Math.round(usedBeds / capacity * 100) : 0;
   const overPeople = T.vuot, overRoomCount = T.soPhongVuot;
@@ -308,7 +308,7 @@ async function viewDashboard() {
   el('content').innerHTML = `
     <div class="kpis">
       ${kpi('ic-green', IC.userCheck, inCount, 'Học viên đang ở', actAttr('stuGoAdmin', 'in'))}
-      ${kpi('ic-blue', IC.bed, `${beds}<span class="muted" style="font-size:15px;font-weight:600"> / ${capacity}</span>`, `Giường còn trống${T.datCho ? ` · đã đặt ${T.datCho} → thực còn ${T.thucCon}` : ''}${T.vuot ? ` · <strong style="color:var(--amber-ink)">${IC.alert} quá tải ${T.vuot}</strong>` : ''}`, actAttr('roomGo', 'trong'))}
+      ${kpi('ic-blue', IC.bed, `${T.thucCon}<span class="muted" style="font-size:15px;font-weight:600"> / ${capacity}</span>`, `Giường còn trống${T.datCho ? ` · đã trừ ${T.datCho} chỗ đặt trước` : ''}`, actAttr('roomGo', 'trong'))}
       ${kpi('ic-brand', IC.receipt, money(billedThisMonth), 'Phiếu báo tháng này', actAttr('adminGo', 'invoices'), billedLastMonth ? 'Tháng trước ' + money(billedLastMonth) : '')}
       ${kpi('ic-amber', IC.filePen, `${noBill}<span class="muted" style="font-size:15px;font-weight:600"> / ${occ.length}</span>`, 'HV chưa lập phiếu tháng này', actAttr('adminGo', 'invoices'))}
     </div>

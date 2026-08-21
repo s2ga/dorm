@@ -38,9 +38,9 @@ const ok = (t, d, x = '') => { if (d) console.log('  [OK] ' + t); else { fail++;
   const so = await page.evaluate(() => {
     const T = tongChiSo(ST.rooms);
     const nam = tongNgay(today(), 'male'), nu = tongNgay(today(), 'female');
-    return { kpi: T.trong, lich: (nam ? nam.trong : 0) + (nu ? nu.trong : 0) };
+    return { kpi: T.thucCon, lich: (nam ? nam.thucCon : 0) + (nu ? nu.thucCon : 0) };
   });
-  ok('Ô hôm nay == KPI Tổng quan (một nguồn số)', so.kpi === so.lich, JSON.stringify(so));
+  ok('Ô hôm nay == KPI Tổng quan (cùng số thực còn)', so.kpi === so.lich, JSON.stringify(so));
 
   // Bấm một ngày → panel phải đổi theo, hiện danh sách phòng
   await page.locator('#lctGrid button.lct-d').nth(10).click();
