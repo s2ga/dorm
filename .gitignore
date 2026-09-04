@@ -1,0 +1,25 @@
+node_modules
+.env
+*.log
+.DS_Store
+.runtime
+.data
+jar.txt
+
+# Quyết định dọn dữ liệu — chứa HỌ TÊN + MÃ HV THẬT của học viên.
+# Repo công khai: đẩy lên là lộ dữ liệu cá nhân, trái Nghị định 13.
+# Xem tools/don-du-lieu.example.json để biết cách điền.
+tools/don-du-lieu.json
+
+# ---- Tài liệu working & hướng dẫn AI agent: KHÔNG đưa lên git ----
+# Lý do: tracker/PRD/prompt/kết quả test/review là thông tin QUÁ TRÌNH làm việc.
+# Repo công khai -> đẩy lên vừa lộ thông tin nội bộ vừa làm nhiễu lịch sử commit.
+# Tài liệu đã chuyển từ docs/ sang .agents/docs/ (20/07/2026) — xem AGENTS.md.
+/docs/
+.agents/
+.claude/
+AGENTS.md
+CLAUDE.md
+
+
+/k8s/

@@ -1,0 +1,1752 @@
+{
+  "computeInvoice": [
+    {
+      "name": "phòng trưởng cả tháng",
+      "in": {
+        "student": {
+          "id": 1,
+          "rental_type": "ghep",
+          "check_in_date": "2026-07-01",
+          "check_out_date": null
+        },
+        "room": {
+          "monthly_fee": 1200000
+        },
+        "month": "2026-07",
+        "fees": {
+          "room_fee": "1200000",
+          "electric_unit": "3500",
+          "water_fee": "100000",
+          "service_fee": "50000",
+          "washing_fee": "0",
+          "parking_fee": "0",
+          "partial_half_min": "10",
+          "partial_full_min": "15"
+        },
+        "occupants": 0,
+        "roster": [],
+        "electricCharge": null,
+        "leaderDays": 31,
+        "kwh": 0,
+        "vehicleCount": null
+      },
+      "out": {
+        "days_stayed": 31,
+        "room_charge": 1200000,
+        "electric_kwh": 0,
+        "electric_charge": 0,
+        "water_charge": 100000,
+        "service_charge": 50000,
+        "washing_charge": 0,
+        "parking_charge": 0,
+        "leader_discount": 150000,
+        "room_discount": 0,
+        "other_charge": 0,
+        "total": 1200000
+      }
+    },
+    {
+      "name": "không phải phòng trưởng",
+      "in": {
+        "student": {
+          "id": 1,
+          "rental_type": "ghep",
+          "check_in_date": "2026-07-01",
+          "check_out_date": null
+        },
+        "room": {
+          "monthly_fee": 1200000
+        },
+        "month": "2026-07",
+        "fees": {
+          "room_fee": "1200000",
+          "electric_unit": "3500",
+          "water_fee": "100000",
+          "service_fee": "50000",
+          "washing_fee": "0",
+          "parking_fee": "0",
+          "partial_half_min": "10",
+          "partial_full_min": "15"
+        },
+        "occupants": 0,
+        "roster": [],
+        "electricCharge": null,
+        "leaderDays": 0,
+        "kwh": 0,
+        "vehicleCount": null
+      },
+      "out": {
+        "days_stayed": 31,
+        "room_charge": 1200000,
+        "electric_kwh": 0,
+        "electric_charge": 0,
+        "water_charge": 100000,
+        "service_charge": 50000,
+        "washing_charge": 0,
+        "parking_charge": 0,
+        "leader_discount": 0,
+        "room_discount": 0,
+        "other_charge": 0,
+        "total": 1350000
+      }
+    },
+    {
+      "name": "ở nửa tháng, làm trưởng 14 ngày",
+      "in": {
+        "student": {
+          "id": 1,
+          "rental_type": "ghep",
+          "check_in_date": "2026-07-01",
+          "check_out_date": "2026-07-14"
+        },
+        "room": {
+          "monthly_fee": 1200000
+        },
+        "month": "2026-07",
+        "fees": {
+          "room_fee": "1200000",
+          "electric_unit": "3500",
+          "water_fee": "100000",
+          "service_fee": "50000",
+          "washing_fee": "0",
+          "parking_fee": "0",
+          "partial_half_min": "10",
+          "partial_full_min": "15"
+        },
+        "occupants": 0,
+        "roster": [],
+        "electricCharge": null,
+        "leaderDays": 14,
+        "kwh": 0,
+        "vehicleCount": null
+      },
+      "out": {
+        "days_stayed": 14,
+        "room_charge": 541935,
+        "electric_kwh": 0,
+        "electric_charge": 0,
+        "water_charge": 50000,
+        "service_charge": 25000,
+        "washing_charge": 0,
+        "parking_charge": 0,
+        "leader_discount": 75000,
+        "room_discount": 0,
+        "other_charge": 0,
+        "total": 541935
+      }
+    },
+    {
+      "name": "đổi trưởng A 20 ngày",
+      "in": {
+        "student": {
+          "id": 1,
+          "rental_type": "ghep",
+          "check_in_date": "2026-07-01",
+          "check_out_date": null
+        },
+        "room": {
+          "monthly_fee": 1200000
+        },
+        "month": "2026-07",
+        "fees": {
+          "room_fee": "1200000",
+          "electric_unit": "3500",
+          "water_fee": "100000",
+          "service_fee": "50000",
+          "washing_fee": "0",
+          "parking_fee": "0",
+          "partial_half_min": "10",
+          "partial_full_min": "15"
+        },
+        "occupants": 0,
+        "roster": [],
+        "electricCharge": null,
+        "leaderDays": 20,
+        "kwh": 0,
+        "vehicleCount": null
+      },
+      "out": {
+        "days_stayed": 31,
+        "room_charge": 1200000,
+        "electric_kwh": 0,
+        "electric_charge": 0,
+        "water_charge": 100000,
+        "service_charge": 50000,
+        "washing_charge": 0,
+        "parking_charge": 0,
+        "leader_discount": 96774,
+        "room_discount": 0,
+        "other_charge": 0,
+        "total": 1253226
+      }
+    },
+    {
+      "name": "đổi trưởng B 11 ngày",
+      "in": {
+        "student": {
+          "id": 1,
+          "rental_type": "ghep",
+          "check_in_date": "2026-07-01",
+          "check_out_date": null
+        },
+        "room": {
+          "monthly_fee": 1200000
+        },
+        "month": "2026-07",
+        "fees": {
+          "room_fee": "1200000",
+          "electric_unit": "3500",
+          "water_fee": "100000",
+          "service_fee": "50000",
+          "washing_fee": "0",
+          "parking_fee": "0",
+          "partial_half_min": "10",
+          "partial_full_min": "15"
+        },
+        "occupants": 0,
+        "roster": [],
+        "electricCharge": null,
+        "leaderDays": 11,
+        "kwh": 0,
+        "vehicleCount": null
+      },
+      "out": {
+        "days_stayed": 31,
+        "room_charge": 1200000,
+        "electric_kwh": 0,
+        "electric_charge": 0,
+        "water_charge": 100000,
+        "service_charge": 50000,
+        "washing_charge": 0,
+        "parking_charge": 0,
+        "leader_discount": 53226,
+        "room_discount": 0,
+        "other_charge": 0,
+        "total": 1296774
+      }
+    },
+    {
+      "name": "leaderDays 999 (dữ liệu hỏng)",
+      "in": {
+        "student": {
+          "id": 1,
+          "rental_type": "ghep",
+          "check_in_date": "2026-07-01",
+          "check_out_date": null
+        },
+        "room": {
+          "monthly_fee": 1200000
+        },
+        "month": "2026-07",
+        "fees": {
+          "room_fee": "1200000",
+          "electric_unit": "3500",
+          "water_fee": "100000",
+          "service_fee": "50000",
+          "washing_fee": "0",
+          "parking_fee": "0",
+          "partial_half_min": "10",
+          "partial_full_min": "15"
+        },
+        "occupants": 0,
+        "roster": [],
+        "electricCharge": null,
+        "leaderDays": 999,
+        "kwh": 0,
+        "vehicleCount": null
+      },
+      "out": {
+        "days_stayed": 31,
+        "room_charge": 1200000,
+        "electric_kwh": 0,
+        "electric_charge": 0,
+        "water_charge": 100000,
+        "service_charge": 50000,
+        "washing_charge": 0,
+        "parking_charge": 0,
+        "leader_discount": 150000,
+        "room_discount": 0,
+        "other_charge": 0,
+        "total": 1200000
+      }
+    },
+    {
+      "name": "leaderDays âm (dữ liệu hỏng)",
+      "in": {
+        "student": {
+          "id": 1,
+          "rental_type": "ghep",
+          "check_in_date": "2026-07-01",
+          "check_out_date": null
+        },
+        "room": {
+          "monthly_fee": 1200000
+        },
+        "month": "2026-07",
+        "fees": {
+          "room_fee": "1200000",
+          "electric_unit": "3500",
+          "water_fee": "100000",
+          "service_fee": "50000",
+          "washing_fee": "0",
+          "parking_fee": "0",
+          "partial_half_min": "10",
+          "partial_full_min": "15"
+        },
+        "occupants": 0,
+        "roster": [],
+        "electricCharge": null,
+        "leaderDays": -5,
+        "kwh": 0,
+        "vehicleCount": null
+      },
+      "out": {
+        "days_stayed": 31,
+        "room_charge": 1200000,
+        "electric_kwh": 0,
+        "electric_charge": 0,
+        "water_charge": 100000,
+        "service_charge": 50000,
+        "washing_charge": 0,
+        "parking_charge": 0,
+        "leader_discount": 0,
+        "room_discount": 0,
+        "other_charge": 0,
+        "total": 1350000
+      }
+    },
+    {
+      "name": "giảm 50% tiền phòng",
+      "in": {
+        "student": {
+          "id": 1,
+          "rental_type": "ghep",
+          "check_in_date": "2026-07-01",
+          "check_out_date": null,
+          "room_fee_discount_pct": 50
+        },
+        "room": {
+          "monthly_fee": 1200000
+        },
+        "month": "2026-07",
+        "fees": {
+          "room_fee": "1200000",
+          "electric_unit": "3500",
+          "water_fee": "100000",
+          "service_fee": "50000",
+          "washing_fee": "0",
+          "parking_fee": "0",
+          "partial_half_min": "10",
+          "partial_full_min": "15"
+        },
+        "occupants": 0,
+        "roster": [],
+        "electricCharge": null,
+        "leaderDays": 0,
+        "kwh": 0,
+        "vehicleCount": null
+      },
+      "out": {
+        "days_stayed": 31,
+        "room_charge": 1200000,
+        "electric_kwh": 0,
+        "electric_charge": 0,
+        "water_charge": 100000,
+        "service_charge": 50000,
+        "washing_charge": 0,
+        "parking_charge": 0,
+        "leader_discount": 0,
+        "room_discount": 600000,
+        "other_charge": 0,
+        "total": 750000
+      }
+    },
+    {
+      "name": "giảm % > 100 chặn ở 100",
+      "in": {
+        "student": {
+          "id": 1,
+          "rental_type": "ghep",
+          "check_in_date": "2026-07-01",
+          "check_out_date": null,
+          "room_fee_discount_pct": 500
+        },
+        "room": {
+          "monthly_fee": 1200000
+        },
+        "month": "2026-07",
+        "fees": {
+          "room_fee": "1200000",
+          "electric_unit": "3500",
+          "water_fee": "100000",
+          "service_fee": "50000",
+          "washing_fee": "0",
+          "parking_fee": "0",
+          "partial_half_min": "10",
+          "partial_full_min": "15"
+        },
+        "occupants": 0,
+        "roster": [],
+        "electricCharge": null,
+        "leaderDays": 0,
+        "kwh": 0,
+        "vehicleCount": null
+      },
+      "out": {
+        "days_stayed": 31,
+        "room_charge": 1200000,
+        "electric_kwh": 0,
+        "electric_charge": 0,
+        "water_charge": 100000,
+        "service_charge": 50000,
+        "washing_charge": 0,
+        "parking_charge": 0,
+        "leader_discount": 0,
+        "room_discount": 1200000,
+        "other_charge": 0,
+        "total": 150000
+      }
+    },
+    {
+      "name": "giảm % âm",
+      "in": {
+        "student": {
+          "id": 1,
+          "rental_type": "ghep",
+          "check_in_date": "2026-07-01",
+          "check_out_date": null,
+          "room_fee_discount_pct": -50
+        },
+        "room": {
+          "monthly_fee": 1200000
+        },
+        "month": "2026-07",
+        "fees": {
+          "room_fee": "1200000",
+          "electric_unit": "3500",
+          "water_fee": "100000",
+          "service_fee": "50000",
+          "washing_fee": "0",
+          "parking_fee": "0",
+          "partial_half_min": "10",
+          "partial_full_min": "15"
+        },
+        "occupants": 0,
+        "roster": [],
+        "electricCharge": null,
+        "leaderDays": 0,
+        "kwh": 0,
+        "vehicleCount": null
+      },
+      "out": {
+        "days_stayed": 31,
+        "room_charge": 1200000,
+        "electric_kwh": 0,
+        "electric_charge": 0,
+        "water_charge": 100000,
+        "service_charge": 50000,
+        "washing_charge": 0,
+        "parking_charge": 0,
+        "leader_discount": 0,
+        "room_discount": 0,
+        "other_charge": 0,
+        "total": 1350000
+      }
+    },
+    {
+      "name": "vừa trưởng vừa giảm 100%",
+      "in": {
+        "student": {
+          "id": 1,
+          "rental_type": "ghep",
+          "check_in_date": "2026-07-01",
+          "check_out_date": null,
+          "room_fee_discount_pct": 100
+        },
+        "room": {
+          "monthly_fee": 1200000
+        },
+        "month": "2026-07",
+        "fees": {
+          "room_fee": "1200000",
+          "electric_unit": "3500",
+          "water_fee": "100000",
+          "service_fee": "50000",
+          "washing_fee": "0",
+          "parking_fee": "0",
+          "partial_half_min": "10",
+          "partial_full_min": "15"
+        },
+        "occupants": 0,
+        "roster": [],
+        "electricCharge": null,
+        "leaderDays": 31,
+        "kwh": 0,
+        "vehicleCount": null
+      },
+      "out": {
+        "days_stayed": 31,
+        "room_charge": 1200000,
+        "electric_kwh": 0,
+        "electric_charge": 0,
+        "water_charge": 100000,
+        "service_charge": 50000,
+        "washing_charge": 0,
+        "parking_charge": 0,
+        "leader_discount": 150000,
+        "room_discount": 1200000,
+        "other_charge": 0,
+        "total": 0
+      }
+    },
+    {
+      "name": "TC-14 phòng giá 0 -> lấy đơn giá Cài đặt",
+      "in": {
+        "student": {
+          "id": 1,
+          "rental_type": "ghep",
+          "check_in_date": "2026-07-01",
+          "check_out_date": null
+        },
+        "room": {
+          "monthly_fee": 0
+        },
+        "month": "2026-07",
+        "fees": {
+          "room_fee": "1200000",
+          "electric_unit": "3500",
+          "water_fee": "0",
+          "service_fee": "0",
+          "washing_fee": "0",
+          "parking_fee": "0",
+          "partial_half_min": "5",
+          "partial_full_min": "20"
+        },
+        "occupants": 0,
+        "roster": [],
+        "electricCharge": null,
+        "leaderDays": 0,
+        "kwh": 0,
+        "vehicleCount": null
+      },
+      "out": {
+        "days_stayed": 31,
+        "room_charge": 1200000,
+        "electric_kwh": 0,
+        "electric_charge": 0,
+        "water_charge": 0,
+        "service_charge": 0,
+        "washing_charge": 0,
+        "parking_charge": 0,
+        "leader_discount": 0,
+        "room_discount": 0,
+        "other_charge": 0,
+        "total": 1200000
+      }
+    },
+    {
+      "name": "thuê nguyên phòng theo hạng B",
+      "in": {
+        "student": {
+          "id": 1,
+          "rental_type": "phong",
+          "check_in_date": "2026-07-01",
+          "check_out_date": null
+        },
+        "room": {
+          "hang": "B",
+          "monthly_fee": 0
+        },
+        "month": "2026-07",
+        "fees": {
+          "room_fee": "1200000",
+          "electric_unit": "3500",
+          "water_fee": "100000",
+          "service_fee": "50000",
+          "washing_fee": "0",
+          "parking_fee": "0",
+          "partial_half_min": "10",
+          "partial_full_min": "15",
+          "room_price_B": "4800000"
+        },
+        "occupants": 0,
+        "roster": [],
+        "electricCharge": null,
+        "leaderDays": 0,
+        "kwh": 0,
+        "vehicleCount": null
+      },
+      "out": {
+        "days_stayed": 31,
+        "room_charge": 4800000,
+        "electric_kwh": 0,
+        "electric_charge": 0,
+        "water_charge": 100000,
+        "service_charge": 50000,
+        "washing_charge": 0,
+        "parking_charge": 0,
+        "leader_discount": 0,
+        "room_discount": 0,
+        "other_charge": 0,
+        "total": 4950000
+      }
+    },
+    {
+      "name": "điện tính sẵn electricCharge",
+      "in": {
+        "student": {
+          "id": 1,
+          "rental_type": "ghep",
+          "check_in_date": "2026-07-01",
+          "check_out_date": null
+        },
+        "room": {
+          "monthly_fee": 1200000
+        },
+        "month": "2026-07",
+        "fees": {
+          "room_fee": "1200000",
+          "electric_unit": "3500",
+          "water_fee": "100000",
+          "service_fee": "50000",
+          "washing_fee": "0",
+          "parking_fee": "0",
+          "partial_half_min": "10",
+          "partial_full_min": "15"
+        },
+        "occupants": 0,
+        "roster": [],
+        "electricCharge": 123456,
+        "leaderDays": 0,
+        "kwh": 300,
+        "vehicleCount": null
+      },
+      "out": {
+        "days_stayed": 31,
+        "room_charge": 1200000,
+        "electric_kwh": 35.27,
+        "electric_charge": 123456,
+        "water_charge": 100000,
+        "service_charge": 50000,
+        "washing_charge": 0,
+        "parking_charge": 0,
+        "leader_discount": 0,
+        "room_discount": 0,
+        "other_charge": 0,
+        "total": 1473456
+      }
+    },
+    {
+      "name": "điện theo roster ngày ở",
+      "in": {
+        "student": {
+          "id": 1,
+          "rental_type": "ghep",
+          "check_in_date": "2026-07-01",
+          "check_out_date": null
+        },
+        "room": {
+          "monthly_fee": 1200000
+        },
+        "month": "2026-07",
+        "fees": {
+          "room_fee": "1200000",
+          "electric_unit": "3500",
+          "water_fee": "100000",
+          "service_fee": "50000",
+          "washing_fee": "0",
+          "parking_fee": "0",
+          "partial_half_min": "10",
+          "partial_full_min": "15"
+        },
+        "occupants": 0,
+        "roster": [
+          {
+            "student_id": 1,
+            "days": 31
+          },
+          {
+            "student_id": 2,
+            "days": 15
+          }
+        ],
+        "electricCharge": null,
+        "leaderDays": 0,
+        "kwh": 300,
+        "vehicleCount": null
+      },
+      "out": {
+        "days_stayed": 31,
+        "room_charge": 1200000,
+        "electric_kwh": 202.17,
+        "electric_charge": 707609,
+        "water_charge": 100000,
+        "service_charge": 50000,
+        "washing_charge": 0,
+        "parking_charge": 0,
+        "leader_discount": 0,
+        "room_discount": 0,
+        "other_charge": 0,
+        "total": 2057609
+      }
+    },
+    {
+      "name": "điện chia đều occupants (không roster)",
+      "in": {
+        "student": {
+          "id": 1,
+          "rental_type": "ghep",
+          "check_in_date": "2026-07-01",
+          "check_out_date": null
+        },
+        "room": {
+          "monthly_fee": 1200000
+        },
+        "month": "2026-07",
+        "fees": {
+          "room_fee": "1200000",
+          "electric_unit": "3500",
+          "water_fee": "100000",
+          "service_fee": "50000",
+          "washing_fee": "0",
+          "parking_fee": "0",
+          "partial_half_min": "10",
+          "partial_full_min": "15"
+        },
+        "occupants": 4,
+        "roster": [],
+        "electricCharge": null,
+        "leaderDays": 0,
+        "kwh": 300,
+        "vehicleCount": null
+      },
+      "out": {
+        "days_stayed": 31,
+        "room_charge": 1200000,
+        "electric_kwh": 75,
+        "electric_charge": 262500,
+        "water_charge": 100000,
+        "service_charge": 50000,
+        "washing_charge": 0,
+        "parking_charge": 0,
+        "leader_discount": 0,
+        "room_discount": 0,
+        "other_charge": 0,
+        "total": 1612500
+      }
+    },
+    {
+      "name": "có xe: vehicleCount 2",
+      "in": {
+        "student": {
+          "id": 1,
+          "rental_type": "ghep",
+          "check_in_date": "2026-07-01",
+          "check_out_date": null
+        },
+        "room": {
+          "monthly_fee": 1200000
+        },
+        "month": "2026-07",
+        "fees": {
+          "room_fee": "1200000",
+          "electric_unit": "3500",
+          "water_fee": "100000",
+          "service_fee": "50000",
+          "washing_fee": "0",
+          "parking_fee": "100000",
+          "partial_half_min": "10",
+          "partial_full_min": "15"
+        },
+        "occupants": 0,
+        "roster": [],
+        "electricCharge": null,
+        "leaderDays": 0,
+        "kwh": 0,
+        "vehicleCount": 2
+      },
+      "out": {
+        "days_stayed": 31,
+        "room_charge": 1200000,
+        "electric_kwh": 0,
+        "electric_charge": 0,
+        "water_charge": 100000,
+        "service_charge": 50000,
+        "washing_charge": 0,
+        "parking_charge": 200000,
+        "leader_discount": 0,
+        "room_discount": 0,
+        "other_charge": 0,
+        "total": 1550000
+      }
+    },
+    {
+      "name": "dùng máy giặt nửa tháng",
+      "in": {
+        "student": {
+          "id": 1,
+          "rental_type": "ghep",
+          "check_in_date": "2026-07-01",
+          "check_out_date": "2026-07-14",
+          "uses_washing": true
+        },
+        "room": {
+          "monthly_fee": 1200000
+        },
+        "month": "2026-07",
+        "fees": {
+          "room_fee": "1200000",
+          "electric_unit": "3500",
+          "water_fee": "100000",
+          "service_fee": "50000",
+          "washing_fee": "70000",
+          "parking_fee": "0",
+          "partial_half_min": "10",
+          "partial_full_min": "15"
+        },
+        "occupants": 0,
+        "roster": [],
+        "electricCharge": null,
+        "leaderDays": 0,
+        "kwh": 0,
+        "vehicleCount": null
+      },
+      "out": {
+        "days_stayed": 14,
+        "room_charge": 541935,
+        "electric_kwh": 0,
+        "electric_charge": 0,
+        "water_charge": 50000,
+        "service_charge": 25000,
+        "washing_charge": 35000,
+        "parking_charge": 0,
+        "leader_discount": 0,
+        "room_discount": 0,
+        "other_charge": 0,
+        "total": 651935
+      }
+    }
+  ],
+  "buildSegments": [
+    {
+      "name": "TC-10 cắt 2 chặng",
+      "in": {
+        "month": "2026-07",
+        "startReading": 0,
+        "endReading": 300,
+        "reads": [
+          {
+            "date": "2026-07-15",
+            "reading": 100
+          }
+        ],
+        "stays": [
+          {
+            "student_id": 1,
+            "from": "2026-07-01",
+            "to": null
+          },
+          {
+            "student_id": 2,
+            "from": "2026-07-01",
+            "to": null
+          },
+          {
+            "student_id": 3,
+            "from": "2026-07-01",
+            "to": "2026-07-15"
+          }
+        ]
+      },
+      "out": [
+        {
+          "from": "2026-07-01",
+          "to": "2026-07-15",
+          "kwh": 100,
+          "roster": [
+            {
+              "student_id": 1,
+              "days": 15
+            },
+            {
+              "student_id": 2,
+              "days": 15
+            },
+            {
+              "student_id": 3,
+              "days": 15
+            }
+          ]
+        },
+        {
+          "from": "2026-07-16",
+          "to": "2026-07-31",
+          "kwh": 200,
+          "roster": [
+            {
+              "student_id": 1,
+              "days": 16
+            },
+            {
+              "student_id": 2,
+              "days": 16
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "không chốt giữa kỳ",
+      "in": {
+        "month": "2026-07",
+        "startReading": 0,
+        "endReading": 300,
+        "reads": [],
+        "stays": [
+          {
+            "student_id": 1,
+            "from": "2026-07-01",
+            "to": null
+          },
+          {
+            "student_id": 2,
+            "from": "2026-07-01",
+            "to": null
+          },
+          {
+            "student_id": 3,
+            "from": "2026-07-01",
+            "to": "2026-07-15"
+          }
+        ]
+      },
+      "out": [
+        {
+          "from": "2026-07-01",
+          "to": "2026-07-31",
+          "kwh": 300,
+          "roster": [
+            {
+              "student_id": 1,
+              "days": 31
+            },
+            {
+              "student_id": 2,
+              "days": 31
+            },
+            {
+              "student_id": 3,
+              "days": 15
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "chỉ số mâu thuẫn -> fallback",
+      "in": {
+        "month": "2026-07",
+        "startReading": 0,
+        "endReading": 300,
+        "reads": [
+          {
+            "date": "2026-07-15",
+            "reading": 400
+          }
+        ],
+        "stays": [
+          {
+            "student_id": 1,
+            "from": "2026-07-01",
+            "to": null
+          },
+          {
+            "student_id": 2,
+            "from": "2026-07-01",
+            "to": null
+          },
+          {
+            "student_id": 3,
+            "from": "2026-07-01",
+            "to": "2026-07-15"
+          }
+        ]
+      },
+      "out": [
+        {
+          "from": "2026-07-01",
+          "to": "2026-07-31",
+          "kwh": 300,
+          "roster": [
+            {
+              "student_id": 1,
+              "days": 31
+            },
+            {
+              "student_id": 2,
+              "days": 31
+            },
+            {
+              "student_id": 3,
+              "days": 15
+            }
+          ],
+          "fellback": true
+        }
+      ]
+    },
+    {
+      "name": "chốt đúng ngày cuối tháng",
+      "in": {
+        "month": "2026-07",
+        "startReading": 0,
+        "endReading": 300,
+        "reads": [
+          {
+            "date": "2026-07-31",
+            "reading": 300
+          }
+        ],
+        "stays": [
+          {
+            "student_id": 1,
+            "from": "2026-07-01",
+            "to": null
+          },
+          {
+            "student_id": 2,
+            "from": "2026-07-01",
+            "to": null
+          },
+          {
+            "student_id": 3,
+            "from": "2026-07-01",
+            "to": "2026-07-15"
+          }
+        ]
+      },
+      "out": [
+        {
+          "from": "2026-07-01",
+          "to": "2026-07-31",
+          "kwh": 300,
+          "roster": [
+            {
+              "student_id": 1,
+              "days": 31
+            },
+            {
+              "student_id": 2,
+              "days": 31
+            },
+            {
+              "student_id": 3,
+              "days": 15
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "phòng không dùng điện",
+      "in": {
+        "month": "2026-07",
+        "startReading": 500,
+        "endReading": 500,
+        "reads": [],
+        "stays": [
+          {
+            "student_id": 1,
+            "from": "2026-07-01",
+            "to": null
+          },
+          {
+            "student_id": 2,
+            "from": "2026-07-01",
+            "to": null
+          },
+          {
+            "student_id": 3,
+            "from": "2026-07-01",
+            "to": "2026-07-15"
+          }
+        ]
+      },
+      "out": [
+        {
+          "from": "2026-07-01",
+          "to": "2026-07-31",
+          "kwh": 0,
+          "roster": [
+            {
+              "student_id": 1,
+              "days": 31
+            },
+            {
+              "student_id": 2,
+              "days": 31
+            },
+            {
+              "student_id": 3,
+              "days": 15
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2 người rời, chốt sai thứ tự",
+      "in": {
+        "month": "2026-07",
+        "startReading": 0,
+        "endReading": 300,
+        "reads": [
+          {
+            "date": "2026-07-20",
+            "reading": 200
+          },
+          {
+            "date": "2026-07-10",
+            "reading": 90
+          }
+        ],
+        "stays": [
+          {
+            "student_id": 1,
+            "from": "2026-07-01",
+            "to": null
+          },
+          {
+            "student_id": 2,
+            "from": "2026-07-01",
+            "to": "2026-07-10"
+          },
+          {
+            "student_id": 3,
+            "from": "2026-07-01",
+            "to": "2026-07-20"
+          }
+        ]
+      },
+      "out": [
+        {
+          "from": "2026-07-01",
+          "to": "2026-07-10",
+          "kwh": 90,
+          "roster": [
+            {
+              "student_id": 1,
+              "days": 10
+            },
+            {
+              "student_id": 2,
+              "days": 10
+            },
+            {
+              "student_id": 3,
+              "days": 10
+            }
+          ]
+        },
+        {
+          "from": "2026-07-11",
+          "to": "2026-07-20",
+          "kwh": 110,
+          "roster": [
+            {
+              "student_id": 1,
+              "days": 10
+            },
+            {
+              "student_id": 3,
+              "days": 10
+            }
+          ]
+        },
+        {
+          "from": "2026-07-21",
+          "to": "2026-07-31",
+          "kwh": 100,
+          "roster": [
+            {
+              "student_id": 1,
+              "days": 11
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "chốt trùng ngày lấy lần sau",
+      "in": {
+        "month": "2026-07",
+        "startReading": 0,
+        "endReading": 300,
+        "reads": [
+          {
+            "date": "2026-07-15",
+            "reading": 80
+          },
+          {
+            "date": "2026-07-15",
+            "reading": 100
+          }
+        ],
+        "stays": [
+          {
+            "student_id": 1,
+            "from": "2026-07-01",
+            "to": null
+          },
+          {
+            "student_id": 2,
+            "from": "2026-07-01",
+            "to": null
+          },
+          {
+            "student_id": 3,
+            "from": "2026-07-01",
+            "to": "2026-07-15"
+          }
+        ]
+      },
+      "out": [
+        {
+          "from": "2026-07-01",
+          "to": "2026-07-15",
+          "kwh": 100,
+          "roster": [
+            {
+              "student_id": 1,
+              "days": 15
+            },
+            {
+              "student_id": 2,
+              "days": 15
+            },
+            {
+              "student_id": 3,
+              "days": 15
+            }
+          ]
+        },
+        {
+          "from": "2026-07-16",
+          "to": "2026-07-31",
+          "kwh": 200,
+          "roster": [
+            {
+              "student_id": 1,
+              "days": 16
+            },
+            {
+              "student_id": 2,
+              "days": 16
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "người vào ngày 25",
+      "in": {
+        "month": "2026-07",
+        "startReading": 0,
+        "endReading": 300,
+        "reads": [
+          {
+            "date": "2026-07-15",
+            "reading": 100
+          }
+        ],
+        "stays": [
+          {
+            "student_id": 1,
+            "from": "2026-07-01",
+            "to": null
+          },
+          {
+            "student_id": 9,
+            "from": "2026-07-25",
+            "to": null
+          }
+        ]
+      },
+      "out": [
+        {
+          "from": "2026-07-01",
+          "to": "2026-07-15",
+          "kwh": 100,
+          "roster": [
+            {
+              "student_id": 1,
+              "days": 15
+            }
+          ]
+        },
+        {
+          "from": "2026-07-16",
+          "to": "2026-07-31",
+          "kwh": 200,
+          "roster": [
+            {
+              "student_id": 1,
+              "days": 16
+            },
+            {
+              "student_id": 9,
+              "days": 7
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "splitElectricExact": [
+    {
+      "name": "TC-10 shares",
+      "in": [
+        {
+          "electric": 350000,
+          "roster": [
+            {
+              "student_id": 1,
+              "days": 15
+            },
+            {
+              "student_id": 2,
+              "days": 15
+            },
+            {
+              "student_id": 3,
+              "days": 15
+            }
+          ]
+        },
+        {
+          "electric": 700000,
+          "roster": [
+            {
+              "student_id": 1,
+              "days": 16
+            },
+            {
+              "student_id": 2,
+              "days": 16
+            }
+          ]
+        }
+      ],
+      "out": {
+        "1": 466667,
+        "2": 466667,
+        "3": 116666
+      }
+    }
+  ],
+  "splitElectricByDays": [
+    {
+      "name": "33kWh x 3500 chia 3",
+      "in": {
+        "roomElectric": 115500,
+        "roster": [
+          {
+            "student_id": 1,
+            "days": 10
+          },
+          {
+            "student_id": 2,
+            "days": 10
+          },
+          {
+            "student_id": 3,
+            "days": 10
+          }
+        ]
+      },
+      "out": {
+        "1": 38500,
+        "2": 38500,
+        "3": 38500
+      }
+    },
+    {
+      "name": "7kWh x 999 chia 3",
+      "in": {
+        "roomElectric": 6993,
+        "roster": [
+          {
+            "student_id": 1,
+            "days": 10
+          },
+          {
+            "student_id": 2,
+            "days": 10
+          },
+          {
+            "student_id": 3,
+            "days": 10
+          }
+        ]
+      },
+      "out": {
+        "1": 2331,
+        "2": 2331,
+        "3": 2331
+      }
+    },
+    {
+      "name": "1kWh x 1 chia 7",
+      "in": {
+        "roomElectric": 1,
+        "roster": [
+          {
+            "student_id": 1,
+            "days": 10
+          },
+          {
+            "student_id": 2,
+            "days": 10
+          },
+          {
+            "student_id": 3,
+            "days": 10
+          },
+          {
+            "student_id": 4,
+            "days": 10
+          },
+          {
+            "student_id": 5,
+            "days": 10
+          },
+          {
+            "student_id": 6,
+            "days": 10
+          },
+          {
+            "student_id": 7,
+            "days": 10
+          }
+        ]
+      },
+      "out": {
+        "1": 1,
+        "2": 0,
+        "3": 0,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0
+      }
+    },
+    {
+      "name": "100kWh x 3333 chia 6",
+      "in": {
+        "roomElectric": 333300,
+        "roster": [
+          {
+            "student_id": 1,
+            "days": 10
+          },
+          {
+            "student_id": 2,
+            "days": 10
+          },
+          {
+            "student_id": 3,
+            "days": 10
+          },
+          {
+            "student_id": 4,
+            "days": 10
+          },
+          {
+            "student_id": 5,
+            "days": 10
+          },
+          {
+            "student_id": 6,
+            "days": 10
+          }
+        ]
+      },
+      "out": {
+        "1": 55550,
+        "2": 55550,
+        "3": 55550,
+        "4": 55550,
+        "5": 55550,
+        "6": 55550
+      }
+    },
+    {
+      "name": "TC-10 cả tháng 1 chặng",
+      "in": {
+        "roomElectric": 1050000,
+        "roster": [
+          {
+            "student_id": 1,
+            "days": 31
+          },
+          {
+            "student_id": 2,
+            "days": 31
+          },
+          {
+            "student_id": 3,
+            "days": 15
+          }
+        ]
+      },
+      "out": {
+        "1": 422727,
+        "2": 422727,
+        "3": 204546
+      }
+    }
+  ],
+  "partialFactor": [
+    {
+      "name": "giữa half-full -> 0.5",
+      "in": [
+        12,
+        31,
+        10,
+        15
+      ],
+      "out": 0.5
+    },
+    {
+      "name": "hệ số nửa 0.6",
+      "in": [
+        12,
+        31,
+        10,
+        15,
+        0.6
+      ],
+      "out": 0.6
+    },
+    {
+      "name": "dưới half -> 0",
+      "in": [
+        8,
+        31,
+        10,
+        15,
+        0.6
+      ],
+      "out": 0
+    },
+    {
+      "name": "trên full -> 1",
+      "in": [
+        20,
+        31,
+        10,
+        15,
+        0.6
+      ],
+      "out": 1
+    },
+    {
+      "name": "đủ tháng -> 1",
+      "in": [
+        31,
+        31,
+        10,
+        15
+      ],
+      "out": 1
+    }
+  ],
+  "leaderDiscount": [
+    {
+      "name": "trưởng cả tháng",
+      "in": {
+        "leaderDays": 31,
+        "days": 31,
+        "water_charge": 100000,
+        "service_charge": 50000
+      },
+      "out": 150000
+    },
+    {
+      "name": "nửa tháng",
+      "in": {
+        "leaderDays": 14,
+        "days": 14,
+        "water_charge": 50000,
+        "service_charge": 25000
+      },
+      "out": 75000
+    },
+    {
+      "name": "vượt số ngày ở",
+      "in": {
+        "leaderDays": 999,
+        "days": 31,
+        "water_charge": 100000,
+        "service_charge": 50000
+      },
+      "out": 150000
+    }
+  ],
+  "depositRefundEligible": [
+    {
+      "name": "báo 30 ngày đủ (mặc định)",
+      "in": {
+        "arg": {
+          "noticeDate": "2026-07-01",
+          "checkoutDate": "2026-07-31",
+          "reason": "other"
+        },
+        "minDays": null
+      },
+      "out": {
+        "eligible": true,
+        "reason": "Báo trước 30 ngày (≥ 30 ngày)"
+      }
+    },
+    {
+      "name": "minDays 45 không đủ",
+      "in": {
+        "arg": {
+          "noticeDate": "2026-07-01",
+          "checkoutDate": "2026-07-31",
+          "reason": "other"
+        },
+        "minDays": 45
+      },
+      "out": {
+        "eligible": false,
+        "reason": "Chỉ báo trước 30 ngày (< 45 ngày)"
+      }
+    },
+    {
+      "name": "minDays 20 đủ",
+      "in": {
+        "arg": {
+          "noticeDate": "2026-07-01",
+          "checkoutDate": "2026-07-26",
+          "reason": "other"
+        },
+        "minDays": 20
+      },
+      "out": {
+        "eligible": true,
+        "reason": "Báo trước 25 ngày (≥ 20 ngày)"
+      }
+    },
+    {
+      "name": "xuất cảnh luôn đủ",
+      "in": {
+        "arg": {
+          "noticeDate": null,
+          "checkoutDate": "2026-07-10",
+          "reason": "departure"
+        },
+        "minDays": null
+      },
+      "out": {
+        "eligible": true,
+        "reason": "Xuất cảnh đi Nhật — hoàn cọc"
+      }
+    }
+  ],
+  "daysStayedInMonth": [
+    {
+      "name": "trọn tháng 7",
+      "in": {
+        "ci": "2026-07-01",
+        "co": null,
+        "month": "2026-07"
+      },
+      "out": 31
+    },
+    {
+      "name": "vào ngày cuối = 1",
+      "in": {
+        "ci": "2026-07-31",
+        "co": null,
+        "month": "2026-07"
+      },
+      "out": 1
+    },
+    {
+      "name": "vào-ra cùng ngày = 1",
+      "in": {
+        "ci": "2026-07-15",
+        "co": "2026-07-15",
+        "month": "2026-07"
+      },
+      "out": 1
+    },
+    {
+      "name": "rời trước tháng = 0",
+      "in": {
+        "ci": "2026-05-01",
+        "co": "2026-06-30",
+        "month": "2026-07"
+      },
+      "out": 0
+    },
+    {
+      "name": "vào sau tháng = 0",
+      "in": {
+        "ci": "2026-08-01",
+        "co": null,
+        "month": "2026-07"
+      },
+      "out": 0
+    }
+  ],
+  "daysInMonth": [
+    {
+      "name": "nhuận 2028-02",
+      "in": "2028-02",
+      "out": 29
+    },
+    {
+      "name": "thường 2026-02",
+      "in": "2026-02",
+      "out": 28
+    },
+    {
+      "name": "tháng 7",
+      "in": "2026-07",
+      "out": 31
+    },
+    {
+      "name": "tháng 4",
+      "in": "2026-04",
+      "out": 30
+    }
+  ],
+  "invoiceTotal": [
+    {
+      "name": "Σ7 - 2 giảm",
+      "in": {
+        "room_charge": 1200000,
+        "electric_charge": 350000,
+        "water_charge": 100000,
+        "service_charge": 50000,
+        "washing_charge": 70000,
+        "parking_charge": 100000,
+        "other_charge": 30000,
+        "leader_discount": 150000,
+        "room_discount": 600000
+      },
+      "out": 1150000
+    },
+    {
+      "name": "thiếu field coi như 0",
+      "in": {
+        "room_charge": 1200000,
+        "water_charge": 100000
+      },
+      "out": 1300000
+    }
+  ]
+}

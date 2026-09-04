@@ -1,0 +1,953 @@
+package handlers
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"regexp"
+	"strconv"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
+	"golang.org/x/crypto/bcrypt"
+	"ktx/internal/auth"
+	"ktx/internal/db"
+	"ktx/internal/valid"
+)
+
+// Handler quản trị (admin). Port từ server/routes/admin.routes.js.
+// Router gốc: requireAuth + requireRole('admin') (admin.routes.js:8) — người điều phối wire ngoài.
+
+// ---- TÌNH TRẠNG DỮ LIỆU ---- admin.routes.js:11-48
+// Ràng buộc CSDL chỉ áp được khi dữ liệu sạch; cái nào chưa áp nằm trong schema_guard. Nhưng chị
+// quản lý không đọc nhật ký máy chủ nên phải bày ra đây kèm ĐÍCH DANH bản ghi cần sửa.
+type adminKiemTra struct {
+	ma, ten, viSao, cachSua, sql string
+}
+
+var adminKiemTraList = []adminKiemTra{
+	{
+		ma: "ma_hv_trung", ten: "Học viên trùng mã",
+		viSao:   "Một người có 2 hồ sơ → nhận 2 phiếu → bị thu tiền 2 lần.",
+		cachSua: `Giữ 1 hồ sơ, xoá hồ sơ thừa. Nếu bạn ấy chuyển phòng, dùng nút "Chuyển phòng" trên hồ sơ giữ lại.`,
+		sql: `SELECT s.code AS khoa, string_agg(s.name || ' (#' || s.id || COALESCE(' · ' || r.name, '') || ')', ' + ' ORDER BY s.id) AS chi_tiet
+            FROM students s LEFT JOIN rooms r ON r.id = s.room_id
+           WHERE s.deleted_at IS NULL AND COALESCE(btrim(s.code),'') <> ''
+           GROUP BY s.code HAVING COUNT(*) > 1 ORDER BY s.code`,
+	},
+	{
+		ma: "ngay_ra_truoc_ngay_vao", ten: "Ngày trả phòng trước ngày nhận phòng",
+		viSao:   "Thường là gõ nhầm NĂM. Số ngày ở tính ra 0 → phiếu sai.",
+		cachSua: "Mở hồ sơ, sửa lại năm cho đúng.",
+		sql: `SELECT name AS khoa, 'vào ' || check_in_date || ' · ra ' || check_out_date || ' (#' || id || ')' AS chi_tiet
+            FROM students WHERE deleted_at IS NULL AND check_out_date < check_in_date ORDER BY check_out_date - check_in_date`,
+	},
+	{
+		ma: "cccd_trung", ten: "Học viên trùng CCCD",
+		viSao:   "Hai người không thể chung một CCCD → chắc chắn có hồ sơ thừa.",
+		cachSua: "Giữ 1 hồ sơ, xoá hồ sơ thừa.",
+		sql: `SELECT id_card AS khoa, string_agg(name || ' (#' || id || ')', ' + ' ORDER BY id) AS chi_tiet
+            FROM students WHERE deleted_at IS NULL AND COALESCE(btrim(id_card),'') <> ''
+            GROUP BY id_card HAVING COUNT(*) > 1`,
+	},
+	{
+		ma: "so_hd_trung", ten: "Trùng số hợp đồng",
+		viSao:   "Hai người cầm cùng một số hợp đồng.",
+		cachSua: "Đối chiếu hợp đồng giấy, sửa lại số cho đúng người.",
+		sql: `SELECT contract_no AS khoa, string_agg(name || ' (#' || id || ')', ' + ' ORDER BY id) AS chi_tiet
+            FROM students WHERE deleted_at IS NULL AND COALESCE(btrim(contract_no),'') <> ''
+            GROUP BY contract_no HAVING COUNT(*) > 1 ORDER BY contract_no`,
+	},
+	// ---- Hồ sơ (students) và lượt ở (room_stays) phải kể CÙNG một câu chuyện.
+	// students = trạng thái hiện tại; room_stays = lịch sử ở, nguồn tính tiền điện/ngày ở.
+	{
+		ma: "da_tra_con_luot_mo", ten: "Đã trả phòng nhưng lượt ở vẫn mở",
+		viSao:   "Tiền điện vẫn chia cho người đã rời → người ở lại đóng thiếu, người rời bị tính oan.",
+		cachSua: `Mở hồ sơ → "Check-in lại" rồi "Check-out" với đúng ngày trả để app đóng lượt ở.`,
+		sql: `SELECT s.name AS khoa, 'trả ' || s.check_out_date || ' nhưng lượt ở phòng ' || COALESCE(r.name,'?') || ' chưa đóng (#' || s.id || ')' AS chi_tiet
+            FROM students s JOIN room_stays rs ON rs.student_id = s.id AND rs.to_date IS NULL
+            LEFT JOIN rooms r ON r.id = rs.room_id
+           WHERE s.deleted_at IS NULL AND s.check_out_date IS NOT NULL AND s.check_out_date <= CURRENT_DATE
+           ORDER BY s.check_out_date`,
+	},
+	{
+		ma: "dang_o_khong_luot_mo", ten: "Đang ở nhưng không có lượt ở nào mở",
+		viSao:   "Chia tiền điện bỏ sót người này → cả phòng gánh thay.",
+		cachSua: `Mở hồ sơ, bấm "Sửa" rồi Lưu (không cần đổi gì) — app tự dựng lại lượt ở từ hồ sơ.`,
+		sql: `SELECT s.name AS khoa, 'ở phòng ' || COALESCE(r.name,'?') || ' từ ' || s.check_in_date || ' (#' || s.id || ')' AS chi_tiet
+            FROM students s LEFT JOIN rooms r ON r.id = s.room_id
+           WHERE s.deleted_at IS NULL AND s.status = 'in' AND s.room_id IS NOT NULL
+             AND s.check_in_date IS NOT NULL AND s.check_in_date <= CURRENT_DATE
+             AND NOT EXISTS (SELECT 1 FROM room_stays rs WHERE rs.student_id = s.id AND rs.to_date IS NULL)
+           ORDER BY s.check_in_date`,
+	},
+	{
+		ma: "ngay_tra_lech_luot_o", ten: "Ngày trả trên hồ sơ lệch với lượt ở",
+		viSao:   "Hai nơi nói hai ngày khác nhau → số ngày ở và tiền điện tính theo ngày SAI.",
+		cachSua: `Mở hồ sơ → "Check-in lại" rồi "Check-out" với đúng ngày trả.`,
+		sql: `SELECT s.name AS khoa, 'hồ sơ trả ' || s.check_out_date || ' · lượt ở đóng ' || x.to_max || ' (#' || s.id || ')' AS chi_tiet
+            FROM students s JOIN LATERAL (SELECT MAX(rs.to_date) AS to_max FROM room_stays rs WHERE rs.student_id = s.id) x ON true
+           WHERE s.deleted_at IS NULL AND s.check_out_date IS NOT NULL AND s.check_out_date <= CURRENT_DATE
+             AND NOT EXISTS (SELECT 1 FROM room_stays rs WHERE rs.student_id = s.id AND rs.to_date IS NULL)
+             AND x.to_max IS NOT NULL AND x.to_max <> s.check_out_date
+           ORDER BY s.check_out_date`,
+	},
+	{
+		ma: "phieu_sau_khi_roi", ten: "Còn phiếu của kỳ SAU ngày trả phòng",
+		viSao:   "Phiếu rác: người đã rời mà kỳ sau vẫn có phiếu — thường do ngày trả ghi thẳng vào hồ sơ, không qua nút Check-out nên không ai dọn.",
+		cachSua: "Mở màn Tiền phòng đúng kỳ đó, xoá phiếu (phiếu đã thu thì đối chiếu lại trước).",
+		sql: `SELECT s.name AS khoa, 'trả ' || s.check_out_date || ' nhưng còn phiếu kỳ ' || i.month || ' (' || i.total || 'đ, #' || i.id || ')' AS chi_tiet
+            FROM invoices i JOIN students s ON s.id = i.student_id
+           WHERE i.deleted_at IS NULL AND s.deleted_at IS NULL
+             AND s.check_out_date IS NOT NULL AND i.month > to_char(s.check_out_date, 'YYYY-MM')
+           ORDER BY i.month, s.name`,
+	},
+}
+
+// DataHealth: GET /api/admin/data-health — chạy các SQL kiểm trùng + đọc schema_guard. admin.routes.js:50-60
+func (h *Handlers) DataHealth(c *gin.Context) {
+	ctx := c.Request.Context()
+	gRows, err := h.pool().Query(ctx, "SELECT ten, loi FROM schema_guard ORDER BY ten")
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	guards, err := db.RowsToMaps(gRows)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	out := make([]gin.H, 0, len(adminKiemTraList))
+	sach := len(guards) == 0
+	for _, k := range adminKiemTraList {
+		rows, err := h.pool().Query(ctx, k.sql)
+		if err != nil {
+			serverErr(c)
+			return
+		}
+		list, err := db.RowsToMaps(rows)
+		if err != nil {
+			serverErr(c)
+			return
+		}
+		soLuong := len(list)
+		if soLuong != 0 {
+			sach = false
+		}
+		shown := list
+		if len(shown) > 30 {
+			shown = shown[:30]
+		}
+		out = append(out, gin.H{
+			"ma": k.ma, "ten": k.ten, "vi_sao": k.viSao, "cach_sua": k.cachSua,
+			"so_luong": soLuong, "rows": shown,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{"guards": guards, "checks": out, "sach": sach})
+}
+
+// adminYmdFmt: kiểm ĐỊNH DẠNG 'YYYY-MM-DD' (không xét ngày có thật, khớp regex của Node). admin.routes.js:72-73
+var adminYmdFmt = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+
+// ListAudit: GET /api/admin/audit — nhật ký thao tác, lọc + phân trang. admin.routes.js:64-83
+func (h *Handlers) ListAudit(c *gin.Context) {
+	// limit = min(500, max(1, +limit || 200)); offset = max(0, +offset || 0). admin.routes.js:66-67
+	limit := 200
+	if v := c.Query("limit"); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil && f != 0 {
+			limit = int(f)
+		}
+	}
+	if limit < 1 {
+		limit = 1
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	offset := 0
+	if v := c.Query("offset"); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			offset = int(f)
+		}
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	cond := []string{}
+	params := []interface{}{}
+	if u := c.Query("user"); u != "" {
+		params = append(params, "%"+u+"%")
+		cond = append(cond, "username ILIKE $"+itoa(len(params)))
+	}
+	if m := c.Query("method"); m != "" {
+		params = append(params, strings.ToUpper(m))
+		cond = append(cond, "method = $"+itoa(len(params)))
+	}
+	// Lọc theo khoảng ngày (from/to là YYYY-MM-DD). to là trọn ngày -> so < to + 1 ngày. admin.routes.js:72-73
+	if f := c.Query("from"); adminYmdFmt.MatchString(f) {
+		params = append(params, f)
+		cond = append(cond, "at >= $"+itoa(len(params))+"::date")
+	}
+	if t := c.Query("to"); adminYmdFmt.MatchString(t) {
+		params = append(params, t)
+		cond = append(cond, "at < ($"+itoa(len(params))+"::date + 1)")
+	}
+	if p := c.Query("path"); p != "" {
+		params = append(params, "%"+p+"%")
+		cond = append(cond, "path ILIKE $"+itoa(len(params)))
+	}
+	sqlWhere := ""
+	if len(cond) > 0 {
+		sqlWhere = "WHERE " + joinAnd(cond)
+	}
+
+	ctx := c.Request.Context()
+	var total int
+	if err := h.pool().QueryRow(ctx, "SELECT COUNT(*)::int c FROM audit_log "+sqlWhere, params...).Scan(&total); err != nil {
+		serverErr(c)
+		return
+	}
+	params = append(params, limit)
+	pLimit := len(params)
+	params = append(params, offset)
+	pOffset := len(params)
+	rows, err := h.pool().Query(ctx,
+		"SELECT * FROM audit_log "+sqlWhere+" ORDER BY at DESC LIMIT $"+itoa(pLimit)+" OFFSET $"+itoa(pOffset), params...)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	list, err := db.RowsToMaps(rows)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"total": total, "limit": limit, "offset": offset, "rows": list})
+}
+
+/* ---------- Quản lý tài khoản nhân viên ---------- */
+// Chỉ 4 vai này được tạo/sửa qua trang quản trị. KHÔNG ép thầm lặng vai lạ thành 'staff'. admin.routes.js:89
+var adminValidRoles = map[string]bool{"admin": true, "staff": true, "maintenance": true, "secretary": true}
+
+// MANAGEABLE_ROLES = VALID_ROLES + 'pending' (tài khoản SSO chờ duyệt phải quản lý được). admin.routes.js:95-96
+const adminManagedRolesSQL = "'admin','staff','maintenance','secretary','pending'"
+
+// adminBodyStr: đọc field chuỗi từ body (giống `req.body[key] || ”`; non-string/null/absent -> "").
+func adminBodyStr(body map[string]json.RawMessage, key string) string {
+	raw, ok := body[key]
+	if !ok {
+		return ""
+	}
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		return s
+	}
+	return ""
+}
+
+// adminCheckFacilityExists: cơ sở phải tồn tại + chưa xoá. admin.routes.js:117-118
+func (h *Handlers) adminCheckFacilityExists(ctx context.Context, id int) (*int, bool, string) {
+	var one int
+	if h.pool().QueryRow(ctx, "SELECT 1 FROM facilities WHERE id=$1 AND deleted_at IS NULL", id).Scan(&one) != nil {
+		return nil, false, "Cơ sở không tồn tại (hoặc đã bị xoá)"
+	}
+	v := id
+	return &v, true, ""
+}
+
+// adminParseFacilityID: chuẩn hoá + kiểm facility_id. admin.routes.js:113-120
+//
+//	absent/null/'' -> NULL (điều hành). Có giá trị -> phải là số nguyên > 0 và cơ sở tồn tại.
+//	Trả (value, ok, errMsg): value nil = NULL; ok=false kèm errMsg khi sai.
+func (h *Handlers) adminParseFacilityID(ctx context.Context, raw json.RawMessage) (*int, bool, string) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, true, ""
+	}
+	// Dạng chuỗi: '' -> NULL; ngược lại Number(raw) phải là số nguyên > 0.
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return nil, true, ""
+		}
+		n, err := strconv.ParseFloat(s, 64)
+		if err != nil || n != float64(int(n)) || n <= 0 {
+			return nil, false, "Cơ sở không hợp lệ"
+		}
+		return h.adminCheckFacilityExists(ctx, int(n))
+	}
+	// Dạng số.
+	var f float64
+	if json.Unmarshal(raw, &f) == nil {
+		if f != float64(int(f)) || f <= 0 {
+			return nil, false, "Cơ sở không hợp lệ"
+		}
+		return h.adminCheckFacilityExists(ctx, int(f))
+	}
+	return nil, false, "Cơ sở không hợp lệ"
+}
+
+// ListUsers: GET /api/admin/users — tài khoản nhân viên (kèm cơ sở). admin.routes.js:98-109
+// AdminPendingCount: GET /admin/pending-count — số tài khoản đang chờ duyệt (SSO tự tạo role='pending').
+// Dùng để BÁO cho admin (chuông + badge) rằng có người cần duyệt.
+func (h *Handlers) AdminPendingCount(c *gin.Context) {
+	var n int
+	if err := h.pool().QueryRow(c.Request.Context(),
+		"SELECT COUNT(*)::int FROM users WHERE role='pending' AND deleted_at IS NULL").Scan(&n); err != nil {
+		serverErr(c)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"pending": n})
+}
+
+// UnlockUser: POST /admin/users/:id/unlock — MỞ KHOÁ tài khoản đã khoá (cho đăng nhập lại).
+// Bản ghi bị khoá bởi phiên bản CŨ có username dạng 'ten#da-xoa-12' -> cắt hậu tố để trả lại tên gốc;
+// nếu tên gốc đã có người khác đang dùng thì báo rõ thay vì để vỡ khoá UNIQUE (500).
+func (h *Handlers) UnlockUser(c *gin.Context) {
+	id, ok := paramInt(c, "id")
+	if !ok {
+		notFound(c, "Không tìm thấy tài khoản")
+		return
+	}
+	ctx := c.Request.Context()
+	var uname string
+	var locked bool
+	if h.pool().QueryRow(ctx,
+		"SELECT username, (deleted_at IS NOT NULL) FROM users WHERE id=$1 AND role IN ("+adminManagedRolesSQL+")",
+		id).Scan(&uname, &locked) != nil {
+		notFound(c, "Không tìm thấy tài khoản")
+		return
+	}
+	if !locked {
+		badRequest(c, "Tài khoản đang hoạt động — không cần mở khoá")
+		return
+	}
+	orig := uname
+	if i := strings.LastIndex(uname, "#da-xoa-"); i > 0 { // di sản bản cũ
+		orig = uname[:i]
+	}
+	// Tên có thể đã được cấp lại cho người khác trong lúc tài khoản này bị khoá.
+	var one int
+	if h.pool().QueryRow(ctx,
+		"SELECT 1 FROM users WHERE lower(username)=lower($1) AND deleted_at IS NULL AND id<>$2", orig, id).Scan(&one) == nil {
+		badRequest(c, `Tên đăng nhập "`+orig+`" hiện đã có người khác dùng — không mở khoá lại được. Hãy đổi tên tài khoản kia trước.`)
+		return
+	}
+	// approved: chỉ vai 'pending' mới có nghĩa "chờ duyệt". Vai thật mà approved=false là DI SẢN của lỗi
+	// cũ (đăng nhập Microsoft lại sau khi bị khoá thì tự hạ approved=false) — mở khoá xong người ta vẫn
+	// kẹt ở màn "Tài khoản đang chờ duyệt". Mở khoá là trả lại nguyên trạng nên bật lại luôn.
+	if _, err := h.pool().Exec(ctx,
+		`UPDATE users SET deleted_at=NULL, username=$2,
+		   approved = CASE WHEN role <> 'pending' THEN true ELSE approved END
+		 WHERE id=$1`, id, orig); err != nil {
+		serverErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "username": orig})
+}
+
+// AdminStudentAccounts: GET /admin/student-accounts — tài khoản ĐĂNG NHẬP của học viên.
+// /admin/users cố tình chỉ trả nhân viên (adminManagedRolesSQL) nên admin không thấy được ai trong
+// số học viên đăng nhập được. Đây là danh sách CHỈ ĐỌC cho tab "Người dùng"; đổi vai/xoá vẫn KHÔNG
+// cho phép từ đây (tránh nâng nhầm học viên lên quyền quản trị) — tạo tài khoản vẫn ở hồ sơ HV.
+func (h *Handlers) AdminStudentAccounts(c *gin.Context) {
+	rows, err := h.pool().Query(c.Request.Context(),
+		`SELECT u.id, u.username, u.full_name, u.email, u.auth_provider, u.must_change_password,
+		        u.student_id, s.name AS student_name, s.code AS student_code, s.gender AS student_gender, s.status AS student_status,
+		        r.name AS room_name, (s.deleted_at IS NOT NULL) AS student_deleted
+		   FROM users u
+		   JOIN students s ON s.id = u.student_id
+		   LEFT JOIN rooms r ON r.id = s.room_id
+		  WHERE u.role = 'student' AND u.deleted_at IS NULL
+		  ORDER BY s.name`)
+	if err != nil {
+		serverErr(c, err)
+		return
+	}
+	list, err := db.RowsToMaps(rows)
+	if err != nil {
+		serverErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, list)
+}
+
+// AdminRevokeStudentSession: POST /admin/student-accounts/:id/revoke — đá MỌI phiên đang mở của một
+// tài khoản học viên (mất điện thoại / nghi lộ mật khẩu) mà KHÔNG đổi mật khẩu. Chỉ nhận role='student'
+// để endpoint này không thành đường vòng tác động lên tài khoản quản trị.
+func (h *Handlers) AdminRevokeStudentSession(c *gin.Context) {
+	id, ok := paramInt(c, "id")
+	if !ok {
+		notFound(c, "Không tìm thấy tài khoản")
+		return
+	}
+	ctx := c.Request.Context()
+	var role string
+	if h.pool().QueryRow(ctx, "SELECT role FROM users WHERE id=$1 AND deleted_at IS NULL", id).Scan(&role) != nil {
+		notFound(c, "Không tìm thấy tài khoản")
+		return
+	}
+	if role != "student" {
+		forbidden(c, "Chỉ áp dụng cho tài khoản học viên")
+		return
+	}
+	if err := h.Auth.RevokeTokens(ctx, id); err != nil {
+		serverErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func (h *Handlers) ListUsers(c *gin.Context) {
+	rows, err := h.pool().Query(c.Request.Context(),
+		// Trả CẢ tài khoản đã khoá (cờ locked) — trước đây lọc bỏ nên admin khoá xong là mất dấu,
+		// không còn đường mở khoá. Đang hoạt động xếp trước, đã khoá xuống cuối.
+		`SELECT u.id, u.username, u.role, u.full_name, u.facility_id, f.name AS facility_name, u.created_at,
+                u.email, u.auth_provider, u.approved, (u.deleted_at IS NOT NULL) AS locked,
+                u.student_id, s.name AS student_name, s.code AS student_code,
+                r2.name AS student_room, (s.deleted_at IS NOT NULL) AS student_deleted
+           FROM users u LEFT JOIN facilities f ON f.id = u.facility_id
+                LEFT JOIN students s ON s.id = u.student_id
+                LEFT JOIN rooms r2   ON r2.id = s.room_id
+          WHERE u.role IN (`+adminManagedRolesSQL+`)
+          ORDER BY (u.deleted_at IS NOT NULL), u.role, u.username`)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	list, err := db.RowsToMaps(rows)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	c.JSON(http.StatusOK, list)
+}
+
+// CreateUser: POST /api/admin/users. admin.routes.js:122-147
+func (h *Handlers) CreateUser(c *gin.Context) {
+	var body map[string]json.RawMessage
+	_ = c.ShouldBindJSON(&body)
+	username := strings.TrimSpace(adminBodyStr(body, "username"))
+	password := strings.TrimSpace(adminBodyStr(body, "password"))
+	if username == "" {
+		badRequest(c, "Nhập tên đăng nhập")
+		return
+	}
+	// role: absent/null/'' -> 'staff'; ngược lại giữ nguyên để kiểm. admin.routes.js:127
+	rawRole := adminBodyStr(body, "role")
+	role := rawRole
+	if role == "" {
+		role = "staff"
+	}
+	if !adminValidRoles[role] {
+		badRequest(c, `Vai trò không hợp lệ: "`+rawRole+`". Chỉ nhận: nhân viên, bảo trì, thư ký, quản trị.`)
+		return
+	}
+	fullNameRaw := adminBodyStr(body, "full_name")
+	if loiMk := valid.CheckPassword(password, []string{username, fullNameRaw}); loiMk != "" {
+		badRequest(c, loiMk)
+		return
+	}
+	ctx := c.Request.Context()
+	// Đa cơ sở: NULL = điều hành; có id = quản lý đúng cơ sở đó. admin.routes.js:132-133
+	facVal, ok, errMsg := h.adminParseFacilityID(ctx, body["facility_id"])
+	if !ok {
+		badRequest(c, errMsg)
+		return
+	}
+	// ADMIN LUÔN là điều hành: không gán cơ sở cho admin (chốt 18/07). admin.routes.js:135
+	var facValue interface{}
+	if role != "admin" && facVal != nil {
+		facValue = *facVal
+	}
+	// Trùng tên: chỉ tính tài khoản CÒN HIỆU LỰC. admin.routes.js:138-139
+	var one int
+	if h.pool().QueryRow(ctx, "SELECT 1 FROM users WHERE lower(username)=lower($1) AND deleted_at IS NULL", username).Scan(&one) == nil {
+		badRequest(c, `Tên đăng nhập "`+username+`" đã tồn tại`)
+		return
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), 10)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	// Tài khoản do quản trị tạo -> buộc đổi mật khẩu lần đăng nhập đầu. admin.routes.js:141-144
+	rows, err := h.pool().Query(ctx,
+		`INSERT INTO users (username, password_hash, role, full_name, facility_id, must_change_password)
+         VALUES ($1,$2,$3,$4,$5,true) RETURNING id, username, role, full_name, facility_id`,
+		username, string(hash), role, strings.TrimSpace(fullNameRaw), facValue)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	row, err := db.RowToMap(rows)
+	if err != nil || row == nil {
+		serverErr(c)
+		return
+	}
+	c.JSON(http.StatusCreated, row)
+}
+
+// UpdateUser: PUT /api/admin/users/:id. admin.routes.js:149-195
+func (h *Handlers) UpdateUser(c *gin.Context) {
+	id, ok := paramInt(c, "id")
+	if !ok {
+		serverErr(c) // id không phải số -> câu lệnh SQL vỡ như Node (500)
+		return
+	}
+	var body map[string]json.RawMessage
+	_ = c.ShouldBindJSON(&body)
+	// hasRole = role có gửi & khác ''. admin.routes.js:152
+	rawRole := adminBodyStr(body, "role")
+	hasRole := rawRole != ""
+	if hasRole && !adminValidRoles[rawRole] {
+		badRequest(c, `Vai trò không hợp lệ: "`+rawRole+`".`)
+		return
+	}
+	ctx := c.Request.Context()
+	// cur = vai hiện tại (chỉ tài khoản quản lý được, chưa xoá). admin.routes.js:155-156
+	var curRole string
+	if h.pool().QueryRow(ctx,
+		"SELECT role FROM users WHERE id=$1 AND role IN ("+adminManagedRolesSQL+") AND deleted_at IS NULL", id).Scan(&curRole) != nil {
+		notFound(c, "Không tìm thấy tài khoản")
+		return
+	}
+	// Vai MỚI = vai gửi lên (nếu có) hoặc GIỮ NGUYÊN vai cũ. admin.routes.js:160
+	newRole := curRole
+	if hasRole {
+		newRole = rawRole
+	}
+	u := auth.CurrentUser(c)
+	if u != nil && id == u.ID && newRole != "admin" {
+		badRequest(c, "Không thể tự hạ quyền chính mình.")
+		return
+	}
+	// Giữ ít nhất 1 quản trị. admin.routes.js:164-167
+	if curRole == "admin" && newRole != "admin" {
+		var admins int
+		if h.pool().QueryRow(ctx, "SELECT COUNT(*)::int c FROM users WHERE role='admin' AND deleted_at IS NULL").Scan(&admins) != nil {
+			serverErr(c)
+			return
+		}
+		if admins <= 1 {
+			badRequest(c, "Phải còn ít nhất 1 quản trị viên — không thể hạ quyền người cuối cùng.")
+			return
+		}
+	}
+	// full_name: chỉ đổi khi CÓ gửi (`!= null` -> present & khác null). admin.routes.js:169
+	rawName, namePresent := body["full_name"]
+	hasName := namePresent && string(rawName) != "null"
+	nameVal := strings.TrimSpace(adminBodyStr(body, "full_name"))
+	// facility_id: chỉ đổi khi CÓ gửi field (`!== undefined`). admin.routes.js:172-178
+	rawFac, hasFac := body["facility_id"]
+	var facVal interface{}
+	if hasFac {
+		fv, ok2, errMsg := h.adminParseFacilityID(ctx, rawFac)
+		if !ok2 {
+			badRequest(c, errMsg)
+			return
+		}
+		if fv != nil {
+			facVal = *fv
+		}
+	}
+	// ADMIN LUÔN là điều hành: ÉP facility_id=null kể cả khi caller không gửi. admin.routes.js:181
+	if newRole == "admin" {
+		hasFac = true
+		facVal = nil
+	}
+	// Gán vai THẬT = DUYỆT tài khoản. admin.routes.js:184
+	// KHÔNG còn đòi `curRole == "pending"`: hàng có VAI THẬT mà approved=false (di sản lỗi cũ — xem
+	// UnlockUser) thì trước đây admin bấm "Duyệt / gán vai" bao nhiêu lần cũng không bật được approved,
+	// người kia kẹt vĩnh viễn ở màn "Tài khoản đang chờ duyệt". Nay gán vai thật là duyệt, luôn đúng.
+	duyet := newRole != "pending"
+	if _, err := h.pool().Exec(ctx,
+		`UPDATE users SET full_name = CASE WHEN $1 THEN $2 ELSE full_name END, role=$3,
+           facility_id = CASE WHEN $5 THEN $6 ELSE facility_id END,
+           approved = CASE WHEN $7 THEN true ELSE approved END
+         WHERE id=$4 AND role IN (`+adminManagedRolesSQL+`) AND deleted_at IS NULL`,
+		hasName, nameVal, newRole, id, hasFac, facVal, duyet); err != nil {
+		serverErr(c)
+		return
+	}
+	// Đổi vai -> THU HỒI vé cũ ngay. admin.routes.js:192
+	if newRole != curRole {
+		if err := h.Auth.RevokeTokens(ctx, id); err != nil {
+			serverErr(c)
+			return
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+type adminTaiKhoanCu struct {
+	ID         int
+	Username   string
+	Role       string
+	SsoSubject string
+	CoMatKhau  bool
+	BiKhoa     bool
+}
+
+// adminGopTaiKhoan: dồn danh tính Microsoft của bản chờ duyệt vào tài khoản SẴN CÓ của hồ sơ.
+// Trả true = đã trả lời client (từ chối hoặc hỏi xác nhận), nơi gọi phải dừng.
+// Vẫn giữ đúng một tài khoản cho một hồ sơ: khoá tài khoản đó là đóng cả hai lối vào.
+func (h *Handlers) adminGopTaiKhoan(c *gin.Context, ctx context.Context, choID, sid int, tenHV string, cu adminTaiKhoanCu, dongY bool) bool {
+	if cu.BiKhoa {
+		badRequest(c, `Hồ sơ "`+tenHV+`" gắn với tài khoản "`+cu.Username+`" đang bị KHOÁ. Mở khoá tài khoản đó trước rồi duyệt lại.`)
+		return true
+	}
+	if cu.Role != "student" {
+		badRequest(c, `Hồ sơ "`+tenHV+`" đang gắn với tài khoản "`+cu.Username+`" vai `+cu.Role+` — không gộp đăng nhập học viên vào tài khoản quản trị/nhân viên.`)
+		return true
+	}
+	var choSubject, choEmail, choTen, choUsername string
+	if h.pool().QueryRow(ctx,
+		"SELECT COALESCE(sso_subject,''), COALESCE(email,''), COALESCE(full_name,''), username FROM users WHERE id=$1", choID).
+		Scan(&choSubject, &choEmail, &choTen, &choUsername) != nil {
+		serverErr(c)
+		return true
+	}
+	// khongSSO: tài khoản đang duyệt là tài khoản THƯỜNG (không có danh tính Microsoft). Không có gì
+	// để dồn sang — việc đúng là KHOÁ bản thừa, hồ sơ tiếp tục dùng tài khoản sẵn có (hỏi trước).
+	khongSSO := choSubject == ""
+	if !khongSSO && cu.SsoSubject != "" && cu.SsoSubject != choSubject {
+		badRequest(c, `Tài khoản "`+cu.Username+`" đã liên kết một tài khoản Microsoft KHÁC. Gỡ liên kết cũ trước, không thể gắn hai danh tính vào một hồ sơ.`)
+		return true
+	}
+	if !dongY {
+		msg := `Hồ sơ "` + tenHV + `" đã có tài khoản "` + cu.Username + `"` +
+			map[bool]string{true: " (đăng nhập bằng mật khẩu)", false: ""}[cu.CoMatKhau] +
+			`. Gộp đăng nhập Microsoft vào tài khoản đó?`
+		if khongSSO {
+			msg = `Hồ sơ "` + tenHV + `" đã có tài khoản "` + cu.Username + `". Tài khoản đang duyệt không có đăng nhập Microsoft để gộp — xác nhận thì bản thừa này bị KHOÁ, hồ sơ dùng tài khoản sẵn có.`
+		}
+		c.JSON(http.StatusConflict, gin.H{
+			"conflict": true, "needs_merge": true, "khong_sso": khongSSO,
+			"error":   msg,
+			"account": gin.H{"id": cu.ID, "username": cu.Username, "co_mat_khau": cu.CoMatKhau},
+		})
+		return true
+	}
+	if khongSSO {
+		// Ghi email bản thừa vào hồ sơ (nếu hồ sơ chưa có và email chưa ai dùng) để lần sau người này
+		// đăng nhập Microsoft là khớp thẳng tài khoản sẵn có, khỏi qua duyệt lần nữa.
+		emailGhi := strings.ToLower(strings.TrimSpace(choEmail))
+		if emailGhi == "" && strings.Contains(choUsername, "@") {
+			emailGhi = strings.ToLower(strings.TrimSpace(choUsername))
+		}
+		err := h.DB.WithTx(ctx, func(tx pgx.Tx) error {
+			if _, e := tx.Exec(ctx,
+				`UPDATE users SET email=NULL, deleted_at=now(), token_epoch=token_epoch+1 WHERE id=$1`, choID); e != nil {
+				return e
+			}
+			if emailGhi == "" {
+				return nil
+			}
+			_, e := tx.Exec(ctx,
+				`UPDATE students SET email=$1 WHERE id=$2 AND COALESCE(email,'')=''
+				   AND NOT EXISTS (SELECT 1 FROM students s2 WHERE lower(s2.email)=lower($1) AND s2.id<>$2)`,
+				emailGhi, sid)
+			return e
+		})
+		if err != nil {
+			serverErr(c)
+			return true
+		}
+		if err := h.Auth.RevokeTokens(ctx, choID); err != nil {
+			serverErr(c)
+			return true
+		}
+		return false
+	}
+	// ux_users_sso_subject KHÔNG loại trừ dòng đã xoá -> phải nhả sso_subject ở bản chờ TRƯỚC khi
+	// gắn sang tài khoản kia, nếu không sẽ vỡ khoá duy nhất.
+	err := h.DB.WithTx(ctx, func(tx pgx.Tx) error {
+		if _, e := tx.Exec(ctx,
+			`UPDATE users SET sso_subject=NULL, email=NULL, deleted_at=now(), token_epoch=token_epoch+1 WHERE id=$1`, choID); e != nil {
+			return e
+		}
+		_, e := tx.Exec(ctx,
+			`UPDATE users SET sso_subject=$1,
+			   email = CASE WHEN COALESCE(email,'')='' THEN $2 ELSE email END,
+			   full_name = CASE WHEN COALESCE(full_name,'')='' AND $3<>'' THEN $3 ELSE full_name END,
+			   auth_provider = CASE WHEN password_hash IS NULL THEN 'sso' ELSE 'both' END,
+			   approved = true
+			 WHERE id=$4`, choSubject, choEmail, choTen, cu.ID)
+		return e
+	})
+	if err != nil {
+		serverErr(c)
+		return true
+	}
+	// Vé của bản chờ phải chết ngay, không thì họ còn kẹt ở màn "chờ duyệt" với tài khoản vừa gộp đi.
+	if err := h.Auth.RevokeTokens(ctx, choID); err != nil {
+		serverErr(c)
+		return true
+	}
+	return false
+}
+
+// ApproveUserAsStudent: POST /api/admin/users/:id/approve-student — duyệt tài khoản chờ thành học viên.
+// Duyệt học viên = GHÉP HỒ SƠ chứ không phải gán vai: cổng học viên đọc mọi thứ qua users.student_id,
+// gán vai suông thì đăng nhập vào trống trơn.
+//
+// Nhận một trong hai: {"student_id":12} ghép hồ sơ có sẵn, hoặc {"new_student":{...}} tạo hồ sơ mới rồi ghép.
+func (h *Handlers) ApproveUserAsStudent(c *gin.Context) {
+	id, ok := paramInt(c, "id")
+	if !ok {
+		notFound(c, "Không tìm thấy tài khoản")
+		return
+	}
+	var body struct {
+		StudentID  int  `json:"student_id"`
+		Merge      bool `json:"merge"` // đồng ý gộp đăng nhập Microsoft vào tài khoản sẵn có
+		NewStudent *struct {
+			Name      string `json:"name"`
+			Code      string `json:"code"`
+			Gender    string `json:"gender"`
+			Phone     string `json:"phone"`
+			ClassName string `json:"class_name"`
+		} `json:"new_student"`
+	}
+	_ = c.ShouldBindJSON(&body)
+
+	if u := auth.CurrentUser(c); u != nil && u.ID == id {
+		badRequest(c, "Không thể tự chuyển chính mình thành học viên.")
+		return
+	}
+	ctx := c.Request.Context()
+	var curRole, userEmail, userName string
+	if h.pool().QueryRow(ctx,
+		"SELECT role, COALESCE(email,''), COALESCE(full_name,'') FROM users WHERE id=$1 AND role IN ("+adminManagedRolesSQL+") AND deleted_at IS NULL",
+		id).Scan(&curRole, &userEmail, &userName) != nil {
+		notFound(c, "Không tìm thấy tài khoản")
+		return
+	}
+	// Quản trị viên KHÔNG hạ thẳng xuống học viên ở đây: đường đó đi qua PUT /admin/users/:id, nơi có
+	// sẵn chốt "phải còn ít nhất 1 quản trị".
+	if curRole == "admin" {
+		badRequest(c, "Tài khoản quản trị không chuyển thẳng thành học viên được. Hạ vai trước ở màn Sửa tài khoản.")
+		return
+	}
+
+	studentID := body.StudentID
+	if studentID <= 0 {
+		if body.NewStudent == nil || strings.TrimSpace(body.NewStudent.Name) == "" {
+			badRequest(c, "Chọn hồ sơ học viên có sẵn, hoặc nhập họ tên để tạo hồ sơ mới.")
+			return
+		}
+		gioiTinh := strings.TrimSpace(body.NewStudent.Gender)
+		if gioiTinh != "male" && gioiTinh != "female" {
+			gioiTinh = "male"
+		}
+		// Hồ sơ mới cố ý để TRỐNG phòng + ngày vào: duyệt tài khoản không phải là check-in. Admin vào
+		// màn Học viên xếp phòng sau, lúc đó mới phát sinh tiền.
+		if e := h.pool().QueryRow(ctx,
+			`INSERT INTO students (name, code, gender, phone, class_name, email) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+			strings.TrimSpace(body.NewStudent.Name), strings.TrimSpace(body.NewStudent.Code), gioiTinh,
+			strings.TrimSpace(body.NewStudent.Phone), strings.TrimSpace(body.NewStudent.ClassName),
+			strings.ToLower(strings.TrimSpace(userEmail))).Scan(&studentID); e != nil {
+			badRequest(c, "Không tạo được hồ sơ học viên (mã hoặc email đã tồn tại?): "+e.Error())
+			return
+		}
+	} else {
+		var ten string
+		if h.pool().QueryRow(ctx, "SELECT name FROM students WHERE id=$1", studentID).Scan(&ten) != nil {
+			badRequest(c, "Không tìm thấy hồ sơ học viên đã chọn.")
+			return
+		}
+		// Một hồ sơ chỉ một tài khoản — nhưng "một tài khoản" không có nghĩa là một CÁCH đăng nhập.
+		// Người đã có tài khoản mật khẩu rồi đăng nhập Microsoft thì GỘP hai lối vào làm một
+		// (auth_provider='both'), thay vì bắt admin chọn bỏ cái nào.
+		var cu adminTaiKhoanCu
+		if h.pool().QueryRow(ctx,
+			`SELECT id, username, role, COALESCE(sso_subject,''), (password_hash IS NOT NULL), (deleted_at IS NOT NULL)
+			   FROM users WHERE student_id=$1 AND id<>$2`, studentID, id).
+			Scan(&cu.ID, &cu.Username, &cu.Role, &cu.SsoSubject, &cu.CoMatKhau, &cu.BiKhoa) == nil {
+			if e := h.adminGopTaiKhoan(c, ctx, id, studentID, ten, cu, body.Merge); e {
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"ok": true, "student_id": studentID, "merged_into": cu.ID, "username": cu.Username})
+			return
+		}
+		// Ghi email vào hồ sơ nếu hồ sơ chưa có: lần đăng nhập sau khớp thẳng, khỏi duyệt lại.
+		if strings.TrimSpace(userEmail) != "" {
+			if _, err := h.pool().Exec(ctx,
+				"UPDATE students SET email=$1 WHERE id=$2 AND COALESCE(email,'')=''",
+				strings.ToLower(strings.TrimSpace(userEmail)), studentID); err != nil {
+				serverErr(c)
+				return
+			}
+		}
+	}
+
+	// facility_id = NULL: phạm vi của học viên đến từ hồ sơ/phòng, không phải từ cơ sở phụ trách.
+	if _, err := h.pool().Exec(ctx,
+		`UPDATE users SET role='student', student_id=$1, approved=true, facility_id=NULL
+		   WHERE id=$2 AND role IN (`+adminManagedRolesSQL+`) AND deleted_at IS NULL`, studentID, id); err != nil {
+		serverErr(c)
+		return
+	}
+	// Vé cũ ghi role='pending' -> phải thu hồi, không thì họ vẫn kẹt ở màn chờ duyệt tới khi hết hạn.
+	if err := h.Auth.RevokeTokens(ctx, id); err != nil {
+		serverErr(c)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "student_id": studentID})
+}
+
+// AdminLinkStudent: POST /api/admin/users/:id/link-student — gắn hồ sơ khách thuê phòng vào tài khoản
+// nhân viên (KIÊM NHIỆM: role giữ nguyên, chỉ gắn student_id). Khác ApproveUserAsStudent (ghi đè
+// role='student'), đường này dành cho nhân viên thuê phòng trong KTX: một tài khoản, hai giao diện.
+func (h *Handlers) AdminLinkStudent(c *gin.Context) {
+	id, ok := paramInt(c, "id")
+	if !ok {
+		notFound(c, "Không tìm thấy tài khoản")
+		return
+	}
+	var body struct {
+		StudentID int `json:"student_id"`
+	}
+	_ = c.ShouldBindJSON(&body)
+	if body.StudentID <= 0 {
+		badRequest(c, "Chọn hồ sơ học viên để gắn.")
+		return
+	}
+	ctx := c.Request.Context()
+	var curRole string
+	var curSID *int
+	if h.pool().QueryRow(ctx, "SELECT role, student_id FROM users WHERE id=$1 AND deleted_at IS NULL", id).
+		Scan(&curRole, &curSID) != nil {
+		notFound(c, "Không tìm thấy tài khoản")
+		return
+	}
+	if !adminValidRoles[curRole] {
+		badRequest(c, "Chỉ tài khoản nhân viên mới gắn kiêm khách thuê phòng được. Tài khoản học viên/chờ duyệt xử lý ở màn riêng.")
+		return
+	}
+	if curSID != nil {
+		badRequest(c, "Tài khoản đang gắn một hồ sơ khác — gỡ liên kết hiện tại trước.")
+		return
+	}
+	var tenHV string
+	if h.pool().QueryRow(ctx, "SELECT name FROM students WHERE id=$1 AND deleted_at IS NULL", body.StudentID).
+		Scan(&tenHV) != nil {
+		badRequest(c, "Không tìm thấy hồ sơ học viên (hoặc hồ sơ đã bị khoá).")
+		return
+	}
+	// Một hồ sơ chỉ một tài khoản (cùng quy ước với sso.go/students.go: KHÔNG lọc deleted_at —
+	// tài khoản bị khoá vẫn giữ hồ sơ, tránh hồ sơ có 2 lối đăng nhập khi mở khoá lại).
+	var giu string
+	if h.pool().QueryRow(ctx, "SELECT username FROM users WHERE student_id=$1 AND id<>$2", body.StudentID, id).
+		Scan(&giu) == nil {
+		badRequest(c, `Hồ sơ "`+tenHV+`" đang thuộc tài khoản "`+giu+`" — một hồ sơ chỉ gắn một tài khoản.`)
+		return
+	}
+	if _, err := h.pool().Exec(ctx, "UPDATE users SET student_id=$1 WHERE id=$2", body.StudentID, id); err != nil {
+		serverErr(c)
+		return
+	}
+	// Không RevokeTokens: quyền đọc lại từ CSDL mỗi request, liên kết có hiệu lực ngay request sau.
+	c.JSON(http.StatusOK, gin.H{"ok": true, "student_id": body.StudentID})
+}
+
+// AdminUnlinkStudent: DELETE /api/admin/users/:id/link-student — gỡ hồ sơ kiêm nhiệm khỏi tài khoản
+// nhân viên (thôi thuê phòng). Điều kiện role nằm trong SQL: không bao giờ rút được hồ sơ khỏi
+// tài khoản role='student' (tài khoản đó mất hồ sơ là thành tài khoản rỗng).
+func (h *Handlers) AdminUnlinkStudent(c *gin.Context) {
+	id, ok := paramInt(c, "id")
+	if !ok {
+		notFound(c, "Không tìm thấy tài khoản")
+		return
+	}
+	tag, err := h.pool().Exec(c.Request.Context(),
+		"UPDATE users SET student_id=NULL WHERE id=$1 AND role IN ("+adminManagedRolesSQL+") AND deleted_at IS NULL AND student_id IS NOT NULL", id)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	if tag.RowsAffected() == 0 {
+		notFound(c, "Tài khoản không có hồ sơ kiêm nhiệm để gỡ")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// ResetPassword: POST /api/admin/users/:id/password. admin.routes.js:197-208
+func (h *Handlers) ResetPassword(c *gin.Context) {
+	id, ok := paramInt(c, "id")
+	if !ok {
+		serverErr(c) // id không phải số -> câu lệnh SQL vỡ như Node (500)
+		return
+	}
+	var body map[string]json.RawMessage
+	_ = c.ShouldBindJSON(&body)
+	password := strings.TrimSpace(adminBodyStr(body, "password"))
+	ctx := c.Request.Context()
+	// uNow: dùng username/full_name làm ngữ cảnh kiểm mật khẩu; không có hàng -> {} (chuỗi rỗng). admin.routes.js:200
+	var uName, uFull string
+	_ = h.pool().QueryRow(ctx, "SELECT username, full_name FROM users WHERE id=$1", id).Scan(&uName, &uFull)
+	if loiMk := valid.CheckPassword(password, []string{uName, uFull}); loiMk != "" {
+		badRequest(c, loiMk)
+		return
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), 10)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	// Đặt lại mật khẩu -> buộc đổi lại lần đăng nhập kế tiếp. admin.routes.js:204
+	if _, err := h.pool().Exec(ctx, "UPDATE users SET password_hash=$1, must_change_password=true WHERE id=$2", string(hash), id); err != nil {
+		serverErr(c)
+		return
+	}
+	if err := h.Auth.RevokeTokens(ctx, id); err != nil { // đá mọi phiên đang mở. admin.routes.js:205
+		serverErr(c)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// DeleteUser: DELETE /api/admin/users/:id — xoá mềm + nhả tên gốc. admin.routes.js:210-228
+func (h *Handlers) DeleteUser(c *gin.Context) {
+	id, ok := paramInt(c, "id")
+	if !ok {
+		serverErr(c) // id không phải số -> câu lệnh SQL vỡ như Node (500)
+		return
+	}
+	u := auth.CurrentUser(c)
+	if u != nil && id == u.ID {
+		badRequest(c, "Không thể tự khoá chính mình")
+		return
+	}
+	ctx := c.Request.Context()
+	var admins int
+	if h.pool().QueryRow(ctx, "SELECT COUNT(*)::int c FROM users WHERE role='admin' AND deleted_at IS NULL").Scan(&admins) != nil {
+		serverErr(c)
+		return
+	}
+	var targetRole string
+	targetFound := h.pool().QueryRow(ctx, "SELECT role FROM users WHERE id=$1", id).Scan(&targetRole) == nil
+	if targetFound && targetRole == "admin" && admins <= 1 {
+		badRequest(c, "Phải còn ít nhất 1 quản trị viên")
+		return
+	}
+	// KHOÁ tài khoản (không xoá dữ liệu): chặn đăng nhập (login lọc deleted_at IS NULL) + đá mọi phiên.
+	// Trước đây còn ĐỔI TÊN username thành 'ten#da-xoa-<id>' để nhả tên gốc -> mở khoá lại thì tên đã
+	// méo, coi như một chiều. Nay GIỮ NGUYÊN username (tên vẫn thuộc về người đó) để mở khoá là trả về
+	// đúng nguyên trạng; muốn nhả tên hẳn thì đó là việc "xoá thật", không phải khoá.
+	if _, err := h.pool().Exec(ctx,
+		`UPDATE users SET deleted_at=now()
+           WHERE id=$1 AND role IN (`+adminManagedRolesSQL+`)`, id); err != nil {
+		serverErr(c, err)
+		return
+	}
+	if err := h.Auth.RevokeTokens(ctx, id); err != nil { // đá ngay mọi phiên đang mở. admin.routes.js:225
+		serverErr(c)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}

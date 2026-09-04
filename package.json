@@ -1,0 +1,31 @@
+{
+  "name": "quan-ly-ktx",
+  "version": "1.0.0",
+  "description": "Ứng dụng quản lý check-in/check-out và tiền phòng ký túc xá học viên (PWA + API + PostgreSQL)",
+  "main": "server/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "go run ./cmd/server",
+    "dev": "go run ./cmd/server",
+    "test": "node tests/run.js",
+    "test:unit": "node tests/run.js --unit",
+    "test:dom": "bash tests/dom/run.sh",
+    "services": "docker compose up -d",
+    "services:down": "docker compose down"
+  },
+  "_comment": "BL-18: backend là Go/Gin (cmd/server). npm start/dev chạy Go. npm test (e2e JS) gọi HTTP :3000 nên PHẢI có server Go đang chạy (npm start). Thư mục server/ (Node cũ) giữ lại để đối chiếu — KHÔNG phải backend chạy thật; việc gỡ hẳn chờ owner quyết (xem .agents/bl_18.md).",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1085.0",
+    "@aws-sdk/s3-request-presigner": "^3.1085.0",
+    "bcryptjs": "^2.4.3",
+    "express": "^4.19.2",
+    "express-rate-limit": "^8.5.2",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.2",
+    "nodemailer": "^9.0.3",
+    "pg": "^8.12.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

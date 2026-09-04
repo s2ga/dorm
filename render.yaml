@@ -1,0 +1,43 @@
+# Cấu hình triển khai phase STAGING lên Render.
+# CSDL: PostgreSQL của Supabase. Object storage: Supabase Storage (S3 protocol).
+# Kiến trúc GIỐNG local (Postgres + S3), chỉ khác endpoint/credentials qua ENV.
+# Các biến sync:false phải điền trong Render Dashboard > Environment.
+
+services:
+  - type: web
+    name: ktx-tnh
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: TZ                      # BLK-5: giờ Việt Nam (Render/Docker mặc định UTC → lệch ngày)
+        value: Asia/Ho_Chi_Minh
+      - key: COOKIE_SECURE           # Render phục vụ HTTPS -> cookie Secure
+        value: "true"
+      - key: TRUSTED_PROXIES         # BL-76: chỉ tin X-Forwarded-For từ edge của Render (dải nội bộ);
+        value: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16   # ngoài dải này dùng IP kết nối thật
+      - key: DATABASE_URL            # Supabase session pooler (port 5432) — điền trong Dashboard
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ADMIN_USERNAME
+        value: admin
+      - key: ADMIN_PASSWORD          # điền trong Dashboard (>=6 ký tự); admin đổi mật khẩu lần đầu
+        sync: false
+      - key: DORM_NAME
+        value: "Ký túc xá Nội trú Esuhai"
+      # ----- Object storage (S3) = Supabase Storage -----
+      - key: S3_ENDPOINT
+        value: https://sceuwqrpyungzkhohmvj.storage.supabase.co/storage/v1/s3
+      - key: S3_REGION
+        value: ap-southeast-1
+      - key: S3_ACCESS_KEY           # S3 access key (Supabase > Storage > S3 keys) — điền Dashboard
+        sync: false
+      - key: S3_SECRET_KEY           # S3 secret key — điền Dashboard
+        sync: false
+      - key: S3_CCCD_BUCKET
+        value: cccd
+      - key: S3_INTRO_BUCKET
+        value: intro

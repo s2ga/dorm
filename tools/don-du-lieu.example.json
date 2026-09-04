@@ -1,0 +1,43 @@
+{
+  "_doc": [
+    "Quyết định dọn dữ liệu — CHÉP FILE NÀY THÀNH tools/don-du-lieu.json RỒI ĐIỀN.",
+    "",
+    "VÌ SAO TÁCH RA FILE RIÊNG: nội dung là HỌ TÊN THẬT + MÃ HỌC VIÊN THẬT của người thật.",
+    "Repo này công khai. Viết thẳng vào file .js là đẩy dữ liệu cá nhân của học viên lên GitHub",
+    "cho cả thế giới đọc — trái Nghị định 13. tools/don-du-lieu.json đã nằm trong .gitignore.",
+    "",
+    "Nhận diện bằng TÊN + MÃ + NGÀY, KHÔNG dùng id: id ở máy local và trên bản chạy thật khác nhau.",
+    "Chạy lại nhiều lần được: mỗi bản sửa chỉ khớp khi dữ liệu còn ở trạng thái CŨ.",
+    "",
+    "  node tools/repair-data.js         -> chạy thử, in ra sẽ sửa gì",
+    "  node tools/repair-data.js --apply -> ghi thật",
+    "  node tools/merge-plan.js          -> in kế hoạch gộp hồ sơ trùng",
+    "  node tools/merge-plan.js --apply  -> gộp thật"
+  ],
+
+  "_nhan_vien": "Nhân viên đang để chữ 'Nhân viên' ở ô Mã HV -> đặt mã riêng. [tên, mã mới]",
+  "nhan_vien": [
+    ["Nguyễn Văn A", "NV01"],
+    ["Trần Thị B", "NV02"]
+  ],
+
+  "_xoa_ma": "Hai người KHÁC TÊN chung một mã -> người không giữ thì xoá mã. [tên bị xoá, mã, tên người giữ]",
+  "xoa_ma": [
+    ["Lê Văn C", "MA-VI-DU-001", "Phạm Thị D"]
+  ],
+
+  "_sai_nam": "Gõ nhầm năm (ngày ra trước ngày vào). [tên, mã, cột, giá trị đang sai, giá trị đúng]",
+  "sai_nam": [
+    ["Hoàng Văn E", "MA-VI-DU-002", "check_out_date", "2025-01-31", "2026-01-31"],
+    ["Vũ Thị F", "MA-VI-DU-003", "check_in_date", "2026-11-23", "2025-11-23"]
+  ],
+
+  "_chot_tay": "Nhóm hồ sơ trùng mà app KHÔNG tự kết luận được -> chỉ đích danh hồ sơ nào đúng (theo phòng + ngày).",
+  "chot_tay": [
+    {
+      "code": "MA-VI-DU-004",
+      "giu": { "phong": "203", "vao": "2025-12-21", "ra": "2026-07-01" },
+      "vi_sao": "Nêu rõ ai quyết định và vì sao — người sau đọc lại phải hiểu được."
+    }
+  ]
+}

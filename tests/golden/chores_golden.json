@@ -1,0 +1,235 @@
+{
+  "schedule": [
+    {
+      "name": "3 người xoay 6 tuần (sắp theo ngày vào rồi id)",
+      "in": {
+        "members": [
+          {
+            "id": 3,
+            "name": "C",
+            "check_in_date": "2026-07-01",
+            "check_out_date": null
+          },
+          {
+            "id": 1,
+            "name": "A",
+            "check_in_date": "2026-06-15",
+            "check_out_date": null
+          },
+          {
+            "id": 2,
+            "name": "B",
+            "check_in_date": "2026-06-15",
+            "check_out_date": null
+          }
+        ],
+        "today": "2026-07-06",
+        "weeks": 6
+      },
+      "out": [
+        {
+          "from": "2026-07-06",
+          "to": "2026-07-12",
+          "student_id": 3,
+          "name": "C"
+        },
+        {
+          "from": "2026-07-13",
+          "to": "2026-07-19",
+          "student_id": 1,
+          "name": "A"
+        },
+        {
+          "from": "2026-07-20",
+          "to": "2026-07-26",
+          "student_id": 2,
+          "name": "B"
+        },
+        {
+          "from": "2026-07-27",
+          "to": "2026-08-02",
+          "student_id": 3,
+          "name": "C"
+        },
+        {
+          "from": "2026-08-03",
+          "to": "2026-08-09",
+          "student_id": 1,
+          "name": "A"
+        },
+        {
+          "from": "2026-08-10",
+          "to": "2026-08-16",
+          "student_id": 2,
+          "name": "B"
+        }
+      ]
+    },
+    {
+      "name": "người rời giữa chừng bị loại khỏi tuần sau",
+      "in": {
+        "members": [
+          {
+            "id": 1,
+            "name": "A",
+            "check_in_date": "2026-07-01",
+            "check_out_date": "2026-07-12"
+          },
+          {
+            "id": 2,
+            "name": "B",
+            "check_in_date": "2026-07-01",
+            "check_out_date": null
+          }
+        ],
+        "today": "2026-07-06",
+        "weeks": 4
+      },
+      "out": [
+        {
+          "from": "2026-07-06",
+          "to": "2026-07-12",
+          "student_id": 1,
+          "name": "A"
+        },
+        {
+          "from": "2026-07-13",
+          "to": "2026-07-19",
+          "student_id": 2,
+          "name": "B"
+        },
+        {
+          "from": "2026-07-20",
+          "to": "2026-07-26",
+          "student_id": 2,
+          "name": "B"
+        },
+        {
+          "from": "2026-07-27",
+          "to": "2026-08-02",
+          "student_id": 2,
+          "name": "B"
+        }
+      ]
+    },
+    {
+      "name": "người vào muộn chỉ xuất hiện từ tuần họ ở",
+      "in": {
+        "members": [
+          {
+            "id": 1,
+            "name": "A",
+            "check_in_date": "2026-07-01",
+            "check_out_date": null
+          },
+          {
+            "id": 2,
+            "name": "B",
+            "check_in_date": "2026-07-20",
+            "check_out_date": null
+          }
+        ],
+        "today": "2026-07-06",
+        "weeks": 5
+      },
+      "out": [
+        {
+          "from": "2026-07-06",
+          "to": "2026-07-12",
+          "student_id": 1,
+          "name": "A"
+        },
+        {
+          "from": "2026-07-13",
+          "to": "2026-07-19",
+          "student_id": 1,
+          "name": "A"
+        },
+        {
+          "from": "2026-07-20",
+          "to": "2026-07-26",
+          "student_id": 1,
+          "name": "A"
+        },
+        {
+          "from": "2026-07-27",
+          "to": "2026-08-02",
+          "student_id": 2,
+          "name": "B"
+        },
+        {
+          "from": "2026-08-03",
+          "to": "2026-08-09",
+          "student_id": 1,
+          "name": "A"
+        }
+      ]
+    },
+    {
+      "name": "phòng trống -> lịch rỗng",
+      "in": {
+        "members": [],
+        "today": "2026-07-06",
+        "weeks": 4
+      },
+      "out": []
+    },
+    {
+      "name": "1 người -> luôn là họ",
+      "in": {
+        "members": [
+          {
+            "id": 9,
+            "name": "Z",
+            "check_in_date": "2026-01-01",
+            "check_out_date": null
+          }
+        ],
+        "today": "2026-07-15",
+        "weeks": 3
+      },
+      "out": [
+        {
+          "from": "2026-07-13",
+          "to": "2026-07-19",
+          "student_id": 9,
+          "name": "Z"
+        },
+        {
+          "from": "2026-07-20",
+          "to": "2026-07-26",
+          "student_id": 9,
+          "name": "Z"
+        },
+        {
+          "from": "2026-07-27",
+          "to": "2026-08-02",
+          "student_id": 9,
+          "name": "Z"
+        }
+      ]
+    }
+  ],
+  "mondayOf": [
+    {
+      "name": "thứ Hai giữ nguyên",
+      "in": "2026-07-06",
+      "out": "2026-07-06"
+    },
+    {
+      "name": "Chủ nhật -> lùi về thứ Hai",
+      "in": "2026-07-12",
+      "out": "2026-07-06"
+    },
+    {
+      "name": "thứ Tư -> thứ Hai cùng tuần",
+      "in": "2026-07-08",
+      "out": "2026-07-06"
+    },
+    {
+      "name": "đầu tháng vắt qua tháng trước",
+      "in": "2026-07-01",
+      "out": "2026-06-29"
+    }
+  ]
+}

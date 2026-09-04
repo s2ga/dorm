@@ -1,0 +1,42 @@
+========================================
+  QUAN LY KY TUC XA - HUONG DAN NHANH
+  (Ban chay KHONG can Docker)
+========================================
+
+MO APP:
+  - Nhap doi (double-click) file:  Chay-App.bat
+  - Doi vai giay, trinh duyet tu mo http://localhost:3000
+  - GIU cua so den (console) mo trong khi dung app.
+
+DANG NHAP LAN DAU:
+  - Tai khoan: admin
+  - Mat khau: admin123
+  - (Vao roi nen doi mat khau ngay o muc Cai dat)
+
+TAT APP:
+  - Dong cua so den, HOAC nhap doi file:  Dung-App.bat
+
+TRANG DANG KY CHO HOC VIEN MOI (cong khai, khong can dang nhap):
+  - http://localhost:3000/dang-ky
+  - Hoc vien dien thong tin -> gui don. Quan ly vao muc "Don tu HV"
+    de duyet va bam "Them vao phong" (app se tao tai khoan dang nhap).
+  - May khac trong mang: http://<IP-may-nay>:3000/dang-ky
+
+CAI LEN MAY NHU 1 APP (tuy chon):
+  - Mo http://localhost:3000 bang Chrome/Edge
+  - Bam bieu tuong "Cai dat" tren thanh dia chi -> Cai dat
+
+DU LIEU LUU O DAU:
+  - Toan bo du lieu nam trong thu muc:  .data
+  - SAO LUU = copy ca thu muc .data sang noi khac.
+  - PHUC HOI = chep .data tro lai.
+
+CAC MAY KHAC TRONG CONG TY MUON DUNG:
+  - Mo: http://<dia-chi-IP-may-nay>:3000
+  - (Xem IP bang lenh ipconfig)
+
+LUU Y:
+  - Ban nay chay bang Node ban goi san trong thu muc .runtime,
+    KHONG can cai dat gi them, KHONG can quyen admin.
+  - Khi nao cong ty bat duoc Docker/WSL thi co the chuyen sang
+    ban Docker + PostgreSQL (xem README.md) de manh hon.

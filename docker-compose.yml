@@ -1,0 +1,95 @@
+# Dịch vụ nền cho dev local: Postgres (cùng engine với staging) + MinIO (S3, cùng giao thức Supabase).
+# Mọi biến lấy từ .env, không đặt secret mặc định ở đây.  Chạy: docker compose up -d
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: ktx-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER chua dat trong .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD chua dat trong .env}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB chua dat trong .env}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - ktx_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    container_name: ktx-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:?S3_ACCESS_KEY chua dat trong .env}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?S3_SECRET_KEY chua dat trong .env}
+    ports:
+      - "${S3_PORT:-9000}:9000"      # S3 API
+      - "${S3_CONSOLE_PORT:-9001}:9001"  # web console
+    volumes:
+      - ktx_miniodata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "mc ready local || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Tạo sẵn 2 bucket (idempotent) rồi thoát
+  minio-init:
+    image: minio/mc:latest
+    container_name: ktx-minio-init
+    depends_on:
+      minio:
+        condition: service_started
+    entrypoint: >
+      /bin/sh -c "
+      until (mc alias set local http://minio:9000 $${S3_ACCESS_KEY} $${S3_SECRET_KEY}) do echo 'cho minio...'; sleep 1; done;
+      mc mb -p local/$${S3_CCCD_BUCKET};
+      mc mb -p local/$${S3_INTRO_BUCKET};
+      echo 'da tao bucket $${S3_CCCD_BUCKET} + $${S3_INTRO_BUCKET}';
+      exit 0;
+      "
+    environment:
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_CCCD_BUCKET: ${S3_CCCD_BUCKET:-cccd}
+      S3_INTRO_BUCKET: ${S3_INTRO_BUCKET:-intro}
+
+  # App Go (Gin) — build từ Dockerfile. Trong mạng compose nối 'db'/'minio' theo TÊN service.
+  #   docker compose build app     -> build image
+  #   docker compose up -d          -> chạy cả stack (db + minio + app)
+  app:
+    build: .
+    container_name: ktx-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    environment:
+      TZ: Asia/Ho_Chi_Minh
+      PORT: "3000"
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      PGSSL: disable
+      JWT_SECRET: ${JWT_SECRET}
+      COOKIE_SECURE: "false"
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      DORM_NAME: ${DORM_NAME:-Ký túc xá Nội trú Esuhai}
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: ${S3_REGION:-ap-southeast-1}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_CCCD_BUCKET: ${S3_CCCD_BUCKET:-cccd}
+      S3_INTRO_BUCKET: ${S3_INTRO_BUCKET:-intro}
+
+volumes:
+  ktx_pgdata:
+  ktx_miniodata:

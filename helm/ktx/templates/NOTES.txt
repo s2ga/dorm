@@ -1,0 +1,43 @@
+Đã cài {{ .Chart.Name }} (chart {{ .Chart.Version }}, app {{ .Chart.AppVersion }}) vào namespace {{ .Release.Namespace }}.
+
+Theo dõi khởi động (boot có áp schema + chạy migration nên hơi lâu):
+
+  kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "ktx.fullname" . }}
+  kubectl -n {{ .Release.Namespace }} logs -f deployment/{{ include "ktx.fullname" . }}
+
+{{- if .Values.ingress.enabled }}
+
+Mở app tại:
+{{- range .Values.ingress.hosts }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+{{- else }}
+
+Chưa bật Ingress. Thử nhanh bằng port-forward:
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "ktx.fullname" . }} 8080:{{ .Values.service.port }}
+  # rồi mở http://localhost:8080
+
+  LƯU Ý: port-forward là http:// (không TLS). Đang để COOKIE_SECURE={{ .Values.config.COOKIE_SECURE }},
+  nếu là "true" thì trình duyệt sẽ VỨT cookie phiên và bạn cứ bị đá về màn đăng nhập.
+  Thử qua http thì cài lại với: --set config.COOKIE_SECURE=false
+{{- end }}
+
+{{- if and (not .Values.existingSecret) (not .Values.secret.DATABASE_URL) }}
+
+  ⚠ CHƯA có DATABASE_URL — app sẽ thoát ngay lúc khởi động (fail-fast trong config.Load).
+    Đặt bằng một trong hai cách:
+      helm upgrade --install ... --set-string secret.DATABASE_URL='postgres://...' \
+                                 --set-string secret.JWT_SECRET="$(openssl rand -hex 32)"
+    hoặc tạo Secret sẵn rồi trỏ vào: --set existingSecret=ktx-secret
+{{- end }}
+{{- if and (not .Values.existingSecret) .Values.secret.JWT_SECRET (lt (len .Values.secret.JWT_SECRET) 16) }}
+
+  ⚠ JWT_SECRET ngắn hơn 16 ký tự — app từ chối khởi động. Sinh chuỗi: openssl rand -hex 32
+{{- end }}
+{{- if gt (int .Values.replicaCount) 1 }}
+
+  ⚠ replicaCount = {{ .Values.replicaCount }}. App tự áp schema + migration lúc khởi động, nhiều pod bật
+    cùng lúc là nhiều tiến trình cùng vá lược đồ trên MỘT cơ sở dữ liệu. Muốn chạy nhiều bản thì tách
+    phần vá ra Job chạy trước (helm hook pre-upgrade) rồi mới tăng số này.
+{{- end }}

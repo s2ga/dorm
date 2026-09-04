@@ -1,0 +1,80 @@
+// Duyệt đơn trả phòng KHÔNG có nghĩa là học viên đã dọn đi — ngày trả thường ở tương lai.
+// Danh sách phải trả kèm ngày trả THẬT trên hồ sơ để màn quản trị phân biệt
+// "Đã xác nhận" (chưa tới ngày) với "Đã trả phòng" (đã qua ngày).
+const P = '__test_cout';
+
+async function clean(db) {
+  await db.query(`DELETE FROM checkout_requests WHERE student_id IN (SELECT id FROM students WHERE code LIKE '${P}%')`);
+  await db.query(`DELETE FROM room_stays WHERE student_id IN (SELECT id FROM students WHERE code LIKE '${P}%')`);
+  await db.query(`DELETE FROM logs       WHERE student_id IN (SELECT id FROM students WHERE code LIKE '${P}%')`);
+  await db.query(`DELETE FROM invoices   WHERE student_id IN (SELECT id FROM students WHERE code LIKE '${P}%')`);
+  await db.query(`DELETE FROM students WHERE code LIKE '${P}%' OR name LIKE '${P}%'`);
+  await db.query(`DELETE FROM rooms    WHERE name LIKE '${P}%'`);
+}
+
+const congNgay = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+
+module.exports = {
+  name: 'Đơn trả phòng — trạng thái sau khi duyệt',
+  needsServer: true,
+  cleanup: t => clean(t.db),
+
+  async run(t) {
+    const T = await t.login('admin', process.env.ADMIN_P);
+    await clean(t.db);
+    const fac = (await t.db.query('SELECT id FROM facilities LIMIT 1')).rows[0].id;
+    const R = (await t.db.query(
+      `INSERT INTO rooms (name,facility_id,capacity,gender,hang,monthly_fee,room_type)
+       VALUES ($1,$2,4,'male','B',1200000,'shared') RETURNING id`, [P + '_R', fac])).rows[0].id;
+
+    const dựng = async (ma, ngayTra) => {
+      const s = await t.api('POST', '/api/students', T, {
+        name: P + ' ' + ma, code: P + ma, gender: 'male', room_id: R,
+        check_in_date: '2026-03-01', rental_type: 'ghep', confirm_overload: true,
+      });
+      t.eq('Dựng hồ sơ ' + ma, s.status, 201, `HTTP ${s.status} ${s.json && s.json.error || ''}`);
+      const cr = (await t.db.query(
+        `INSERT INTO checkout_requests (student_id, desired_date, reason) VALUES ($1,$2,'departure') RETURNING id`,
+        [s.json.id, ngayTra])).rows[0].id;
+      return { sid: s.json.id, crid: cr };
+    };
+    const tim = async crid => {
+      const r = await t.api('GET', '/api/requests/checkout', T);
+      t.eq('Đọc danh sách đơn trả phòng', r.status, 200, `HTTP ${r.status}`);
+      return (r.json.rows || r.json || []).find(x => x.id === crid);
+    };
+
+    // ── Duyệt với ngày trả TƯƠNG LAI ────────────────────────────────────────────────────
+    const mai = congNgay(14);
+    const A = await dựng('A', mai);
+    const dA = await t.api('POST', `/api/requests/checkout/${A.crid}/confirm`, T, { date: mai });
+    t.eq('Duyệt đơn ngày tương lai → 200', dA.status, 200, `HTTP ${dA.status} ${dA.json && dA.json.error || ''}`);
+    const rA = await tim(A.crid);
+    t.eq('Đơn chuyển sang done', rA && rA.status, 'done');
+    // BL-117: duyệt đơn chỉ chốt LỊCH DỰ KIẾN — ngày trả thật để trống cho tới khi xác nhận trả phòng
+    t.eq('Lịch dự kiến trả ghi vào hồ sơ', String(rA.student_planned_check_out || '').slice(0, 10), mai,
+      `nhận ${JSON.stringify(rA && rA.student_planned_check_out)}`);
+    t.ok('Ngày trả THẬT còn trống (chưa ai xác nhận)', !rA.student_check_out, `student_check_out = ${JSON.stringify(rA.student_check_out)}`);
+    t.eq('Học viên vẫn ĐANG Ở cho tới khi xác nhận trả', rA.student_status, 'in',
+      `student_status = ${rA.student_status}`);
+    const stayA = (await t.db.query('SELECT to_date FROM room_stays WHERE student_id=$1 ORDER BY from_date DESC LIMIT 1', [A.sid])).rows[0];
+    t.ok('Lượt ở KHÔNG bị đóng theo lịch dự kiến (tiền điện vẫn chia tới ngày xác nhận)', stayA && stayA.to_date === null,
+      `to_date=${stayA && stayA.to_date}`);
+
+    // ── Duyệt với ngày trả ĐÃ QUA: vẫn chỉ là lịch, chờ xác nhận ─────────────────────────
+    const hom_qua = congNgay(-3);
+    const B = await dựng('B', hom_qua);
+    const dB = await t.api('POST', `/api/requests/checkout/${B.crid}/confirm`, T, { date: hom_qua });
+    t.eq('Duyệt đơn ngày đã qua → 200', dB.status, 200, `HTTP ${dB.status} ${dB.json && dB.json.error || ''}`);
+    const rB = await tim(B.crid);
+    t.eq('Ngày đã qua mà chưa xác nhận → VẪN đang ở ("chờ xác nhận trả"), không tự thành đã trả', rB.student_status, 'in');
+    t.eq('Lịch dự kiến ghi đúng', String(rB.student_planned_check_out || '').slice(0, 10), hom_qua);
+
+    // ── Xác nhận trả phòng THẬT (Check-out) mới đổi trạng thái + khoá tài khoản ──────────
+    const co = await t.api('POST', `/api/students/${B.sid}/checkout`, T, { date: hom_qua });
+    t.eq('Check-out (xác nhận thật) → 200', co.status, 200, `HTTP ${co.status} ${co.json && co.json.error || ''}`);
+    const rB2 = await tim(B.crid);
+    t.eq('Sau xác nhận → đã trả phòng', rB2.student_status, 'out');
+    t.eq('Ngày trả THẬT ghi đúng', String(rB2.student_check_out || '').slice(0, 10), hom_qua);
+  },
+};
