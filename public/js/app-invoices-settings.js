@@ -55,8 +55,8 @@ async function viewInvoices() {
   let list = all.slice();
   const soAn = list.filter(laThanhVienNP).length;
   if (!invHienThanhVienNP) list = list.filter(i => !laThanhVienNP(i));
-  if (invFilter === 'paid') list = list.filter(i => i.status === 'paid');
-  if (invFilter === 'unpaid') list = list.filter(i => i.status !== 'paid');
+  // Pill Chưa/Đã thu KHÔNG cắt list ở đây nữa — nó là bộ lọc DOM (st.rowPass) chạy chung với tìm kiếm
+  // + phễu cột, nên số trên pill đếm đúng TRONG phạm vi đang lọc (owner 04/09: lọc 202 thì đếm của 202).
   // Tìm kiếm áp dụng bằng ẩn/hiện hàng (attachRowSearch)
 
   const total = all.reduce((a, i) => a + (+i.total || 0), 0);
@@ -96,7 +96,7 @@ async function viewInvoices() {
     ['unpaid', `${IC.clock} Chưa thu`, all.filter(i => i.status !== 'paid').length],
     ['paid', `${IC.checkCircle} Đã thu`, all.filter(i => i.status === 'paid').length]]
     .map(([k, nhan, n]) => `<button class="btn sm ${invFilter === k ? 'pri' : ''}" data-act="invLoc" data-args='["${k}"]'
-      aria-pressed="${invFilter === k}">${nhan} <span class="badge ${invFilter === k ? '' : 'gray'}">${n}</span></button>`).join('')}
+      aria-pressed="${invFilter === k}">${nhan} <span class="badge ${invFilter === k ? '' : 'gray'}" id="inv_pill_${k}">${n}</span></button>`).join('')}
       </div>
       ${soAn ? `<div class="pad muted" style="font-size:12.5px;padding-bottom:0">${IC.info}
         ${invHienThanhVienNP ? `Đang hiện <strong>${soAn}</strong> phiếu 0 đồng của thành viên phòng thuê nguyên phòng (tiền đã gộp vào phiếu người ký hợp đồng).`
@@ -105,7 +105,7 @@ async function viewInvoices() {
       <div class="table-wrap card-tbl">
       ${all.length === 0 ? `<div class="empty">Chưa có hóa đơn nào cho kỳ này.<br><br><button class="btn pri" data-act="generateForm">${IC.receipt} Tạo hóa đơn</button></div>` :
       list.length ? `<table><thead><tr><th>Học viên</th><th>Phòng</th><th>Mã pháp nhân</th><th class="num">Ngày ở</th><th class="num">Tiền phòng</th><th class="num">Điện</th><th class="num">Nước</th><th class="num">DV</th><th class="num">Giặt</th><th class="num">Xe</th>${coCoc ? '<th class="num">Cọc</th>' : ''}<th class="num">Giảm</th><th class="num">Tổng</th><th></th></tr></thead><tbody>
-        ${list.map(i => `<tr class="${laNguyenPhong(i) && +i.total ? 'inv-np' : ''}" data-id="${i.id}" data-s="${esc(((i.student_name || '') + ' ' + (i.student_code || '') + ' ' + (i.room_name || '') + ' ' + invLegalEntity(i)).toLowerCase())}">
+        ${list.map(i => `<tr class="${laNguyenPhong(i) && +i.total ? 'inv-np' : ''}" data-id="${i.id}" data-thu="${i.status === 'paid' ? 'paid' : 'unpaid'}" data-s="${esc(((i.student_name || '') + ' ' + (i.student_code || '') + ' ' + (i.room_name || '') + ' ' + invLegalEntity(i)).toLowerCase())}">
           <td><div class="flex stu-name" data-act="studentDetail" data-args='[${i.student_id}]' role="button" tabindex="0" title="Xem chi tiết học viên">
             <div><strong>${esc(i.student_name)}</strong>${i.student_code ? `<div class="sub2">${esc(i.student_code)}</div>` : ''}</div>
             <span class="row-chev">${IC.chevronRight}</span></div></td>
@@ -149,7 +149,7 @@ async function viewInvoices() {
         <td class="num" data-label="Giảm"><strong data-tot="discount">${sumK(list, 'leader_discount') + sumK(list, 'room_discount') + sumK(list, 'fee_discount') ? '−' + moneyN(sumK(list, 'leader_discount') + sumK(list, 'room_discount') + sumK(list, 'fee_discount')) : '—'}</strong></td>
         <td class="num" data-label="Tổng"><strong data-tot="total">${moneyN(sumK(list, 'total'))}</strong></td>
         <td class="num"></td>
-      </tr></tfoot></table>` : `<div class="empty">Không có hóa đơn ${invFilter === 'paid' ? 'đã đóng' : 'chưa đóng'} trong kỳ này.</div>`}
+      </tr></tfoot></table>` : `<div class="empty">Không có hóa đơn nào để hiện trong kỳ này.</div>`}
     </div></div>
     ${roomFeePanel}
     ${elecPanel}`;
@@ -159,16 +159,30 @@ async function viewInvoices() {
   // Gắn danh sách gốc + hook tính lại vào bảng; applyRowFilters sẽ gọi lại mỗi lần lọc đổi.
   const invTbl = iv ? (iv.closest('.panel') || document).querySelector('.card-tbl table') : null;
   _invTbl = invTbl || null; // reset mỗi kỳ để exportCSV không đọc nhầm bảng cũ
-  if (invTbl && invTbl._flt) { invTbl._invRows = list; invTbl._flt.onRows = _invTotalsRecompute; applyRowFilters(invTbl); }
+  if (invTbl && invTbl._flt) {
+    invTbl._invRows = list;
+    invTbl._flt.rowPass = tr => invFilter === 'all' || tr.dataset.thu === invFilter;
+    invTbl._flt.onRows = _invTotalsRecompute;
+    applyRowFilters(invTbl);
+  }
   syncFilterUrl(); // BL-17: kỳ (thang, đã nắn theo tháng có dữ liệu) + tìm kiếm lên URL
 }
 // Tính lại dòng TỔNG cuối bảng phiếu báo theo các hàng ĐANG HIỆN (đã qua tìm kiếm + phễu cột).
 // Dùng lại chính đối tượng hoá đơn (khớp theo data-id) để cộng đúng từng đồng, không parse chữ hiển thị.
-function _invTotalsRecompute(passing, table) {
+function _invTotalsRecompute(passing, table, quaLoc) {
   const rows = table._invRows; if (!rows) return;
   const ids = new Set(passing.map(tr => +tr.dataset.id).filter(Boolean));
   const vis = rows.filter(i => ids.has(i.id));
   const S = k => vis.reduce((a, i) => a + (+i[k] || 0), 0);
+  // Số trên 3 pill = đếm TRONG phạm vi tìm kiếm + phễu cột (quaLoc), không phải cả kỳ.
+  if (quaLoc) {
+    const ids0 = new Set(quaLoc.map(tr => +tr.dataset.id).filter(Boolean));
+    const vis0 = rows.filter(i => ids0.has(i.id));
+    const pill = (k, n) => { const o = el('inv_pill_' + k); if (o) o.textContent = n; };
+    pill('all', vis0.length);
+    pill('unpaid', vis0.filter(i => i.status !== 'paid').length);
+    pill('paid', vis0.filter(i => i.status === 'paid').length);
+  }
   table._visIds = ids;   // exportCSV dùng lại đúng tập hàng đang lọc
   const set = (k, txt) => { const n = table.querySelector(`[data-tot="${k}"]`); if (n) n.textContent = txt; };
   set('count', vis.length + ' phiếu');
@@ -745,7 +759,19 @@ async function doiTrangThaiThu(id, status) {
   viewInvoices();
 }
 // Lọc theo tình trạng thu tiền. Bấm lại pill đang chọn thì trả về "tất cả".
-function invLoc(k) { invFilter = invFilter === k ? 'all' : k; viewInvoices(); }
+// Pill là bộ lọc DOM: đổi nhóm chỉ ẩn/hiện hàng + áp lại lọc, KHÔNG vẽ lại cả màn (giữ ô tìm, phễu
+// cột, vị trí cuộn). Bảng chưa dựng (kỳ rỗng) thì mới vẽ lại.
+function invLoc(k) {
+  invFilter = invFilter === k ? 'all' : k;
+  document.querySelectorAll('[data-act="invLoc"]').forEach(b => {
+    const on = (JSON.parse(b.dataset.args || '[""]')[0]) === invFilter;
+    b.classList.toggle('pri', on);
+    b.setAttribute('aria-pressed', on);
+    const bg = b.querySelector('.badge'); if (bg) bg.classList.toggle('gray', !on);
+  });
+  if (_invTbl && document.contains(_invTbl)) applyRowFilters(_invTbl); else viewInvoices();
+  syncFilterUrl();
+}
 async function phieuBao(inv) {
   if (typeof inv !== 'object') inv = _invAll.find(x => x.id === +inv);  // nut truyen id; noi khac (sau khi sinh HD) truyen thang object
   if (!inv) return toast('Không tìm thấy hóa đơn', 'err');

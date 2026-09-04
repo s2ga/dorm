@@ -336,7 +336,9 @@ function applyRowFilters(table) {
   // BL-56: bảng bật numWord + query SỐ thuần -> khớp nguyên token (gõ "301" ra đúng phòng 301, không lẫn
   // mã/SĐT chứa "301"). Query có chữ (tên/mã) -> vẫn khớp chứa-chuỗi như cũ.
   let qre = null; if (st.q && st.numWord && /^\d+$/.test(st.q)) qre = new RegExp('(?:^|\\D)' + st.q + '(?:\\D|$)');
-  const passing = [];
+  // quaLoc = hàng qua TÌM KIẾM + PHỄU CỘT, trước st.rowPass (bộ lọc nhóm của màn — vd pill Chưa/Đã thu).
+  // Nhờ vậy onRows đếm được từng nhóm TRONG phạm vi đang lọc thay vì đếm cả bảng.
+  const passing = [], quaLoc = [];
   for (const tr of body.rows) {
     if (tr.classList.contains('no-result')) continue;
     if (nCol && tr.cells.length !== nCol) continue; // hàng tổng/đặc biệt (colspan) -> để yên
@@ -347,7 +349,10 @@ function applyRowFilters(table) {
       if (f.type === 'set') { if (f.set.size && !f.set.has(v)) { show = false; break; } }
       else if (f.text && v.toLowerCase().indexOf(f.text) === -1) { show = false; break; }
     }
-    if (show) passing.push(tr); else tr.style.display = 'none';
+    if (!show) { tr.style.display = 'none'; continue; }
+    quaLoc.push(tr);
+    if (st.rowPass && !st.rowPass(tr)) { tr.style.display = 'none'; continue; }
+    passing.push(tr);
   }
   const n = passing.length, size = st.pageSize || 0;
   // BL-12: phân trang tại LỚP DOM — mọi hàng vẫn nằm trong DOM (phễu cột/tìm kiếm đọc được), chỉ ẩn hàng
@@ -360,7 +365,7 @@ function applyRowFilters(table) {
   } else { passing.forEach(tr => { tr.style.display = ''; }); st.page = 0; _renderPager(table, st, n, 0, 1); }
   if (st.countId) { const c = el(st.countId); if (c) c.textContent = n; }
   // Bảng có dòng TỔNG (vd phiếu báo): tính lại tổng theo ĐÚNG các hàng đang lọc, không chỉ theo trang.
-  if (st.onRows) { try { st.onRows(passing, table); } catch (e) { console.error('[onRows]', e); } }
+  if (st.onRows) { try { st.onRows(passing, table, quaLoc); } catch (e) { console.error('[onRows]', e); } }
   const er = table.querySelector('.no-result'); if (er) er.style.display = n === 0 ? '' : 'none';
   if (head) for (const th of head.cells) {
     const fn = th.querySelector('.col-filt'); if (!fn) continue;
