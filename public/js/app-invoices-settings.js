@@ -25,6 +25,11 @@ const invLegalEntity = i => legalEntityCell(i.student_gender || (studentById(i.s
 let _invAll = [];   // hoa don thang hien hanh — de phieuBao/invoiceForm/exportCSV tu lay lai theo id (khong nhoi object vao data-args)
 let _invTbl = null; // tham chieu bang phieu bao dang hien -> exportCSV/tinh tong doc duoc tap hang dang loc (_visIds)
 async function viewInvoices() {
+  // Vẽ lại màn (đánh dấu đã thu, tính lại, xoá, lưu phiếu…) không được làm mất PHỄU CỘT đang lọc
+  // (state nằm trên table cũ) lẫn vị trí cuộn — chụp lại trước, trả lại sau khi dựng bảng mới.
+  const fltCu = (_invTbl && _invTbl._flt && _invTbl._flt.cols && _invTbl._flt.cols.size)
+    ? { cols: new Map(_invTbl._flt.cols), page: _invTbl._flt.page || 0 } : null;
+  const cuonCu = window.scrollY;
   el('topActions').innerHTML = `<button class="btn" data-act="electricForm">${IC.zap} Chỉ số điện</button><button class="btn" data-act="oneInvoiceForm">${IC.plus} HĐ cho 1 HV</button><button class="btn pri" data-act="generateForm">${IC.receipt} Tạo hóa đơn theo tháng</button>`;
   el('content').innerHTML = '<div class="spinner"></div>';
   const months = await guard(() => API.invoiceMonths());
@@ -163,7 +168,9 @@ async function viewInvoices() {
     invTbl._invRows = list;
     invTbl._flt.rowPass = tr => invFilter === 'all' || tr.dataset.thu === invFilter;
     invTbl._flt.onRows = _invTotalsRecompute;
+    if (fltCu) { invTbl._flt.cols = fltCu.cols; invTbl._flt.page = fltCu.page; }
     applyRowFilters(invTbl);
+    if (cuonCu) window.scrollTo(0, cuonCu);
   }
   syncFilterUrl(); // BL-17: kỳ (thang, đã nắn theo tháng có dữ liệu) + tìm kiếm lên URL
 }

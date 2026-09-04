@@ -21,6 +21,7 @@ const ok = (ten, dk, them = '') => {
   const page = await ctx.newPage();
   const loiJS = [];
   page.on('pageerror', e => loiJS.push(String(e)));
+  page.on('dialog', d => d.accept());
   await page.goto('/tien-phong');
   await page.waitForTimeout(3000);
 
@@ -61,6 +62,27 @@ const ok = (ten, dk, them = '') => {
   await page.waitForTimeout(600);
   const du = await page.evaluate(() => [...document.querySelectorAll('tbody tr[data-id]')].filter(r => r.style.display !== 'none').length);
   ok('Bấm lại để bỏ lọc nhóm → hiện đủ trong phạm vi', du === truoc.all, `${du} vs ${truoc.all}`);
+
+  // ── Đánh dấu ĐÃ THU một hàng: màn vẽ lại nhưng PHỄU CỘT + ô tìm phải còn nguyên ──────
+  await page.evaluate(ten => { const st = _invTbl._flt; st.cols.set(1, { type: 'set', set: new Set([ten]) }); applyRowFilters(_invTbl); }, cho.ten);
+  const truocPheu = await page.evaluate(() => [...document.querySelectorAll('tbody tr[data-id]')].filter(r => r.style.display !== 'none').length);
+  const idThu = await page.evaluate(() => {
+    const r = [...document.querySelectorAll('tbody tr[data-id]')].find(x => x.style.display !== 'none' && x.dataset.thu === 'unpaid');
+    return r ? +r.dataset.id : 0;
+  });
+  if (idThu) {
+    await page.evaluate(id => doiTrangThaiThu(id, 'paid'), idThu);
+    await page.waitForTimeout(2500);
+    ok('Đã thu 1 bạn xong: PHỄU CỘT Phòng vẫn còn (không nhảy về tổng)',
+      await page.evaluate(() => { const f = _invTbl._flt.cols.get(1); return !!(f && f.set && f.set.size); }));
+    ok('Ô tìm vẫn còn sau khi đã thu', (await page.inputValue('#invs')) === cho.ten);
+    const sauPheu = await page.evaluate(() => [...document.querySelectorAll('tbody tr[data-id]')].filter(r => r.style.display !== 'none').length);
+    ok('Danh sách vẫn lọc đúng phạm vi cũ', sauPheu === truocPheu, `${sauPheu} vs ${truocPheu}`);
+    ok('Hàng vừa bấm đã chuyển Đã thu ngay trong phạm vi', await page.evaluate(
+      id => (document.querySelector(`tr[data-id="${id}"]`) || {}).dataset.thu === 'paid', idThu));
+    await page.evaluate(id => doiTrangThaiThu(id, 'pending'), idThu);   // trả nguyên trạng dữ liệu local
+    await page.waitForTimeout(2000);
+  } else console.log('  [BỎ QUA] phạm vi lọc không có phiếu chưa thu để thử');
 
   ok('Không có lỗi JS', loiJS.length === 0, loiJS.slice(0, 2).join(' | '));
   await ctx.close(); await browser.close();
