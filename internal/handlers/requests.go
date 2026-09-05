@@ -336,16 +336,17 @@ func (h *Handlers) ConfirmCheckout(c *gin.Context) {
 	noticeDate := createdAt.UTC().Format("2006-01-02")
 	// Tìm học viên của đơn. requests.routes.js:121-122
 	var (
-		roomID  *int
-		checkIn pgtype.Date
+		roomID   *int
+		checkIn  pgtype.Date
+		lichRaCu pgtype.Date
 	)
 	var sidArg interface{}
 	if crSID != nil {
 		sidArg = *crSID
 	}
 	err = h.pool().QueryRow(ctx,
-		"SELECT room_id, check_in_date FROM students WHERE id=$1 AND deleted_at IS NULL", sidArg).
-		Scan(&roomID, &checkIn)
+		"SELECT room_id, check_in_date, planned_check_out FROM students WHERE id=$1 AND deleted_at IS NULL", sidArg).
+		Scan(&roomID, &checkIn, &lichRaCu)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			notFound(c, "Không tìm thấy học viên của đơn này")
@@ -418,6 +419,13 @@ func (h *Handlers) ConfirmCheckout(c *gin.Context) {
 		date, noticeDate, reasonArg, studentID); err != nil {
 		serverErr(c)
 		return
+	}
+	// Lịch trả nay là ngày TÍNH TIỀN (05/09) — chốt/đổi lịch thì phiếu kỳ liên quan tính lại ngay.
+	_, _ = invoicecalc.RecalcInvoice(ctx, h.DB, studentID, date[:7])
+	if lichRaCu.Valid {
+		if m := lichRaCu.Time.Format("2006-01"); m != date[:7] {
+			_, _ = invoicecalc.RecalcInvoice(ctx, h.DB, studentID, m)
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true, "planned_check_out": date})
 }

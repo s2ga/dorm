@@ -1634,6 +1634,30 @@ func (h *Handlers) UpdateStudent(c *gin.Context) {
 		serverErr(c)
 		return
 	}
+	// Lịch vào/ra nay là ngày TÍNH TIỀN (owner 04-05/09): sửa lịch ở form thì phiếu các kỳ chạm tới
+	// phải tính lại ngay, không đợi ai bấm "Tính lại". Phiếu đã thu được RecalcInvoice tự bỏ qua.
+	hieuLuc := func(m map[string]interface{}) [2]string {
+		ci := studentsSlice10(studentsJSString(m["check_in_date"]))
+		if ci == "" {
+			ci = studentsSlice10(studentsJSString(m["planned_check_in"]))
+		}
+		co := studentsSlice10(studentsJSString(m["check_out_date"]))
+		if co == "" {
+			co = studentsSlice10(studentsJSString(m["planned_check_out"]))
+		}
+		return [2]string{ci, co}
+	}
+	if truoc, sauKhiLuu := hieuLuc(cur), hieuLuc(row); truoc != sauKhiLuu {
+		thang := map[string]bool{}
+		for _, d := range []string{truoc[0], truoc[1], sauKhiLuu[0], sauKhiLuu[1]} {
+			if len(d) >= 7 {
+				thang[d[:7]] = true
+			}
+		}
+		for m := range thang {
+			_, _ = invoicecalc.RecalcInvoice(ctx, h.DB, id, m)
+		}
+	}
 	// Upload/đổi/xoá ảnh CCCD (resolveCccd cho sửa: chỉ field CÓ gửi lên).
 	if h.Store != nil {
 		for _, f := range []string{"cccd_image", "cccd_front", "cccd_back"} {
