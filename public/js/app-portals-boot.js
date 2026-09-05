@@ -699,6 +699,7 @@ async function maintSuaNgayTraLuu(id) {
   closeModal();
   toast(r.cu === r.moi ? 'Ngày không đổi' : `Đã sửa ngày trả: ${fmtDate(r.cu)} → ${fmtDate(r.moi)}`);
   loadHandovers();
+  if (r.canh_bao) alert(r.canh_bao);
 }
 function handoverCheckinForm(id, name) {
   openModal(`
@@ -728,8 +729,9 @@ function handoverCheckoutForm(id, name, planDate) {
 async function submitHandoverCheckout(id) {
   const d = el('ho_date').dataset.iso;
   if (!d) return toast('Chọn ngày trả phòng thực tế', 'err');
-  await guard(() => API.confirmHandoverCheckout(id, d, el('ho_note').value.trim()));
+  const r = await guard(() => API.confirmHandoverCheckout(id, d, el('ho_note').value.trim()));
   closeModal(); toast('Đã xác nhận trả phòng'); loadHandovers();
+  if (r && r.canh_bao) alert(r.canh_bao);   // phiếu kỳ này ĐÃ THU — báo để BQL xử phần chênh
 }
 async function maintDo(id, status) { await guard(() => API.maintenanceTaskStatus(id, status)); toast('Đã cập nhật'); loadMaintenance(); }
 function maintDoneForm(id) {

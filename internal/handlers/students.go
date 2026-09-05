@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/gin-gonic/gin"
@@ -2068,7 +2069,32 @@ func (h *Handlers) StudentCheckout(c *gin.Context) {
 		"recalced":                recalced,
 		"recalced_roommates":      recalcedRoommates,
 		"dropped_future_invoices": dropped,
+		"canh_bao":                h.canhBaoPhieuDaThu(ctx, id, d[:7]),
 	})
+}
+
+// canhBaoPhieuDaThu: phiếu kỳ `thang` ĐÃ THU nên mọi phép tính lại đều né (luật chốt tiền đã thu) —
+// số ngày trên phiếu lệch ngày ở thật thì phải NÓI RA cho người xác nhận xử phần chênh, không im lặng.
+func (h *Handlers) canhBaoPhieuDaThu(ctx context.Context, sid int, thang string) string {
+	var days, tong float64
+	var ci, co *time.Time
+	err := h.pool().QueryRow(ctx,
+		`SELECT i.days_stayed, i.total, COALESCE(s.check_in_date, s.planned_check_in), COALESCE(s.check_out_date, s.planned_check_out)
+		   FROM invoices i JOIN students s ON s.id = i.student_id
+		  WHERE i.student_id=$1 AND i.month=$2 AND i.status='paid' AND i.deleted_at IS NULL`, sid, thang).
+		Scan(&days, &tong, &ci, &co)
+	if err != nil || ci == nil {
+		return ""
+	}
+	coStr := ""
+	if co != nil {
+		coStr = co.Format("2006-01-02")
+	}
+	that := billing.DaysStayedInMonth(ci.Format("2006-01-02"), coStr, thang)
+	if that == int(days) {
+		return ""
+	}
+	return fmt.Sprintf(`Phiếu kỳ %s ĐÃ THU với %.0f ngày ở (tổng %.0f đ) trong khi ngày ở thật là %d ngày — app không tự sửa phiếu đã thu. Mở khoá phiếu về "Chưa thu" rồi bấm Tính lại; phần chênh xử lý hoàn lại hoặc trừ kỳ sau.`, thang, days, tong, that)
 }
 
 // UpdateCheckoutDate: PUT /:id/checkout-date (admin,staff). Sửa ngày trả của hồ sơ ĐÃ rời —
@@ -2291,6 +2317,7 @@ func (h *Handlers) UpdateCheckoutDate(c *gin.Context) {
 		"recalced_roommates":      recalcedRoommates,
 		"dropped_future_invoices": dropped,
 		"restored_invoices":       restored,
+		"canh_bao":                h.canhBaoPhieuDaThu(ctx, id, d[:7]),
 	})
 }
 

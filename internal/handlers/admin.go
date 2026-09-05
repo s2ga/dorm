@@ -94,6 +94,20 @@ var adminKiemTraList = []adminKiemTra{
            ORDER BY s.check_out_date`,
 	},
 	{
+		ma: "da_thu_lech_ngay_o", ten: "Phiếu ĐÃ THU lệch với ngày ở thật",
+		viSao:   "Thu nguyên giá xong người rời sớm/muộn hơn — phiếu đã thu bị chốt nên không tự tính lại, phần chênh nằm im không ai xử.",
+		cachSua: `Mở phiếu → "Chưa thu" (mở khoá) → Tính lại → xử phần chênh (hoàn/trừ kỳ sau) → đánh dấu Đã thu lại.`,
+		sql: `SELECT s.name AS khoa, 'kỳ ' || i.month || ': phiếu đã thu ' || i.days_stayed || ' ngày (' || i.total || 'đ) · ở thật ' || tt.ngay || ' ngày (#' || i.id || ')' AS chi_tiet
+            FROM invoices i JOIN students s ON s.id = i.student_id
+            CROSS JOIN LATERAL (SELECT GREATEST(0,
+                LEAST(COALESCE(s.check_out_date, s.planned_check_out, '9999-12-31'::date), (to_date(i.month || '-01','YYYY-MM-DD') + interval '1 month - 1 day')::date)
+                - GREATEST(COALESCE(s.check_in_date, s.planned_check_in), to_date(i.month || '-01','YYYY-MM-DD')) + 1) AS ngay) tt
+           WHERE i.deleted_at IS NULL AND s.deleted_at IS NULL AND i.status = 'paid'
+             AND COALESCE(s.check_in_date, s.planned_check_in) IS NOT NULL
+             AND tt.ngay <> i.days_stayed
+           ORDER BY i.month DESC, s.name`,
+	},
+	{
 		ma: "phieu_sau_khi_roi", ten: "Còn phiếu của kỳ SAU ngày trả phòng",
 		viSao:   "Phiếu rác: người đã rời mà kỳ sau vẫn có phiếu — thường do ngày trả ghi thẳng vào hồ sơ, không qua nút Check-out nên không ai dọn.",
 		cachSua: "Mở màn Tiền phòng đúng kỳ đó, xoá phiếu (phiếu đã thu thì đối chiếu lại trước).",

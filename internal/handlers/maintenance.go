@@ -303,7 +303,8 @@ func (h *Handlers) MaintHandoverCheckout(c *gin.Context) {
 	if dropped == nil {
 		dropped = []string{}
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true, "actual_date": actual, "dropped_future_invoices": dropped})
+	c.JSON(http.StatusOK, gin.H{"ok": true, "actual_date": actual, "dropped_future_invoices": dropped,
+		"canh_bao": h.canhBaoPhieuDaThu(ctx, claimedID, actual[:7])})
 }
 
 // MaintTasks: GET /api/maintenance/tasks (maintenance,admin). maintenance.routes.js:121-133

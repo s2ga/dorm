@@ -463,6 +463,7 @@ async function doSuaNgayTra(id) {
   await refreshCache(); await luuXongVeLai(veLaiNen);
   const n = (r.recalced_roommates || []).length;
   toast(`Đã đổi ngày trả ${fmtDate(r.cu)} → ${fmtDate(r.moi)}${n ? ` · ${n} bạn cùng phòng được tính lại tiền điện` : ''}`);
+  if (r.canh_bao) alert(r.canh_bao);   // phiếu kỳ này ĐÃ THU — app không tự sửa, phải nói to
 }
 async function doCheckOut(id) {
   const s = studentById(id);
@@ -473,6 +474,7 @@ async function doCheckOut(id) {
   toast(r.recalced
     ? `Đã check-out · phiếu tháng tính lại ${r.recalced.days_stayed} ngày ở${nRoom ? ` · ${nRoom} bạn cùng phòng cũng được tính lại tiền điện` : ''}`
     : 'Đã check-out');
+  if (r.canh_bao) alert(r.canh_bao);   // phiếu kỳ này ĐÃ THU — app không tự sửa, phải nói to
   if (s && s.deposit_status === 'held') depositSettlePrompt(id, r.refund);
 }
 function depositSettlePrompt(id, refund) {
