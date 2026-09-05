@@ -357,7 +357,7 @@ func RecalcInvoice(ctx context.Context, database *db.DB, studentID int, month st
 	)
 	var giam billing.GiamPct
 	err = database.Pool.QueryRow(ctx,
-		"SELECT id, rental_type, deposit_status, COALESCE(check_in_date, planned_check_in) AS check_in_date, check_out_date, room_fee_discount_pct, uses_washing, uses_parking, room_id, "+billing.CotSQL+" FROM students WHERE id=$1", studentID).
+		"SELECT id, rental_type, deposit_status, COALESCE(check_in_date, planned_check_in) AS check_in_date, COALESCE(check_out_date, planned_check_out) AS check_out_date, room_fee_discount_pct, uses_washing, uses_parking, room_id, "+billing.CotSQL+" FROM students WHERE id=$1", studentID).
 		Scan(append([]interface{}{&sID, &rentalType, &depositStatus, &ci, &co, &discountPct, &usesWashing, &usesParking, &roomID}, giam.Ptr()...)...)
 	if err != nil {
 		return nil, nil // không có HV -> null (server/invoice-calc.js:81)

@@ -515,14 +515,17 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 		// thì 14 người rời tháng 7 không ai được lập phiếu kỳ 8 (đo trên UAT 04/08).
 		eStart0 := billing.FirstDay(pmonth0)
 		// Đa cơ sở: điều hành tất cả/lọc ?facility; quản lý ép cơ sở. invoices.routes.js:152-164
-		// Ngày vào để TÍNH TIỀN = ngày thật, chưa xác nhận thì lấy ngày DỰ KIẾN (owner 04/09: thu trước
-		// theo lịch — người sắp vào trong kỳ phải có phiếu + cọc, xác nhận xong tính lại theo ngày thật).
+		// Ngày vào/ra để TÍNH TIỀN = ngày thật, chưa xác nhận thì lấy ngày DỰ KIẾN (owner 04-05/09: thu
+		// trước theo lịch — sắp vào có phiếu + cọc, đã đăng ký trả giữa kỳ thì phiếu cắt ở ngày đó;
+		// xác nhận vào/ra xong phiếu tự tính lại theo ngày thật).
 		stCond := []string{"deleted_at IS NULL", "COALESCE(check_in_date, planned_check_in) IS NOT NULL",
-			"COALESCE(check_in_date, planned_check_in) <= $1", "(check_out_date IS NULL OR check_out_date >= $2)"}
+			"COALESCE(check_in_date, planned_check_in) <= $1",
+			"(COALESCE(check_out_date, planned_check_out) IS NULL OR COALESCE(check_out_date, planned_check_out) >= $2)"}
 		stParams := []interface{}{mEnd, eStart0}
 		invoicesExecFacilityFilter(c, u, "facility_id", &stCond, &stParams)
 		stRows, err := tx.Query(ctx,
-			`SELECT id, name, room_id, rental_type, deposit_status, COALESCE(check_in_date, planned_check_in) AS check_in_date, check_out_date, uses_washing, uses_parking, room_fee_discount_pct, `+
+			`SELECT id, name, room_id, rental_type, deposit_status, COALESCE(check_in_date, planned_check_in) AS check_in_date,
+			   COALESCE(check_out_date, planned_check_out) AS check_out_date, uses_washing, uses_parking, room_fee_discount_pct, `+
 				billing.CotSQL+` FROM students WHERE `+joinAnd(stCond), stParams...)
 		if err != nil {
 			return err
@@ -1050,7 +1053,7 @@ func (h *Handlers) GenerateOneInvoice(c *gin.Context) {
 	)
 	var giam billing.GiamPct
 	err = h.pool().QueryRow(ctx,
-		"SELECT id, facility_id, room_id, rental_type, deposit_status, COALESCE(check_in_date, planned_check_in) AS check_in_date, check_out_date, uses_washing, uses_parking, room_fee_discount_pct, "+
+		"SELECT id, facility_id, room_id, rental_type, deposit_status, COALESCE(check_in_date, planned_check_in) AS check_in_date, COALESCE(check_out_date, planned_check_out) AS check_out_date, uses_washing, uses_parking, room_fee_discount_pct, "+
 			billing.CotSQL+" FROM students WHERE id=$1", sid).
 		Scan(append([]interface{}{&sID, &facID, &roomID, &rentalTyp, &depStatus, &ci, &co, &uw, &up, &pct}, giam.Ptr()...)...)
 	if err != nil {
