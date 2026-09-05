@@ -472,7 +472,7 @@ function chotGiuaKyHTML(month, reads, rooms) {
     <tr>
       <td><div class="flex stu-name" data-act="roomDetail" data-args='[${m.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng — ai đang ở"><div><strong>${esc(m.room_name)}</strong></div><span class="row-chev" aria-hidden="true">${IC.chevronRight}</span></div></td>
       <td>${fmtDate(m.to_date)}${m.la_chuyen_phong ? ' <span class="muted">(chuyển phòng — đọc ngày ' + fmtDate(ngay) + ')</span>' : ''}</td>
-      <td>${m.student_id ? `<span class="stu-name" data-act="studentDetail" data-args='[${m.student_id}]' role="button" tabindex="0" title="Xem chi tiết học viên"><strong>${esc(m.student_name || '—')}</strong></span>` : esc(m.student_name || '—')}${m.ho_so_khoa ? ' <span class="badge gray" style="font-size:10px" title="Hồ sơ đã khoá — công-tơ vẫn phải chốt để chia điện đúng cho người ở lại">Đã khoá</span>' : ''}</td>
+      <td>${m.student_id ? `<span class="stu-name" data-act="studentDetail" data-args='[${m.student_id}]' role="button" tabindex="0" title="Xem chi tiết học viên"><strong>${esc(m.student_name || '—')}</strong></span>` : esc(m.student_name || '—')}</td>
       <td>${legalEntityCell(m.student_gender)}</td>
       <td class="num"><input type="number" min="0" step="0.1" id="mr_${i}" data-mrkey="${khoa}" data-mrten="${esc((m.room_name || '') + ' · ' + fmtDate(ngay))}"
         data-input="onCgkNhap" data-cgkroom="${m.room_id}" data-ngay="${ngay}"

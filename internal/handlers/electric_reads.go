@@ -57,21 +57,22 @@ func (h *Handlers) ListMeterReads(c *gin.Context) {
 	cond2 := []string{"rs.to_date >= $1", "rs.to_date < $2"}
 	params2 := []interface{}{dau, cuoi}
 	electricFacilityFilter(c, u, &cond2, &params2)
-	// Không giấu người đã KHOÁ hồ sơ: mốc chốt là của CÔNG-TƠ (chia điện cho người ở lại) — giấu đi
-	// thì màn này bảo "đủ rồi" trong khi lập hoá đơn vẫn treo cả phòng vì thiếu đúng mốc đó.
+	// Owner 05/09: hồ sơ ĐÃ KHOÁ đứng ngoài chuyện chốt điện (khoá = không ở/đã trả xong, không nợ);
+	// lượt vào-ra CÙNG NGÀY cũng bỏ (chặng 0 ngày, mốc vô nghĩa) — khớp luật ở cổng lập hoá đơn.
 	rows2, err := h.pool().Query(ctx,
 		`SELECT rs.student_id, s.name AS student_name, s.gender AS student_gender, s.code, rs.room_id, r.name AS room_name,
-		        rs.to_date, rs.from_date, (s.deleted_at IS NOT NULL) AS ho_so_khoa,
+		        rs.to_date, rs.from_date,
 		        EXISTS (SELECT 1 FROM room_stays n
 		                 WHERE n.student_id = rs.student_id AND n.from_date = rs.to_date + 1) AS la_chuyen_phong,
 		        to_char(rs.to_date + (CASE WHEN EXISTS (SELECT 1 FROM room_stays n
 		                 WHERE n.student_id = rs.student_id AND n.from_date = rs.to_date + 1) THEN 1 ELSE 0 END),
 		                'YYYY-MM-DD') AS ngay_can_nhap
 		   FROM room_stays rs
-		   JOIN students s ON s.id = rs.student_id
+		   JOIN students s ON s.id = rs.student_id AND s.deleted_at IS NULL
 		   JOIN rooms r ON r.id = rs.room_id AND r.deleted_at IS NULL
 		  WHERE `+joinAnd(cond2)+`
 		    AND COALESCE(r.room_type,'shared') <> 'whole'
+		    AND rs.to_date <> rs.from_date
 		    AND NOT EXISTS (SELECT 1 FROM meter_reads m
 		                     WHERE m.room_id = rs.room_id
 		                       AND m.read_date BETWEEN rs.to_date AND rs.to_date + 1)

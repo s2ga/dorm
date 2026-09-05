@@ -727,17 +727,15 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 					daCo[m.Date] = true
 				}
 				// Chỉ số hợp lệ ở to_date (trả phòng) hoặc to_date+1 (chuyển phòng: lượt cũ hết D-1, đọc ghi ngày D).
+				// KHÔNG đòi mốc (owner 05/09): lượt vào-ra CÙNG NGÀY (chặng 0 ngày, mốc vô nghĩa) và người
+				// đã KHOÁ HỒ SƠ (khoá = không ở/đã trả xong, không nợ nần — đứng ngoài chuyện chốt điện).
 				for _, st := range stays {
-					if st.To != "" && st.To >= eStart && st.To < eEnd && !daCo[st.To] && !daCo[billing.AddDays(st.To, 1)] {
+					if st.To != "" && st.To != st.From && !khoaRoi[st.StudentID] && st.To >= eStart && st.To < eEnd && !daCo[st.To] && !daCo[billing.AddDays(st.To, 1)] {
 						ai := tenRoi[st.StudentID]
 						if ai == "" {
 							ai = "HV"
 						}
-						them := ""
-						if khoaRoi[st.StudentID] {
-							them = " — hồ sơ đã khoá"
-						}
-						t = append(t, "thiếu chỉ số ngày "+st.To+" ("+ai+" rời giữa kỳ"+them+")")
+						t = append(t, "thiếu chỉ số ngày "+st.To+" ("+ai+" rời giữa kỳ)")
 					}
 				}
 			}
