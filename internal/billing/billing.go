@@ -86,6 +86,7 @@ type Student struct {
 	CheckOutDate       string // "" = chưa có
 	RentalType         string // "phong" = thuê nguyên phòng; còn lại = ghép
 	DepositStatus      string // "none" = chưa đóng cọc; "held" = đang giữ; "refunded" = đã trả
+	PhieuDauTien       bool   // phiếu đang tính là phiếu SỚM NHẤT của HV (chưa có phiếu kỳ nào trước đó)
 	RoomFeeDiscountPct float64
 	UsesWashing        bool
 	UsesParking        bool
@@ -548,7 +549,12 @@ type Invoice struct {
 // Mức cọc bám theo thứ người ta thuê: thuê ghép cọc một suất người; thuê nguyên phòng thì người ký
 // hợp đồng cọc TRỌN GIÁ PHÒNG, thành viên ở cùng không cọc riêng vì họ không đứng hợp đồng nào.
 func TienCoc(st Student, month string, fees Fees, room *Room, np *NguyenPhong) int {
-	if st.DepositStatus != "none" || len(st.CheckInDate) < 7 || st.CheckInDate[:7] != month {
+	if st.DepositStatus != "none" || len(st.CheckInDate) < 7 {
+		return 0
+	}
+	// Cọc đòi ở phiếu KỲ NHẬN PHÒNG; vào từ trước mà kỳ đó chưa từng lập phiếu (owner 05/09, ca UAT
+	// bắt đầu thu từ giữa chừng) thì đòi ở phiếu SỚM NHẤT của HV — không thì cọc rơi vào khe, không kỳ nào đòi.
+	if st.CheckInDate[:7] != month && !(st.PhieuDauTien && st.CheckInDate[:7] < month) {
 		return 0
 	}
 	if np != nil && !np.DungHoaDon {

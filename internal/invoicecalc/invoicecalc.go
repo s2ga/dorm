@@ -424,9 +424,16 @@ func RecalcInvoice(ctx context.Context, database *db.DB, studentID int, month st
 	if depositStatus != nil {
 		dep = *depositStatus
 	}
+	var coTruoc bool
+	if err := database.Pool.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM invoices WHERE student_id=$1 AND deleted_at IS NULL AND month < $2)`,
+		studentID, month).Scan(&coTruoc); err != nil {
+		return nil, err
+	}
 	hv := billing.Student{
 		ID: sID, RentalType: rt, DepositStatus: dep, CheckInDate: dateStr(ci), CheckOutDate: dateStr(co),
 		RoomFeeDiscountPct: pct, UsesWashing: usesWashing, UsesParking: usesParking,
+		PhieuDauTien: !coTruoc,
 	}
 	giam.GanVao(&hv)
 	var np *NguyenPhongThang
@@ -441,9 +448,12 @@ func RecalcInvoice(ctx context.Context, database *db.DB, studentID int, month st
 	})
 
 	other := icFloat(inv["other_charge"])
-	// Cọc GIỮ NGUYÊN như đang ghi trên phiếu. Tính lại là mất: thu xong hồ sơ chuyển "đang giữ" nên
-	// TienCoc trả 0. Đường này bị gọi tự động (lưu chỉ số điện, sửa hồ sơ, đổi phòng, check-out).
+	// Cọc khác 0 GIỮ NGUYÊN như trên phiếu (tính lại là mất: thu xong hồ sơ "đang giữ" nên TienCoc
+	// trả 0; đường này bị gọi tự động). Đang 0 thì lấy theo luật — cọc muộn (phiếu đầu tiên) vào được.
 	coc := icFloat(inv["deposit_charge"])
+	if coc == 0 {
+		coc = float64(c.DepositCharge)
+	}
 	total := billing.InvoiceTotal(map[string]float64{
 		"room_charge": float64(c.RoomCharge), "electric_charge": float64(c.ElectricCharge),
 		"water_charge": float64(c.WaterCharge), "service_charge": float64(c.ServiceCharge),

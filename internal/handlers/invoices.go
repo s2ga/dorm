@@ -828,6 +828,25 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 			daXoa  bool
 			cu     map[string]float64
 		}
+		// HV đã có phiếu kỳ TRƯỚC -> phiếu kỳ này không phải PHIẾU ĐẦU TIÊN (cọc muộn không đòi ở đây)
+		coPhieuTruoc := map[int]bool{}
+		ptRows, err := tx.Query(ctx, `SELECT DISTINCT student_id FROM invoices WHERE deleted_at IS NULL AND month < $1`, body.Month)
+		if err != nil {
+			return err
+		}
+		for ptRows.Next() {
+			var sid int
+			if err := ptRows.Scan(&sid); err != nil {
+				ptRows.Close()
+				return err
+			}
+			coPhieuTruoc[sid] = true
+		}
+		ptRows.Close()
+		if err := ptRows.Err(); err != nil {
+			return err
+		}
+
 		existing := map[int]genExisting{}
 		exRows, err := tx.Query(ctx,
 			`SELECT id, student_id, status, other_charge, deposit_charge, deleted_at IS NOT NULL,
@@ -900,6 +919,7 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 				ID: s.id, RentalType: s.rentalType, DepositStatus: s.depositStatus,
 				CheckInDate: s.checkIn, CheckOutDate: s.checkOut,
 				RoomFeeDiscountPct: s.discountPct, UsesWashing: s.usesWashing, UsesParking: s.usesParking,
+				PhieuDauTien: !coPhieuTruoc[s.id],
 			}
 			s.giam.GanVao(&hv)
 			var np *invoicecalc.NguyenPhongThang
@@ -941,7 +961,9 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 				// sau khi thu là TienCoc trả 0, phát lại phiếu sẽ xoá mất khoản đã thu.
 				// Phiếu ĐÃ XOÁ là chuyện khác: lập lại = làm mới, phải tính cọc như phiếu đầu tiên.
 				coc := dup.coc
-				if dup.daXoa {
+				if dup.daXoa || dup.coc == 0 {
+					// Chỉ GIỮ khoản cọc khác 0 (số đã thu/đã nhập); 0 thì lấy theo luật mới —
+					// không thì cọc muộn (phiếu đầu tiên) không bao giờ vào được phiếu có sẵn.
 					coc = float64(inv.DepositCharge)
 				}
 				total := billing.InvoiceTotal(map[string]float64{
@@ -1147,9 +1169,17 @@ func (h *Handlers) GenerateOneInvoice(c *gin.Context) {
 	if depStatus != nil {
 		dep = *depStatus
 	}
+	var coTruoc bool
+	if err := h.pool().QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM invoices WHERE student_id=$1 AND deleted_at IS NULL AND month < $2)`,
+		sID, monthStr).Scan(&coTruoc); err != nil {
+		serverErr(c)
+		return
+	}
 	hv := billing.Student{
 		ID: sID, RentalType: rt, DepositStatus: dep, CheckInDate: invDateStr(ci), CheckOutDate: invDateStr(co),
 		RoomFeeDiscountPct: pctVal, UsesWashing: uw, UsesParking: up,
+		PhieuDauTien: !coTruoc,
 	}
 	giam.GanVao(&hv)
 	var np *invoicecalc.NguyenPhongThang
