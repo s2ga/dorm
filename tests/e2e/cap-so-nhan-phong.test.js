@@ -1,5 +1,6 @@
-// Cấp số HĐ lúc xác nhận nhận phòng (owner chốt 10/09/2026): MAX+1 của dãy NN.HDTP-XX, ngày ký =
-// ngày nhận phòng, kèm tên file scan chuẩn. Không cấp: ở ngắn dưới ngưỡng / phòng an ninh / đã có số.
+// Cấp số HĐ lúc xác nhận nhận phòng: MAX+1 theo NĂM + PHÁP NHÂN, khuôn pháp lý "NN/YYYY/HĐKTX-XX"
+// (chữ Đ). Tên file bản scan "NN.HDTP-XX_YYYYMMDD_TÊN" là thứ KHÁC, không phải số hợp đồng.
+// Không cấp: ở ngắn dưới ngưỡng / phòng an ninh / hồ sơ đã có số.
 const P = '__test_capso';
 
 async function clean(db) {
@@ -11,7 +12,7 @@ async function clean(db) {
 }
 
 module.exports = {
-  name: 'Cấp số HĐ khi xác nhận nhận phòng — chuẩn giấy NN.HDTP-XX',
+  name: 'Cấp số HĐ khi xác nhận nhận phòng — khuôn pháp lý NN/YYYY/HĐKTX-XX',
   needsServer: true,
   cleanup: t => clean(t.db),
 
@@ -29,28 +30,38 @@ module.exports = {
        VALUES ($1,$2,'male','2026-09-01','out','ghep','unregistered',$3) RETURNING id`,
       [P + n, ten, soHD || ''])).rows[0].id;
     const checkin = (id, body) => t.api('POST', `/api/students/${id}/checkin`, T, body);
+    const keTiep = (ngay = '2026-09-06') =>
+      t.api('GET', `/api/students/contract-no/next?gender=male&date=${ngay}`, T);
 
-    const goc = (await t.api('GET', '/api/students/contract-no/next?gender=male', T)).json;
+    const goc = (await keTiep()).json;
     const ent = goc.entity;
     t.ok('Máy chủ trả pháp nhân nam', !!ent, JSON.stringify(goc));
     const R = await mkRoom('_R', 'shared');
     // Chiếm số CAO HƠN MAX hiện có của CSDL thử (kể cả rác của bộ test khác) để phép đếm là của mình.
     const N = (goc.seq || 1) + 99;
-    const so = n => `${n}.HDTP-${ent}`;
+    const so = (n, nam = '2026') => `${n}/${nam}/HĐKTX-${ent}`;
     await mkStu('_moi', 'Moi day so', so(N));
 
-    // ── Xác nhận là cấp số nối tiếp + ngày ký + tên file chuẩn (tên bỏ dấu, Đ -> D) ────────
+    // ── Xác nhận = cấp số đúng khuôn pháp lý, ngày ký = ngày nhận phòng ────────────────────
     const A = await mkStu('_A', 'Đặng Văn Ú');
     const rA = await checkin(A, { date: '2026-09-05', room_id: R });
     t.eq('Xác nhận nhận phòng → 200', rA.status, 200, `HTTP ${rA.status} ${rA.json && rA.json.error || ''}`);
-    t.eq('Cấp số nối tiếp MAX của dãy', rA.json && rA.json.contract_no, so(N + 1), JSON.stringify(rA.json && rA.json.contract_no));
+    t.eq('Cấp số nối tiếp MAX, đúng khuôn NN/YYYY/HĐKTX-XX', rA.json && rA.json.contract_no, so(N + 1),
+      String(rA.json && rA.json.contract_no));
+    t.ok('Số hợp đồng dùng chữ Đ, KHÔNG phải chữ D', /HĐKTX/.test(String(rA.json && rA.json.contract_no || '')),
+      String(rA.json && rA.json.contract_no));
     t.eq('Trả so_hd_moi cho frontend hiện', rA.json && rA.json.so_hd_moi, so(N + 1));
-    t.eq('Tên file chuẩn: SỐ_NGÀY-NHẬN-PHÒNG_TÊN-KHÔNG-DẤU', rA.json && rA.json.ten_file_hd,
-      `${so(N + 1)}_20260905_DANG VAN U`);
     t.ok('Ngày ký = ngày nhận phòng', String(rA.json && rA.json.contract_date || '').slice(0, 10) === '2026-09-05',
       String(rA.json && rA.json.contract_date));
 
-    // ── Người xác nhận sau lấy số sau (cùng ngày hay khác ngày đều nối tiếp thứ tự bấm) ────
+    // ── TÊN FILE là thứ KHÁC số hợp đồng: khuôn NN.HDTP-XX, không có dấu "/" ───────────────
+    t.eq('Tên file scan đúng quy ước lưu trữ', rA.json && rA.json.ten_file_hd,
+      `${N + 1}.HDTP-${ent}_20260905_DANG VAN U`);
+    t.ok('Tên file KHÔNG chứa "/" (đặt tên file được)', !String(rA.json && rA.json.ten_file_hd || '').includes('/'),
+      String(rA.json && rA.json.ten_file_hd));
+    t.ok('Tên file KHÁC số hợp đồng', rA.json && rA.json.ten_file_hd !== rA.json.contract_no);
+
+    // ── Người xác nhận sau lấy số sau ──────────────────────────────────────────────────────
     const B = await mkStu('_B', 'Tran Van B');
     const rB = await checkin(B, { date: '2026-09-05', room_id: R });
     t.eq('Người xác nhận sau nhận số kế tiếp', rB.json && rB.json.contract_no, so(N + 2));
@@ -75,9 +86,9 @@ module.exports = {
     t.ok('Phòng an ninh KHÔNG cấp số', !(rD.json && rD.json.contract_no), String(rD.json && rD.json.contract_no));
 
     // ── Đã có số thì giữ nguyên, không cấp đè ──────────────────────────────────────────────
-    const E = await mkStu('_E', 'Co So E', '77.HDTP-TEST');
+    const E = await mkStu('_E', 'Co So E', '77/2026/HĐKTX-TEST');
     const rE = await checkin(E, { date: '2026-09-03', room_id: R });
-    t.eq('Hồ sơ đã có số giữ nguyên số cũ', rE.json && rE.json.contract_no, '77.HDTP-TEST');
+    t.eq('Hồ sơ đã có số giữ nguyên số cũ', rE.json && rE.json.contract_no, '77/2026/HĐKTX-TEST');
     t.ok('Không trả so_hd_moi khi không cấp', !(rE.json && rE.json.so_hd_moi));
 
     // ── Ngày dự kiến trả sai (trước ngày vào) bị chặn ──────────────────────────────────────
@@ -85,17 +96,27 @@ module.exports = {
     const rG = await checkin(G, { date: '2026-09-05', room_id: R, planned_check_out: '2026-09-01' });
     t.eq('Dự kiến trả trước ngày vào → 400', rG.status, 400, `HTTP ${rG.status}`);
 
-    // ── Số lưu dạng CŨ "NN/YYYY/HDKTX-XX" phải được ĐẾM CHUNG một dãy ─────────────────────
-    // Dữ liệu thật toàn dạng cũ; bỏ sót là cấp lại từ 01, trùng số hợp đồng giấy đã ký.
+    // ── Rác khuôn tên file KHÔNG được tính là số hợp đồng ──────────────────────────────────
+    await mkStu('_rac', 'Rac Ten File', `${N + 900}.HDTP-${ent}`);
+    t.eq('Chuỗi "NN.HDTP-XX" không phải số HĐ nên không vào phép đếm', (await keTiep()).json.seq, N + 4,
+      `đếm được ${(await keTiep()).json.contract_no}`);
+
+    // ── Số của NĂM KHÁC không ảnh hưởng dãy năm nay ────────────────────────────────────────
+    await mkStu('_2025', 'Nam Truoc', so(N + 800, '2025'));
+    t.eq('Số năm 2025 không đẩy dãy 2026 lên', (await keTiep()).json.seq, N + 4,
+      `đếm được ${(await keTiep()).json.contract_no}`);
+    t.eq('Hỏi số cho năm 2025 thì đếm theo dãy 2025', (await keTiep('2025-03-01')).json.seq, N + 801);
+
+    // ── BẪY CHỮ Đ/D: số cũ viết "HDKTX" (chữ D) phải được ĐẾM CHUNG ────────────────────────
+    // Postgres so khớp chính xác: khuôn chữ Đ không thấy số chữ D. Đếm sót là cấp trùng số đã ký.
     const CU = N + 50;
-    await mkStu('_cu', 'So Dang Cu', `${CU}/2026/HDKTX-${ent}`);
-    const hoi = await t.api('GET', '/api/students/contract-no/next?gender=male', T);
-    t.eq('Gợi ý số kế tiếp NHÌN THẤY số dạng cũ', hoi.json && hoi.json.seq, CU + 1,
-      `gợi ý ${hoi.json && hoi.json.contract_no} trong khi dạng cũ đang có ${CU}`);
+    await mkStu('_chuD', 'So Viet Chu D', `${CU}/2026/HDKTX-${ent}`);
+    t.eq('Gợi ý NHÌN THẤY số viết chữ D thường', (await keTiep()).json.seq, CU + 1,
+      `gợi ý ${(await keTiep()).json.contract_no} trong khi đang có ${CU}/2026/HDKTX-${ent}`);
 
     const H = await mkStu('_H', 'Noi Tiep H');
     const rH = await checkin(H, { date: '2026-09-06', room_id: R });
-    t.eq('Cấp số khi xác nhận cũng nối tiếp dãy cũ, không quay về 01', rH.json && rH.json.contract_no, so(CU + 1),
+    t.eq('Cấp số khi xác nhận cũng thấy số chữ D, không cấp trùng', rH.json && rH.json.contract_no, so(CU + 1),
       String(rH.json && rH.json.contract_no));
   },
 };

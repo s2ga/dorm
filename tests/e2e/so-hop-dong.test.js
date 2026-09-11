@@ -42,7 +42,7 @@ module.exports = {
     t.eq('Hỏi số kế tiếp (không kèm hồ sơ) → 200', goc.status, 200, `HTTP ${goc.status}`);
     const ent = goc.json && goc.json.entity;
     t.ok('Máy chủ trả pháp nhân', !!ent, JSON.stringify(goc.json));
-    const so = n => `${n}.HDTP-${ent}`; // chuẩn giấy 10/09/2026: dãy nối tiếp, KHÔNG theo năm
+    const so = n => `${n}/2026/HĐKTX-${ent}`; // khuôn pháp lý: NN/YYYY/HĐKTX-<pháp nhân>, chữ Đ
     const NN = (goc.json.seq || 1) + 99; // chiếm số cao hơn MAX hiện có (kể cả rác bộ test khác)
 
     // ── Khoá hồ sơ giữ số cao nhất KHÔNG được làm dãy lùi ──────────────────────────────
@@ -63,7 +63,7 @@ module.exports = {
     const rieng = await keTiep(B);
     t.eq('Hỏi số kèm student_id → 200, không phải lỗi máy chủ', rieng.status, 200,
       `HTTP ${rieng.status} ${rieng.json && rieng.json.error || ''}`);
-    t.ok('Trả về đúng khuôn NN.HDTP-XX', /^[0-9]+\.HDTP-.+$/.test(rieng.json && rieng.json.contract_no || ''),
+    t.ok('Trả về đúng khuôn NN/YYYY/HĐKTX-XX', /^[0-9]+\/[0-9]{4}\/HĐKTX-.+$/.test(rieng.json && rieng.json.contract_no || ''),
       JSON.stringify(rieng.json));
 
     // ── KHÔNG còn giữ chỗ theo ngày vào: số kế tiếp là số CHUNG của dãy (chốt 10/09/2026) ──

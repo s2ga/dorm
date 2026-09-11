@@ -357,10 +357,21 @@ func studentsPad2(seq int) string {
 	return s
 }
 
-// studentsFmtContractNo. students.routes.js:172
-// studentsFmtContractNo: chuẩn giấy "NN.HDTP-<pháp nhân>" — dãy nối tiếp, KHÔNG theo năm (owner chốt 10/09/2026).
-func studentsFmtContractNo(seq int, entity string) string {
-	return studentsPad2(seq) + ".HDTP-" + entity
+// studentsSoHopDong: SỐ HỢP ĐỒNG theo quy định — "NN/YYYY/HĐKTX-<pháp nhân>", chữ Đ (U+0110).
+func studentsSoHopDong(seq int, year, entity string) string {
+	return studentsPad2(seq) + studentsHauToSoHD(year, entity)
+}
+
+// studentsHauToSoHD: phần đứng sau số thứ tự. Tách riêng để câu UPDATE cấp số nhận nguyên chuỗi này,
+// không có bản sao khuôn thứ hai nằm trong SQL.
+func studentsHauToSoHD(year, entity string) string {
+	return "/" + year + "/HĐKTX-" + entity
+}
+
+// studentsTenFileScan: QUY ƯỚC ĐẶT TÊN FILE bản scan, KHÔNG phải số hợp đồng.
+func studentsTenFileScan(seq int, entity, date, name string) string {
+	return studentsPad2(seq) + ".HDTP-" + entity + "_" +
+		strings.ReplaceAll(studentsSlice10(date), "-", "") + "_" + studentsTenKhongDau(name)
 }
 
 // studentsEntityOf: pháp nhân theo giới tính. students.routes.js:171
@@ -1035,10 +1046,13 @@ func (h *Handlers) ContractNoNext(c *gin.Context) {
 		gender = "female"
 	}
 	entity := studentsEntityOf(gender, st)
+	// Năm của số HĐ lấy theo NGÀY KÝ do form gửi lên (dãy đếm theo từng năm), không có thì lấy hôm nay.
+	year := timeutil.Today()[:4]
+	if dq := studentsSlice10(c.Query("date")); len(dq) >= 4 && valid.IsValidYmd(dq) {
+		year = dq[:4]
+	}
 	var n int
-	// Số kế tiếp = MAX(NN) của dãy giấy "NN.HDTP-<pháp nhân>" + 1 -> nối tiếp số có sẵn, không đánh lại.
-	// KHÔNG lọc deleted_at: hồ sơ bị khoá vẫn giữ số của mình, số đã cấp thì không cấp lại.
-	if err := h.pool().QueryRow(ctx, studentsSQLMaxSoHD("$1"), entity).Scan(&n); err != nil {
+	if err := h.pool().QueryRow(ctx, studentsSQLMaxSoHD("$1", "$2"), year, entity).Scan(&n); err != nil {
 		serverErr(c)
 		return
 	}
@@ -1055,15 +1069,17 @@ func (h *Handlers) ContractNoNext(c *gin.Context) {
 			return
 		}
 	}
-	c.JSON(http.StatusOK, gin.H{"contract_no": studentsFmtContractNo(n+1, entity), "entity": entity, "seq": n + 1})
+	c.JSON(http.StatusOK, gin.H{
+		"contract_no": studentsSoHopDong(n+1, year, entity), "entity": entity, "seq": n + 1, "year": year})
 }
 
-// MỘT dãy liên tục gồm cả số đã lưu dạng CŨ "NN/YYYY/HDKTX-XX" lẫn dạng chuẩn giấy "NN.HDTP-XX":
-// đếm sót dạng cũ là cấp lại từ 01, trùng số hợp đồng giấy đã ký. p = placeholder chứa pháp nhân.
-func studentsSQLMaxSoHD(p string) string {
-	return `SELECT COALESCE(MAX((split_part(split_part(contract_no,'.',1),'/',1))::int), 0)::int
-	   FROM students WHERE (contract_no ~ ('^[0-9]+\.HDTP-' || ` + p + ` || '$')
-	                     OR contract_no ~ ('^[0-9]+/[0-9]{4}/HDKTX-' || ` + p + ` || '$'))`
+// studentsSQLMaxSoHD: số lớn nhất đã cấp trong CÙNG năm + pháp nhân. Lớp ký tự H[DĐ]KTX là bắt buộc —
+// Postgres so khớp chính xác nên khuôn chữ Đ KHÔNG thấy số cũ viết chữ D và ngược lại, đếm sót là
+// cấp trùng số hợp đồng giấy. KHÔNG lọc deleted_at: số đã cấp thì không cấp lại.
+func studentsSQLMaxSoHD(pYear, pEnt string) string {
+	return `SELECT COALESCE(MAX((split_part(contract_no,'/',1))::int), 0)::int
+	   FROM students
+	  WHERE btrim(contract_no) ~ ('^[0-9]+/' || ` + pYear + ` || '/H[DĐ]KTX-' || ` + pEnt + ` || '$')`
 }
 
 // laThanhVienTron: thành viên phòng thuê trọn (không phải phòng trưởng đương nhiệm) dùng chung HĐ
@@ -1133,18 +1149,22 @@ func (h *Handlers) capSoHDKhiNhanPhong(ctx context.Context, id int, date, planne
 		}
 	}
 	entity := studentsEntityOf(studentsJSString(me["gender"]), st)
+	year := studentsSlice10(date)[:4]
 	var moi *string
-	// KHÔNG dùng lpad: nó CẮT chuỗi dài hơn độ rộng ('901' -> '90'); đệm '0' chỉ áp cho số 1 chữ số.
+	var seq int
+	// Số thứ tự tính NGAY trong câu UPDATE để không tách thành đọc-rồi-ghi; hậu tố khuôn truyền từ Go
+	// nên chỉ có MỘT nơi định nghĩa khuôn. KHÔNG dùng lpad: nó CẮT số dài hơn độ rộng ('901' -> '90').
 	if err := h.pool().QueryRow(ctx, `
 	  UPDATE students
-	     SET contract_no = (SELECT CASE WHEN t.n < 10 THEN '0' ELSE '' END || t.n::text || '.HDTP-' || $2
-	                          FROM (SELECT (`+studentsSQLMaxSoHD("$2")+`) + 1 AS n) t),
-	         contract_date = $3
+	     SET contract_no = (SELECT CASE WHEN t.n < 10 THEN '0' ELSE '' END || t.n::text || $4
+	                          FROM (SELECT (`+studentsSQLMaxSoHD("$2", "$3")+`) + 1 AS n) t),
+	         contract_date = $5
 	   WHERE id = $1 AND (contract_no IS NULL OR btrim(contract_no) = '')
-	   RETURNING contract_no`, id, entity, studentsSlice10(date)).Scan(&moi); err != nil || moi == nil {
+	   RETURNING contract_no, (split_part(contract_no,'/',1))::int`,
+		id, year, entity, studentsHauToSoHD(year, entity), studentsSlice10(date)).Scan(&moi, &seq); err != nil || moi == nil {
 		return "", ""
 	}
-	return *moi, *moi + "_" + strings.ReplaceAll(studentsSlice10(date), "-", "") + "_" + studentsTenKhongDau(studentsJSString(me["name"]))
+	return *moi, studentsTenFileScan(seq, entity, date, studentsJSString(me["name"]))
 }
 
 // GetStudent: GET /:id (admin,staff). Kèm vehicles, violations, _v (xmin). students.routes.js:219-241

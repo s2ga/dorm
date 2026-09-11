@@ -169,23 +169,25 @@ router.get('/', requireRole('admin', 'staff'), async (req, res, next) => {
 
 // ---- Số hợp đồng tự động theo pháp nhân (điểm 7 — ban thư ký quản lý HĐ) ----
 const entityOf = (gender, st) => gender === 'female' ? (st.legal_female || 'E2') : (st.legal_male || 'S2');
-// Chuẩn giấy "NN.HDTP-<pháp nhân>" — dãy nối tiếp, KHÔNG theo năm (owner chốt 10/09/2026; khớp bản Go).
-const fmtContractNo = (seq, entity) => `${String(seq).padStart(2, '0')}.HDTP-${entity}`;
+// SỐ HỢP ĐỒNG theo quy định: "NN/YYYY/HĐKTX-<pháp nhân>", chữ Đ (U+0110). Khớp bản Go.
+// "NN.HDTP-XX" KHÔNG phải số hợp đồng — đó là quy ước đặt tên file bản scan.
+const fmtContractNo = (seq, year, entity) => `${String(seq).padStart(2, '0')}/${year}/HĐKTX-${entity}`;
 
-// Gợi ý số HĐ kế tiếp cho 1 học viên (theo pháp nhân)
+// Gợi ý số HĐ kế tiếp cho 1 học viên (theo năm + pháp nhân)
 router.get('/contract-no/next', requireRole('admin', 'staff'), async (req, res, next) => {
   try {
     const st = await getSettings();
     const gender = req.query.gender === 'female' ? 'female' : 'male';
     const entity = entityOf(gender, st);
-    // Số kế tiếp = MAX + 1 trên MỘT dãy gồm cả dạng CŨ "NN/YYYY/HDKTX-XX" lẫn chuẩn giấy "NN.HDTP-XX":
-    // đếm sót dạng cũ là cấp lại từ 01, trùng số hợp đồng giấy đã ký.
+    const ngay = String(req.query.date || '').slice(0, 10);
+    const year = /^\d{4}-\d{2}-\d{2}$/.test(ngay) ? ngay.slice(0, 4) : new Date().toISOString().slice(0, 4);
+    // Lớp ký tự H[DĐ]KTX là BẮT BUỘC: Postgres so khớp chính xác nên khuôn chữ Đ không thấy số cũ
+    // viết chữ D và ngược lại — đếm sót là cấp trùng số hợp đồng giấy đã ký.
     const n = (await query(
-      `SELECT COALESCE(MAX((split_part(split_part(contract_no,'.',1),'/',1))::int), 0)::int c FROM students
-       WHERE (contract_no ~ ('^[0-9]+\\.HDTP-' || $1 || '$')
-           OR contract_no ~ ('^[0-9]+/[0-9]{4}/HDKTX-' || $1 || '$'))`,
-      [entity])).rows[0].c;
-    res.json({ contract_no: fmtContractNo(n + 1, entity), entity, seq: n + 1 });
+      `SELECT COALESCE(MAX((split_part(contract_no,'/',1))::int), 0)::int c FROM students
+       WHERE btrim(contract_no) ~ ('^[0-9]+/' || $1 || '/H[DĐ]KTX-' || $2 || '$')`,
+      [year, entity])).rows[0].c;
+    res.json({ contract_no: fmtContractNo(n + 1, year, entity), entity, seq: n + 1, year });
   } catch (e) { next(e); }
 });
 

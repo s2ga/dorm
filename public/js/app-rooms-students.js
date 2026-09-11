@@ -684,8 +684,8 @@ async function studentForm(id) {
       ${nhomForm(IC.fileText, 'Thông tin hợp đồng', `
         <div class="grid2">
           <div class="field"><label>Số HĐ <span class="opt">(nhập tay · ⚡ gợi ý số kế tiếp)</span></label>
-            <div class="flex" style="gap:6px"><input id="f_cno" value="${esc(s.contract_no || '')}" placeholder="35.HDTP-E2" style="flex:1">
-            <button type="button" class="btn sm" data-act="suggestContractNo" data-args='[${id || 0}]' title="Điền số kế tiếp của dãy pháp nhân">${IC.zap}</button></div></div>
+            <div class="flex" style="gap:6px"><input id="f_cno" value="${esc(s.contract_no || '')}" placeholder="38/2026/HĐKTX-E2" style="flex:1">
+            <button type="button" class="btn sm" data-act="suggestContractNo" data-args='[${id || 0}]' title="Điền số kế tiếp của dãy theo năm + pháp nhân">${IC.zap}</button></div></div>
           <div class="field"><label>Pháp nhân</label>
             <div class="ro-in"><strong id="f_legal">${esc(legalEntity(s.gender))}</strong> <span class="muted">— theo giới tính, đổi ở mục Thông tin cá nhân</span></div></div>
         </div>
