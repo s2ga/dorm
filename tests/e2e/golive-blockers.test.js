@@ -77,9 +77,9 @@ module.exports = {
     const stayCount = (await t.db.query(`SELECT COUNT(*)::int c FROM room_stays WHERE student_id=$1 AND to_date IS NULL`, [sT])).rows[0].c;
     t.ok('BLK-3: lượt ở KHÔNG bị xoá', stayCount === 1, `còn ${stayCount} lượt mở`);
 
-    // ---- BLK-3b: đường bảo trì cũng chặn ngày lùi ----
-    const rBackM = await t.api('POST', `/api/maintenance/handovers/${sT}/checkout`, T, { actual_date: '2026-07-10' });
-    t.ok('BLK-3b: đường bảo trì cũng chặn ngày < lượt ở hiện tại → 400', rBackM.status === 400, `HTTP ${rBackM.status}`);
+    // ---- BLK-3b: biên bản trả phòng của an ninh cũng chặn ngày lùi ngay lúc lập ----
+    const rBackM = await t.api('POST', '/api/maintenance/reports', T, { kind: 'checkout', student_id: sT, date: '2026-07-10', meter_reading: 1 });
+    t.ok('BLK-3b: biên bản trả phòng ngày < lượt ở hiện tại → 400', rBackM.status === 400, `HTTP ${rBackM.status} ${rBackM.json && rBackM.json.error || ''}`);
 
     // ---- M-2: check-out LẦN 2 (HV đã 'out') → 409 ----
     const rmC = await mkRoom(t.db, P + '_C', fac);

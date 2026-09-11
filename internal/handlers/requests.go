@@ -660,7 +660,10 @@ func (h *Handlers) HandoverCheckout(c *gin.Context) {
 		reasonArg = *crReason
 	}
 	if _, err := h.pool().Exec(ctx,
-		"UPDATE students SET status=$1, check_out_date=$2, checkout_notice_date=$3, checkout_reason=$4 WHERE id=$5",
+		`UPDATE students SET status=$1, check_out_date=$2, checkout_notice_date=$3, checkout_reason=$4,
+		   checkout_confirmed_at = CASE WHEN $1='out' THEN now() ELSE checkout_confirmed_at END,
+		   checkout_actual_date  = CASE WHEN $1='out' THEN $2::date ELSE checkout_actual_date END
+		 WHERE id=$5`,
 		st, date, noticeDate, reasonArg, studentID); err != nil {
 		serverErr(c)
 		return

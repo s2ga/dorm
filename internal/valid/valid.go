@@ -93,7 +93,7 @@ var SettingNum = map[string]settingRange{
 
 // SettingTime: khoá settings phải là giờ 'HH:MM'. Giờ rác thì khung ca trực hiện sai trên cổng học
 // viên — người ta gọi đúng số nhưng nhầm ca, không ai bắt máy.
-var SettingTime = map[string]bool{"security_day_from": true, "security_day_to": true}
+var SettingTime = map[string]bool{"security_day_from": true, "security_day_to": true, "parking_close_alert_time": true}
 
 // CheckSetting trả chuỗi lỗi nếu sai, "" nếu hợp lệ. server/valid.js:54-64
 func CheckSetting(key, raw string) string {

@@ -5,21 +5,18 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
 	"ktx/internal/auth"
-	"ktx/internal/checkout"
 	"ktx/internal/db"
-	"ktx/internal/invoicecalc"
 	"ktx/internal/scope"
 	"ktx/internal/timeutil"
-	"ktx/internal/valid"
 )
 
 // Handler bảo trì / an ninh (maintenance). Port từ server/routes/maintenance.routes.js.
 // Toàn bộ route: requireAuth + requireRole('maintenance','admin') (maintenance.routes.js:10).
+// An ninh KHÔNG ghi vào hồ sơ học viên: bàn giao đi qua biên bản (handover_reports.go), quản trị xác nhận.
 
 // maintTaskStatus: vòng đời việc bảo trì — MỘT bộ trạng thái dùng chung. maintenance.routes.js:28
 var maintTaskStatus = []string{"new", "processing", "blocked", "done"}
@@ -69,16 +66,29 @@ func (h *Handlers) MaintHandovers(c *gin.Context) {
 	}
 	ctx := c.Request.Context()
 
+	// Kèm biên bản mới nhất (BL-121) + lần chốt công-tơ gần nhất để an ninh đối chiếu ngay lúc bàn giao.
+	bienBan := func(kind string) string {
+		return `(SELECT row_to_json(x) FROM (SELECT hr.id, hr.status, hr.actual_date, hr.created_at, hr.created_by,
+		            hr.reviewed_at, hr.reviewed_by, hr.review_note, hr.meter_reading, hr.damage_amount
+		          FROM handover_reports hr WHERE hr.student_id = s.id AND hr.kind = '` + kind + `'
+		          ORDER BY hr.id DESC LIMIT 1) x) AS report,
+		       (SELECT row_to_json(y) FROM (SELECT mr.read_date, mr.reading FROM meter_reads mr
+		          WHERE mr.room_id = s.room_id ORDER BY mr.read_date DESC LIMIT 1) y) AS last_meter,
+		       (SELECT row_to_json(z) FROM (SELECT er.month, er.reading_start, er.reading_end FROM electric_readings er
+		          WHERE er.room_id = s.room_id ORDER BY er.month DESC LIMIT 1) z) AS last_month_meter`
+	}
+
 	pIn := []interface{}{month}
 	facIn := maintFacClause(u, c, &pIn, "s.facility_id")
 	// Kèm XE để an ninh đối chiếu biển thật với biển trên app ngay lúc cho nhận phòng.
 	rowsIn, err := h.pool().Query(ctx, `
 		SELECT s.id, s.name, r.name AS room_name, COALESCE(s.check_in_date, s.planned_check_in) AS date,
-		       s.checkin_confirmed_at, s.checkin_confirm_note,
+		       s.status, s.check_in_date, s.checkin_confirmed_at, s.checkin_confirm_note,
 		       (SELECT COALESCE(json_agg(json_build_object(
 		                 'id', v.id, 'plate', v.plate, 'vehicle_type', v.vehicle_type
 		               ) ORDER BY v.id), '[]'::json)
-		          FROM vehicles v WHERE v.student_id = s.id AND v.deleted_at IS NULL) AS vehicles
+		          FROM vehicles v WHERE v.student_id = s.id AND v.deleted_at IS NULL) AS vehicles,
+		       `+bienBan("checkin")+`
 		FROM students s LEFT JOIN rooms r ON r.id = s.room_id
 		WHERE s.deleted_at IS NULL AND to_char(COALESCE(s.check_in_date, s.planned_check_in),'YYYY-MM')=$1`+facIn+`
 		ORDER BY COALESCE(s.check_in_date, s.planned_check_in), s.name`, pIn...)
@@ -96,7 +106,8 @@ func (h *Handlers) MaintHandovers(c *gin.Context) {
 	facOut := maintFacClause(u, c, &pOut, "s.facility_id")
 	rowsOut, err := h.pool().Query(ctx, `
 		SELECT s.id, s.name, r.name AS room_name, COALESCE(s.check_out_date, s.planned_check_out) AS date,
-		       s.checkout_confirmed_at, s.checkout_actual_date, s.checkout_confirm_note
+		       s.status, s.check_out_date, s.checkout_confirmed_at, s.checkout_actual_date, s.checkout_confirm_note,
+		       `+bienBan("checkout")+`
 		FROM students s LEFT JOIN rooms r ON r.id = s.room_id
 		WHERE s.deleted_at IS NULL AND to_char(COALESCE(s.check_out_date, s.planned_check_out),'YYYY-MM')=$1`+facOut+`
 		ORDER BY COALESCE(s.check_out_date, s.planned_check_out), s.name`, pOut...)
@@ -112,199 +123,37 @@ func (h *Handlers) MaintHandovers(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"month": month, "checkins": checkins, "checkouts": checkouts})
 }
 
-// MaintHandoversSummary: GET /api/maintenance/handovers/summary (maintenance,admin). maintenance.routes.js:53-62
-// Số việc bàn giao chưa xác nhận (tháng này) — cho thông báo.
+// MaintHandoversSummary: GET /api/maintenance/handovers/summary (maintenance,admin).
+// Số lượt tháng này an ninh CÒN PHẢI LẬP BIÊN BẢN (chưa xác nhận, chưa có biên bản đang chờ) — cho huy hiệu.
 func (h *Handlers) MaintHandoversSummary(c *gin.Context) {
 	u := auth.CurrentUser(c)
 	m := maintCurMonth()
 	ctx := c.Request.Context()
 
 	pCi := []interface{}{m}
-	fCi := maintFacClause(u, c, &pCi, "facility_id")
+	fCi := maintFacClause(u, c, &pCi, "s.facility_id")
 	var ci int
-	if err := h.pool().QueryRow(ctx, `SELECT COUNT(*)::int c FROM students WHERE deleted_at IS NULL AND to_char(COALESCE(check_in_date, planned_check_in),'YYYY-MM')=$1 AND checkin_confirmed_at IS NULL`+fCi, pCi...).Scan(&ci); err != nil {
-		serverErr(c)
+	if err := h.pool().QueryRow(ctx, `
+		SELECT COUNT(*)::int FROM students s
+		 WHERE s.deleted_at IS NULL AND to_char(COALESCE(s.check_in_date, s.planned_check_in),'YYYY-MM')=$1
+		   AND s.checkin_confirmed_at IS NULL AND s.check_in_date IS NULL
+		   AND NOT EXISTS (SELECT 1 FROM handover_reports hr WHERE hr.student_id = s.id AND hr.kind = 'checkin' AND hr.status = 'pending')`+fCi, pCi...).Scan(&ci); err != nil {
+		serverErr(c, err)
 		return
 	}
 
 	pCo := []interface{}{m}
-	fCo := maintFacClause(u, c, &pCo, "facility_id")
+	fCo := maintFacClause(u, c, &pCo, "s.facility_id")
 	var co int
-	if err := h.pool().QueryRow(ctx, `SELECT COUNT(*)::int c FROM students WHERE deleted_at IS NULL AND to_char(COALESCE(check_out_date, planned_check_out),'YYYY-MM')=$1 AND checkout_confirmed_at IS NULL`+fCo, pCo...).Scan(&co); err != nil {
-		serverErr(c)
+	if err := h.pool().QueryRow(ctx, `
+		SELECT COUNT(*)::int FROM students s
+		 WHERE s.deleted_at IS NULL AND to_char(COALESCE(s.check_out_date, s.planned_check_out),'YYYY-MM')=$1
+		   AND s.checkout_confirmed_at IS NULL AND s.status <> 'out'
+		   AND NOT EXISTS (SELECT 1 FROM handover_reports hr WHERE hr.student_id = s.id AND hr.kind = 'checkout' AND hr.status = 'pending')`+fCo, pCo...).Scan(&co); err != nil {
+		serverErr(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"month": m, "pendingCheckin": ci, "pendingCheckout": co, "pending": ci + co})
-}
-
-// MaintHandoverCheckin: POST /api/maintenance/handovers/:id/checkin (maintenance,admin). maintenance.routes.js:65-79
-// Bảo trì xác nhận ĐÃ NHẬN phòng (bàn giao phòng cho HV). Xác nhận MỘT LẦN.
-func (h *Handlers) MaintHandoverCheckin(c *gin.Context) {
-	u := auth.CurrentUser(c)
-	id := c.Param("id")
-	var b struct {
-		Note string `json:"note"`
-	}
-	_ = c.ShouldBindJSON(&b)
-	note := strings.TrimSpace(b.Note)
-	ctx := c.Request.Context()
-
-	var (
-		confirmedAt *time.Time
-		facID       *int
-		lichVao     *time.Time
-	)
-	err := h.pool().QueryRow(ctx,
-		"SELECT checkin_confirmed_at, facility_id, planned_check_in FROM students WHERE id=$1 AND deleted_at IS NULL", id).
-		Scan(&confirmedAt, &facID, &lichVao)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			notFound(c, "Không tìm thấy học viên") // maintenance.routes.js:69
-			return
-		}
-		serverErr(c)
-		return
-	}
-	if fe := scope.AssertFacility(u, facID); fe != nil { // đa cơ sở. maintenance.routes.js:70
-		c.JSON(fe.Status, gin.H{"error": fe.Error})
-		return
-	}
-	// Xác nhận lại sẽ ghi đè mốc bàn giao thật và (nếu note rỗng) xoá trắng ghi chú. maintenance.routes.js:72-73
-	if confirmedAt != nil {
-		conflict(c, gin.H{"error": "Đã xác nhận nhận phòng trước đó — không xác nhận lại (tránh mất dấu lần bàn giao thật)."})
-		return
-	}
-	// BL-117: an ninh xác nhận bàn giao = XÁC NHẬN NHẬN PHÒNG THẬT (owner chốt: đủ làm xác nhận chính
-	// thức). Ngày thật = hôm nay; ghi cùng một hàm với Check-in của BQL.
-	sid, err := strconv.Atoi(id)
-	if err != nil {
-		badRequest(c, "Mã học viên không hợp lệ")
-		return
-	}
-	if err := h.xacNhanNhanPhong(ctx, sid, nil, timeutil.Today(), "An ninh xác nhận nhận phòng", "maintenance"); err != nil {
-		serverErr(c)
-		return
-	}
-	// Phiếu kỳ này có thể đã lập theo NGÀY DỰ KIẾN — xác nhận xong tính lại theo ngày thật.
-	homNay := timeutil.Today()
-	_, _ = invoicecalc.RecalcInvoice(ctx, h.DB, sid, homNay[:7])
-	if lichVao != nil {
-		if m := lichVao.Format("2006-01"); m != homNay[:7] {
-			_, _ = invoicecalc.RecalcInvoice(ctx, h.DB, sid, m)
-		}
-	}
-	if _, err := h.pool().Exec(ctx,
-		`UPDATE students SET checkin_confirm_note=$1 WHERE id=$2 AND deleted_at IS NULL`, note, sid); err != nil {
-		serverErr(c)
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"ok": true})
-}
-
-// MaintHandoverCheckout: POST /api/maintenance/handovers/:id/checkout (maintenance,admin). maintenance.routes.js:82-118
-// Bảo trì xác nhận ĐÃ TRẢ phòng (ghi ngày thực tế, tính phiếu đúng). Xác nhận MỘT LẦN + CLAIM nguyên tử.
-func (h *Handlers) MaintHandoverCheckout(c *gin.Context) {
-	u := auth.CurrentUser(c)
-	idStr := c.Param("id")
-	id, _ := strconv.Atoi(idStr)
-	var b struct {
-		Note       string `json:"note"`
-		ActualDate string `json:"actual_date"`
-	}
-	_ = c.ShouldBindJSON(&b)
-	note := strings.TrimSpace(b.Note)
-	// actual = isValidYmd(actual_date) ? actual_date : null. maintenance.routes.js:85-86
-	if !valid.IsValidYmd(b.ActualDate) {
-		badRequest(c, "Chọn ngày trả phòng thực tế hợp lệ")
-		return
-	}
-	actual := b.ActualDate
-	today := timeutil.Today()
-	// Xác nhận ĐÃ TRẢ thực tế -> không thể ở tương lai. maintenance.routes.js:91-92
-	if actual > today {
-		badRequest(c, "Ngày trả phòng thực tế không thể ở tương lai.")
-		return
-	}
-	ctx := c.Request.Context()
-	// Ngày trả không thể trước ngày nhận / trước ngày bắt đầu lượt ở hiện tại (BLK-3). maintenance.routes.js:94
-	var (
-		checkIn    *time.Time
-		facID      *int
-		checkoutCA *time.Time
-		status     string
-	)
-	err := h.pool().QueryRow(ctx,
-		"SELECT check_in_date, facility_id, checkout_confirmed_at, status FROM students WHERE id=$1 AND deleted_at IS NULL", id).
-		Scan(&checkIn, &facID, &checkoutCA, &status)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			notFound(c, "Không tìm thấy học viên") // maintenance.routes.js:95
-			return
-		}
-		serverErr(c)
-		return
-	}
-	if fe := scope.AssertFacility(u, facID); fe != nil { // đa cơ sở. maintenance.routes.js:96
-		c.JSON(fe.Status, gin.H{"error": fe.Error})
-		return
-	}
-	// Xác nhận MỘT LẦN. Đã 'out'/đã xác nhận -> chặn. maintenance.routes.js:99-100
-	if checkoutCA != nil || status == "out" {
-		conflict(c, gin.H{"error": "Đã xác nhận trả phòng trước đó — không xác nhận lại (tránh mất dấu lần bàn giao thật)."})
-		return
-	}
-	checkInStr := ""
-	if checkIn != nil {
-		checkInStr = checkIn.Format("2006-01-02")
-	}
-	badDate, err := checkout.BadCheckoutDate(ctx, h.pool(), id, actual, checkInStr) // maintenance.routes.js:101
-	if err != nil {
-		serverErr(c)
-		return
-	}
-	if badDate != "" {
-		badRequest(c, badDate)
-		return
-	}
-	// CLAIM nguyên tử: WHERE checkout_confirmed_at IS NULL — 2 người cùng lúc chỉ 1 thắng. maintenance.routes.js:104-107
-	var (
-		claimedID int
-		roomID    *int
-	)
-	err = h.pool().QueryRow(ctx,
-		`UPDATE students SET checkout_confirmed_at=now(), checkout_actual_date=$1, checkout_confirm_note=$2,
-		   check_out_date=$1, status='out'
-		 WHERE id=$3 AND deleted_at IS NULL AND checkout_confirmed_at IS NULL RETURNING id, room_id`,
-		actual, note, id).Scan(&claimedID, &roomID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			conflict(c, gin.H{"error": "Đơn vừa được xác nhận bởi thao tác khác."}) // maintenance.routes.js:108
-			return
-		}
-		serverErr(c)
-		return
-	}
-	// source theo VAI người thực hiện — bảo trì ghi 'maintenance', không cứng 'admin' (V2-43). maintenance.routes.js:110
-	src := "admin"
-	if u != nil && u.Role == "maintenance" {
-		src = "maintenance"
-	}
-	// try/catch -> bỏ qua lỗi ghi log. maintenance.routes.js:111-112
-	_, _ = h.pool().Exec(ctx,
-		`INSERT INTO logs (student_id, type, date, room_id, note, source) VALUES ($1,'out',$2,$3,$4,$5)`,
-		id, actual, roomID, "Bảo trì xác nhận trả phòng thực tế", src)
-	// BLK-1: gọi phần CHUNG như 2 đường kia (đóng lượt ở + phòng trưởng + dọn phiếu kỳ sau + recalc). maintenance.routes.js:115
-	dropped, err := checkout.FinalizeCheckout(ctx, h.pool(), h.DB, id, actual)
-	if err != nil {
-		serverErr(c)
-		return
-	}
-	h.khoaTaiKhoanHocVien(ctx, claimedID) // BL-117: xác nhận trả phòng -> tự khoá tài khoản đăng nhập
-	if dropped == nil {
-		dropped = []string{}
-	}
-	c.JSON(http.StatusOK, gin.H{"ok": true, "actual_date": actual, "dropped_future_invoices": dropped,
-		"canh_bao": h.canhBaoPhieuDaThu(ctx, claimedID, actual[:7])})
 }
 
 // MaintTasks: GET /api/maintenance/tasks (maintenance,admin). maintenance.routes.js:121-133

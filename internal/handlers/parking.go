@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"errors"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -20,12 +19,13 @@ import (
 
 // Handler điểm danh bãi xe (parking_checks) — vai 'maintenance' (an ninh) dùng là chính.
 // CHỈ ĐỌC bảng vehicles, không bao giờ ghi: vehiclecount đếm hàng ở đó để ra tiền gửi xe.
+// Báo cáo của an ninh (xe lạ / vắng nhiều ngày / khác) và bản chốt ngày: parking_bao_cao.go.
 
-// Ba trạng thái, khớp ràng buộc ck_parking_checks_status.
+// Trạng thái điểm danh, khớp ràng buộc ck_parking_checks_status.
 const (
 	parkingCoMat = "present"  // xe có trong bãi
 	parkingVang  = "absent"   // đã đăng ký nhưng hôm nay không gửi
-	parkingXeLa  = "stranger" // trong bãi nhưng không có trong danh sách đăng ký
+	parkingXeLa  = "stranger" // giá trị cũ trong parking_checks; xe lạ nay nằm ở parking_reports
 
 	parkingMaxNgay   = 92 // báo cáo tối đa 92 ngày một lần
 	parkingNguongMac = 7  // ngày vắng liên tiếp -> gắn cờ, khi Cài đặt không có giá trị
@@ -111,7 +111,9 @@ func (h *Handlers) parkingLuuAnh(c *gin.Context, dataURL, ngay string) (string, 
 	return saved, true
 }
 
-// ParkingList: GET /api/maintenance/parking?date= — xe phải điểm danh trong ngày + kết quả + xe lạ.
+// ParkingList: GET /api/maintenance/parking?date= — MỌI xe đã đăng ký trong tầm nhìn + kết quả điểm danh
+// ngày đó + báo cáo trong ngày + bản chốt ngày. phai_kiem = xe hiệu lực ngày này VÀ chủ xe chưa trả
+// phòng; màn an ninh chia tab "Đang ở" / "Đã trả" theo cột này, summary chỉ đếm xe phai_kiem.
 func (h *Handlers) ParkingList(c *gin.Context) {
 	u := auth.CurrentUser(c)
 	ngay, errMsg := parkingNgay(c.Query("date"))
@@ -121,7 +123,7 @@ func (h *Handlers) ParkingList(c *gin.Context) {
 	}
 	ctx := c.Request.Context()
 
-	cond := []string{"v.deleted_at IS NULL", "s.deleted_at IS NULL", parkingXeHieuLuc("$1")}
+	cond := []string{"v.deleted_at IS NULL", "s.deleted_at IS NULL"}
 	params := []interface{}{ngay}
 	parkingFacCond(u, c, &cond, &params, "s.facility_id")
 
@@ -129,13 +131,25 @@ func (h *Handlers) ParkingList(c *gin.Context) {
 	rows, err := h.pool().Query(ctx, `
 		SELECT v.id AS vehicle_id, v.plate, v.vehicle_type, v.sticker,
 		       `+parkingSQLNorm+` AS plate_norm,
-		       s.name AS student_name, r.name AS room_name,
+		       to_char(COALESCE(v.from_date, v.created_at::date),'YYYY-MM-DD') AS from_date,
+		       to_char(v.to_date,'YYYY-MM-DD') AS to_date,
+		       (`+parkingXeHieuLuc("$1::date")+`) AS hieu_luc,
+		       `+parkingChuDaTra("$1::date")+` AS da_tra,
+		       s.id AS student_id, s.name AS student_name, r.name AS room_name,
+		       to_char(s.check_in_date,'YYYY-MM-DD') AS check_in_date,
+		       to_char(s.check_out_date,'YYYY-MM-DD') AS check_out_date,
+		       to_char(s.planned_check_in,'YYYY-MM-DD') AS planned_check_in,
+		       to_char(s.planned_check_out,'YYYY-MM-DD') AS planned_check_out,
+		       pr.prev_room_name, pr.moved_on,
+		       yc.req_id, yc.req_plate, yc.req_status, yc.req_note, yc.req_decided_at,
 		       pc.id AS check_id, pc.status, pc.note, pc.checked_by, pc.updated_at,
 		       (pc.photo_key IS NOT NULL AND pc.photo_key <> '') AS has_photo
 		FROM vehicles v
 		JOIN students s ON s.id = v.student_id
 		LEFT JOIN rooms r ON r.id = s.room_id
-		LEFT JOIN parking_checks pc ON pc.vehicle_id = v.id AND pc.check_date = $1
+		LEFT JOIN parking_checks pc ON pc.vehicle_id = v.id AND pc.check_date = $1::date
+		LEFT JOIN LATERAL (`+parkingSQLPhongCu("$1")+`) pr ON true
+		LEFT JOIN LATERAL (`+parkingSQLDeNghiBien+`) yc ON true
 		WHERE `+joinAnd(cond)+`
 		ORDER BY r.name NULLS LAST, s.name, v.plate`, params...)
 	if err != nil {
@@ -147,28 +161,24 @@ func (h *Handlers) ParkingList(c *gin.Context) {
 		serverErr(c, err)
 		return
 	}
-
-	condLa := []string{"pc.check_date = $1", "pc.status = $2"}
-	paramsLa := []interface{}{ngay, parkingXeLa}
-	parkingFacCond(u, c, &condLa, &paramsLa, "pc.facility_id")
-	rowsLa, err := h.pool().Query(ctx, `
-		SELECT pc.id, pc.plate, pc.note, pc.checked_by, pc.created_at,
-		       (pc.photo_key IS NOT NULL AND pc.photo_key <> '') AS has_photo
-		FROM parking_checks pc
-		WHERE `+joinAnd(condLa)+`
-		ORDER BY pc.created_at DESC`, paramsLa...)
-	if err != nil {
-		serverErr(c, err)
-		return
-	}
-	xeLa, err := db.RowsToMaps(rowsLa)
+	chuoi, err := h.parkingChuoiVangTheoXe(ctx, u, c, ngay)
 	if err != nil {
 		serverErr(c, err)
 		return
 	}
 
-	coMat, vang, chuaDanh := 0, 0, 0
+	tong, coMat, vang, chuaDanh := 0, 0, 0, 0
 	for _, x := range xe {
+		vid, _ := parkingSo(x["vehicle_id"])
+		x["vang_lien_tiep"] = chuoi[vid]
+		hieuLuc, _ := x["hieu_luc"].(bool)
+		daTra, _ := x["da_tra"].(bool)
+		phaiKiem := hieuLuc && !daTra
+		x["phai_kiem"] = phaiKiem
+		if !phaiKiem {
+			continue
+		}
+		tong++
 		switch studentsJSString(x["status"]) {
 		case parkingCoMat:
 			coMat++
@@ -178,16 +188,21 @@ func (h *Handlers) ParkingList(c *gin.Context) {
 			chuaDanh++
 		}
 	}
-	if xe == nil {
-		xe = []map[string]interface{}{}
+	baoCao, err := h.parkingBaoCaoNgay(ctx, u, c, ngay)
+	if err != nil {
+		serverErr(c, err)
+		return
 	}
-	if xeLa == nil {
-		xeLa = []map[string]interface{}{}
+	dailies, err := h.parkingDailies(ctx, u, c, ngay)
+	if err != nil {
+		serverErr(c, err)
+		return
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"date": ngay, "hom_nay": timeutil.Today(),
-		"vehicles": xe, "strangers": xeLa,
-		"summary": gin.H{"tong": len(xe), "co_mat": coMat, "vang": vang, "chua_danh": chuaDanh},
+		"vehicles": xe, "reports": baoCao, "dailies": dailies,
+		"summary":    gin.H{"tong": tong, "co_mat": coMat, "vang": vang, "chua_danh": chuaDanh},
+		"alert_days": h.parkingNguongCanhBao(ctx),
 	})
 }
 
@@ -268,88 +283,12 @@ func (h *Handlers) ParkingMark(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true, "id": id, "date": ngay, "status": b.Status})
 }
 
-type parkingStrangerBody struct {
-	Plate string `json:"plate"`
-	Date  string `json:"date"`
-	Note  string `json:"note"`
-	Photo string `json:"photo"`
-}
-
-// ParkingStranger: POST /api/maintenance/parking/stranger — ghi nhận xe lạ trong bãi.
-// Biển hoá ra đã đăng ký -> 409 kèm thông tin xe để màn hình mời điểm danh đúng chỗ.
-func (h *Handlers) ParkingStranger(c *gin.Context) {
-	u := auth.CurrentUser(c)
-	var b parkingStrangerBody
-	_ = c.ShouldBindJSON(&b)
-	plate := strings.TrimSpace(b.Plate)
-	if plate == "" {
-		badRequest(c, "Nhập biển số xe lạ")
-		return
-	}
-	norm := vehicleChuanBien(plate)
-	if norm == "" {
-		badRequest(c, `Biển số không hợp lệ: "`+plate+`"`)
-		return
-	}
-	ngay, errMsg := parkingNgay(b.Date)
-	if errMsg != "" {
-		badRequest(c, errMsg)
-		return
-	}
-	ctx := c.Request.Context()
-
-	cond := []string{"v.deleted_at IS NULL", "s.deleted_at IS NULL", parkingSQLNorm + " = $1"}
-	params := []interface{}{norm}
-	parkingFacCond(u, c, &cond, &params, "s.facility_id")
-	rows, err := h.pool().Query(ctx, `
-		SELECT v.id AS vehicle_id, v.plate, s.name AS student_name, r.name AS room_name
-		FROM vehicles v JOIN students s ON s.id = v.student_id
-		LEFT JOIN rooms r ON r.id = s.room_id
-		WHERE `+joinAnd(cond)+` LIMIT 1`, params...)
-	if err != nil {
-		serverErr(c, err)
-		return
-	}
-	daDangKy, err := db.RowToMap(rows)
-	if err != nil {
-		serverErr(c, err)
-		return
-	}
-	if daDangKy != nil {
-		conflict(c, gin.H{
-			"error":      "Biển số này ĐÃ đăng ký gửi xe — điểm danh ở danh sách thay vì ghi xe lạ.",
-			"registered": daDangKy,
-		})
-		return
-	}
-
-	photoKey, ok := h.parkingLuuAnh(c, b.Photo, ngay)
-	if !ok {
-		return
-	}
-	var photoArg interface{}
-	if photoKey != "" {
-		photoArg = photoKey
-	}
-	facID := scope.UserFacility(u) // điều hành không gắn cơ sở -> NULL
-
-	var id int
-	err = h.pool().QueryRow(ctx, `
-		INSERT INTO parking_checks (check_date, facility_id, vehicle_id, plate, plate_norm, status, photo_key, note, checked_by)
-		VALUES ($1,$2,NULL,$3,$4,$5,$6,$7,$8) RETURNING id`,
-		ngay, facID, plate, norm, parkingXeLa, photoArg, strings.TrimSpace(b.Note), u.Username).Scan(&id)
-	if err != nil {
-		serverErr(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"ok": true, "id": id, "date": ngay})
-}
-
 type parkingFinishBody struct {
 	Date string `json:"date"`
 }
 
-// ParkingFinish: POST /api/maintenance/parking/finish — chốt lượt: xe chưa đánh dấu thành VẮNG.
+// ParkingFinish: POST /api/maintenance/parking/finish — chốt lượt: xe chưa đánh dấu thành VẮNG,
+// rồi ghi bản tổng kết ngày + gửi mail cho quản trị viên (parking_bao_cao.go).
 func (h *Handlers) ParkingFinish(c *gin.Context) {
 	u := auth.CurrentUser(c)
 	var b parkingFinishBody
@@ -360,7 +299,7 @@ func (h *Handlers) ParkingFinish(c *gin.Context) {
 		return
 	}
 
-	cond := []string{"v.deleted_at IS NULL", "s.deleted_at IS NULL", parkingXeHieuLuc("$1")}
+	cond := []string{"v.deleted_at IS NULL", "s.deleted_at IS NULL", parkingXeHieuLuc("$1"), "NOT " + parkingChuDaTra("$1")}
 	params := []interface{}{ngay}
 	parkingFacCond(u, c, &cond, &params, "s.facility_id")
 	params = append(params, parkingVang)
@@ -368,7 +307,8 @@ func (h *Handlers) ParkingFinish(c *gin.Context) {
 	params = append(params, u.Username)
 	phBy := "$" + itoa(len(params))
 
-	ct, err := h.pool().Exec(c.Request.Context(), `
+	ctx := c.Request.Context()
+	ct, err := h.pool().Exec(ctx, `
 		INSERT INTO parking_checks (check_date, facility_id, vehicle_id, plate, plate_norm, status, checked_by)
 		SELECT $1, s.facility_id, v.id, v.plate, `+parkingSQLNorm+`, `+phStatus+`, `+phBy+`
 		FROM vehicles v JOIN students s ON s.id = v.student_id
@@ -379,10 +319,15 @@ func (h *Handlers) ParkingFinish(c *gin.Context) {
 		serverErr(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true, "date": ngay, "da_ghi_vang": ct.RowsAffected()})
+	daily, err := h.parkingChotNgay(ctx, u, c, ngay)
+	if err != nil {
+		serverErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "date": ngay, "da_ghi_vang": ct.RowsAffected(), "daily": daily})
 }
 
-// ParkingUndo: DELETE /api/maintenance/parking/:id — bỏ một lần đánh dấu hoặc xoá bản ghi xe lạ.
+// ParkingUndo: DELETE /api/maintenance/parking/:id — bỏ một lần đánh dấu.
 func (h *Handlers) ParkingUndo(c *gin.Context) {
 	u := auth.CurrentUser(c)
 	id, ok := paramInt(c, "id")
@@ -423,40 +368,7 @@ func (h *Handlers) ParkingUndo(c *gin.Context) {
 
 // ParkingPhoto: GET /api/maintenance/parking/photo/:id — proxy ảnh biển số từ bucket riêng tư.
 func (h *Handlers) ParkingPhoto(c *gin.Context) {
-	u := auth.CurrentUser(c)
-	id, ok := paramInt(c, "id")
-	if !ok || h.Store == nil {
-		c.Status(http.StatusNotFound)
-		return
-	}
-	ctx := c.Request.Context()
-	var (
-		facID *int
-		key   *string
-	)
-	if h.pool().QueryRow(ctx, "SELECT facility_id, photo_key FROM parking_checks WHERE id=$1", id).
-		Scan(&facID, &key) != nil || key == nil || *key == "" {
-		c.Status(http.StatusNotFound)
-		return
-	}
-	if !scope.CanAccessFacility(u, facID) {
-		c.Status(http.StatusForbidden)
-		return
-	}
-	obj, err := h.Store.GetObject(ctx, h.Store.CccdBucket, *key)
-	if err != nil {
-		c.Status(http.StatusNotFound)
-		return
-	}
-	defer obj.Body.Close()
-	ct := obj.ContentType
-	if ct == "" {
-		ct = "image/jpeg"
-	}
-	c.Header("Content-Type", ct)
-	c.Header("X-Content-Type-Options", "nosniff")
-	c.Header("Cache-Control", "private, max-age=300")
-	_, _ = io.Copy(c.Writer, obj.Body)
+	h.parkingPhotoTuBang(c, "parking_checks")
 }
 
 // ParkingReport: GET /api/maintenance/parking/report?from=&to= — ma trận xe × ngày + thống kê.
@@ -527,10 +439,30 @@ func (h *Handlers) ParkingReport(c *gin.Context) {
 		return
 	}
 
+	// Xe lạ trong khoảng — nay là báo cáo loại 'stranger' (tên cột giữ như cũ cho màn báo cáo).
+	condLa := []string{"pr.report_date BETWEEN $1 AND $2", "pr.kind = $3"}
+	paramsLa := []interface{}{from, to, parkingBaoCaoXeLa}
+	parkingFacCond(u, c, &condLa, &paramsLa, "pr.facility_id")
+	rowsLa, err := h.pool().Query(ctx, `
+		SELECT pr.id, to_char(pr.report_date,'YYYY-MM-DD') AS check_date, pr.plate, pr.note,
+		       pr.reported_by AS checked_by, pr.status,
+		       (pr.photo_key IS NOT NULL AND pr.photo_key <> '') AS has_photo
+		FROM parking_reports pr
+		WHERE `+joinAnd(condLa)+`
+		ORDER BY pr.report_date DESC, pr.id DESC`, paramsLa...)
+	if err != nil {
+		serverErr(c, err)
+		return
+	}
+	xeLa, err := db.RowsToMaps(rowsLa)
+	if err != nil {
+		serverErr(c, err)
+		return
+	}
+
 	theoXe := map[int]map[string]string{}          // vehicle_id -> ngày -> trạng thái
 	theoBienDaGo := map[string]map[string]string{} // biển chuẩn hoá của xe đã gỡ khỏi danh sách
 	tenDaGo := map[string]string{}
-	xeLa := []map[string]interface{}{}
 	theoNgay := map[string][2]int{} // ngày -> [có mặt, vắng]
 
 	for _, m := range danhDau {
@@ -540,7 +472,6 @@ func (h *Handlers) ParkingReport(c *gin.Context) {
 			ngay = ngay[:10]
 		}
 		if st == parkingXeLa {
-			xeLa = append(xeLa, m)
 			continue
 		}
 		d := theoNgay[ngay]
@@ -558,7 +489,7 @@ func (h *Handlers) ParkingReport(c *gin.Context) {
 			theoXe[vid][ngay] = st
 			continue
 		}
-		// vehicle_id NULL mà không phải xe lạ = xe đã bị gỡ khỏi danh sách; vẫn phải hiện.
+		// vehicle_id NULL = xe đã bị gỡ khỏi danh sách; vẫn phải hiện.
 		norm := studentsJSString(m["plate_norm"])
 		if norm == "" {
 			continue

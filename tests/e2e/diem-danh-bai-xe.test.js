@@ -6,6 +6,12 @@ const P = '__test_pk';
 // Dọn theo CƠ SỞ riêng của bộ test, không chỉ theo tiền tố tên: bước "chốt lượt kiểm" ghi một dòng
 // cho MỌI xe trong tầm nhìn, nên chạy trên cơ sở chung là đóng dấu lên cả xe thật.
 async function clean(db) {
+  // BL-120: xe lạ nay là báo cáo (parking_reports); chốt lượt ghi thêm bản tổng kết ngày.
+  await db.query(`DELETE FROM parking_reports
+                   WHERE plate LIKE '${P}%' OR reported_by LIKE '${P}%'
+                      OR facility_id IN (SELECT id FROM facilities WHERE name LIKE '${P}%')`);
+  await db.query(`DELETE FROM parking_daily_reports
+                   WHERE facility_id IN (SELECT id FROM facilities WHERE name LIKE '${P}%')`);
   await db.query(`DELETE FROM parking_checks
                    WHERE plate LIKE '${P}%' OR checked_by LIKE '${P}%'
                       OR facility_id IN (SELECT id FROM facilities WHERE name LIKE '${P}%')`);
@@ -85,7 +91,8 @@ module.exports = {
     const la = await t.api('POST', '/api/maintenance/parking/stranger', T,
       { plate: P + '-LA 999.99', note: 'Xe máy đỏ đậu chắn lối ra' });
     t.eq('Ghi nhận xe lạ → 200', la.status, 200, `HTTP ${la.status} ${la.json && la.json.error || ''}`);
-    const gtVN = await t.db.query('SELECT note, char_length(note) k, octet_length(note) b FROM parking_checks WHERE id=$1', [la.json.id]);
+    // BL-120: xe lạ ghi ở parking_reports (báo cáo loại 'stranger'), không còn ở parking_checks.
+    const gtVN = await t.db.query('SELECT note, char_length(note) k, octet_length(note) b FROM parking_reports WHERE id=$1', [la.json.id]);
     t.ok('Ghi chú tiếng Việt CÓ DẤU lưu đúng UTF-8 (byte > ký tự)',
       gtVN.rows[0].b > gtVN.rows[0].k, `${gtVN.rows[0].k} ký tự · ${gtVN.rows[0].b} byte`);
     const trong = await t.api('POST', '/api/maintenance/parking/stranger', T, { plate: '   ' });

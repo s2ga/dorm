@@ -115,6 +115,13 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	veh.POST("", h.CreateVehicle)
 	veh.PUT("/:id", h.UpdateVehicle)
 	veh.DELETE("/:id", h.DeleteVehicle)
+	// BL-120: đề nghị sửa biển từ an ninh (duyệt/từ chối), báo cáo bãi xe, số liệu cho chuông.
+	veh.GET("/plate-requests", h.ListPlateRequests)
+	veh.POST("/plate-requests/:id/approve", h.ApprovePlateRequest)
+	veh.POST("/plate-requests/:id/reject", h.RejectPlateRequest)
+	veh.GET("/parking-reports", h.AdminParkingReports)
+	veh.POST("/parking-reports/:id/status", h.AdminParkingReportStatus)
+	veh.GET("/parking-alerts", h.AdminParkingAlerts)
 
 	// Cổng học viên (me) — mở theo liên kết hồ sơ (student_id), không theo vai:
 	// tài khoản nhân viên kiêm khách thuê phòng cũng vào được.
@@ -196,18 +203,21 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	req.POST("/checkout/:id/bill", h.BillCheckout)              // BL-62 GĐ2d: lập phiếu thu (handed_over -> billed)
 	req.POST("/checkout/:id/refund-done", h.RefundDoneCheckout) // BL-62 GĐ2e: đánh dấu đã hoàn cọc (billed -> done)
 	req.POST("/checkout/create", h.AdminCreateCheckout)         // BL-62 GĐ2f: BQL tạo đơn hộ + duyệt luôn
-	// BL-62 GĐ2c: an ninh bàn giao — role maintenance CŨNG được, nên đăng ký riêng ngoài group admin/staff.
-	api.POST("/requests/checkout/:id/handover", a.RequireAuth(), a.RequireRole("admin", "staff", "maintenance"), h.HandoverCheckout)
+	req.POST("/checkout/:id/handover", h.HandoverCheckout)      // BL-62 GĐ2c: bàn giao — chỉ quản trị (an ninh đi qua biên bản)
 
-	// Bảo trì (maintenance)
+	// Biên bản bàn giao (BL-121): quản trị xem, xác nhận (đi qua lõi Check-in/Check-out) hoặc trả lại.
+	hr := api.Group("/handover-reports", a.RequireAuth(), a.RequireRole("admin", "staff"))
+	hr.GET("", h.HandoverReportsList)
+	hr.POST("/:id/approve", h.HandoverReportApprove)
+	hr.POST("/:id/return", h.HandoverReportReturn)
+
+	// Bảo trì / an ninh (maintenance). An ninh KHÔNG ghi vào hồ sơ học viên: bàn giao đi qua biên bản.
 	mnt := api.Group("/maintenance", a.RequireAuth(), a.RequireRole("maintenance", "admin"))
 	mnt.GET("/handovers", h.MaintHandovers)
 	mnt.GET("/handovers/summary", h.MaintHandoversSummary)
-	mnt.POST("/handovers/:id/checkin", h.MaintHandoverCheckin)
-	mnt.POST("/handovers/:id/checkout", h.MaintHandoverCheckout)
-	mnt.PUT("/handovers/:id/checkin-date", h.MaintSuaNgayNhan)    // đến nhận lệch ngày -> sửa tại chỗ
-	mnt.PUT("/handovers/:id/checkout-date", h.UpdateCheckoutDate) // trả lệch ngày -> an ninh sửa được như ngày nhận
-	mnt.PUT("/vehicles/:id/plate", h.MaintSuaBienSo)              // biển trên app khác xe thật -> sửa tại chỗ
+	mnt.GET("/assets", h.MaintAssets)                    // danh mục tài sản chỉ đọc — tick hư hao trong biên bản
+	mnt.POST("/reports", h.MaintReportCreate)            // lập biên bản nhận / trả phòng
+	mnt.PUT("/vehicles/:id/plate", h.MaintDeNghiSuaBien) // BL-120: gửi ĐỀ NGHỊ, quản trị viên duyệt mới đổi
 	mnt.GET("/tasks", h.MaintTasks)
 	mnt.GET("/summary", h.MaintSummary)
 	mnt.POST("/tasks/:id/status", h.MaintTaskStatus)
@@ -221,6 +231,11 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	pk.POST("/stranger", h.ParkingStranger)
 	pk.POST("/finish", h.ParkingFinish)
 	pk.DELETE("/:id", h.ParkingUndo)
+	// BL-120: báo cáo của an ninh (xe lạ / vắng nhiều ngày / khác) — nhóm riêng, không đụng /parking/:id.
+	pkr := api.Group("/maintenance/parking-reports", a.RequireAuth(), a.RequireRole("maintenance", "admin", "staff"))
+	pkr.POST("", h.ParkingReportCreate)
+	pkr.DELETE("/:id", h.ParkingReportDelete)
+	pkr.GET("/:id/photo", h.ParkingReportPhoto)
 
 	// Ảnh giới thiệu + nội quy (media) — chỉ admin
 	med := api.Group("/media", a.RequireAuth(), a.RequireRole("admin"))

@@ -1,6 +1,7 @@
 // BL-117: ngày đăng ký là DỰ KIẾN; chỉ bước XÁC NHẬN (Check-in/out của BQL hoặc an ninh bàn giao)
 // mới ghi ngày thật, mở/đóng lượt ở, và xác nhận trả thì tự khoá tài khoản. Người không đến thì
 // khoá hồ sơ, không bao giờ thành "đang ở".
+const bcrypt = require('../../node_modules/bcryptjs');
 const P = '__test_xnvr';
 const PW = 'hv123456';
 
@@ -142,26 +143,52 @@ module.exports = {
     t.ok('F: phòng không còn đếm bạn ấy ở đâu cả', p.occ === 0 && p.up === 0, JSON.stringify(p));
     t.eq('F: tài khoản của hồ sơ khoá đăng nhập → 403', (await dangNhap(uF)).status, 403);
 
-    // ── G. An ninh bàn giao = xác nhận thật (cả vào lẫn ra) ──────────────────────────────
+    // ── G. An ninh LẬP BIÊN BẢN, quản trị XÁC NHẬN mới đổi hồ sơ (BL-121) ────────────────
+    await t.db.query(`INSERT INTO users (username,password_hash,role,approved,facility_id) VALUES ($1,$2,'maintenance',true,$3)`,
+      [P + '_anninh', bcrypt.hashSync(PW, 10), fac]);
+    const AN = await t.login(P + '_anninh', PW);
     const uG = P + '_g';
     const sG = await duyet(await donMoi('G', '0901000003'), uG, ngay(0));
     t.eq('G: sau duyệt vẫn chưa có lượt ở', (await luot(sG)).length, 0);
-    const rG1 = await t.api('POST', `/api/maintenance/handovers/${sG}/checkin`, T, { note: 'Đã nhận chìa khoá' });
-    t.eq('G: an ninh xác nhận bàn giao nhận phòng → 200', rG1.status, 200, `HTTP ${rG1.status} ${rG1.json && rG1.json.error || ''}`);
+    const duongCu = await t.api('POST', `/api/maintenance/handovers/${sG}/checkin`, AN, { note: 'x' });
+    t.eq('G: đường an ninh xác nhận THẲNG đã gỡ → 404', duongCu.status, 404, `HTTP ${duongCu.status}`);
+    const bb1 = await t.api('POST', '/api/maintenance/reports', AN,
+      { kind: 'checkin', student_id: sG, date: ngay(0), meter_reading: 100, keys_count: 2, cleanliness: 'sach', note: 'Đã giao chìa' });
+    t.eq('G: an ninh lập biên bản nhận phòng → 200', bb1.status, 200, `HTTP ${bb1.status} ${bb1.json && bb1.json.error || ''}`);
     h = await hoSo(sG);
-    t.ok('G: bàn giao = ngày vào THẬT hôm nay, lịch dự kiến xoá', (h.ci || '').slice(0, 10) === ngay(0) && !h.lich_vao, JSON.stringify(h));
+    t.ok('G: lập biên bản KHÔNG đổi hồ sơ (chưa ngày vào thật, chưa lượt ở)', !h.ci && (await luot(sG)).length === 0, JSON.stringify(h));
+    const bb1b = await t.api('POST', '/api/maintenance/reports', AN, { kind: 'checkin', student_id: sG, date: ngay(0), meter_reading: 100 });
+    t.eq('G: lập biên bản thứ hai khi đang chờ → 409', bb1b.status, 409, `HTTP ${bb1b.status}`);
+    const cam = await t.api('POST', `/api/handover-reports/${bb1.json.id}/approve`, AN, {});
+    t.eq('G: an ninh tự duyệt biên bản → 403', cam.status, 403, `HTTP ${cam.status}`);
+    const ds = await t.api('GET', '/api/handover-reports?status=pending', T);
+    t.ok('G: quản trị thấy biên bản đang chờ', ds.status === 200 && (ds.json || []).some(r => r.id === bb1.json.id), `HTTP ${ds.status}`);
+    const ok1 = await t.api('POST', `/api/handover-reports/${bb1.json.id}/approve`, T, {});
+    t.eq('G: quản trị xác nhận biên bản nhận phòng → 200', ok1.status, 200, `HTTP ${ok1.status} ${ok1.json && ok1.json.error || ''}`);
+    h = await hoSo(sG);
+    t.ok('G: xác nhận = ngày vào THẬT hôm nay, lịch dự kiến xoá', (h.ci || '').slice(0, 10) === ngay(0) && !h.lich_vao, JSON.stringify(h));
     l = await luot(sG);
     t.ok('G: mở 1 lượt ở', l.length === 1 && l[0].den === null, JSON.stringify(l));
     t.eq('G: nhật ký "vào" 1 dòng', await nhatKy(sG, 'in'), 1);
-    const rG1b = await t.api('POST', `/api/maintenance/handovers/${sG}/checkin`, T, {});
-    t.eq('G: xác nhận bàn giao lần 2 → 409', rG1b.status, 409, `HTTP ${rG1b.status}`);
-    const rG2 = await t.api('POST', `/api/maintenance/handovers/${sG}/checkout`, T, { actual_date: ngay(0), note: 'Trả chìa' });
-    t.eq('G: an ninh xác nhận bàn giao trả phòng → 200', rG2.status, 200, `HTTP ${rG2.status} ${rG2.json && rG2.json.error || ''}`);
+    t.eq('G: số điện an ninh ghi thành lần chốt reason=checkin', (await t.db.query(
+      `SELECT COUNT(*)::int c FROM meter_reads WHERE room_id=$1 AND reason='checkin' AND student_id=$2`, [rid, sG])).rows[0].c, 1);
+    t.eq('G: xác nhận biên bản lần 2 → 409', (await t.api('POST', `/api/handover-reports/${bb1.json.id}/approve`, T, {})).status, 409);
+    const bb2 = await t.api('POST', '/api/maintenance/reports', AN, { kind: 'checkout', student_id: sG, date: ngay(0), meter_reading: 120, note: 'Trả chìa' });
+    t.eq('G: an ninh lập biên bản trả phòng → 200', bb2.status, 200, `HTTP ${bb2.status} ${bb2.json && bb2.json.error || ''}`);
+    h = await hoSo(sG);
+    t.ok('G: hồ sơ VẪN đang ở sau khi lập biên bản trả', h.status === 'in' && !h.co, JSON.stringify(h));
+    const tl = await t.api('POST', `/api/handover-reports/${bb2.json.id}/return`, T, { note: 'Ghi thiếu chìa khoá' });
+    t.eq('G: quản trị trả lại biên bản → 200', tl.status, 200, `HTTP ${tl.status} ${tl.json && tl.json.error || ''}`);
+    const bb3 = await t.api('POST', '/api/maintenance/reports', AN, { kind: 'checkout', student_id: sG, date: ngay(0), meter_reading: 125, keys_count: 2, note: 'Lập lại' });
+    t.eq('G: an ninh lập lại sau khi bị trả → 200', bb3.status, 200, `HTTP ${bb3.status} ${bb3.json && bb3.json.error || ''}`);
+    const ok2 = await t.api('POST', `/api/handover-reports/${bb3.json.id}/approve`, T, {});
+    t.eq('G: quản trị xác nhận biên bản trả phòng → 200', ok2.status, 200, `HTTP ${ok2.status} ${ok2.json && ok2.json.error || ''}`);
     h = await hoSo(sG);
     t.ok('G: ngày trả thật hôm nay, status out', (h.co || '').slice(0, 10) === ngay(0) && h.status === 'out', JSON.stringify(h));
     t.eq('G: lượt ở đóng hôm nay', ((await luot(sG))[0].den || '').slice(0, 10), ngay(0));
-    t.ok('G: tài khoản tự khoá sau bàn giao trả', (await khoa(uG)).deleted_at !== null);
+    t.ok('G: tài khoản tự khoá sau xác nhận trả', (await khoa(uG)).deleted_at !== null);
     t.eq('G: đăng nhập → 403', (await dangNhap(uG)).status, 403);
+    t.eq('G: biên bản đã bị trả lại không duyệt được nữa → 409', (await t.api('POST', `/api/handover-reports/${bb2.json.id}/approve`, T, {})).status, 409);
 
     await clean(t.db);
   },

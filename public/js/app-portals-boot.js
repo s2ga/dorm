@@ -3,12 +3,14 @@
 /* ================================================================= */
 /* ==============          CỔNG HỌC VIÊN            ================= */
 /* ================================================================= */
+// Tên cơ sở của người đang đăng nhập (từ /auth/me), in dưới lời chào ở mọi cổng.
+const coSoCuaToi = sep => Auth.user && Auth.user.facility_name ? `${sep || ''}${IC.building} ${esc(Auth.user.facility_name)}` : '';
 async function renderStudent() {
   _congDangMo = 'student';
   el('app').innerHTML = `
     <div class="app"><div class="main" style="margin:0 auto;max-width:760px;width:100%">
       <div class="top">
-        <div><h1>${IC.home} Phòng của tôi</h1><div class="sub">Xin chào, ${esc(Auth.user.full_name || Auth.user.username)}</div></div>
+        <div><h1>${IC.home} Phòng của tôi</h1><div class="sub">Xin chào, ${esc(Auth.user.full_name || Auth.user.username)}${coSoCuaToi(' · ')}</div></div>
         ${/* Chuông tách RIÊNG khỏi .toolbar: trên điện thoại cụm nút hành động tự xuống dòng, để
              chung một cụm là kéo cái chuông xuống theo (đã gặp ở cổng quản lý, xem app-admin-core). */''}
         <div class="flex" style="gap:10px">
@@ -476,7 +478,7 @@ async function renderMaintenance() {
   el('app').innerHTML = `
     <div class="app"><div class="main" style="margin:0 auto;max-width:940px;width:100%">
       <div class="top">
-        <div><h1>${IC.wrench} Bảo trì ký túc xá</h1><div class="sub">Xin chào, ${esc(Auth.user.full_name || Auth.user.username)}</div></div>
+        <div><h1>${IC.shield} An ninh &amp; Bảo trì</h1><div class="sub">Xin chào, ${esc(Auth.user.full_name || Auth.user.username)}${coSoCuaToi(' · ')}</div></div>
         <div class="toolbar"><button class="btn sm" data-act="loadMaintenance">${IC.refresh} Tải lại</button>${laKiemNhiem() ? `<button class="btn sm" data-act="switchPortal" data-args='["tenant"]'>${IC.home} Cổng khách thuê</button>` : ''}${dungMatKhau() ? `<button class="btn sm" data-act="changePwd">${IC.key} Đổi mật khẩu</button>` : ''}<button class="btn sm" data-act="logout">${IC.logOut} Đăng xuất</button></div>
       </div>
       <div class="content" id="content"><div class="spinner"></div></div>
@@ -495,15 +497,16 @@ function startMaintPolling() {
     if (!Auth.user || _congDangMo !== 'maintenance') { clearInterval(_maintTimer); _maintTimer = null; return; }
     if (document.hidden) return;
     if (el('overlay') && el('overlay').classList.contains('show')) return;  // đang mở form -> đừng đụng
-    if (maintTab !== 'sua') return;   // đang ở tab khác -> đừng vẽ lại dưới tay người ta
+    if (maintTab === 'xe') return;    // bãi xe có ô tìm + camera đang dùng -> đừng vẽ lại dưới tay người ta
     loadMaintenance();
   }, 60000);
 }
 // Mỗi việc MỘT tab, tab nào chỉ hiện việc của tab đó. Nhồi nhiều bảng vào một màn thì trên điện
 // thoại thành cuộn vô tận, còn trên máy tính thì hai bảng cạnh nhau bị bóp cụt cột.
-let maintTab = 'nhan';
+let maintTab = 'ca';
 let maintChiChuaXong = false;   // ô cảnh báo bật bộ lọc này -> bảng chỉ còn việc cần làm
 const MAINT_TABS = [
+  ['ca', 'shield', 'Ca trực'],
   ['nhan', 'userCheck', 'Nhận phòng'],
   ['tra', 'doorOpen', 'Trả phòng'],
   ['sua', 'wrench', 'Sửa chữa'],
@@ -529,9 +532,49 @@ async function loadMaintenance() {
   el('content').innerHTML = `<div class="pill-row" id="maintTabs"></div><div id="maintBody"><div class="spinner"></div></div>`;
   veTab();
   maintNapDem().then(veTab);
+  if (maintTab === 'ca') return loadCaTruc();
   if (maintTab === 'xe') return loadParkingCheck();
   if (maintTab === 'sua') return loadMaintViec();
   return loadHandovers();
+}
+// Thẻ Ca trực: việc của HÔM NAY gom một chỗ — mở app ra là thấy, không phải chọn tab rồi dò cả tháng.
+async function loadCaTruc() {
+  const body = el('maintBody'); if (!body) return;
+  let d;
+  try { d = await API.handovers(''); }
+  catch (e) { body.innerHTML = `<div class="bang-tin">${IC.alert} ${esc(e.message)}</div>`; return; }
+  _hoDS = d; hoMonth = d.month;
+  let viec = [], xe = null;
+  try { viec = await API.maintenanceTasks(); } catch {}
+  try { xe = await API.parkingList(''); } catch {}
+  const hn = today();
+  const ymd = x => String(x.date || '').slice(0, 10);
+  const quaNgay = x => Math.floor((Date.parse(hn) - Date.parse(ymd(x))) / 86400000);
+  const canNhan = (d.checkins || []).filter(x => ymd(x) <= hn && !hoXong(x, true));
+  const canTra = (d.checkouts || []).filter(x => ymd(x) <= hn && !hoXong(x, false));
+  const chuaBienBan = ds => ds.filter(x => !(x.report && x.report.status === 'pending')).length;
+  const suaChua = viec.filter(v => v.status !== 'done').length;
+  const s = xe && xe.summary;
+  const xeTom = s ? `${(+s.co_mat || 0) + (+s.vang || 0)}/${+s.tong || 0} xe đã kiểm` : 'chưa tải được';
+  const bang = (ds, laNhan) => ds.length ? `<div class="table-wrap card-tbl"><table>
+      <thead><tr><th>Học viên</th><th>Phòng</th><th>${laNhan ? 'Dự kiến vào' : 'Đăng ký trả'}</th><th></th></tr></thead>
+      <tbody>${ds.map(x => `<tr>
+        <td data-label="Học viên"><strong>${esc(x.name)}</strong></td><td data-label="Phòng">${esc(x.room_name || '—')}</td>
+        <td data-label="Ngày">${fmtDate(x.date)}${quaNgay(x) > 0 ? ` <span class="badge red">quá ${quaNgay(x)} ngày</span>` : ''}</td>
+        <td class="num">${hoNut(x, laNhan)}</td></tr>`).join('')}</tbody></table></div>`
+    : '<div class="empty">Không có ai.</div>';
+  const o = (ico, nhan, gia, tab, mau) => `<div class="stat" role="button" tabindex="0" data-act="maintGo" data-args='["${tab}"]' style="cursor:pointer">
+      <div class="l">${ico} ${nhan}</div><div class="v sm" style="color:${mau}">${gia}</div></div>`;
+  body.innerHTML = `
+    <div class="bang-tin">${IC.info} Hôm nay ${fmtDate(hn)} — việc cần làm trong ca. Bấm từng ô để sang thẻ tương ứng.</div>
+    <div class="cards" style="margin-top:10px">
+      ${o(IC.userCheck, 'Nhận phòng cần biên bản', chuaBienBan(canNhan), 'nhan', chuaBienBan(canNhan) ? 'var(--amber-ink)' : 'var(--green)')}
+      ${o(IC.doorOpen, 'Trả phòng cần biên bản', chuaBienBan(canTra), 'tra', chuaBienBan(canTra) ? 'var(--amber-ink)' : 'var(--green)')}
+      ${o(IC.wrench, 'Sửa chữa chưa xong', suaChua, 'sua', suaChua ? 'var(--amber-ink)' : 'var(--green)')}
+      ${o(IC.bike, 'Bãi xe hôm nay', `<span style="font-size:15px">${esc(xeTom)}</span>`, 'xe', s && +s.chua_danh ? 'var(--amber-ink)' : 'var(--green)')}
+    </div>
+    <div class="panel"><div class="hd"><h2>${IC.userCheck} Nhận phòng hôm nay và quá hạn (${canNhan.length})</h2></div>${bang(canNhan, true)}</div>
+    <div class="panel"><div class="hd"><h2>${IC.doorOpen} Trả phòng hôm nay và quá hạn (${canTra.length})</h2></div>${bang(canTra, false)}</div>`;
 }
 // Ô cảnh báo: bấm được, bật/tắt bộ lọc "chỉ việc chưa xong". Còn việc thì màu hổ phách, hết thì xanh.
 function maintCanhBao(soViec, chuCoViec, chuXong) {
@@ -573,13 +616,36 @@ async function loadMaintViec() {
 }
 /* ---- Bàn giao phòng (bảo trì xác nhận nhận/trả phòng thực tế) ---- */
 let hoMonth = '';
+let _hoDS = { checkins: [], checkouts: [] };   // dữ liệu tháng đang xem — form biên bản tra tên/phòng/xe từ đây
+let _hoAssets = null;                            // danh mục tài sản, nạp một lần để tick hư hao
+const HO_VE_SINH = { sach: 'Sạch', ban_nhe: 'Bẩn nhẹ', ban_nang: 'Bẩn nặng' };
+const hoTim = id => (_hoDS.checkins || []).concat(_hoDS.checkouts || []).find(x => x.id === id);
+// Đã xong thật: nhận = có mốc xác nhận vào; trả = có mốc xác nhận ra hoặc hồ sơ đã rời.
+const hoXong = (x, laNhan) => laNhan ? !!x.checkin_confirmed_at : !!(x.checkout_confirmed_at || x.status === 'out');
+// Ô cuối dòng: đã xong › biên bản đang chờ quản trị › bị trả lại (lập lại) › chưa có biên bản (lập mới).
+function hoNut(x, laNhan) {
+  const kind = laNhan ? 'checkin' : 'checkout', r = x.report;
+  if (hoXong(x, laNhan)) {
+    const ngay = laNhan ? x.check_in_date : (x.checkout_actual_date || x.check_out_date);
+    return `<span class="badge green">${IC.check} ${laNhan ? 'Đã nhận phòng' : 'Đã trả'} ${fmtDate(String(ngay || '').slice(0, 10))}</span>${
+      r && r.status === 'approved' ? `<div class="muted" style="font-size:11px">Biên bản #${r.id} đã xác nhận</div>` : ''}`;
+  }
+  if (r && r.status === 'pending') {
+    return `<span class="badge amber">${IC.hourglass} Chờ quản trị xác nhận</span>
+      <div class="muted" style="font-size:11px">Biên bản #${r.id} · ${esc(r.created_by || '')} · ${fmtDate(String(r.created_at).slice(0, 10))}</div>`;
+  }
+  const traLai = r && r.status === 'returned';
+  return `${traLai ? `<div style="font-size:11px;color:var(--red-ink);white-space:normal;margin-bottom:4px">${IC.alert} Quản trị trả lại: ${esc(r.review_note || '')}</div>` : ''}
+    <button class="btn sm ${traLai ? 'danger' : 'green'}" data-act="bienBanForm" data-args='["${kind}",${x.id}]'>${IC.filePen} ${
+      traLai ? 'Lập lại biên bản' : (laNhan ? 'Lập biên bản nhận phòng' : 'Lập biên bản trả phòng')}</button>`;
+}
 async function loadHandovers(month) {
   if (month) hoMonth = month;
   const area = el('maintBody'); if (!area) return;
   let d;
   try { d = await API.handovers(hoMonth); }
   catch (e) { area.innerHTML = `<div class="bang-tin">${IC.alert} ${esc(e.message)}</div>`; return; }
-  hoMonth = d.month;
+  hoMonth = d.month; _hoDS = d;
   const laNhan = maintTab === 'nhan';
   const esq = s => esc(String(s || '')).replace(/'/g, '&#39;');
   const monthsList = [];
@@ -597,23 +663,15 @@ async function loadHandovers(month) {
   const inRow = x => `<tr>
     <td data-label="Học viên"><strong>${esc(x.name)}</strong></td><td data-label="Phòng">${esc(x.room_name || '—')}</td>
     <td data-label="Biển số xe">${oXe(x)}</td>
-    <td data-label="Ngày">${fmtDate(x.date)}
-      <button class="btn sm ghost" title="Đến nhận lệch ngày — sửa về ngày thật"
-        data-act="maintSuaNgayNhanForm" data-args='[${x.id},"${esc(x.date || '')}","${esq(x.name)}"]'>${IC.pencil}</button></td>
-    <td class="num">${x.checkin_confirmed_at
-      ? `<span class="badge green">${IC.check} Đã nhận phòng</span>${x.checkin_confirm_note ? `<div class="muted" style="font-size:11px;white-space:normal">${esc(x.checkin_confirm_note)}</div>` : ''}`
-      : `<button class="btn sm green" data-act="handoverCheckinRow" data-args='[${x.id}]' data-hname="${esc(x.name)}">${IC.check} Đã nhận phòng</button>`}</td></tr>`;
+    <td data-label="Ngày">${fmtDate(x.date)}</td>
+    <td class="num">${hoNut(x, true)}</td></tr>`;
   const outRow = x => `<tr>
     <td data-label="Học viên"><strong>${esc(x.name)}</strong></td><td data-label="Phòng">${esc(x.room_name || '—')}</td><td data-label="Ngày ĐK">${fmtDate(x.date)}</td>
-    <td class="num">${x.checkout_confirmed_at
-      ? `<span class="badge green">${IC.check} Đã trả ${fmtDate(x.checkout_actual_date)}</span>
-        <button class="btn sm ghost" title="Ngày rời thật khác ngày đã ghi — sửa lại"
-          data-act="maintSuaNgayTraForm" data-args='[${x.id},"${esc((x.checkout_actual_date || '').slice(0, 10))}","${esq(x.name)}"]'>${IC.pencil}</button>${x.checkout_confirm_note ? `<div class="muted" style="font-size:11px;white-space:normal">${esc(x.checkout_confirm_note)}</div>` : ''}`
-      : `<button class="btn sm green" data-act="handoverCheckoutRow" data-args='[${x.id}]' data-hname="${esc(x.name)}" data-plandate="${esc(x.date || '')}">${IC.check} Đã trả phòng</button>`}</td></tr>`;
+    <td class="num">${hoNut(x, false)}</td></tr>`;
 
   const tatCa = laNhan ? d.checkins : d.checkouts;
-  const xong = x => (laNhan ? x.checkin_confirmed_at : x.checkout_confirmed_at);
-  const chuaXong = tatCa.filter(x => !xong(x));
+  // Việc của an ninh = chưa xong VÀ chưa có biên bản đang chờ (biên bản đang chờ là việc của quản trị).
+  const chuaXong = tatCa.filter(x => !hoXong(x, laNhan) && !(x.report && x.report.status === 'pending'));
   const hien = maintChiChuaXong ? chuaXong : tatCa;
   const tieuDe = laNhan ? 'Nhận phòng' : 'Trả phòng';
   const cotNgay = laNhan ? 'Ngày' : 'Ngày ĐK';
@@ -621,9 +679,9 @@ async function loadHandovers(month) {
     <div class="panel"><div class="hd"><h2>${laNhan ? IC.userCheck : IC.doorOpen} ${tieuDe} — ${monthLabel(hoMonth)}</h2>
       <select data-change="onHandoverMonth" aria-label="Chọn tháng" style="font-weight:600;padding:6px 8px;border-radius:8px;max-width:100%">${monthOpts}</select></div>
       <div class="pad">
-        ${maintCanhBao(chuaXong.length, `học viên ${laNhan ? 'nhận' : 'trả'} phòng chưa xác nhận`,
-    `Đã xác nhận hết ${tatCa.length} lượt ${laNhan ? 'nhận' : 'trả'} phòng tháng này.`)}
-        <div class="hint">${IC.info}<span>Xác nhận thực tế: ${laNhan ? 'giao phòng, bàn giao tài sản, phát chìa khoá.' : 'kiểm tra tài sản, thu chìa khoá, ghi ngày rời thật.'}</span></div>
+        ${maintCanhBao(chuaXong.length, `học viên ${laNhan ? 'nhận' : 'trả'} phòng chưa có biên bản`,
+    `Tháng này không còn ai cần lập biên bản ${laNhan ? 'nhận' : 'trả'} phòng.`)}
+        <div class="hint">${IC.info}<span>An ninh lập biên bản ${laNhan ? 'nhận' : 'trả'} phòng (số điện, hư hao, vệ sinh, chìa khoá); <strong>quản trị xác nhận</strong> thì hồ sơ mới đổi.</span></div>
       </div>
       <div class="table-wrap card-tbl" style="padding:0 16px 16px">
         ${hien.length ? `<table><thead><tr><th>Học viên</th><th>Phòng</th>${laNhan ? '<th>Biển số xe</th>' : ''}<th>${cotNgay}</th><th></th></tr></thead><tbody>
@@ -632,106 +690,90 @@ async function loadHandovers(month) {
       </div>
     </div>`;
 }
-// Sửa biển số ngay lúc bàn giao — an ninh nhìn tận mắt xe thật.
+// Sửa biển số = gửi ĐỀ NGHỊ; quản trị viên duyệt thì hồ sơ xe mới đổi, kết quả hiện trên dòng xe (BL-120).
 function maintSuaBienForm(vehicleId, bienCu) {
   openModal(`
-    <div class="mh"><h3>${IC.pencil} Sửa biển số xe</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mh"><h3>${IC.pencil} Đề nghị sửa biển số</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="bang-tin">${IC.info} <span>Biển đang lưu trên app: <strong>${esc(bienCu) || '(trống)'}</strong>.
-        Nhập biển ĐỌC ĐƯỢC TRÊN XE THẬT. Mọi lần sửa đều được ghi vết.</span></div>
-      <div class="field" style="margin:0"><label>Biển số thật ${SAO}</label>
+        Nhập biển ĐỌC ĐƯỢC TRÊN XE THẬT. Quản trị viên duyệt xong hồ sơ xe mới đổi; duyệt hay từ chối đều hiện trên dòng xe.</span></div>
+      <div class="field"><label>Biển số thật ${SAO}</label>
         <input id="sb_plate" value="${esc(bienCu)}" placeholder="59-XB 564.35" autocapitalize="characters"></div>
+      <div class="field" style="margin:0"><label>Ghi chú <span class="opt">(vì sao khác: đọc nhầm, đổi xe...)</span></label>
+        <input id="sb_note" placeholder="VD: Biển trên xe là 564.35, app ghi 564.53"></div>
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button>
-      <button class="btn pri" data-act="maintSuaBienLuu" data-args='[${vehicleId}]'>Lưu biển mới</button></div>`);
+      <button class="btn pri" data-act="maintSuaBienLuu" data-args='[${vehicleId}]'>Gửi đề nghị</button></div>`);
   setTimeout(() => el('sb_plate') && el('sb_plate').focus(), 50);
 }
 async function maintSuaBienLuu(vehicleId) {
   const v = el('sb_plate').value.trim();
   if (!v) return toast('Chưa nhập biển số', 'err');
-  const r = await guard(() => API.maintSuaBienSo(vehicleId, v));
+  const r = await guard(() => API.maintSuaBienSo(vehicleId, v, el('sb_note').value.trim()));
   closeModal();
-  toast(r.doi ? `Đã sửa biển: ${r.cu || '(trống)'} → ${r.plate}` : 'Biển không đổi');
+  toast(r.doi ? `Đã gửi đề nghị ${r.cu || '(trống)'} → ${r.plate} — chờ quản trị viên duyệt` : 'Biển không đổi');
   loadMaintenance();
 }
-// Học viên đến nhận phòng lệch ngày ghi trên app -> sửa về ngày thật.
-function maintSuaNgayNhanForm(id, ngayCu, ten) {
+/* ---- Biên bản bàn giao (BL-121): an ninh ghi nhận, quản trị xác nhận. Không ghi thẳng vào hồ sơ. ---- */
+async function bienBanForm(kind, id) {
+  const x = hoTim(id); if (!x) return toast('Tải lại danh sách rồi thử lại', 'err');
+  const laNhan = kind === 'checkin';
+  if (!_hoAssets) { try { _hoAssets = await API.maintAssets(); } catch { _hoAssets = []; } }
+  const lm = x.last_meter, lmm = x.last_month_meter;
+  const goiY = lm ? `Lần chốt gần nhất: <strong>${esc(String(lm.reading))}</strong> ngày ${fmtDate(String(lm.read_date).slice(0, 10))}`
+    : lmm ? `Kỳ ${esc(String(lmm.month))}: đầu kỳ <strong>${esc(String(lmm.reading_start))}</strong>${+lmm.reading_end ? `, cuối kỳ <strong>${esc(String(lmm.reading_end))}</strong>` : ''}`
+      : 'Chưa có lần chốt nào để đối chiếu';
+  const bien = (x.vehicles || []).map(v => v.plate).filter(Boolean).join(', ');
+  const hang = a => `<div class="flex" style="justify-content:space-between;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)">
+      <div><strong>${esc(a.name)}</strong><div class="muted" style="font-size:11px">${money(+a.fee || 0)} / ${esc(a.unit || 'cái')}</div></div>
+      <input type="number" min="0" max="100" step="1" inputmode="numeric" value="0" data-asset="${a.id}" data-fee="${+a.fee || 0}"
+        data-input="onBbHuHao" style="width:64px;text-align:center" aria-label="Số lượng ${esc(a.name)}"></div>`;
   openModal(`
-    <div class="mh"><h3>${IC.calendar} Sửa ngày nhận phòng</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mh"><h3>${IC.filePen} Biên bản ${laNhan ? 'nhận' : 'trả'} phòng</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <div class="bang-tin">${IC.info} <span><strong>${esc(ten)}</strong> — app ghi ngày nhận phòng là
-        <strong>${fmtDate(ngayCu)}</strong>. Nếu hôm nay mới đến thật thì sửa lại, tiền phòng tính theo ngày này.
-        Mọi lần sửa đều được ghi vết.</span></div>
-      <div class="field" style="margin:0"><label>Ngày nhận phòng thật ${SAO}</label><input id="sn_ngay"></div>
+      <div class="bang-tin">${IC.info} <span><strong>${esc(x.name)}</strong> · phòng ${esc(x.room_name || '—')} · ${laNhan ? 'dự kiến vào' : 'đăng ký trả'} ${fmtDate(x.date)}.
+        An ninh ghi nhận tại chỗ, <strong>quản trị xác nhận</strong> thì hồ sơ mới đổi.</span></div>
+      <div class="field"><label>Ngày ${laNhan ? 'nhận' : 'trả'} phòng thật ${SAO}</label><input id="bb_ngay"></div>
+      ${x.room_name ? `<div class="field"><label>Số điện công-tơ phòng ${esc(x.room_name)} ${SAO}</label>
+        <input id="bb_dien" type="number" min="0" step="0.1" inputmode="decimal" placeholder="Số trên đồng hồ điện, VD: 1234.5">
+        <div class="hint">${IC.info}<span>${goiY}. Công-tơ chỉ quay tới, ghi nhỏ hơn là app từ chối.</span></div></div>` : ''}
+      <div class="field"><label>Hư hao <span class="opt">(gõ số lượng, máy tự tính tiền theo danh mục)</span></label>
+        <div id="bb_huhao">${_hoAssets.length ? _hoAssets.map(hang).join('') : '<div class="muted" style="font-size:12px">Chưa có danh mục tài sản — quản trị thêm ở Cài đặt.</div>'}</div>
+        <div style="text-align:right;margin-top:6px">Tổng hư hao: <strong id="bb_tong">${money(0)}</strong></div></div>
+      <div class="grid2">
+        <div class="field"><label>Vệ sinh phòng</label><select id="bb_vs"><option value="">— chưa đánh giá —</option>${Object.entries(HO_VE_SINH).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></div>
+        <div class="field"><label>Chìa khoá ${laNhan ? 'đã giao' : 'đã thu'} <span class="opt">(số lượng)</span></label><input id="bb_chia" type="number" min="0" max="50" inputmode="numeric" placeholder="VD: 2"></div>
+      </div>
+      <div class="field"><label>Biển số xe đối chiếu <span class="opt">(biển đọc trên xe thật)</span></label><input id="bb_bien" value="${esc(bien)}" placeholder="VD: 59-XB 564.35"></div>
+      <div class="field" style="margin:0"><label>Ghi chú</label><textarea id="bb_note" rows="3" placeholder="${laNhan ? 'VD: Phòng sạch, đã giao chìa phòng + chìa tủ' : 'VD: Tường có vết bẩn nhỏ, thiếu 1 móc treo'}"></textarea></div>
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button>
-      <button class="btn pri" data-act="maintSuaNgayNhanLuu" data-args='[${id}]'>Lưu ngày mới</button></div>`);
-  attachDate(el('sn_ngay'), (ngayCu || '').slice(0, 10));
+      <button class="btn pri" data-act="bienBanLuu" data-args='["${kind}",${id}]'>${IC.check} Gửi biên bản cho quản trị</button></div>`);
+  attachDate(el('bb_ngay'), today(), { max: today() });
 }
-async function maintSuaNgayNhanLuu(id) {
-  const iso = el('sn_ngay').dataset.iso;
-  if (!iso) return toast('Chưa chọn ngày', 'err');
-  const r = await guard(() => API.maintSuaNgayNhan(id, iso));
+function onBbHuHao() {
+  const box = el('bb_huhao'); if (!box) return;
+  let tong = 0;
+  box.querySelectorAll('input[data-asset]').forEach(i => { tong += Math.max(0, parseInt(i.value, 10) || 0) * (+i.dataset.fee || 0); });
+  const t = el('bb_tong'); if (t) t.textContent = money(tong);
+}
+async function bienBanLuu(kind, id) {
+  const ngay = el('bb_ngay').dataset.iso;
+  if (!ngay) return toast('Chọn ngày bàn giao thật', 'err');
+  const dien = el('bb_dien') ? el('bb_dien').value.trim() : '';
+  if (el('bb_dien') && !dien) return toast('Ghi số điện công-tơ', 'err');
+  const damages = [];
+  document.querySelectorAll('#bb_huhao input[data-asset]').forEach(i => { const q = parseInt(i.value, 10) || 0; if (q > 0) damages.push({ asset_id: +i.dataset.asset, quantity: q }); });
+  const chia = el('bb_chia').value.trim();
+  const r = await guard(() => API.maintReportCreate({
+    kind, student_id: id, date: ngay, meter_reading: dien || undefined, damages,
+    cleanliness: el('bb_vs').value, keys_count: chia === '' ? undefined : +chia,
+    plates: el('bb_bien').value.trim(), note: el('bb_note').value.trim(),
+  }));
+  if (r === null) return;
   closeModal();
-  toast(r.doi ? `Đã sửa ngày nhận: ${fmtDate(r.cu) || '(trống)'} → ${fmtDate(r.date)}` : 'Ngày không đổi');
+  toast(`Đã gửi biên bản #${r.id} — chờ quản trị xác nhận${+r.damage_amount ? ` · hư hao ${money(+r.damage_amount)}` : ''}`);
   loadMaintenance();
-}
-// Trả phòng đã xác nhận nhưng ngày rời thật khác -> an ninh sửa tại chỗ, cùng handler "Sửa ngày trả"
-// của BQL (dời lượt ở + tính lại phiếu hai tháng + phần điện bạn cùng phòng).
-function maintSuaNgayTraForm(id, ngayCu, ten) {
-  openModal(`
-    <div class="mh"><h3>${IC.calendar} Sửa ngày trả phòng</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
-    <div class="mb">
-      <div class="bang-tin">${IC.info} <span><strong>${esc(ten)}</strong> — app ghi ngày trả phòng là
-        <strong>${fmtDate(ngayCu)}</strong>. Rời sớm/muộn hơn thì sửa về ngày thật: phiếu báo và phần điện
-        của cả phòng tính lại theo ngày này. Mọi lần sửa đều được ghi vết.</span></div>
-      <div class="field"><label>Ngày trả phòng thật ${SAO}</label><input id="st_ngay"></div>
-      <div class="field" style="margin:0"><label>Ghi chú</label><input id="st_note" placeholder="VD: bạn ấy rời từ hôm trước, nay mới báo"></div>
-    </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button>
-      <button class="btn pri" data-act="maintSuaNgayTraLuu" data-args='[${id}]'>Lưu ngày mới</button></div>`);
-  attachDate(el('st_ngay'), (ngayCu || '').slice(0, 10));
-}
-async function maintSuaNgayTraLuu(id) {
-  const iso = el('st_ngay').dataset.iso;
-  if (!iso) return toast('Chưa chọn ngày', 'err');
-  const r = await guard(() => API.maintSuaNgayTra(id, { date: iso, note: el('st_note').value.trim() }));
-  closeModal();
-  toast(r.cu === r.moi ? 'Ngày không đổi' : `Đã sửa ngày trả: ${fmtDate(r.cu)} → ${fmtDate(r.moi)}`);
-  loadHandovers();
-  if (r.canh_bao) alert(r.canh_bao);
-}
-function handoverCheckinForm(id, name) {
-  openModal(`
-    <div class="mh"><h3>${IC.check} Xác nhận đã nhận phòng</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
-    <div class="mb">
-      <p class="muted" style="margin:0 0 10px">Học viên: <strong>${esc(name)}</strong></p>
-      <div class="field"><label>Ghi chú bàn giao <span class="opt">(tình trạng phòng, đã giao chìa khóa...)</span></label><textarea id="ho_note" rows="3" placeholder="VD: Phòng sạch, đã giao 1 chìa khóa phòng + 1 chìa tủ locker..."></textarea></div>
-    </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="submitHandoverCheckin" data-args='[${id}]'>Xác nhận đã nhận phòng</button></div>`);
-}
-async function submitHandoverCheckin(id) {
-  await guard(() => API.confirmHandoverCheckin(id, el('ho_note').value.trim()));
-  closeModal(); toast('Đã xác nhận nhận phòng'); loadHandovers();
-}
-function handoverCheckoutForm(id, name, planDate) {
-  openModal(`
-    <div class="mh"><h3>${IC.check} Xác nhận đã trả phòng</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
-    <div class="mb">
-      <p class="muted" style="margin:0 0 10px">Học viên: <strong>${esc(name)}</strong>${planDate ? ` · đăng ký trả: ${fmtDate(planDate)}` : ''}</p>
-      <div class="field"><label>Ngày trả phòng THỰC TẾ *</label><input id="ho_date"></div>
-      <div class="field"><label>Ghi chú (kiểm tra tài sản, thu chìa khóa) *</label><textarea id="ho_note" rows="3" placeholder="VD: Đã thu 2 chìa khóa, tài sản đủ, tường có vết bẩn nhỏ..."></textarea></div>
-      <div class="hint" style="font-size:12px">${IC.info} Ngày trả thực tế sẽ cập nhật để phiếu báo tính đúng số ngày ở.</div>
-    </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="submitHandoverCheckout" data-args='[${id}]'>Xác nhận đã trả phòng</button></div>`);
-  attachDate(el('ho_date'), planDate || today());
-}
-async function submitHandoverCheckout(id) {
-  const d = el('ho_date').dataset.iso;
-  if (!d) return toast('Chọn ngày trả phòng thực tế', 'err');
-  const r = await guard(() => API.confirmHandoverCheckout(id, d, el('ho_note').value.trim()));
-  closeModal(); toast('Đã xác nhận trả phòng'); loadHandovers();
-  if (r && r.canh_bao) alert(r.canh_bao);   // phiếu kỳ này ĐÃ THU — báo để BQL xử phần chênh
 }
 async function maintDo(id, status) { await guard(() => API.maintenanceTaskStatus(id, status)); toast('Đã cập nhật'); loadMaintenance(); }
 function maintDoneForm(id) {
@@ -766,6 +808,11 @@ async function submitMaintBlock(id) {
 let pkNgay = '';            // ngày đang điểm danh (rỗng = hôm nay, server tự điền)
 let pkData = null;          // dữ liệu lượt kiểm đang mở (dùng cho tìm nhanh + gợi ý biển)
 let pkAnh = '';             // ảnh biển số vừa chụp ở form quét (data URL)
+let pkTab = 'dang_o';       // tab đang xem: 'dang_o' (xe phải kiểm) | 'da_tra' (chủ đã trả / xe hết hiệu lực)
+// Nhãn loại báo cáo và trạng thái xử lý (khớp parking_reports.kind / .status).
+const PK_LOAI = { stranger: ['Xe lạ', 'red'], absent_long: ['Vắng nhiều ngày', 'amber'], other: ['Khác', 'gray'] };
+const PK_BC_TT = { new: ['Mới gửi', 'blue'], seen: ['QTV đã xem', 'amber'], done: ['Đã xử lý', 'green'] };
+function pkTabGo(t) { pkTab = t; loadParkingCheck(); }
 
 // Chuẩn hoá biển số y hệt máy chủ: bỏ mọi ký tự không phải chữ/số, viết hoa.
 // "63-B4 508.58" và "63B450858" là CÙNG một xe.
@@ -779,20 +826,60 @@ async function loadParkingCheck() {
   pkNgay = d.date; pkData = d;
   const s = d.summary, laHomNay = d.date === d.hom_nay;
   const conLai = s.chua_danh;
+  const nguong = d.alert_days || 7;
+  const dangO = d.vehicles.filter(v => v.phai_kiem);
+  const daTra = d.vehicles.filter(v => !v.phai_kiem);
+  const ds = pkTab === 'da_tra' ? daTra : dangO;
+  const esq = x => esc(String(x || '')).replace(/'/g, '&#39;');
 
-  const hang = v => {
-    const tim = `${v.plate || ''} ${v.plate_norm || ''} ${v.student_name || ''} ${v.room_name || ''} ${v.vehicle_type || ''} ${v.sticker || ''}`.toLowerCase();
-    const nut = v.status
-      ? `<span class="badge ${v.status === 'present' ? 'green' : 'gray'}">${v.status === 'present' ? IC.checkCircle + ' Có' : IC.undo + ' Vắng'}</span>
-         <button class="btn sm ghost" title="Bỏ đánh dấu" data-act="pkBoDanhDau" data-args='[${v.check_id}]'>${IC.undo}</button>`
-      : `<button class="btn sm green" data-act="pkDanhDau" data-args='[${v.vehicle_id},"present"]'>${IC.check} Có</button>
-         <button class="btn sm ghost" data-act="pkDanhDau" data-args='[${v.vehicle_id},"absent"]'>Vắng</button>`;
-    return `<tr data-s="${esc(tim)}">
-      <td data-label="Biển số"><strong>${esc(v.plate || '—')}</strong>${v.sticker ? `<div class="muted" style="font-size:11px">Dán số ${esc(v.sticker)}</div>` : ''}</td>
-      <td data-label="Chủ xe">${esc(v.student_name || '—')}<div class="muted" style="font-size:11px">${esc(v.room_name || 'Chưa xếp phòng')}${v.vehicle_type ? ' · ' + esc(v.vehicle_type) : ''}</div></td>
-      <td class="num"><div class="rowbtns" style="justify-content:flex-end;flex-wrap:wrap;gap:4px">${nut}
-        ${v.has_photo ? `<button class="btn sm ghost" title="Xem ảnh đã chụp" data-act="pkXemAnh" data-args='[${v.check_id}]'>${IC.search}</button>` : ''}</div></td></tr>`;
+  // Vì sao xe nằm ở tab "Đã trả": chủ đã trả phòng, xe ngừng gửi, hoặc chưa tới ngày bắt đầu gửi.
+  const lyDo = v => v.da_tra ? `Đã trả phòng ${fmtDate(v.check_out_date)}`
+    : (v.to_date && v.to_date < d.date) ? `Ngừng gửi ${fmtDate(v.to_date)}`
+      : (v.from_date && v.from_date > d.date) ? `Gửi từ ${fmtDate(v.from_date)}` : 'Hết hiệu lực';
+  const nhan = v => {
+    const b = [];
+    if (v.phai_kiem && v.vang_lien_tiep >= nguong) b.push(`<span class="badge red" title="Vắng liên tiếp, chưa thấy lại">${IC.alert} vắng ${v.vang_lien_tiep} ngày</span>`);
+    if (v.req_status === 'pending') b.push(`<span class="badge amber" title="Đề nghị sửa biển đang chờ quản trị viên duyệt">${IC.hourglass} chờ duyệt biển ${esc(v.req_plate)}</span>`);
+    else if (v.req_status === 'rejected') b.push(`<span class="badge red" title="${esq(v.req_note)}">${IC.undo} từ chối sửa biển${v.req_note ? ': ' + esc(v.req_note) : ''}</span>`);
+    else if (v.req_status === 'approved') b.push(`<span class="badge green">${IC.check} đã duyệt biển mới</span>`);
+    return b.length ? `<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px">${b.join('')}</div>` : '';
   };
+  const phong = v => {
+    const ph = esc(v.room_name || 'Chưa xếp phòng');
+    return v.prev_room_name
+      ? `<span title="Chuyển phòng từ ${fmtDate(v.moved_on)}">${esc(v.prev_room_name)} ${IC.chevronRight} <strong>${ph}</strong></span>`
+      : ph;
+  };
+  const hang = v => {
+    const tim = `${v.plate || ''} ${v.plate_norm || ''} ${v.student_name || ''} ${v.room_name || ''} ${v.prev_room_name || ''} ${v.vehicle_type || ''} ${v.sticker || ''}`.toLowerCase();
+    const diemDanh = !v.phai_kiem ? `<span class="badge gray">${esc(lyDo(v))}</span>`
+      : v.status
+        ? `<span class="badge ${v.status === 'present' ? 'green' : 'gray'}">${v.status === 'present' ? IC.checkCircle + ' Có' : IC.undo + ' Vắng'}</span>
+         <button class="btn sm ghost" title="Bỏ đánh dấu" data-act="pkBoDanhDau" data-args='[${v.check_id}]'>${IC.undo}</button>`
+        : `<button class="btn sm green" data-act="pkDanhDau" data-args='[${v.vehicle_id},"present"]'>${IC.check} Có</button>
+         <button class="btn sm ghost" data-act="pkDanhDau" data-args='[${v.vehicle_id},"absent"]'>Vắng</button>`;
+    const hanhDong = v.phai_kiem ? `
+        <button class="btn sm" title="Gửi báo cáo về xe này cho quản trị viên" data-act="pkBaoCaoXeForm" data-args='[${v.vehicle_id}]'>${IC.flag} Báo cáo</button>
+        <button class="btn sm ghost" title="${v.req_status === 'pending' ? 'Đang chờ duyệt đề nghị trước' : 'Biển thật khác biển này — đề nghị sửa'}"
+          data-act="maintSuaBienForm" data-args='[${v.vehicle_id},"${esq(v.plate)}"]' ${v.req_status === 'pending' ? 'disabled' : ''}>${IC.pencil} Sửa biển</button>` : '';
+    return `<tr data-s="${esc(tim)}">
+      <td data-label="Biển số"><strong>${esc(v.plate || '—')}</strong>${v.sticker ? `<div class="muted" style="font-size:11px">Dán số ${esc(v.sticker)}</div>` : ''}${nhan(v)}</td>
+      <td data-label="Chủ xe">${esc(v.student_name || '—')} ${statusBadge(v)}<div class="muted" style="font-size:12px;margin-top:2px">${phong(v)}${v.vehicle_type ? ' · ' + esc(v.vehicle_type) : ''}</div></td>
+      <td class="num"><div class="rowbtns" style="justify-content:flex-end;flex-wrap:wrap;gap:4px">${diemDanh}
+        ${v.has_photo ? `<button class="btn sm ghost" title="Xem ảnh đã chụp" data-act="pkXemAnh" data-args='[${v.check_id}]'>${IC.search}</button>` : ''}${hanhDong}</div></td></tr>`;
+  };
+
+  const gio = iso => { const t = new Date(iso); return isNaN(t) ? '' : `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`; };
+  const mailChu = x => x.mail_sent_at ? `${IC.mail} mail đã gửi lúc ${gio(x.mail_sent_at)}${x.mail_to ? ' tới ' + esc(x.mail_to) : ''}`
+    : x.mail_error ? `${IC.alert} mail chưa gửi được: ${esc(x.mail_error)}` : `${IC.hourglass} đang gửi mail…`;
+  const oChot = (d.dailies || []).map(x => `<div class="bang-tin" style="border-color:var(--green);margin-top:10px">${IC.checkCircle}
+    <span>${x.facility_name ? `<strong>${esc(x.facility_name)}</strong> · ` : ''}Đã chốt lúc <strong>${gio(x.closed_at)}</strong> bởi <strong>${esc(x.closed_by)}</strong> ·
+    ${x.co_mat} có · ${x.vang} vắng · ${x.so_bao_cao} báo cáo${x.vang_lau ? ` · <strong>${x.vang_lau}</strong> xe vắng ≥ ${nguong} ngày` : ''}<br>${mailChu(x)}</span></div>`).join('');
+  const daChot = (d.dailies || []).length > 0;
+
+  const bc = d.reports || [];
+  const loaiBc = k => { const [t, c] = PK_LOAI[k] || [k, 'gray']; return `<span class="badge ${c}">${esc(t)}</span>`; };
+  const ttBc = k => { const [t, c] = PK_BC_TT[k] || [k, 'gray']; return `<span class="badge ${c}">${esc(t)}</span>`; };
 
   body.innerHTML = `
     <div class="cards">
@@ -805,39 +892,44 @@ async function loadParkingCheck() {
       <h2>${IC.bike} Điểm danh bãi xe — ${fmtDate(d.date)}${laHomNay ? ' (hôm nay)' : ''}</h2>
       <div class="toolbar" style="flex-wrap:wrap;gap:6px">
         <input id="pk_ngay" style="max-width:150px">
-        <button class="btn sm pri" data-act="pkCameraForm">${IC.search} Quét camera</button>
-        <button class="btn sm" data-act="pkQuetForm">${IC.pencil} Gõ biển</button>
-        <button class="btn sm" data-act="pkXeLaForm">${IC.plus} Xe lạ</button>
-        <button class="btn sm" data-act="pkBaoCaoForm">${IC.history} Báo cáo</button>
+        <button class="btn sm danger" data-act="pkXeLaForm">${IC.alert} Báo xe lạ</button>
       </div></div>
       <div class="pad">
-        <div class="bang-tin">${IC.info} Đi hết bãi rồi bấm <strong>Chốt lượt kiểm</strong> — mọi xe chưa đánh dấu sẽ được ghi là <strong>vắng</strong>.</div>
+        <div class="bang-tin">${IC.info} <span>Đi hết bãi, bấm <strong>Có</strong>/<strong>Vắng</strong> từng xe; xe nào cần thì <strong>Báo cáo</strong> hoặc <strong>Sửa biển</strong>.
+          Xong bấm <strong>Chốt & gửi báo cáo ngày</strong>: xe chưa đánh sẽ ghi là <strong>vắng</strong>, quản trị viên nhận báo cáo qua chuông và email.</span></div>
         <div class="flex" style="gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">
-          <button class="btn ${conLai ? 'pri' : ''}" ${conLai ? '' : 'disabled'} data-act="pkChotLuot">${IC.check} Chốt lượt kiểm${conLai ? ` (${conLai} xe còn lại)` : ' — đã kiểm đủ'}</button>
+          <button class="btn ${conLai ? 'pri' : ''}" data-act="pkChotLuot">${IC.check} ${daChot ? 'Chốt lại & gửi báo cáo' : 'Chốt & gửi báo cáo ngày'}${conLai ? ` (${conLai} xe còn lại)` : ''}</button>
         </div>
+        ${oChot}
+      </div>
+      <div class="pill-row" style="margin:0 16px 10px">
+        <button class="btn sm ${pkTab === 'dang_o' ? 'pri' : ''}" data-act="pkTabGo" data-args='["dang_o"]'>${IC.home} Đang ở <span class="badge ${pkTab === 'dang_o' ? 'gray' : 'green'}" style="margin-left:2px">${dangO.length}</span></button>
+        <button class="btn sm ${pkTab === 'da_tra' ? 'pri' : ''}" data-act="pkTabGo" data-args='["da_tra"]'>${IC.doorOpen} Đã trả <span class="badge gray" style="margin-left:2px">${daTra.length}</span></button>
       </div>
       <div class="search" style="margin:0 16px 10px"><span class="i">${IC.search}</span>
         <input id="pk_tim" placeholder="Gõ vài số cuối biển, tên chủ xe hoặc phòng..."></div>
-      <div class="table-wrap card-tbl">${d.vehicles.length
+      <div class="table-wrap card-tbl">${ds.length
         ? `<table><thead><tr><th>Biển số</th><th>Chủ xe</th><th></th></tr></thead><tbody>
-            ${d.vehicles.map(hang).join('')}
+            ${ds.map(hang).join('')}
             <tr class="no-result" style="display:none"><td colspan="3"><div class="empty">Không tìm thấy xe phù hợp.</div></td></tr>
           </tbody></table>`
-        : '<div class="empty">Ngày này không có xe nào đang đăng ký gửi.</div>'}</div>
+        : `<div class="empty">${pkTab === 'da_tra' ? 'Không có xe nào đã trả hoặc hết hiệu lực.' : 'Ngày này không có xe nào đang đăng ký gửi.'}</div>`}</div>
     </div>
-    <div class="panel"><div class="hd"><h2>${IC.alert} Xe lạ ghi nhận hôm nay (${d.strangers.length})</h2></div>
-      <div class="table-wrap card-tbl">${d.strangers.length
-        ? `<table><thead><tr><th>Biển số</th><th>Ghi chú</th><th>Người ghi</th><th></th></tr></thead><tbody>
-            ${d.strangers.map(x => `<tr>
-              <td data-label="Biển số"><strong>${esc(x.plate)}</strong></td>
-              <td data-label="Ghi chú" class="muted">${esc(x.note || '—')}</td>
-              <td data-label="Người ghi" class="muted">${esc(x.checked_by || '—')}</td>
+    <div class="panel"><div class="hd"><h2>${IC.flag} Báo cáo đã gửi hôm nay (${bc.length})</h2></div>
+      <div class="table-wrap card-tbl">${bc.length
+        ? `<table><thead><tr><th>Loại</th><th>Biển số</th><th>Nội dung</th><th>Người gửi</th><th>Trạng thái</th><th></th></tr></thead><tbody>
+            ${bc.map(x => `<tr>
+              <td data-label="Loại">${loaiBc(x.kind)}</td>
+              <td data-label="Biển số"><strong>${esc(x.plate || '—')}</strong>${x.student_name ? `<div class="muted" style="font-size:11px">${esc(x.student_name)}${x.room_name ? ' · ' + esc(x.room_name) : ''}</div>` : ''}</td>
+              <td data-label="Nội dung" class="muted">${esc(x.note || '—')}</td>
+              <td data-label="Người gửi" class="muted">${esc(x.reported_by || '—')}</td>
+              <td data-label="Trạng thái">${ttBc(x.status)}${x.handled_note ? `<div class="muted" style="font-size:11px">${esc(x.handled_note)}</div>` : ''}</td>
               <td class="num"><div class="rowbtns" style="justify-content:flex-end;gap:4px">
-                ${x.has_photo ? `<button class="btn sm ghost" title="Xem ảnh" data-act="pkXemAnh" data-args='[${x.id}]'>${IC.search}</button>` : ''}
-                <button class="btn sm ghost" title="Xoá bản ghi" data-act="pkBoDanhDau" data-args='[${x.id}]'>${IC.trash}</button>
+                ${x.has_photo ? `<button class="btn sm ghost" title="Xem ảnh" data-act="pkXemAnhBaoCao" data-args='[${x.id}]'>${IC.search}</button>` : ''}
+                ${x.status === 'new' ? `<button class="btn sm ghost" title="Xoá báo cáo gửi nhầm" data-act="pkXoaBaoCao" data-args='[${x.id}]'>${IC.trash}</button>` : ''}
               </div></td></tr>`).join('')}
           </tbody></table>`
-        : '<div class="empty">Chưa ghi nhận xe lạ nào.</div>'}</div>
+        : '<div class="empty">Chưa gửi báo cáo nào trong ngày.</div>'}</div>
     </div>`;
   attachDate(el('pk_ngay'), d.date, { max: d.hom_nay });
   el('pk_ngay').addEventListener('change', () => { pkNgay = el('pk_ngay').dataset.iso; loadParkingCheck(); });
@@ -856,18 +948,59 @@ async function pkBoDanhDau(id) {
 }
 async function pkChotLuot() {
   const conLai = pkData ? pkData.summary.chua_danh : 0;
-  if (!confirm(`Chốt lượt kiểm ngày ${fmtDate(pkNgay)}?\n\n${conLai} xe chưa đánh dấu sẽ được ghi là VẮNG.`)) return;
+  const daChot = !!(pkData && pkData.dailies && pkData.dailies.length);
+  if (!confirm(`Chốt lượt kiểm ngày ${fmtDate(pkNgay)} và gửi báo cáo cho quản trị viên?\n\n${conLai} xe chưa đánh dấu sẽ được ghi là VẮNG.${daChot ? '\nHôm nay đã chốt một lần — lần này ghi đè số liệu; mail chỉ gửi lại nếu số liệu đổi.' : ''}`)) return;
   const r = await guard(() => API.parkingFinish(pkNgay));
-  toast(`Đã chốt lượt · ghi ${r.da_ghi_vang} xe vắng`);
+  const dl = r.daily || {};
+  toast(`Đã chốt · ghi ${r.da_ghi_vang} xe vắng · ${dl.mail === 'sending' ? 'đang gửi mail báo cáo' : 'số liệu không đổi, không gửi lại mail'}`);
   loadParkingCheck();
 }
-function pkXemAnh(id) {
+function pkXemAnh(id) { pkModalAnh('/api/maintenance/parking/photo/' + id); }
+function pkXemAnhBaoCao(id) { pkModalAnh('/api/maintenance/parking-reports/' + id + '/photo'); }
+function pkModalAnh(src) {
   openModal(`
     <div class="mh"><h3>${IC.search} Ảnh biển số</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
-    <div class="mb" style="text-align:center"><img src="/api/maintenance/parking/photo/${id}" alt="Ảnh biển số"
+    <div class="mb" style="text-align:center"><img src="${src}" alt="Ảnh biển số"
       style="max-width:100%;border-radius:10px" data-err="onImgFallback">
       <div style="display:none;padding:24px" class="empty">Không tải được ảnh.</div></div>
     <div class="mf"><button class="btn" data-act="closeModal">Đóng</button></div>`);
+}
+
+/* ---- Báo cáo về MỘT xe đã đăng ký (vắng nhiều ngày / khác) -> quản trị viên nhận qua chuông + mail ngày ---- */
+function pkBaoCaoXeForm(vehicleId) {
+  const v = pkData && pkData.vehicles.find(x => x.vehicle_id === vehicleId);
+  if (!v) return;
+  pkAnh = '';
+  const nguong = (pkData && pkData.alert_days) || 7;
+  const goiY = v.vang_lien_tiep >= nguong ? 'absent_long' : 'other';
+  openModal(`
+    <div class="mh"><h3>${IC.flag} Báo cáo xe ${esc(v.plate || '')}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mb">
+      <p class="muted" style="margin:0 0 10px">${esc(v.student_name || '—')}${v.room_name ? ' · ' + esc(v.room_name) : ''}${v.vang_lien_tiep ? ` · vắng liên tiếp <strong>${v.vang_lien_tiep}</strong> ngày` : ''}</p>
+      <div class="field"><label>Loại báo cáo</label><select id="pk_bc_loai">
+        <option value="absent_long" ${goiY === 'absent_long' ? 'selected' : ''}>Xe vắng nhiều ngày</option>
+        <option value="other" ${goiY === 'other' ? 'selected' : ''}>Khác (hư hỏng, đậu sai chỗ, nghi ngờ...)</option></select></div>
+      <div class="field"><label>Nội dung</label>
+        <textarea id="pk_bc_note" rows="3" placeholder="VD: Không thấy xe từ đầu tuần, gọi chủ xe không nghe máy"></textarea></div>
+      <div class="field"><label>Ảnh <span class="opt">(không bắt buộc)</span></label>
+        ${pkNutAnh('pk_cam3', 'onPkCam3')}
+        <div id="pk_xem3" style="margin-top:8px"></div></div>
+      <div class="hint" style="font-size:12px">${IC.info} Báo cáo hiện ngay trên chuông của quản trị viên và nằm trong mail tổng kết khi chốt ngày.</div>
+    </div>
+    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="pkLuuBaoCaoXe" data-args='[${vehicleId}]'>Gửi báo cáo</button></div>`);
+  setTimeout(() => { const i = el('pk_bc_note'); if (i) i.focus(); }, 60);
+}
+function onPkCam3() { pkDocAnh(this, xong => { el('pk_xem3').innerHTML = xong ? `<img src="${xong}" style="max-width:100%;border-radius:8px">` : ''; }); }
+async function pkLuuBaoCaoXe(vehicleId) {
+  const kind = el('pk_bc_loai').value, note = el('pk_bc_note').value.trim();
+  if (kind === 'other' && !note) return toast('Nhập nội dung báo cáo', 'err');
+  await guard(() => API.parkingReportCreate({ date: pkNgay, kind, vehicle_id: vehicleId, note, photo: pkAnh || undefined }));
+  closeModal(); toast('Đã gửi báo cáo cho quản trị viên'); loadParkingCheck();
+}
+async function pkXoaBaoCao(id) {
+  if (!confirm('Xoá báo cáo này? Chỉ xoá được khi quản trị viên chưa xem.')) return;
+  await guard(() => API.parkingReportDelete(id));
+  toast('Đã xoá báo cáo'); loadParkingCheck();
 }
 
 /* ---- Quét biển số: chụp ảnh + gõ vài ký tự -> app gợi ý 3 xe khớp nhất, bấm 1 lần là xong ---- */
@@ -1631,7 +1764,7 @@ function renderSecretary() {
   el('app').innerHTML = `
     <div class="app"><div class="main" style="margin:0 auto;max-width:1180px;width:100%">
       <div class="top">
-        <div><h1>${IC.fileText} Hồ sơ lưu trữ</h1><div class="sub">Xin chào, ${esc(Auth.user.full_name || Auth.user.username)} — Ban thư ký</div></div>
+        <div><h1>${IC.fileText} Hồ sơ lưu trữ</h1><div class="sub">Xin chào, ${esc(Auth.user.full_name || Auth.user.username)} — Ban thư ký${coSoCuaToi(' · ')}</div></div>
         <div class="toolbar"><button class="btn sm" data-act="loadSecretary">${IC.refresh} Tải lại</button>${laKiemNhiem() ? `<button class="btn sm" data-act="switchPortal" data-args='["tenant"]'>${IC.home} Cổng khách thuê</button>` : ''}${dungMatKhau() ? `<button class="btn sm" data-act="changePwd">${IC.key} Đổi mật khẩu</button>` : ''}<button class="btn sm" data-act="logout">${IC.logOut} Đăng xuất</button></div>
       </div>
       <div class="content" id="content"><div class="spinner"></div></div>
@@ -1716,8 +1849,8 @@ function chongBam2Lan(fn) {
   'saveHocVienInfo', 'linkTenant', 'unlinkTenant',
   'doApprove', 'doTransfer', 'doCheckOut', 'doCheckIn', 'doSetLeader', 'unsetLeader',
   'doChangePwd', 'doResetUserPw', 'doKhoaHoSo', 'runGenerate',
-  'settleDepositAndClose', 'submitCheckoutReq', 'submitDamage', 'submitHandoverCheckin',
-  'submitHandoverCheckout', 'submitMaintBlock', 'submitMaintDone', 'toggleWashing',
+  'settleDepositAndClose', 'submitCheckoutReq', 'submitDamage', 'bienBanLuu', 'bienBanTraLai',
+  'submitMaintBlock', 'submitMaintDone', 'toggleWashing',
   'toggleMyWashing', 'uploadRulesDoc', 'removeRulesDoc', 'luuChotGiuaKy', 'xoaChotGiuaKy',
   'luuTatCaChotGiuaKy',
 ].forEach(ten => {

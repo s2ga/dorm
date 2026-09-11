@@ -146,12 +146,18 @@ func (h *Handlers) ListVehicles(c *gin.Context) {
 	} else {
 		scope.ApplyFacilityFilter(u, "s.facility_id", &cond, &params)
 	}
+	// Kèm phòng cũ (vừa chuyển phòng) và đề nghị sửa biển đang chờ — cùng nguồn với màn an ninh.
+	params = append(params, timeutil.Today())
+	phNgay := "$" + itoa(len(params))
 	rows, err := h.pool().Query(c.Request.Context(), `
 		SELECT v.*, s.name AS student_name, s.status AS student_status, s.check_out_date,
-		  r.name AS room_name, r.gender AS room_gender
+		  r.name AS room_name, r.gender AS room_gender,
+		  pr.prev_room_name, pr.moved_on, yc.req_id, yc.req_plate, yc.req_status, yc.req_by
 		FROM vehicles v
 		JOIN students s ON s.id = v.student_id
 		LEFT JOIN rooms r ON r.id = s.room_id
+		LEFT JOIN LATERAL (`+parkingSQLPhongCu(phNgay)+`) pr ON true
+		LEFT JOIN LATERAL (`+parkingSQLDeNghiBien+`) yc ON true
 		WHERE `+joinAnd(cond)+`
 		ORDER BY r.name, s.name`, params...)
 	if err != nil {

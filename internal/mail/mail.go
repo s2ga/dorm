@@ -224,3 +224,118 @@ Ban quản lý %s%s`, schoolName, dorm, student.Name, code, cls, len(violations)
 	}
 	return true, "", s["school_email"]
 }
+
+// SmtpConfigured: đủ host + tài khoản + mật khẩu. Khác SmtpReady: không đòi email nhà trường
+// (mail nội bộ cho quản trị viên không liên quan nhà trường).
+func SmtpConfigured(s map[string]string) bool {
+	return s["smtp_host"] != "" && s["smtp_user"] != "" && s["smtp_pass"] != ""
+}
+
+// Dữ liệu mail tổng kết điểm danh bãi xe trong ngày (BL-120).
+type ParkingXe struct {
+	Plate, Owner, Room string
+	Days               int // ngày vắng liên tiếp
+}
+type ParkingBaoCao struct {
+	Kind, Plate, Owner, Note, By string
+}
+type ParkingDaily struct {
+	Date, Facility, ClosedBy, ClosedAt                                    string
+	Tong, CoMat, Vang, ChuaDanh, SoBaoCao, VangLau, DeNghiBien, AlertDays int
+	XeVang, XeVangLau                                                     []ParkingXe
+	BaoCao                                                                []ParkingBaoCao
+}
+
+func parkingDongXe(i int, x ParkingXe) string {
+	s := fmt.Sprintf("%d. %s — %s", i+1, x.Plate, x.Owner)
+	if x.Room != "" {
+		s += " · phòng " + x.Room
+	}
+	if x.Days > 0 {
+		s += fmt.Sprintf(" · vắng liên tiếp %d ngày", x.Days)
+	}
+	return s
+}
+
+// SendParkingDaily: mail tổng kết bãi xe cho quản trị viên khi an ninh chốt ngày.
+func SendParkingDaily(ctx context.Context, database *db.DB, to []string, d ParkingDaily) (bool, string) {
+	s, err := database.GetSettings(ctx)
+	if err != nil {
+		return false, "Lỗi đọc cấu hình"
+	}
+	if !SmtpConfigured(s) {
+		return false, "Chưa cấu hình SMTP trong Cài đặt"
+	}
+	if len(to) == 0 {
+		return false, "Chưa có email nhận báo cáo"
+	}
+	dorm := s["dorm_name"]
+	if dorm == "" {
+		dorm = "Ký túc xá"
+	}
+	noi := dorm
+	if d.Facility != "" {
+		noi += " — " + d.Facility
+	}
+	subject := fmt.Sprintf("[%s] Báo cáo bãi xe %s — %d có · %d vắng · %d báo cáo", dorm, fmtDate(d.Date), d.CoMat, d.Vang, d.SoBaoCao)
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "BÁO CÁO ĐIỂM DANH BÃI XE — %s\n%s\nNgười chốt: %s · lúc %s\n\n", fmtDate(d.Date), noi, d.ClosedBy, d.ClosedAt)
+	fmt.Fprintf(&b, "Xe phải kiểm: %d · Có gửi: %d · Vắng: %d", d.Tong, d.CoMat, d.Vang)
+	if d.ChuaDanh > 0 {
+		fmt.Fprintf(&b, " · Chưa kiểm: %d", d.ChuaDanh)
+	}
+	fmt.Fprintf(&b, "\nXe vắng liên tiếp từ %d ngày: %d\nĐề nghị sửa biển số đang chờ duyệt: %d\n", d.AlertDays, d.VangLau, d.DeNghiBien)
+
+	fmt.Fprintf(&b, "\nXE VẮNG HÔM NAY (%d)\n", len(d.XeVang))
+	if len(d.XeVang) == 0 {
+		b.WriteString("(không có)\n")
+	}
+	for i, x := range d.XeVang {
+		b.WriteString(parkingDongXe(i, x) + "\n")
+	}
+	if len(d.XeVangLau) > 0 {
+		fmt.Fprintf(&b, "\nXE VẮNG LIÊN TIẾP TỪ %d NGÀY (%d) — kiểm tra lại đăng ký hoặc hỏi chủ xe\n", d.AlertDays, len(d.XeVangLau))
+		for i, x := range d.XeVangLau {
+			b.WriteString(parkingDongXe(i, x) + "\n")
+		}
+	}
+	fmt.Fprintf(&b, "\nBÁO CÁO CỦA AN NINH (%d)\n", len(d.BaoCao))
+	if len(d.BaoCao) == 0 {
+		b.WriteString("(không có)\n")
+	}
+	for i, r := range d.BaoCao {
+		line := fmt.Sprintf("%d. [%s] %s", i+1, r.Kind, r.Plate)
+		if r.Owner != "" {
+			line += " — " + r.Owner
+		}
+		if r.Note != "" {
+			line += ": " + r.Note
+		}
+		if r.By != "" {
+			line += " (" + r.By + ")"
+		}
+		b.WriteString(line + "\n")
+	}
+	b.WriteString("\nMở app → Dịch vụ → Gửi xe để duyệt đề nghị sửa biển và xử lý báo cáo.\n\n--\n" + dorm)
+	if s["hotline"] != "" {
+		b.WriteString("\nHotline: " + s["hotline"])
+	}
+	text := b.String()
+	html := strings.ReplaceAll(escHTML(text), "\n", "<br>")
+
+	from := s["smtp_from"]
+	if from == "" {
+		from = s["smtp_user"]
+	}
+	m := gomail.NewMessage()
+	m.SetHeader("From", from)
+	m.SetHeader("To", to...)
+	m.SetHeader("Subject", subject)
+	m.SetBody("text/plain", text)
+	m.AddAlternative("text/html", html)
+	if err := dialer(s).DialAndSend(m); err != nil {
+		return false, "Lỗi gửi mail: " + err.Error()
+	}
+	return true, ""
+}

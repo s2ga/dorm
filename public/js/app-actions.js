@@ -1,14 +1,6 @@
-// === app-actions.js — EVENT DELEGATION: mot bo listener uy quyen tren `document`, khong inline on* ===
-// QUY UOC DOM:
-//   data-act="tenHam"     -> click:  goi window.tenHam(...args, event), this = phan tu
-//   data-args='[...json]'  -> tham so (JSON HOP LE, dung nhay don cho thuoc tinh); thieu = []
-//   data-close             -> goi closeModal() TRUOC
-//   data-closenotif        -> goi closeNotif() TRUOC
-//   data-change="tenHam"   -> change (vd o <select>/<input>)
-//   data-input="tenHam"    -> input
-//   data-err="tenHam"      -> loi tai <img> (su kien error KHONG noi bot -> bat pha capture)
-//   <a data-act> tu preventDefault (thay cho ';return false' cu).
-// Cac ham deu khai bao bang `function` o cap cao nhat -> nam san tren window, tra qua window[ten].
+// === app-actions.js — event delegation trên `document`, không inline on*. Hàm khai báo cấp cao nhất = window[tên].
+// data-act (click, this = phần tử, data-args = JSON tham số) · data-change · data-input · data-err (lỗi <img>, bắt ở pha capture)
+// data-close / data-closenotif: đóng modal / chuông TRƯỚC khi gọi; <a data-act> tự preventDefault.
 
 function _actRun(name, elBind, ev, argsAttr) {
   const fn = window[name];
@@ -265,8 +257,6 @@ function logoutMoiThietBi() {
 }
 function doPrint() { window.print(); }
 function reloadPage() { location.reload(); } // BL-22: nút "Tải lại" trang công khai (CSP chặn inline onclick)
-function handoverCheckinRow(id) { handoverCheckinForm(id, (this && this.dataset && this.dataset.hname) || ''); }     // ten doc tu data-hname (tranh nhet ten vao JSON)
-function handoverCheckoutRow(id) { handoverCheckoutForm(id, (this && this.dataset && this.dataset.hname) || '', (this && this.dataset && this.dataset.plandate) || ''); }
 
 /* ---- Wrapper cho change/input/error dung `this` (phan tu) ---- */
 function onHandoverMonth() { loadHandovers(this.value); }

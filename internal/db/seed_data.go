@@ -32,6 +32,9 @@ func defaultSettings(dormName string) [][2]string {
 		{"security_day_from", "06:00"}, {"security_day_to", "18:00"},
 		// Điểm danh bãi xe: vắng liên tiếp bấy nhiêu ngày thì báo cáo gắn cờ "xe bỏ gửi lâu".
 		{"parking_absent_alert_days", "7"},
+		// Quá giờ này mà an ninh chưa chốt bãi xe thì chuông quản trị nhắc. Email nhận báo cáo ngày:
+		// trống = gửi cho mọi tài khoản quản trị có email.
+		{"parking_close_alert_time", "23:00"}, {"parking_report_email", ""},
 		// Wifi dùng chung toàn KTX. Mật khẩu chỉ trả cho HV ĐANG Ở (me.go), không lọt ra /api/public.
 		{"wifi_ssid", ""}, {"wifi_password", ""},
 		{"bravo_fee_type", "T0704"},

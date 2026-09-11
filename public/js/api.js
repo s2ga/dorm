@@ -145,10 +145,20 @@ const API = {
   parkingList: date => api('/maintenance/parking?date=' + encodeURIComponent(date || '') + facAmp(true)),
   parkingMark: b => api('/maintenance/parking/mark', { method: 'POST', body: b }),
   parkingStranger: b => api('/maintenance/parking/stranger', { method: 'POST', body: b }),
-  parkingFinish: date => api('/maintenance/parking/finish', { method: 'POST', body: { date } }),
+  parkingFinish: date => api('/maintenance/parking/finish' + facAmp(false), { method: 'POST', body: { date } }),
   parkingUndo: id => api('/maintenance/parking/' + id, { method: 'DELETE' }),
   parkingReport: (from, to) => api('/maintenance/parking/report?from=' + encodeURIComponent(from || '')
     + '&to=' + encodeURIComponent(to || '') + facAmp(true)),
+  // BL-120: báo cáo của an ninh (xe lạ / vắng nhiều ngày / khác); quản trị duyệt biển, xem báo cáo, số liệu chuông.
+  parkingReportCreate: b => api('/maintenance/parking-reports', { method: 'POST', body: b }),
+  parkingReportDelete: id => api('/maintenance/parking-reports/' + id, { method: 'DELETE' }),
+  plateRequests: status => api('/vehicles/plate-requests?status=' + encodeURIComponent(status || 'pending') + facAmp(true)),
+  approvePlateRequest: (id, note) => api('/vehicles/plate-requests/' + id + '/approve', { method: 'POST', body: { note } }),
+  rejectPlateRequest: (id, note) => api('/vehicles/plate-requests/' + id + '/reject', { method: 'POST', body: { note } }),
+  parkingReportsAdmin: (status, from, to) => api('/vehicles/parking-reports?status=' + encodeURIComponent(status || 'new')
+    + '&from=' + encodeURIComponent(from || '') + '&to=' + encodeURIComponent(to || '') + facAmp(true)),
+  parkingReportStatus: (id, status, note) => api('/vehicles/parking-reports/' + id + '/status', { method: 'POST', body: { status, note } }),
+  parkingAlerts: () => api('/vehicles/parking-alerts' + facAmp(false)),
 
   assets: () => api('/assets'),
   createAsset: b => api('/assets', { method: 'POST', body: b }),
@@ -283,12 +293,13 @@ const API = {
   maintenanceTaskStatus: (id, status, note) => api('/maintenance/tasks/' + id + '/status', { method: 'POST', body: { status, note } }),
   handovers: month => api('/maintenance/handovers' + (month ? '?month=' + month : '')),
   handoverSummary: () => api('/maintenance/handovers/summary'),
-  maintSuaBienSo: (id, plate) => api('/maintenance/vehicles/' + id + '/plate', { method: 'PUT', body: { plate } }),
-  maintSuaNgayNhan: (id, date) => api('/maintenance/handovers/' + id + '/checkin-date', { method: 'PUT', body: { date } }),
-  confirmHandoverCheckin: (id, note) => api('/maintenance/handovers/' + id + '/checkin', { method: 'POST', body: { note } }),
-  confirmHandoverCheckout: (id, actual_date, note) => api('/maintenance/handovers/' + id + '/checkout', { method: 'POST', body: { actual_date, note } }),
-  // Trả phòng xác nhận rồi mới biết lệch ngày -> an ninh sửa tại chỗ (cùng handler "Sửa ngày trả" của BQL).
-  maintSuaNgayTra: (id, b) => api('/maintenance/handovers/' + id + '/checkout-date', { method: 'PUT', body: b }),
+  maintSuaBienSo: (id, plate, note) => api('/maintenance/vehicles/' + id + '/plate', { method: 'PUT', body: { plate, note } }), // BL-120: gửi đề nghị, QTV duyệt
+  // BL-121: an ninh LẬP biên bản nhận/trả phòng, quản trị XÁC NHẬN mới đổi hồ sơ.
+  maintAssets: () => api('/maintenance/assets'),
+  maintReportCreate: b => api('/maintenance/reports', { method: 'POST', body: b }),
+  handoverReports: status => api('/handover-reports?status=' + encodeURIComponent(status || 'pending') + facAmp(true)),
+  handoverReportApprove: (id, b) => api('/handover-reports/' + id + '/approve', { method: 'POST', body: b }),
+  handoverReportReturn: (id, note) => api('/handover-reports/' + id + '/return', { method: 'POST', body: { note } }),
   checkoutReqs: () => api('/requests/checkout' + facAmp(false)),
   confirmCheckoutReq: (id, b) => api('/requests/checkout/' + id + '/confirm', { method: 'POST', body: b }),
   rejectCheckoutReq: id => api('/requests/checkout/' + id + '/reject', { method: 'POST' }),

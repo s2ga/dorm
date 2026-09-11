@@ -67,22 +67,27 @@ module.exports = {
     t.eq('Hồ sơ ghi ngày mới -3', (await hoSo(s1)).co, ngay(-3));
     t.eq('Lượt ở dời theo -3', (await luotCuoi(s1)).den, ngay(-3));
 
-    // ── 4. An ninh: xác nhận bàn giao rồi mới biết lệch ngày → sửa tại chỗ ──────────────
+    // ── 4. An ninh: biết rời từ -2 → LẬP BIÊN BẢN ngày -2, quản trị xác nhận (BL-121) ────
     await t.db.query(`INSERT INTO users (username,password_hash,role,approved) VALUES ($1,$2,'maintenance',true)`,
       [P + '_anninh', bcrypt.hashSync(PW, 10)]);
     const AN = await t.login(P + '_anninh', PW);
     const s2 = await dung(P + '_B');
-    const bg = await t.api('POST', `/api/maintenance/handovers/${s2}/checkout`, AN, { actual_date: ngay(0), note: 'Thu chìa' });
-    t.eq('An ninh xác nhận trả hôm nay → 200', bg.status, 200, `HTTP ${bg.status} ${bg.json && bg.json.error || ''}`);
-    const sua = await t.api('PUT', `/api/maintenance/handovers/${s2}/checkout-date`, AN, { date: ngay(-2), note: 'Bạn ấy rời từ -2, nay mới báo' });
-    t.eq('An ninh sửa ngày trả về -2 → 200 (trước đây không có đường này)', sua.status, 200,
-      `HTTP ${sua.status} ${sua.json && sua.json.error || ''}`);
+    const gо = await t.api('PUT', `/api/maintenance/handovers/${s2}/checkout-date`, AN, { date: ngay(-2) });
+    t.eq('An ninh sửa ngày trả THẲNG vào hồ sơ đã gỡ → 404', gо.status, 404, `HTTP ${gо.status}`);
+    const bb = await t.api('POST', '/api/maintenance/reports', AN, { kind: 'checkout', student_id: s2, date: ngay(-2), meter_reading: 50, note: 'Bạn ấy rời từ -2, nay mới báo' });
+    t.eq('An ninh lập biên bản trả phòng ngày -2 → 200', bb.status, 200, `HTTP ${bb.status} ${bb.json && bb.json.error || ''}`);
     h = await hoSo(s2);
-    t.ok('Ngày rời thật VÀ ngày bàn giao cùng về -2 (hai màn không lệch nhau)',
-      h.co === ngay(-2) && h.bg === ngay(-2), JSON.stringify(h));
-    t.eq('Lượt ở dời theo -2', (await luotCuoi(s2)).den, ngay(-2));
-    t.ok('Có nhật ký "out" ghi việc sửa', (await t.db.query(
-      `SELECT COUNT(*)::int c FROM logs WHERE student_id=$1 AND type='out'`, [s2])).rows[0].c >= 2);
+    t.ok('Biên bản chưa đổi hồ sơ: vẫn đang ở', h.status === 'in' && !h.co, JSON.stringify(h));
+    const ok = await t.api('POST', `/api/handover-reports/${bb.json.id}/approve`, T, {});
+    t.eq('Quản trị xác nhận biên bản → 200', ok.status, 200, `HTTP ${ok.status} ${ok.json && ok.json.error || ''}`);
+    h = await hoSo(s2);
+    t.ok('Ngày rời thật VÀ ngày bàn giao cùng là -2 (lõi trả phòng dùng chung đặt cả hai mốc)',
+      h.co === ngay(-2) && h.bg === ngay(-2) && h.status === 'out', JSON.stringify(h));
+    t.eq('Lượt ở đóng -2', (await luotCuoi(s2)).den, ngay(-2));
+    t.ok('Có nhật ký "out"', (await t.db.query(
+      `SELECT COUNT(*)::int c FROM logs WHERE student_id=$1 AND type='out'`, [s2])).rows[0].c >= 1);
+    t.ok('Check-out tay của BQL (bước 1) cũng đặt mốc xác nhận — an ninh không còn thấy nút thừa',
+      (await hoSo(s1)).bg === ngay(-3), JSON.stringify(await hoSo(s1)));
 
     await clean(t.db);
   },

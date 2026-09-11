@@ -181,15 +181,43 @@ func (h *Handlers) Me(c *gin.Context) {
 		mustChange, approved bool
 		email, authProvider  *string
 	)
+	var facName *string
 	err := h.pool().QueryRow(c.Request.Context(),
-		`SELECT id, username, role, full_name, student_id, facility_id, must_change_password, email, auth_provider, approved
-		 FROM users WHERE id = $1`, u.ID).
-		Scan(&id, &username, &role, &fullName, &studentID, &facID, &mustChange, &email, &authProvider, &approved)
+		`SELECT u.id, u.username, u.role, u.full_name, u.student_id, u.facility_id, u.must_change_password, u.email, u.auth_provider, u.approved,
+		        f.name
+		 FROM users u LEFT JOIN facilities f ON f.id = u.facility_id AND f.deleted_at IS NULL
+		 WHERE u.id = $1`, u.ID).
+		Scan(&id, &username, &role, &fullName, &studentID, &facID, &mustChange, &email, &authProvider, &approved, &facName)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Tài khoản không tồn tại"})
 		return
 	}
-	c.JSON(http.StatusOK, publicUser(id, username, role, fullName, studentID, facID, mustChange, email, authProvider, approved))
+	out := publicUser(id, username, role, fullName, studentID, facID, mustChange, email, authProvider, approved)
+	// Tên cơ sở để mọi cổng in dưới lời chào. Điều hành (không gắn cơ sở): KTX chỉ có một cơ sở thì lấy
+	// tên đó, nhiều cơ sở thì "Tất cả cơ sở".
+	ten := ""
+	if facName != nil {
+		ten = *facName
+	} else {
+		rows, e := h.pool().Query(c.Request.Context(), "SELECT name FROM facilities WHERE deleted_at IS NULL ORDER BY id LIMIT 2")
+		if e == nil {
+			var names []string
+			for rows.Next() {
+				var n string
+				if rows.Scan(&n) == nil {
+					names = append(names, n)
+				}
+			}
+			rows.Close()
+			if len(names) == 1 {
+				ten = names[0]
+			} else if len(names) > 1 {
+				ten = "Tất cả cơ sở"
+			}
+		}
+	}
+	out["facility_name"] = ten
+	c.JSON(http.StatusOK, out)
 }
 
 // publicUser: shape /auth/me + /login từng trả. server/routes/auth.routes.js:13-23

@@ -529,6 +529,98 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_parking_check_ngay ON parking_checks (vehic
 CREATE INDEX IF NOT EXISTS idx_parking_checks_ngay ON parking_checks (check_date DESC, facility_id);
 CREATE INDEX IF NOT EXISTS idx_parking_checks_xe   ON parking_checks (vehicle_id, check_date);
 
+-- ===== BL-120: báo cáo bãi xe của an ninh =====
+-- Một dòng = một báo cáo an ninh gửi quản trị viên. Ba loại: 'stranger' (xe lạ, không có trong danh
+-- sách đăng ký — vehicle_id NULL), 'absent_long' (xe đăng ký nhưng vắng nhiều ngày), 'other'.
+-- Xe lạ trước đây nằm ở parking_checks(status='stranger'); migration 0006 dời sang đây.
+CREATE TABLE IF NOT EXISTS parking_reports (
+  id          SERIAL PRIMARY KEY,
+  report_date DATE NOT NULL,
+  facility_id INTEGER REFERENCES facilities(id) ON DELETE SET NULL,
+  vehicle_id  INTEGER REFERENCES vehicles(id) ON DELETE SET NULL,
+  plate       TEXT NOT NULL DEFAULT '',        -- bản chụp biển số lúc báo (xe bị xoá vẫn đọc được)
+  plate_norm  TEXT NOT NULL DEFAULT '',
+  kind        TEXT NOT NULL CHECK (kind IN ('stranger','absent_long','other')),
+  note        TEXT NOT NULL DEFAULT '',
+  photo_key   TEXT,
+  reported_by TEXT NOT NULL DEFAULT '',
+  status      TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new','seen','done')),
+  handled_by  TEXT,
+  handled_at  TIMESTAMPTZ,
+  handled_note TEXT NOT NULL DEFAULT '',
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT ck_parking_reports_stranger_plate CHECK (kind <> 'stranger' OR btrim(plate) <> '')
+);
+CREATE INDEX IF NOT EXISTS idx_parking_reports_ngay   ON parking_reports (report_date DESC, facility_id);
+CREATE INDEX IF NOT EXISTS idx_parking_reports_status ON parking_reports (status) WHERE status = 'new';
+
+-- Bản tổng kết MỘT lượt chốt bãi xe trong ngày (ai chốt, lúc nào, số liệu, mail đã gửi chưa).
+-- facility_id NULL = điều hành chốt cho toàn bộ. Một cơ sở một ngày chỉ một bản (chốt lại là ghi đè).
+CREATE TABLE IF NOT EXISTS parking_daily_reports (
+  id           SERIAL PRIMARY KEY,
+  report_date  DATE NOT NULL,
+  facility_id  INTEGER REFERENCES facilities(id) ON DELETE SET NULL,
+  tong         INTEGER NOT NULL DEFAULT 0,
+  co_mat       INTEGER NOT NULL DEFAULT 0,
+  vang         INTEGER NOT NULL DEFAULT 0,
+  so_bao_cao   INTEGER NOT NULL DEFAULT 0,
+  vang_lau     INTEGER NOT NULL DEFAULT 0,       -- số xe vắng liên tiếp vượt ngưỡng Cài đặt
+  closed_by    TEXT NOT NULL DEFAULT '',
+  closed_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  mail_to      TEXT NOT NULL DEFAULT '',
+  mail_sent_at TIMESTAMPTZ,
+  mail_error   TEXT NOT NULL DEFAULT ''
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_parking_daily_ngay ON parking_daily_reports (report_date, COALESCE(facility_id, 0));
+
+-- Đề nghị sửa biển số từ cổng an ninh: KHÔNG ghi thẳng vào vehicles, quản trị viên duyệt mới đổi.
+CREATE TABLE IF NOT EXISTS vehicle_plate_requests (
+  id            SERIAL PRIMARY KEY,
+  vehicle_id    INTEGER NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+  facility_id   INTEGER REFERENCES facilities(id) ON DELETE SET NULL,
+  plate_cu      TEXT NOT NULL DEFAULT '',
+  plate_moi     TEXT NOT NULL,
+  note          TEXT NOT NULL DEFAULT '',
+  status        TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
+  requested_by  TEXT NOT NULL DEFAULT '',
+  requested_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  decided_by    TEXT,
+  decided_at    TIMESTAMPTZ,
+  decision_note TEXT NOT NULL DEFAULT ''
+);
+-- Một xe chỉ có MỘT đề nghị đang chờ.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_plate_request_pending ON vehicle_plate_requests (vehicle_id) WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_plate_requests_status ON vehicle_plate_requests (status, requested_at DESC);
+
+-- ===== BL-121: biên bản bàn giao phòng =====
+-- An ninh LẬP biên bản (nhận hoặc trả phòng) với số điện, hư hao, vệ sinh, chìa khoá, biển số, ghi chú.
+-- Hồ sơ học viên KHÔNG đổi ở bước này; quản trị xác nhận biên bản mới đi qua lõi Check-in / Check-out.
+CREATE TABLE IF NOT EXISTS handover_reports (
+  id            SERIAL PRIMARY KEY,
+  kind          TEXT NOT NULL CHECK (kind IN ('checkin','checkout')),
+  student_id    INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  room_id       INTEGER REFERENCES rooms(id) ON DELETE SET NULL,
+  facility_id   INTEGER REFERENCES facilities(id) ON DELETE SET NULL,
+  actual_date   DATE NOT NULL,                       -- ngày bàn giao thật an ninh ghi nhận
+  meter_reading NUMERIC(10,1),                       -- số công-tơ lúc bàn giao (NULL = học viên không có phòng)
+  damages       JSONB NOT NULL DEFAULT '[]'::jsonb,  -- [{asset_id,name,unit,quantity,fee,total}] — server tính từ assets.fee
+  damage_amount NUMERIC(12,0) NOT NULL DEFAULT 0 CHECK (damage_amount >= 0),
+  cleanliness   TEXT NOT NULL DEFAULT '' CHECK (cleanliness IN ('','sach','ban_nhe','ban_nang')),
+  keys_count    SMALLINT CHECK (keys_count IS NULL OR keys_count >= 0),
+  plates        TEXT NOT NULL DEFAULT '',            -- biển số đối chiếu thực tế (chữ tự do)
+  note          TEXT NOT NULL DEFAULT '',
+  status        TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','returned')),
+  created_by    TEXT NOT NULL DEFAULT '',
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  reviewed_by   TEXT,
+  reviewed_at   TIMESTAMPTZ,
+  review_note   TEXT NOT NULL DEFAULT ''
+);
+-- Mỗi học viên, mỗi loại chỉ MỘT biên bản đang chờ.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_handover_reports_pending ON handover_reports (student_id, kind) WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_handover_reports_status  ON handover_reports (status, facility_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_handover_reports_student ON handover_reports (student_id, kind, id DESC);
+
 DO $ktx$
 DECLARE
   r RECORD;

@@ -378,8 +378,8 @@ async function viewDashboard() {
       <div class="todo-grid">
         ${/* Nhận phòng và Trả phòng TÁCH RIÊNG (owner 26/08): đây sẽ là hai nơi BQL vào xác nhận vào/ra
               thực tế (BL-117). Tiền cọc + Dự kiến xuất cảnh bỏ khỏi Tổng quan theo yêu cầu cùng ngày. */''}
-        ${todo(IC.key, 'Nhận phòng', pApps + ST.students.filter(choXacNhanVao).length, actAttr('nhanPhongGo'), 'on')}
-        ${todo(IC.logOut, 'Trả phòng', pCout + ST.students.filter(choXacNhanRa).length, actAttr('traPhongGo'), 'on')}
+        ${todo(IC.key, 'Nhận phòng', pApps + ST.students.filter(choXacNhanVao).length + hoChoDuyet('checkin'), actAttr('nhanPhongGo'), 'on')}
+        ${todo(IC.logOut, 'Trả phòng', pCout + ST.students.filter(choXacNhanRa).length + hoChoDuyet('checkout'), actAttr('traPhongGo'), 'on')}
         ${todo(IC.wrench, 'Bảo trì', pDmg, actAttr('baoTriGo'), 'warn')}
         ${todo(IC.flag, 'Đăng ký Tạm Trú', resiOverdue, actAttr('residencyModal'), 'warn')}
         ${todo(IC.fileText, 'Hợp đồng', contractIncomplete, actAttr('contractIssuesModal'), 'warn')}
