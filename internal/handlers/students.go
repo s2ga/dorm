@@ -1038,7 +1038,7 @@ func (h *Handlers) ContractNoNext(c *gin.Context) {
 	var n int
 	// Số kế tiếp = MAX(NN) của dãy giấy "NN.HDTP-<pháp nhân>" + 1 -> nối tiếp số có sẵn, không đánh lại.
 	// KHÔNG lọc deleted_at: hồ sơ bị khoá vẫn giữ số của mình, số đã cấp thì không cấp lại.
-	if err := h.pool().QueryRow(ctx, studentsSQLMaxSoHD, entity).Scan(&n); err != nil {
+	if err := h.pool().QueryRow(ctx, studentsSQLMaxSoHD("$1"), entity).Scan(&n); err != nil {
 		serverErr(c)
 		return
 	}
@@ -1058,9 +1058,13 @@ func (h *Handlers) ContractNoNext(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"contract_no": studentsFmtContractNo(n+1, entity), "entity": entity, "seq": n + 1})
 }
 
-// Dãy số chuẩn giấy "NN.HDTP-<pháp nhân>". Số 0 (HĐ đời trước quy tắc) vẫn khớp regex nên không phá MAX.
-const studentsSQLMaxSoHD = `SELECT COALESCE(MAX((split_part(contract_no,'.',1))::int), 0)::int c FROM students
-   WHERE contract_no ~ ('^[0-9]+\.HDTP-' || $1 || '$')`
+// MỘT dãy liên tục gồm cả số đã lưu dạng CŨ "NN/YYYY/HDKTX-XX" lẫn dạng chuẩn giấy "NN.HDTP-XX":
+// đếm sót dạng cũ là cấp lại từ 01, trùng số hợp đồng giấy đã ký. p = placeholder chứa pháp nhân.
+func studentsSQLMaxSoHD(p string) string {
+	return `SELECT COALESCE(MAX((split_part(split_part(contract_no,'.',1),'/',1))::int), 0)::int
+	   FROM students WHERE (contract_no ~ ('^[0-9]+\.HDTP-' || ` + p + ` || '$')
+	                     OR contract_no ~ ('^[0-9]+/[0-9]{4}/HDKTX-' || ` + p + ` || '$'))`
+}
 
 // laThanhVienTron: thành viên phòng thuê trọn (không phải phòng trưởng đương nhiệm) dùng chung HĐ
 // của người ký — không cấp số riêng.
@@ -1134,8 +1138,7 @@ func (h *Handlers) capSoHDKhiNhanPhong(ctx context.Context, id int, date, planne
 	if err := h.pool().QueryRow(ctx, `
 	  UPDATE students
 	     SET contract_no = (SELECT CASE WHEN t.n < 10 THEN '0' ELSE '' END || t.n::text || '.HDTP-' || $2
-	                          FROM (SELECT COALESCE(MAX((split_part(contract_no,'.',1))::int), 0) + 1 AS n
-	                                  FROM students WHERE contract_no ~ ('^[0-9]+\.HDTP-' || $2 || '$')) t),
+	                          FROM (SELECT (`+studentsSQLMaxSoHD("$2")+`) + 1 AS n) t),
 	         contract_date = $3
 	   WHERE id = $1 AND (contract_no IS NULL OR btrim(contract_no) = '')
 	   RETURNING contract_no`, id, entity, studentsSlice10(date)).Scan(&moi); err != nil || moi == nil {

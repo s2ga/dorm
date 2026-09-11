@@ -84,5 +84,18 @@ module.exports = {
     const G = await mkStu('_G', 'Sai Ngay G');
     const rG = await checkin(G, { date: '2026-09-05', room_id: R, planned_check_out: '2026-09-01' });
     t.eq('Dự kiến trả trước ngày vào → 400', rG.status, 400, `HTTP ${rG.status}`);
+
+    // ── Số lưu dạng CŨ "NN/YYYY/HDKTX-XX" phải được ĐẾM CHUNG một dãy ─────────────────────
+    // Dữ liệu thật toàn dạng cũ; bỏ sót là cấp lại từ 01, trùng số hợp đồng giấy đã ký.
+    const CU = N + 50;
+    await mkStu('_cu', 'So Dang Cu', `${CU}/2026/HDKTX-${ent}`);
+    const hoi = await t.api('GET', '/api/students/contract-no/next?gender=male', T);
+    t.eq('Gợi ý số kế tiếp NHÌN THẤY số dạng cũ', hoi.json && hoi.json.seq, CU + 1,
+      `gợi ý ${hoi.json && hoi.json.contract_no} trong khi dạng cũ đang có ${CU}`);
+
+    const H = await mkStu('_H', 'Noi Tiep H');
+    const rH = await checkin(H, { date: '2026-09-06', room_id: R });
+    t.eq('Cấp số khi xác nhận cũng nối tiếp dãy cũ, không quay về 01', rH.json && rH.json.contract_no, so(CU + 1),
+      String(rH.json && rH.json.contract_no));
   },
 };

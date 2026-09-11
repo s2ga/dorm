@@ -178,10 +178,12 @@ router.get('/contract-no/next', requireRole('admin', 'staff'), async (req, res, 
     const st = await getSettings();
     const gender = req.query.gender === 'female' ? 'female' : 'male';
     const entity = entityOf(gender, st);
-    // Số kế tiếp = MAX(NN) của dãy "NN.HDTP-<pháp nhân>" + 1 -> nối tiếp số có sẵn, KHÔNG đánh lại.
+    // Số kế tiếp = MAX + 1 trên MỘT dãy gồm cả dạng CŨ "NN/YYYY/HDKTX-XX" lẫn chuẩn giấy "NN.HDTP-XX":
+    // đếm sót dạng cũ là cấp lại từ 01, trùng số hợp đồng giấy đã ký.
     const n = (await query(
-      `SELECT COALESCE(MAX((split_part(contract_no,'.',1))::int), 0)::int c FROM students
-       WHERE contract_no ~ ('^[0-9]+\\.HDTP-' || $1 || '$')`,
+      `SELECT COALESCE(MAX((split_part(split_part(contract_no,'.',1),'/',1))::int), 0)::int c FROM students
+       WHERE (contract_no ~ ('^[0-9]+\\.HDTP-' || $1 || '$')
+           OR contract_no ~ ('^[0-9]+/[0-9]{4}/HDKTX-' || $1 || '$'))`,
       [entity])).rows[0].c;
     res.json({ contract_no: fmtContractNo(n + 1, entity), entity, seq: n + 1 });
   } catch (e) { next(e); }
