@@ -167,25 +167,23 @@ router.get('/', requireRole('admin', 'staff'), async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// ---- Số hợp đồng tự động theo pháp nhân + ngày ký (điểm 7 — ban thư ký quản lý HĐ) ----
+// ---- Số hợp đồng tự động theo pháp nhân (điểm 7 — ban thư ký quản lý HĐ) ----
 const entityOf = (gender, st) => gender === 'female' ? (st.legal_female || 'E2') : (st.legal_male || 'S2');
-const fmtContractNo = (seq, year, entity) => `${String(seq).padStart(2, '0')}/${year}/HDKTX-${entity}`;
+// Chuẩn giấy "NN.HDTP-<pháp nhân>" — dãy nối tiếp, KHÔNG theo năm (owner chốt 10/09/2026; khớp bản Go).
+const fmtContractNo = (seq, entity) => `${String(seq).padStart(2, '0')}.HDTP-${entity}`;
 
-// Gợi ý số HĐ kế tiếp cho 1 học viên (theo pháp nhân + ngày ký)
+// Gợi ý số HĐ kế tiếp cho 1 học viên (theo pháp nhân)
 router.get('/contract-no/next', requireRole('admin', 'staff'), async (req, res, next) => {
   try {
     const st = await getSettings();
     const gender = req.query.gender === 'female' ? 'female' : 'male';
     const entity = entityOf(gender, st);
-    const date = (req.query.date || new Date().toISOString().slice(0, 10)).slice(0, 10);
-    const year = date.slice(0, 4);
-    // Số kế tiếp = MAX(số NN) trong các HĐ ĐÃ CÓ cùng năm + pháp nhân (parse TỪ CHÍNH số HĐ, kể cả HĐ
-    // chưa có contract_date) + 1 -> nối tiếp số có sẵn, KHÔNG đánh lại từ đầu, KHÔNG trùng số đã cấp.
+    // Số kế tiếp = MAX(NN) của dãy "NN.HDTP-<pháp nhân>" + 1 -> nối tiếp số có sẵn, KHÔNG đánh lại.
     const n = (await query(
-      `SELECT COALESCE(MAX((split_part(contract_no,'/',1))::int), 0)::int c FROM students
-       WHERE deleted_at IS NULL AND contract_no ~ ('^[0-9]+/' || $1 || '/HDKTX-' || $2 || '$')`,
-      [year, entity])).rows[0].c;
-    res.json({ contract_no: fmtContractNo(n + 1, year, entity), entity, seq: n + 1, year });
+      `SELECT COALESCE(MAX((split_part(contract_no,'.',1))::int), 0)::int c FROM students
+       WHERE contract_no ~ ('^[0-9]+\\.HDTP-' || $1 || '$')`,
+      [entity])).rows[0].c;
+    res.json({ contract_no: fmtContractNo(n + 1, entity), entity, seq: n + 1 });
   } catch (e) { next(e); }
 });
 

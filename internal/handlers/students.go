@@ -18,6 +18,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/text/unicode/norm"
 	"ktx/internal/auth"
 	"ktx/internal/billing"
 	"ktx/internal/checkout"
@@ -357,8 +358,9 @@ func studentsPad2(seq int) string {
 }
 
 // studentsFmtContractNo. students.routes.js:172
-func studentsFmtContractNo(seq int, year, entity string) string {
-	return studentsPad2(seq) + "/" + year + "/HDKTX-" + entity
+// studentsFmtContractNo: chuẩn giấy "NN.HDTP-<pháp nhân>" — dãy nối tiếp, KHÔNG theo năm (owner chốt 10/09/2026).
+func studentsFmtContractNo(seq int, entity string) string {
+	return studentsPad2(seq) + ".HDTP-" + entity
 }
 
 // studentsEntityOf: pháp nhân theo giới tính. students.routes.js:171
@@ -1033,71 +1035,113 @@ func (h *Handlers) ContractNoNext(c *gin.Context) {
 		gender = "female"
 	}
 	entity := studentsEntityOf(gender, st)
-	date := timeutil.Today()
-	if dq := c.Query("date"); dq != "" {
-		date = studentsSlice10(dq)
-	}
-	year := date
-	if len(year) > 4 {
-		year = year[:4]
-	}
 	var n int
-	// Số kế tiếp = MAX(NN) trong HĐ ĐÃ CÓ cùng năm + pháp nhân (parse từ CHÍNH số HĐ, kể cả HĐ chưa có
-	// contract_date) + 1 -> nối tiếp số có sẵn, không đánh lại từ đầu, không trùng số đã cấp.
+	// Số kế tiếp = MAX(NN) của dãy giấy "NN.HDTP-<pháp nhân>" + 1 -> nối tiếp số có sẵn, không đánh lại.
 	// KHÔNG lọc deleted_at: hồ sơ bị khoá vẫn giữ số của mình, số đã cấp thì không cấp lại.
-	if err := h.pool().QueryRow(ctx,
-		`SELECT COALESCE(MAX((split_part(contract_no,'/',1))::int), 0)::int c FROM students
-       WHERE contract_no ~ ('^[0-9]+/' || $1 || '/HDKTX-' || $2 || '$')`,
-		year, entity).Scan(&n); err != nil {
+	if err := h.pool().QueryRow(ctx, studentsSQLMaxSoHD, entity).Scan(&n); err != nil {
 		serverErr(c)
 		return
 	}
-	// Có student_id -> cấp số RIÊNG cho hồ sơ đó, không phải số chung của cả pháp nhân: cộng thêm số
-	// người chưa có HĐ đứng TRƯỚC họ (theo ngày nhận phòng, rồi id). Mỗi hồ sơ một số khác nhau, và
-	// số đó đứng yên khi người trước ký đúng thứ tự.
+	// student_id chỉ để nhận diện thành viên phòng thuê trọn (dùng chung HĐ của người ký, không số riêng).
+	// KHÔNG giữ chỗ theo ngày nhận phòng nữa: số chính thức cấp tại lúc bấm Xác nhận nhận phòng.
 	if sid := queryIntDefault(c, "student_id", 0); sid > 0 {
-		truoc, e := h.contractNoRank(ctx, sid, gender)
+		tron, e := h.laThanhVienTron(ctx, sid)
 		if e != nil {
 			serverErr(c)
 			return
 		}
-		if truoc < 0 { // thành viên phòng thuê trọn: dùng chung HĐ của người ký, không cấp số riêng
-			c.JSON(http.StatusOK, gin.H{"contract_no": "", "dung_chung": true, "entity": entity, "year": year})
+		if tron {
+			c.JSON(http.StatusOK, gin.H{"contract_no": "", "dung_chung": true, "entity": entity})
 			return
 		}
-		n += truoc
 	}
-	c.JSON(http.StatusOK, gin.H{"contract_no": studentsFmtContractNo(n+1, year, entity), "entity": entity, "seq": n + 1, "year": year})
+	c.JSON(http.StatusOK, gin.H{"contract_no": studentsFmtContractNo(n+1, entity), "entity": entity, "seq": n + 1})
 }
 
-// contractNoRank: bao nhiêu hồ sơ CHƯA có số HĐ, cùng pháp nhân, đứng trước hồ sơ này.
-// Trả -1 khi hồ sơ này là thành viên phòng thuê trọn (không ký HĐ riêng).
-// Thành viên phòng thuê trọn bị loại khỏi phép đếm, nếu không họ chiếm chỗ làm số của người khác nhảy.
-func (h *Handlers) contractNoRank(ctx context.Context, studentID int, gender string) (int, error) {
-	const chuaCoHD = `(s.contract_no IS NULL OR btrim(s.contract_no) = '' OR lower(btrim(s.contract_no)) = 'x')`
-	const thanhVienTron = `(r.room_type = 'whole' AND NOT EXISTS (
-	    SELECT 1 FROM room_leaders rl WHERE rl.student_id = s.id AND rl.to_date IS NULL))`
+// Dãy số chuẩn giấy "NN.HDTP-<pháp nhân>". Số 0 (HĐ đời trước quy tắc) vẫn khớp regex nên không phá MAX.
+const studentsSQLMaxSoHD = `SELECT COALESCE(MAX((split_part(contract_no,'.',1))::int), 0)::int c FROM students
+   WHERE contract_no ~ ('^[0-9]+\.HDTP-' || $1 || '$')`
 
-	var laThanhVien bool
-	if err := h.pool().QueryRow(ctx,
-		`SELECT COALESCE(`+thanhVienTron+`, false) FROM students s
-		   LEFT JOIN rooms r ON r.id = s.room_id
-		  WHERE s.id = $1`, studentID).Scan(&laThanhVien); err != nil {
-		return 0, err
-	}
-	if laThanhVien {
-		return -1, nil
-	}
-	var truoc int
+// laThanhVienTron: thành viên phòng thuê trọn (không phải phòng trưởng đương nhiệm) dùng chung HĐ
+// của người ký — không cấp số riêng.
+func (h *Handlers) laThanhVienTron(ctx context.Context, studentID int) (bool, error) {
+	var tron bool
 	err := h.pool().QueryRow(ctx,
-		`SELECT COUNT(*)::int FROM students s
-		   LEFT JOIN rooms r ON r.id = s.room_id
-		  WHERE s.deleted_at IS NULL AND s.gender = $2 AND `+chuaCoHD+`
-		    AND NOT COALESCE(`+thanhVienTron+`, false)
-		    AND (COALESCE(s.check_in_date, DATE '9999-12-31'), s.id) <
-		        (SELECT COALESCE(x.check_in_date, DATE '9999-12-31'), x.id FROM students x WHERE x.id = $1)`,
-		studentID, gender).Scan(&truoc)
-	return truoc, err
+		`SELECT COALESCE(r.room_type = 'whole' AND NOT EXISTS (
+		    SELECT 1 FROM room_leaders rl WHERE rl.student_id = s.id AND rl.to_date IS NULL), false)
+		   FROM students s LEFT JOIN rooms r ON r.id = s.room_id WHERE s.id = $1`, studentID).Scan(&tron)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return tron, err
+}
+
+// studentsTenKhongDau: HỌ TÊN IN HOA bỏ dấu cho tên file scan chuẩn giấy (cùng cách bỏ dấu với chuanHoaTen).
+func studentsTenKhongDau(s string) string {
+	s = strings.ToUpper(strings.TrimSpace(s))
+	s = strings.ReplaceAll(s, "Đ", "D")
+	var b strings.Builder
+	for _, r := range norm.NFD.String(s) {
+		if unicode.Is(unicode.Mn, r) {
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return strings.Join(strings.Fields(b.String()), " ")
+}
+
+// capSoHDKhiNhanPhong: cấp số HĐ chuẩn giấy lúc xác nhận nhận phòng — MAX tính ngay trong câu UPDATE
+// nên cấp số là một lệnh nguyên tử, không cấp trùng. Trả ("","") khi hồ sơ không thuộc diện ký HĐTP
+// (đã có số · phòng an ninh/nhân viên · thành viên thuê trọn · ở ngắn dưới ngưỡng).
+func (h *Handlers) capSoHDKhiNhanPhong(ctx context.Context, id int, date, plannedOut string) (so, tenFile string) {
+	st, err := h.DB.GetSettings(ctx)
+	if err != nil {
+		return "", ""
+	}
+	rows, err := h.pool().Query(ctx, `
+	  SELECT s.name, s.gender, COALESCE(s.contract_no,'') AS cno, COALESCE(r.room_type,'shared') AS room_type,
+	         COALESCE(r.room_type = 'whole' AND NOT EXISTS (
+	           SELECT 1 FROM room_leaders rl WHERE rl.student_id = s.id AND rl.to_date IS NULL), false) AS tron
+	    FROM students s LEFT JOIN rooms r ON r.id = s.room_id
+	   WHERE s.id = $1 AND s.deleted_at IS NULL`, id)
+	if err != nil {
+		return "", ""
+	}
+	me, err := db.RowToMap(rows)
+	if err != nil || me == nil {
+		return "", ""
+	}
+	loai := studentsJSString(me["room_type"])
+	if strings.TrimSpace(studentsJSString(me["cno"])) != "" || loai == "security" || loai == "staff" || me["tron"] == true {
+		return "", ""
+	}
+	if plannedOut != "" { // có ngày dự kiến trả: ở dưới ngưỡng = diện phiếu bàn giao, không cấp số
+		nguong := 60
+		if v, e := strconv.Atoi(st["shortterm_max_days"]); e == nil && v > 0 {
+			nguong = v
+		}
+		d1, e1 := time.Parse("2006-01-02", studentsSlice10(date))
+		d2, e2 := time.Parse("2006-01-02", studentsSlice10(plannedOut))
+		if e1 == nil && e2 == nil {
+			if songay := int(d2.Sub(d1).Hours() / 24); songay > 0 && songay < nguong {
+				return "", ""
+			}
+		}
+	}
+	entity := studentsEntityOf(studentsJSString(me["gender"]), st)
+	var moi *string
+	// KHÔNG dùng lpad: nó CẮT chuỗi dài hơn độ rộng ('901' -> '90'); đệm '0' chỉ áp cho số 1 chữ số.
+	if err := h.pool().QueryRow(ctx, `
+	  UPDATE students
+	     SET contract_no = (SELECT CASE WHEN t.n < 10 THEN '0' ELSE '' END || t.n::text || '.HDTP-' || $2
+	                          FROM (SELECT COALESCE(MAX((split_part(contract_no,'.',1))::int), 0) + 1 AS n
+	                                  FROM students WHERE contract_no ~ ('^[0-9]+\.HDTP-' || $2 || '$')) t),
+	         contract_date = $3
+	   WHERE id = $1 AND (contract_no IS NULL OR btrim(contract_no) = '')
+	   RETURNING contract_no`, id, entity, studentsSlice10(date)).Scan(&moi); err != nil || moi == nil {
+		return "", ""
+	}
+	return *moi, *moi + "_" + strings.ReplaceAll(studentsSlice10(date), "-", "") + "_" + studentsTenKhongDau(studentsJSString(me["name"]))
 }
 
 // GetStudent: GET /:id (admin,staff). Kèm vehicles, violations, _v (xmin). students.routes.js:219-241
@@ -1803,7 +1847,7 @@ func (h *Handlers) StudentCheckin(c *gin.Context) {
 	}
 	ctx := c.Request.Context()
 	data, b := studentsReadBody(c)
-	if bad := studentsRejectUnknown(studentsOrderedKeys(data), []string{"date", "room_id", "note", "confirm_overload"}); bad != "" {
+	if bad := studentsRejectUnknown(studentsOrderedKeys(data), []string{"date", "room_id", "note", "confirm_overload", "planned_check_out"}); bad != "" {
 		badRequest(c, bad)
 		return
 	}
@@ -1811,7 +1855,11 @@ func (h *Handlers) StudentCheckin(c *gin.Context) {
 		badRequest(c, "Ngày nhận phòng không hợp lệ")
 		return
 	}
-	meRows, err := h.pool().Query(ctx, "SELECT gender, rental_type, name, planned_check_in::text AS lich_vao FROM students WHERE id=$1 AND deleted_at IS NULL", id)
+	if pv := b["planned_check_out"]; studentsJSTruthy(pv) && !valid.IsValidYmd(studentsJSString(pv)) {
+		badRequest(c, "Ngày dự kiến trả không hợp lệ")
+		return
+	}
+	meRows, err := h.pool().Query(ctx, "SELECT gender, rental_type, name, planned_check_in::text AS lich_vao, planned_check_out::text AS lich_tra FROM students WHERE id=$1 AND deleted_at IS NULL", id)
 	if err != nil {
 		serverErr(c)
 		return
@@ -1843,6 +1891,18 @@ func (h *Handlers) StudentCheckin(c *gin.Context) {
 		badRequest(c, "Ngày nhận phòng thật không thể ở tương lai. Muốn đặt lịch thì sửa ngày dự kiến ở hồ sơ.")
 		return
 	}
+	// Diện HĐ hay phiếu bàn giao xét theo NGÀY DỰ KIẾN TRẢ: ưu tiên ô trên form, không có thì lấy ngày
+	// đã đăng ký trong hồ sơ (phải đọc TRƯỚC vì xacNhanNhanPhong xoá cột này).
+	pout := studentsSlice10(studentsStrOr(b["planned_check_out"]))
+	if pout != "" && pout <= d {
+		badRequest(c, "Ngày dự kiến trả phải sau ngày nhận phòng")
+		return
+	}
+	if pout == "" {
+		if lt := studentsSlice10(studentsJSString(me["lich_tra"])); lt > d {
+			pout = lt
+		}
+	}
 	// BL-117: đây là BƯỚC XÁC NHẬN — ngày thật, lượt ở, nhật ký cùng một hàm với an ninh bàn giao.
 	note := studentsStrOr(b["note"])
 	if note == "" {
@@ -1858,6 +1918,10 @@ func (h *Handlers) StudentCheckin(c *gin.Context) {
 	if lich := studentsSlice10(studentsJSString(me["lich_vao"])); len(lich) >= 7 && lich[:7] != d[:7] {
 		_, _ = invoicecalc.RecalcInvoice(ctx, h.DB, id, lich[:7])
 	}
+	if pout != "" { // giữ lại ngày dự kiến trả (bước xác nhận vừa xoá cột này theo luật BL-117)
+		_, _ = h.pool().Exec(ctx, "UPDATE students SET planned_check_out=$1 WHERE id=$2", pout, id)
+	}
+	soHD, tenFileHD := h.capSoHDKhiNhanPhong(ctx, id, d, pout)
 	rows, err := h.pool().Query(ctx, "SELECT * FROM students WHERE id=$1", id)
 	if err != nil {
 		serverErr(c)
@@ -1872,7 +1936,27 @@ func (h *Handlers) StudentCheckin(c *gin.Context) {
 		notFound(c, "Không tìm thấy học viên")
 		return
 	}
+	if soHD != "" { // frontend hiện số + tên file chuẩn để ghi lên HĐ giấy và lưu bản scan
+		row["so_hd_moi"] = soHD
+		row["ten_file_hd"] = tenFileHD
+	}
 	c.JSON(http.StatusOK, row)
+}
+
+// traPhongIn: đầu vào của lõi trả phòng thật.
+type traPhongIn struct {
+	Date, NoticeDate, Reason, Note string
+	HasMeter                       bool
+	Meter                          float64
+}
+
+// traPhongLoi: đẩy mã lỗi của traPhong ra response.
+func traPhongLoi(c *gin.Context, code int, msg string) {
+	if code == http.StatusInternalServerError {
+		serverErr(c)
+		return
+	}
+	c.JSON(code, gin.H{"error": msg})
 }
 
 // StudentCheckout: POST /:id/checkout (admin,staff). students.routes.js:470-530
@@ -1886,7 +1970,6 @@ func (h *Handlers) StudentCheckout(c *gin.Context) {
 		serverErr(c)
 		return
 	}
-	ctx := c.Request.Context()
 	data, b := studentsReadBody(c)
 	if bad := studentsRejectUnknown(studentsOrderedKeys(data), []string{"date", "notice_date", "reason", "note", "meter_reading"}); bad != "" {
 		badRequest(c, bad)
@@ -1903,23 +1986,45 @@ func (h *Handlers) StudentCheckout(c *gin.Context) {
 			return
 		}
 	}
-	d := timeutil.Today()
+	in := traPhongIn{Reason: studentsJSString(b["reason"]), Note: studentsStrOr(b["note"])}
 	if studentsJSTruthy(b["date"]) {
-		d = studentsJSString(b["date"])
+		in.Date = studentsJSString(b["date"])
+	}
+	if studentsJSTruthy(b["notice_date"]) {
+		in.NoticeDate = studentsJSString(b["notice_date"])
+	}
+	hasMeter, reading, finite := studentsMeterVal(b["meter_reading"])
+	if hasMeter && !finite {
+		badRequest(c, "Chỉ số công-tơ phải là số không âm")
+		return
+	}
+	in.HasMeter, in.Meter = hasMeter, reading
+	out, code, msg := h.traPhong(c.Request.Context(), u, id, in)
+	if code != 0 {
+		traPhongLoi(c, code, msg)
+		return
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+// traPhong: lõi trả phòng THẬT — Check-out của quản trị và xác nhận biên bản bàn giao (BL-121) đi cùng
+// một đường. Ngày rời ≤ hôm nay thì đặt luôn mốc xác nhận (checkout_confirmed_at / checkout_actual_date).
+// Trả (kết quả, mã HTTP lỗi, thông điệp); mã 0 = xong.
+func (h *Handlers) traPhong(ctx context.Context, u *auth.User, id int, in traPhongIn) (gin.H, int, string) {
+	d := in.Date
+	if d == "" {
+		d = timeutil.Today()
 	}
 	ciRows, err := h.pool().Query(ctx, "SELECT check_in_date, status, check_out_date FROM students WHERE id=$1 AND deleted_at IS NULL", id)
 	if err != nil {
-		serverErr(c)
-		return
+		return nil, http.StatusInternalServerError, ""
 	}
 	ci, err := db.RowToMap(ciRows)
 	if err != nil {
-		serverErr(c)
-		return
+		return nil, http.StatusInternalServerError, ""
 	}
 	if ci == nil {
-		notFound(c, "Không tìm thấy học viên")
-		return
+		return nil, http.StatusNotFound, "Không tìm thấy học viên"
 	}
 	// M-2: chặn check-out LẦN 2 — nhưng chỉ khi đã rời THẬT. Ngày trả còn ở tương lai nghĩa là mới
 	// chốt lịch (đơn đã duyệt, hồ sơ cũ trước bản vá); người thật còn trong phòng thì phải cho ghi
@@ -1931,95 +2036,77 @@ func (h *Handlers) StudentCheckout(c *gin.Context) {
 			if co != "" {
 				coStr = " ngày " + co
 			}
-			conflict(c, gin.H{"error": "Học viên đã trả phòng" + coStr + ". Rời sớm/muộn hơn ngày đã ghi thì mở hồ sơ bấm \"Sửa ngày trả\" — không cần check-in lại."})
-			return
+			return nil, http.StatusConflict, "Học viên đã trả phòng" + coStr + ". Rời sớm/muộn hơn ngày đã ghi thì mở hồ sơ bấm \"Sửa ngày trả\" — không cần check-in lại."
 		}
 	}
 	badDate, err := checkout.BadCheckoutDate(ctx, h.pool(), id, d, studentsJSString(ci["check_in_date"]))
 	if err != nil {
-		serverErr(c)
-		return
+		return nil, http.StatusInternalServerError, ""
 	}
 	if badDate != "" {
-		badRequest(c, badDate)
-		return
+		return nil, http.StatusBadRequest, badDate
 	}
 	rs := "other"
-	if studentsCheckoutReasons[studentsJSString(b["reason"])] {
-		rs = studentsJSString(b["reason"])
+	if studentsCheckoutReasons[in.Reason] {
+		rs = in.Reason
 	}
 	curRows, err := h.pool().Query(ctx, "SELECT room_id FROM students WHERE id=$1", id)
 	if err != nil {
-		serverErr(c)
-		return
+		return nil, http.StatusInternalServerError, ""
 	}
 	curRow, err := db.RowToMap(curRows)
 	if err != nil {
-		serverErr(c)
-		return
+		return nil, http.StatusInternalServerError, ""
 	}
 	if curRow == nil {
-		notFound(c, "Không tìm thấy học viên")
-		return
+		return nil, http.StatusNotFound, "Không tìm thấy học viên"
 	}
 	roomID := intPtrFromDB(curRow["room_id"]) // room_id || null
 
 	// CHỐT CHỈ SỐ ĐIỆN NGÀY TRẢ — kiểm TRƯỚC khi ghi
-	hasMeter, reading, finite := studentsMeterVal(b["meter_reading"])
-	if hasMeter {
+	if in.HasMeter {
 		if roomID == nil {
-			badRequest(c, "Học viên không ở phòng nào — không có công-tơ để chốt chỉ số")
-			return
+			return nil, http.StatusBadRequest, "Học viên không ở phòng nào — không có công-tơ để chốt chỉ số"
 		}
-		if !finite {
-			badRequest(c, "Chỉ số công-tơ phải là số không âm")
-			return
-		}
-		errMsg, e := meter.CheckRead(ctx, h.pool(), *roomID, d, reading)
+		errMsg, e := meter.CheckRead(ctx, h.pool(), *roomID, d, in.Meter)
 		if e != nil {
-			serverErr(c)
-			return
+			return nil, http.StatusInternalServerError, ""
 		}
 		if errMsg != "" {
-			badRequest(c, errMsg)
-			return
+			return nil, http.StatusBadRequest, errMsg
 		}
 	}
 	settings, err := h.DB.GetSettings(ctx)
 	if err != nil {
-		serverErr(c)
-		return
+		return nil, http.StatusInternalServerError, ""
 	}
-	noticeArg := ""
-	if studentsJSTruthy(b["notice_date"]) {
-		noticeArg = studentsJSString(b["notice_date"])
-	}
-	elig := billing.DepositRefundEligible(noticeArg, d, rs, int(studentsSettingNum(settings, "deposit_notice_min_days")))
+	elig := billing.DepositRefundEligible(in.NoticeDate, d, rs, int(studentsSettingNum(settings, "deposit_notice_min_days")))
 
 	var noticeParam interface{}
-	if studentsJSTruthy(b["notice_date"]) {
-		noticeParam = studentsJSString(b["notice_date"])
+	if in.NoticeDate != "" {
+		noticeParam = in.NoticeDate
 	}
+	daRoi := d <= timeutil.Today()
 	upRows, err := h.pool().Query(ctx,
-		`UPDATE students SET status='out', check_out_date=$1, checkout_notice_date=$2, checkout_reason=$3 WHERE id=$4 RETURNING *`,
-		d, noticeParam, rs, id)
+		`UPDATE students SET status='out', check_out_date=$1, checkout_notice_date=$2, checkout_reason=$3,
+		   checkout_confirmed_at = CASE WHEN $5 THEN now() ELSE checkout_confirmed_at END,
+		   checkout_actual_date  = CASE WHEN $5 THEN $1::date ELSE checkout_actual_date END
+		 WHERE id=$4 RETURNING *`,
+		d, noticeParam, rs, id, daRoi)
 	if err != nil {
-		serverErr(c)
-		return
+		return nil, http.StatusInternalServerError, ""
 	}
 	student, err := db.RowToMap(upRows)
 	if err != nil {
-		serverErr(c)
-		return
+		return nil, http.StatusInternalServerError, ""
 	}
-	if hasMeter {
-		if _, e := meter.RecordRead(ctx, h.pool(), *roomID, d, reading, "checkout", &id,
+	if in.HasMeter {
+		if _, e := meter.RecordRead(ctx, h.pool(), *roomID, d, in.Meter, "checkout", &id,
 			"Chốt chỉ số lúc "+studentsJSString(student["name"])+" trả phòng", u.Username); e != nil {
-			serverErr(c)
-			return
+			return nil, http.StatusInternalServerError, ""
 		}
 	}
-	note := studentsStrOr(b["note"])
+	note := in.Note
 	if note == "" {
 		note = "Check-out"
 		// Đã có lịch trả trước đó (đơn duyệt / lần chốt trước) mà ngày khác -> nhật ký phải nói rõ là ĐỔI
@@ -2030,14 +2117,12 @@ func (h *Handlers) StudentCheckout(c *gin.Context) {
 	}
 	if _, err := h.pool().Exec(ctx, `INSERT INTO logs (student_id, type, date, room_id, note, source) VALUES ($1,'out',$2,$3,$4,'admin')`,
 		id, d, studentsPtrArg(roomID), note); err != nil {
-		serverErr(c)
-		return
+		return nil, http.StatusInternalServerError, ""
 	}
 	// BLK-1: đóng lượt ở + phòng trưởng + dọn phiếu kỳ sau + tính lại phiếu tháng trả
 	dropped, err := checkout.FinalizeCheckout(ctx, h.pool(), h.DB, id, d)
 	if err != nil {
-		serverErr(c)
-		return
+		return nil, http.StatusInternalServerError, ""
 	}
 	h.khoaTaiKhoanHocVien(ctx, id) // BL-117: xác nhận trả phòng -> tự khoá tài khoản đăng nhập
 	if dropped == nil {
@@ -2049,7 +2134,7 @@ func (h *Handlers) StudentCheckout(c *gin.Context) {
 		recalced = r
 	}
 	recalcedRoommates := []int{}
-	if hasMeter {
+	if in.HasMeter {
 		aff, e := meter.AffectedStudents(ctx, h.pool(), *roomID, d)
 		if e == nil {
 			for _, sid := range aff {
@@ -2063,14 +2148,14 @@ func (h *Handlers) StudentCheckout(c *gin.Context) {
 			}
 		}
 	}
-	c.JSON(http.StatusOK, gin.H{
+	return gin.H{
 		"student":                 student,
 		"refund":                  gin.H{"eligible": elig.Eligible, "reason": elig.Reason},
 		"recalced":                recalced,
 		"recalced_roommates":      recalcedRoommates,
 		"dropped_future_invoices": dropped,
 		"canh_bao":                h.canhBaoPhieuDaThu(ctx, id, d[:7]),
-	})
+	}, 0, ""
 }
 
 // canhBaoPhieuDaThu: phiếu kỳ `thang` ĐÃ THU nên mọi phép tính lại đều né (luật chốt tiền đã thu) —

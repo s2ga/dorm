@@ -6,10 +6,10 @@ let dmgFilter = 'open';      // Báo hư hỏng: mặc định việc chưa xong
 async function viewRequests() {
   const view = ST.view;
   el('content').innerHTML = '<div class="spinner"></div>';
-  let apps = [], damage = [], couts = [], vios = [], vstats = null;
-  try { [apps, damage, couts, vios, vstats] = await Promise.all([API.applications(), API.damageAll(), API.checkoutReqs(), API.violations(), API.violationStats().catch(() => null)]); }
+  let apps = [], damage = [], couts = [], vios = [], vstats = null, hoReports = [];
+  try { [apps, damage, couts, vios, vstats, hoReports] = await Promise.all([API.applications(), API.damageAll(), API.checkoutReqs(), API.violations(), API.violationStats().catch(() => null), API.handoverReports('pending').catch(() => ST.hoReports || [])]); }
   catch (e) { return renderViewError(ST.view, e); } // BL-21: khối lỗi + Thử lại thay vì kẹt spinner
-  Object.assign(ST, { applications: apps, damage, couts, vstats }); updateNavBadges();
+  Object.assign(ST, { applications: apps, damage, couts, vstats, hoReports }); updateNavBadges();
   const threshold = (vstats && vstats.threshold) || 3;
 
   // 5 trang nhóm "Tiếp nhận & hỗ trợ" dùng CHUNG một kiểu đầu panel: tiêu đề danh sách + số lượng + nút.
@@ -32,7 +32,7 @@ async function viewRequests() {
           : regFilter === 'rejected' ? 'Chưa có đơn nào bị từ chối.' : 'Không có đơn phù hợp.';
     // BL-117: đã duyệt + tới ngày dự kiến mà chưa ai xác nhận đã vào -> BQL xác nhận (Check-in ghi ngày
     // thật) hoặc bấm "Không đến" (khoá hồ sơ, nhả chỗ). Tới lúc đó họ KHÔNG được tính là đang ở.
-    body = choXacNhanVaoHTML() + pills + (shown.length ? `<div class="table-wrap"><table><thead><tr><th>Ngày gửi</th><th>Họ tên</th><th>SĐT</th><th>GT</th><th>Hình thức</th><th>Muốn nhận phòng</th><th>Nguyện vọng</th><th>Trạng thái</th><th></th></tr></thead><tbody>
+    body = bienBanChoDuyetHTML('checkin') + choXacNhanVaoHTML() + pills + (shown.length ? `<div class="table-wrap"><table><thead><tr><th>Ngày gửi</th><th>Họ tên</th><th>SĐT</th><th>GT</th><th>Hình thức</th><th>Muốn nhận phòng</th><th>Nguyện vọng</th><th>Trạng thái</th><th></th></tr></thead><tbody>
       ${shown.map(a => `<tr>
         <td>${fmtDate(String(a.created_at).slice(0, 10))}</td>
         <td>${a.student_id ? `<a href="#" data-act="studentDetail" data-args='[${a.student_id}]' title="Xem chi tiết học viên"><strong>${esc(a.name)}</strong></a>` : `<strong>${esc(a.name)}</strong>`}${a.class_name ? `<div class="muted" style="font-size:11px">${esc(a.class_name)}</div>` : ''}${a.facility_name ? `<div class="sub2">${IC.building} ${esc(a.facility_name)}</div>` : ''}</td>
@@ -57,7 +57,7 @@ async function viewRequests() {
     const emptyC = !couts.length ? 'Chưa có đơn trả phòng.'
       : coutFilter === 'pending' ? 'Không có đơn nào chờ xác nhận.' : 'Không có đơn phù hợp.';
     hd = `${IC.logOut} Đơn trả phòng (${shownC.length})`;
-    body = choXacNhanRaHTML() + pillsC + (shownC.length ? `<div class="table-wrap"><table><thead><tr><th>Ngày gửi</th><th>Học viên</th><th>Phòng</th><th>Ngày trả</th><th>Lý do</th><th>Trạng thái</th><th></th></tr></thead><tbody>
+    body = bienBanChoDuyetHTML('checkout') + choXacNhanRaHTML() + pillsC + (shownC.length ? `<div class="table-wrap"><table><thead><tr><th>Ngày gửi</th><th>Học viên</th><th>Phòng</th><th>Ngày trả</th><th>Lý do</th><th>Trạng thái</th><th></th></tr></thead><tbody>
       ${shownC.map(c => `<tr>
         <td>${fmtDate(String(c.created_at).slice(0, 10))}</td>
         <td>${c.student_id ? `<a href="#" data-act="studentDetail" data-args='[${c.student_id}]' title="Xem chi tiết học viên">${esc(c.student_name || '—')}</a>` : esc(c.student_name || '—')}</td><td>${(studentById(c.student_id) || {}).room_id ? `<a href="#" data-act="roomDetail" data-args='[${(studentById(c.student_id) || {}).room_id}]' title="Xem chi tiết phòng">${esc(c.room_name || '—')}</a>` : esc(c.room_name || '—')}</td>
@@ -391,33 +391,118 @@ async function doConfirmCout(id) {
 async function rejectCout(id) { if (!confirm('Từ chối đơn trả phòng?')) return; await guard(() => API.rejectCheckoutReq(id)); toast('Đã từ chối'); viewRequests(); }
 
 /* ---------- CHECK-IN / OUT ---------- */
-function checkInForm(id) {
+/* ---- Biên bản bàn giao của an ninh (BL-121): quản trị xác nhận mới đổi hồ sơ ---- */
+const HO_VS_NHAN = { sach: ['Sạch', 'green'], ban_nhe: ['Bẩn nhẹ', 'amber'], ban_nang: ['Bẩn nặng', 'red'] };
+const hoReportById = id => (ST.hoReports || []).find(r => r.id === id);
+const hoHuHaoText = r => {
+  const ls = Array.isArray(r.damages) ? r.damages : [];
+  if (!ls.length) return '';
+  return ls.map(l => `${l.name} ×${l.quantity}`).join(', ') + ` = ${money(+r.damage_amount || 0)}`;
+};
+// Dòng tóm tắt biên bản trên đầu modal Check-in / Check-out: quản trị biết mình đang xác nhận cái gì.
+const hoBanner = bb => bb ? `<div class="bang-tin" style="display:block">${IC.filePen} <strong>Biên bản #${bb.id}</strong> — an ninh ${esc(bb.created_by || '')} ghi ${fmtDate(String(bb.created_at).slice(0, 10))}:
+    ngày thật ${fmtDate(String(bb.actual_date).slice(0, 10))}${bb.meter_reading != null ? ` · số điện <strong>${esc(String(bb.meter_reading))}</strong>` : ''}${bb.cleanliness && HO_VS_NHAN[bb.cleanliness] ? ` · vệ sinh ${HO_VS_NHAN[bb.cleanliness][0].toLowerCase()}` : ''}${bb.keys_count != null ? ` · ${bb.keys_count} chìa` : ''}${bb.plates ? ` · xe ${esc(bb.plates)}` : ''}${hoHuHaoText(bb) ? `<div style="margin-top:4px">Hư hao: ${esc(hoHuHaoText(bb))} — <em>đề xuất, đưa vào phiếu thu / tất toán cọc ở màn sẵn có</em></div>` : ''}${bb.note ? `<div class="muted" style="margin-top:4px">${esc(bb.note)}</div>` : ''}
+    <div class="muted" style="font-size:12px;margin-top:4px">Số liệu đã điền sẵn bên dưới, sửa được trước khi xác nhận.</div></div>` : '';
+function bienBanChoDuyetHTML(kind) {
+  const ds = (ST.hoReports || []).filter(r => r.kind === kind && r.status === 'pending');
+  if (!ds.length) return '';
+  const laNhan = kind === 'checkin';
+  return `<div class="bang-tin" style="margin:12px 14px 0;display:block;border-color:var(--brand)">
+    <div class="flex" style="justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+      <strong>${IC.filePen} Biên bản ${laNhan ? 'nhận' : 'trả'} phòng an ninh gửi — chờ xác nhận (${ds.length})</strong>
+      <span class="muted" style="font-size:12.5px">Xác nhận = ${laNhan ? 'Check-in' : 'Check-out'} thật với số liệu an ninh đã ghi; hồ sơ chỉ đổi khi bạn bấm xác nhận.</span>
+    </div>
+    <div class="table-wrap" style="margin-top:8px"><table>
+      <thead><tr><th>Học viên</th><th>Phòng</th><th>Ngày thật</th><th class="num">Số điện</th><th>Hư hao</th><th>Vệ sinh · chìa · xe</th><th>Ghi chú · người lập</th><th></th></tr></thead>
+      <tbody>${ds.map(r => `<tr>
+        <td><a href="#" data-act="studentDetail" data-args='[${r.student_id}]'><strong>${esc(r.student_name)}</strong></a>${r.student_code ? `<div class="sub2">${esc(r.student_code)}</div>` : ''}</td>
+        <td data-label="Phòng">${esc(r.room_name || '—')}</td>
+        <td data-label="Ngày thật">${fmtDate(String(r.actual_date).slice(0, 10))}</td>
+        <td class="num" data-label="Số điện">${r.meter_reading == null ? '<span class="muted">—</span>' : esc(String(r.meter_reading))}</td>
+        <td data-label="Hư hao" style="font-size:12px">${hoHuHaoText(r) ? esc(hoHuHaoText(r)) : '<span class="muted">không</span>'}</td>
+        <td data-label="Vệ sinh" style="font-size:12px">${r.cleanliness && HO_VS_NHAN[r.cleanliness] ? `<span class="badge ${HO_VS_NHAN[r.cleanliness][1]}">${HO_VS_NHAN[r.cleanliness][0]}</span>` : '<span class="muted">—</span>'}${r.keys_count != null ? ` · ${r.keys_count} chìa` : ''}${r.plates ? `<div class="muted">${IC.bike} ${esc(r.plates)}</div>` : ''}</td>
+        <td data-label="Ghi chú" style="font-size:12px">${r.note ? esc(r.note) : '<span class="muted">—</span>'}<div class="muted" style="font-size:11px">${esc(r.created_by || '')} · ${fmtDate(String(r.created_at).slice(0, 10))}</div></td>
+        <td class="num"><div class="rowbtns" style="justify-content:flex-end">
+          <button class="btn sm ${laNhan ? 'green' : 'danger'}" data-act="${laNhan ? 'checkInForm' : 'checkOutForm'}" data-args='[${r.student_id},${r.id}]'>${laNhan ? IC.key + ' Xác nhận đã vào' : IC.logOut + ' Xác nhận đã trả'}</button>
+          <button class="btn sm ghost" title="Trả lại để an ninh lập lại" data-act="bienBanTraLai" data-args='[${r.id}]'>${IC.undo} Trả lại</button>
+        </div></td></tr>`).join('')}</tbody></table></div></div>`;
+}
+async function bienBanTraLai(id) {
+  const ly = prompt('Lý do trả lại (an ninh sẽ thấy lý do này và lập lại biên bản):');
+  if (ly === null) return;
+  if (!ly.trim()) return toast('Nhập lý do trả lại', 'err');
+  const r = await guard(() => API.handoverReportReturn(id, ly.trim()));
+  if (r === null) return;
+  try { ST.hoReports = await API.handoverReports('pending'); } catch {}
+  updateNavBadges(); toast('Đã trả biên bản lại cho an ninh'); viewRequests();
+}
+// hoId (tuỳ chọn) = mở từ biên bản an ninh: điền sẵn số liệu, lưu qua đường xác nhận biên bản.
+function checkInForm(id, hoId) {
   const s = studentById(id);
+  const bb = hoId ? hoReportById(hoId) : null;
   quenPhongMoc();
   openModal(`
     <div class="mh"><h3>${IC.key} Check-in: ${esc(s.name)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
+      ${hoBanner(bb)}
       <div class="grid2">
         <div class="field"><label>Ngày vào</label><input id="c_date"></div>
         <div class="field"><label>Phòng</label><select id="c_room">${roomOptions(s.room_id, s.gender)}</select></div>
       </div>
-      <div class="field"><label>Ghi chú</label><input id="c_note" placeholder="VD: quay lại ở"></div>
+      <div class="grid2">
+        <div class="field"><label>Ngày dự kiến trả <span class="opt">(bỏ trống nếu ở dài hạn)</span></label><input id="c_pout"></div>
+        <div class="field"><label>Ghi chú</label><input id="c_note" placeholder="VD: quay lại ở"></div>
+      </div>
+      ${bb && s.room_id ? meterField('c_meter', s.room_name, 'nhận phòng') : ''}
+      <div class="hint">${IC.info}<span>Xác nhận xong hệ thống <strong>tự cấp số hợp đồng</strong> kế tiếp của dãy và tên file scan chuẩn.
+        Ở <strong>dưới ${shortTermMaxDays()} ngày</strong> (điền ngày dự kiến trả) → ký phiếu bàn giao, <strong>không</strong> cấp số.</span></div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn green" data-act="doCheckIn" data-args='[${id}]'>Xác nhận check-in</button></div>`);
-  attachDate(el('c_date'), today(), { choTrong: 1, gt: s.gender });
+    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn green" data-act="doCheckIn" data-args='[${id}${bb ? ',' + bb.id : ''}]'>Xác nhận check-in</button></div>`);
+  attachDate(el('c_date'), bb ? String(bb.actual_date).slice(0, 10) : today(), { choTrong: 1, gt: s.gender });
+  attachDate(el('c_pout'), (s.planned_check_out || '').slice(0, 10));
   noNgayVoiPhong(el('c_date'), 'c_room', s.gender);
+  if (bb) {
+    if (el('c_meter') && bb.meter_reading != null) el('c_meter').value = bb.meter_reading;
+    if (bb.note) el('c_note').value = bb.note;
+  }
 }
-async function doCheckIn(id) {
-  const r = await guard(() => withOverloadConfirm(ok =>
-    API.checkIn(id, { date: el('c_date').dataset.iso, room_id: el('c_room').value || null, note: el('c_note').value.trim(), confirm_overload: ok })));
+async function doCheckIn(id, hoId) {
+  const body = ok => {
+    const b = { date: el('c_date').dataset.iso, room_id: el('c_room').value || null, note: el('c_note').value.trim(),
+      planned_check_out: el('c_pout').dataset.iso || null, confirm_overload: ok };
+    if (hoId) { const m = el('c_meter') ? el('c_meter').value.trim() : ''; b.meter_reading = m || undefined; }
+    return b;
+  };
+  const r = await guard(() => withOverloadConfirm(ok => hoId ? API.handoverReportApprove(hoId, body(ok)) : API.checkIn(id, body(ok))));
   if (r === null) return;
-  await refreshCache(); await luuXongVeLai(veLaiNen); toast('Đã check-in');
+  await refreshCache(); await luuXongVeLai(veLaiNen);
+  if (r.so_hd_moi) baoSoHDMoi(r); else toast(hoId ? 'Đã xác nhận biên bản — học viên đã nhận phòng' : 'Đã check-in');
 }
-function checkOutForm(id) {
+// Vừa cấp số HĐ lúc xác nhận -> hiện số + tên file chuẩn để ghi lên hợp đồng giấy và đặt tên bản scan.
+function baoSoHDMoi(r) {
+  openModal(`
+    <div class="mh"><h3>${IC.fileText} Đã check-in & cấp số hợp đồng</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mb">
+      <p style="margin:0 0 8px">Ghi lên hợp đồng giấy: số <strong style="font-size:19px">${esc(r.so_hd_moi)}</strong>
+        · ngày ký <strong>${fmtDate(r.check_in_date)}</strong> (theo ngày nhận phòng)</p>
+      <div class="field" style="margin:0"><label>Tên file để lưu bản scan</label>
+        <div class="flex" style="gap:6px"><input readonly value="${esc(r.ten_file_hd)}" style="flex:1">
+          <button class="btn" data-act="chepTenFileHD" data-args='[${JSON.stringify(r.ten_file_hd)}]'>${IC.clipboard} Chép</button></div></div>
+    </div>
+    <div class="mf"><button class="btn pri" data-act="closeModal">Xong</button></div>`);
+}
+async function chepTenFileHD(t) {
+  try { await navigator.clipboard.writeText(t); toast('Đã chép tên file'); }
+  catch (e) { toast('Trình duyệt không cho chép tự động — chị chép tay giúp nhé', 'err'); }
+}
+// hoId (tuỳ chọn) = mở từ biên bản an ninh: điền sẵn số liệu, lưu qua đường xác nhận biên bản.
+function checkOutForm(id, hoId) {
   const s = studentById(id);
+  const bb = hoId ? hoReportById(hoId) : null;
   openModal(`
     <div class="mh"><h3>${IC.doorOpen} Check-out: ${esc(s.name)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
+      ${hoBanner(bb)}
       <div class="grid2">
         <div class="field"><label>Ngày báo trả phòng</label><input id="c_notice"></div>
         <div class="field"><label>Ngày rời thực tế</label><input id="c_date"></div>
@@ -429,9 +514,14 @@ function checkOutForm(id) {
       ${s.room_id ? meterField('c_meter', s.room_name, 'rời phòng') : ''}
       <div class="hint">${IC.info} App sẽ tự xét điều kiện hoàn cọc dựa trên ngày báo và lý do.</div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn danger" data-act="doCheckOut" data-args='[${id}]'>Xác nhận check-out</button></div>`);
-  attachDate(el('c_notice'), today());
-  attachDate(el('c_date'), today());
+    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn danger" data-act="doCheckOut" data-args='[${id}${bb ? ',' + bb.id : ''}]'>Xác nhận check-out</button></div>`);
+  attachDate(el('c_notice'), s.checkout_notice_date ? String(s.checkout_notice_date).slice(0, 10) : today());
+  attachDate(el('c_date'), bb ? String(bb.actual_date).slice(0, 10) : today());
+  if (bb) {
+    if (el('c_meter') && bb.meter_reading != null) el('c_meter').value = bb.meter_reading;
+    if (bb.note) el('c_note').value = bb.note;
+    if (s.checkout_reason) el('c_reason').value = s.checkout_reason;
+  }
 }
 // Sửa ngày trả của hồ sơ ĐÃ rời. Check-out chặn gọi lần hai nên phải đi đường riêng.
 function suaNgayTraForm(id) {
@@ -465,15 +555,17 @@ async function doSuaNgayTra(id) {
   toast(`Đã đổi ngày trả ${fmtDate(r.cu)} → ${fmtDate(r.moi)}${n ? ` · ${n} bạn cùng phòng được tính lại tiền điện` : ''}`);
   if (r.canh_bao) alert(r.canh_bao);   // phiếu kỳ này ĐÃ THU — app không tự sửa, phải nói to
 }
-async function doCheckOut(id) {
+async function doCheckOut(id, hoId) {
   const s = studentById(id);
   const meter = el('c_meter') ? el('c_meter').value.trim() : '';
-  const r = await guard(() => API.checkOut(id, { date: el('c_date').dataset.iso, notice_date: el('c_notice').dataset.iso, reason: el('c_reason').value, note: el('c_note').value.trim(), meter_reading: meter || undefined }));
+  const body = { date: el('c_date').dataset.iso, notice_date: el('c_notice').dataset.iso, reason: el('c_reason').value, note: el('c_note').value.trim(), meter_reading: meter || undefined };
+  const r = await guard(() => hoId ? API.handoverReportApprove(hoId, body) : API.checkOut(id, body));
+  if (r === null) return;
   await refreshCache(); await luuXongVeLai(veLaiNen);
   const nRoom = r.recalced_roommates ? r.recalced_roommates.length : 0;
   toast(r.recalced
-    ? `Đã check-out · phiếu tháng tính lại ${r.recalced.days_stayed} ngày ở${nRoom ? ` · ${nRoom} bạn cùng phòng cũng được tính lại tiền điện` : ''}`
-    : 'Đã check-out');
+    ? `Đã ${hoId ? 'xác nhận biên bản' : 'check-out'} · phiếu tháng tính lại ${r.recalced.days_stayed} ngày ở${nRoom ? ` · ${nRoom} bạn cùng phòng cũng được tính lại tiền điện` : ''}`
+    : (hoId ? 'Đã xác nhận biên bản — học viên đã trả phòng' : 'Đã check-out'));
   if (r.canh_bao) alert(r.canh_bao);   // phiếu kỳ này ĐÃ THU — app không tự sửa, phải nói to
   if (s && s.deposit_status === 'held') depositSettlePrompt(id, r.refund);
 }

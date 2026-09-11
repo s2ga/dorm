@@ -484,7 +484,7 @@ function viewStudents() {
             đang ở hay đã trả là hai câu hỏi đi liền nhau. */''}
       ${list.length ? `<table><thead><tr>${sTh('name', 'Học viên')}${sTh('room', 'Phòng', '', 'data-filt="list"')}${sTh('status', 'Trạng thái')}${sTh('checkin', 'Ngày vào')}<th>Mã pháp nhân</th>${sTh('contract', 'Hợp đồng')}${sTh('deposit', 'Cọc')}${hasXC ? '<th>Dự kiến XC</th>' : ''}<th></th></tr></thead><tbody>
       ${list.map(s => {
-        const flags = `${isOccupying(s) && s.residency_status !== 'registered' ? `<span title="Chưa đăng ký tạm trú"> ${IC.flag}</span>` : ''}${s.uses_washing ? `<span title="Máy giặt"> ${IC.washer}</span>` : ''}${s.vehicle_count ? `<span title="Xe gửi"> ${IC.bike}${s.vehicle_count}</span>` : ''}${s.violation_count ? `<span title="Vi phạm ${s.violation_count} lần" style="color:${s.violation_count >= vthr ? 'var(--red-ink)' : 'var(--amber-ink)'}"> ${IC.alert}${s.violation_count}</span>` : ''}`;
+        const flags = `${isOccupying(s) && s.residency_status !== 'registered' ? `<span title="Chưa đăng ký tạm trú"> ${IC.flag}</span>` : ''}${contractRequired(s) && !s.has_contract_scan && !(thueNguyenPhong(s) && !s.contract_no) ? `<span title="Chưa có bản scan hợp đồng" style="color:var(--amber-ink)"> ${IC.fileText}</span>` : ''}${s.uses_washing ? `<span title="Máy giặt"> ${IC.washer}</span>` : ''}${s.vehicle_count ? `<span title="Xe gửi"> ${IC.bike}${s.vehicle_count}</span>` : ''}${s.violation_count ? `<span title="Vi phạm ${s.violation_count} lần" style="color:${s.violation_count >= vthr ? 'var(--red-ink)' : 'var(--amber-ink)'}"> ${IC.alert}${s.violation_count}</span>` : ''}`;
         const ds = esc((s.name + ' ' + (s.code || '') + ' ' + (s.phone || '') + ' ' + (s.class_name || '') + ' ' + (s.room_name || '') + ' ' + legalEntityCell(s.gender)).toLowerCase());
         return `<tr data-s="${ds}">
         <td><div class="flex stu-name" data-act="studentDetail" data-args='[${s.id}]' role="button" tabindex="0" title="Xem chi tiết học viên"><span class="avatar">${esc(initials(s.name))}</span><div>
@@ -684,8 +684,8 @@ async function studentForm(id) {
       ${nhomForm(IC.fileText, 'Thông tin hợp đồng', `
         <div class="grid2">
           <div class="field"><label>Số HĐ <span class="opt">(nhập tay · ⚡ gợi ý số kế tiếp)</span></label>
-            <div class="flex" style="gap:6px"><input id="f_cno" value="${esc(s.contract_no || '')}" placeholder="03/2026/HDKTX-E2" style="flex:1">
-            <button type="button" class="btn sm" data-act="suggestContractNo" data-args='[${id || 0}]' title="Điền số HĐ đã giữ chỗ cho hồ sơ này">${IC.zap}</button></div></div>
+            <div class="flex" style="gap:6px"><input id="f_cno" value="${esc(s.contract_no || '')}" placeholder="35.HDTP-E2" style="flex:1">
+            <button type="button" class="btn sm" data-act="suggestContractNo" data-args='[${id || 0}]' title="Điền số kế tiếp của dãy pháp nhân">${IC.zap}</button></div></div>
           <div class="field"><label>Pháp nhân</label>
             <div class="ro-in"><strong id="f_legal">${esc(legalEntity(s.gender))}</strong> <span class="muted">— theo giới tính, đổi ở mục Thông tin cá nhân</span></div></div>
         </div>
@@ -827,7 +827,7 @@ async function studentDetail(id) {
       <div class="panel" style="margin-top:12px"><div class="hd"><h2 style="font-size:14px">${IC.fileText} Hợp đồng</h2></div><div class="pad">
         <p style="margin:0">Số HĐ: ${s.contract_no
           ? `<strong>${esc(s.contract_no)}</strong>`
-          : `<span class="muted">chưa ký</span> <span class="badge blue" id="hd_dukien" title="Số đã giữ chỗ cho hồ sơ này theo thứ tự nhận phòng. Ký và scan hợp đồng xong mới thành số chính thức.">…</span>`
+          : `<span class="muted">chưa ký</span> <span class="badge blue" id="hd_dukien" title="Số kế tiếp của dãy nếu cấp lúc này — số chính thức cấp khi bấm Xác nhận nhận phòng.">…</span>`
         } · Ngày ký: ${s.contract_date ? fmtDate(s.contract_date) : '<span class="muted">chưa ký</span>'} · <span class="badge ${CONTRACT_BADGE[s.contract_status] || 'gray'}">${CONTRACT_LABEL[s.contract_status] || '—'}</span></p>
         ${s.contract_no ? '' : hdThamChieu(s, true)}
         ${contractPending(s) ? `<div class="bang-tin" style="margin:10px 0 0;background:var(--amber-bg);border-color:var(--amber-ink);color:var(--amber-ink)">${IC.alert} <strong>Chưa ký HĐ:</strong> thuê trên ${shortTermMaxDays()} ngày — cần ký <strong>hợp đồng thuê phòng</strong>.</div>`
@@ -934,14 +934,13 @@ async function goScanHD(id) {
   // những ô đang nhập dở.
   if (el('f_cno')) studentForm(id); else studentDetail(id);
 }
-// Số HĐ GIỮ CHỖ của CHÍNH hồ sơ này — máy chủ xếp theo thứ tự nhận phòng nên mỗi người một số khác
-// nhau, không phải số chung của cả pháp nhân. Ký và scan xong mới thành số chính thức.
+// Số kế tiếp của dãy pháp nhân — chỉ để tham khảo, số CHÍNH THỨC cấp lúc bấm Xác nhận nhận phòng.
 // Hỏi hụt, hoặc hồ sơ dùng chung HĐ phòng thuê trọn, thì bỏ nhãn đi — không hiện số sai.
 async function hienSoHDDuKien(s) {
   const o = el('hd_dukien'); if (!o) return;
   try {
     const r = await API.contractNoNext(s.gender || 'male', today(), s.id);
-    if (el('hd_dukien') === o && r && r.contract_no) o.textContent = `giữ chỗ: ${r.contract_no}`;
+    if (el('hd_dukien') === o && r && r.contract_no) o.textContent = `dự kiến: ${r.contract_no}`;
     else o.remove();
   } catch { o.remove(); }
 }

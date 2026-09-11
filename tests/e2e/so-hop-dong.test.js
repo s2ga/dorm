@@ -42,20 +42,20 @@ module.exports = {
     t.eq('Hỏi số kế tiếp (không kèm hồ sơ) → 200', goc.status, 200, `HTTP ${goc.status}`);
     const ent = goc.json && goc.json.entity;
     t.ok('Máy chủ trả pháp nhân', !!ent, JSON.stringify(goc.json));
-    const nam = new Date().getFullYear();
-    const so = n => `${n}/${nam}/HDKTX-${ent}`;
+    const so = n => `${n}.HDTP-${ent}`; // chuẩn giấy 10/09/2026: dãy nối tiếp, KHÔNG theo năm
+    const NN = (goc.json.seq || 1) + 99; // chiếm số cao hơn MAX hiện có (kể cả rác bộ test khác)
 
     // ── Khoá hồ sơ giữ số cao nhất KHÔNG được làm dãy lùi ──────────────────────────────
     const R = await mkRoom('_R', 'shared');
-    const A = await mkStu('_A', R, so(900));
+    const A = await mkStu('_A', R, so(NN));
     const truoc = await keTiep(null);
-    t.eq('Số kế tiếp nối tiếp số cao nhất đang có', truoc.json && truoc.json.seq, 901,
+    t.eq('Số kế tiếp nối tiếp số cao nhất đang có', truoc.json && truoc.json.seq, NN + 1,
       JSON.stringify(truoc.json));
 
     const khoa = await t.api('DELETE', `/api/students/${A}`, T, { reason: 'Thử nghiệm' });
     t.eq('Khoá hồ sơ → 200', khoa.status, 200, `HTTP ${khoa.status}`);
     const sau = await keTiep(null);
-    t.eq('Khoá hồ sơ KHÔNG làm dãy số lùi — số đã cấp không cấp lại', sau.json && sau.json.seq, 901,
+    t.eq('Khoá hồ sơ KHÔNG làm dãy số lùi — số đã cấp không cấp lại', sau.json && sau.json.seq, NN + 1,
       `sau khi khoá lại ra ${sau.json && sau.json.seq}`);
 
     // ── Hỏi số cho MỘT hồ sơ cụ thể phải chạy được (câu SQL từng vỡ, mọi lần gọi đều 500) ──
@@ -63,14 +63,14 @@ module.exports = {
     const rieng = await keTiep(B);
     t.eq('Hỏi số kèm student_id → 200, không phải lỗi máy chủ', rieng.status, 200,
       `HTTP ${rieng.status} ${rieng.json && rieng.json.error || ''}`);
-    t.ok('Trả về đúng khuôn NN/YYYY/HDKTX-XX', /^[0-9]+\/[0-9]{4}\/HDKTX-.+$/.test(rieng.json && rieng.json.contract_no || ''),
+    t.ok('Trả về đúng khuôn NN.HDTP-XX', /^[0-9]+\.HDTP-.+$/.test(rieng.json && rieng.json.contract_no || ''),
       JSON.stringify(rieng.json));
 
-    // ── Mỗi hồ sơ chưa có HĐ nhận một số KHÁC nhau ─────────────────────────────────────
+    // ── KHÔNG còn giữ chỗ theo ngày vào: số kế tiếp là số CHUNG của dãy (chốt 10/09/2026) ──
     const C = await mkStu('_C', R, '');
     const soB = (await keTiep(B)).json.contract_no;
     const soC = (await keTiep(C)).json.contract_no;
-    t.ok('Hai hồ sơ chưa có HĐ nhận hai số khác nhau', soB !== soC, `B=${soB} C=${soC}`);
+    t.eq('Hai hồ sơ chưa có HĐ thấy CÙNG số kế tiếp (số chính thức cấp lúc xác nhận)', soB, soC, `B=${soB} C=${soC}`);
 
     // ── Tham chiếu HĐ: phòng THUÊ TRỌN thì thành viên trỏ về HĐ của phòng trưởng ───────
     const W = await mkRoom('_W', 'whole');
