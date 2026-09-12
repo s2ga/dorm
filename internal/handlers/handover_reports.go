@@ -427,11 +427,12 @@ func (h *Handlers) nhanPhongTuBienBan(c *gin.Context, u *auth.User, id int, d, n
 		gender, rental, name string
 		curRoom              *int
 		lichVao, lichTra     *string
+		cccdTruoc, cccdSau   *string
 		ciConf               *time.Time
 	)
 	err := h.pool().QueryRow(ctx,
-		"SELECT gender, rental_type, name, room_id, planned_check_in::text, planned_check_out::text, checkin_confirmed_at FROM students WHERE id=$1 AND deleted_at IS NULL", id).
-		Scan(&gender, &rental, &name, &curRoom, &lichVao, &lichTra, &ciConf)
+		"SELECT gender, rental_type, name, room_id, planned_check_in::text, planned_check_out::text, cccd_front, cccd_back, checkin_confirmed_at FROM students WHERE id=$1 AND deleted_at IS NULL", id).
+		Scan(&gender, &rental, &name, &curRoom, &lichVao, &lichTra, &cccdTruoc, &cccdSau, &ciConf)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			notFound(c, "Không tìm thấy học viên")
@@ -442,6 +443,11 @@ func (h *Handlers) nhanPhongTuBienBan(c *gin.Context, u *auth.User, id int, d, n
 	}
 	if ciConf != nil {
 		conflict(c, gin.H{"error": "Học viên đã được xác nhận nhận phòng trước đó."})
+		return nil, false
+	}
+	// Cùng luật với StudentCheckin: đủ 2 mặt CCCD mới nhận phòng được (owner chốt 12/09/2026).
+	if thieu := studentsThieuCccd(applicationsDeref(cccdTruoc), applicationsDeref(cccdSau)); thieu != "" {
+		badRequest(c, "Chưa có ảnh CCCD "+thieu+" trong hồ sơ học viên. Bổ sung ảnh rồi xác nhận biên bản lại.")
 		return nil, false
 	}
 	roomIDPtr := curRoom

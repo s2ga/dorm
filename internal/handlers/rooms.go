@@ -239,7 +239,7 @@ func (h *Handlers) RoomsCalendar(c *gin.Context) {
 	rows, err := h.pool().Query(c.Request.Context(), `
 		SELECT r.id, r.name, r.floor, r.gender, r.capacity, r.facility_id,
 		       COALESCE(r.room_type,'shared') AS room_type,
-		       (COALESCE(r.room_type,'shared') IN ('shared','security','staff')) AS dem_giuong,
+		       (COALESCE(r.room_type,'shared') IN ('shared','whole')) AS dem_giuong,
 		       x.dang_o, x.sap_vao, x.sap_ra
 		  FROM rooms r
 		  CROSS JOIN LATERAL (

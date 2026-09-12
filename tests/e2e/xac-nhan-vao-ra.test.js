@@ -37,9 +37,10 @@ module.exports = {
       `INSERT INTO rooms (name,facility_id,capacity,gender,hang,monthly_fee) VALUES ($1,$2,4,'female','B',1200000) RETURNING id`,
       [P + '_R', fac])).rows[0].id;
 
+    // Đơn có sẵn ảnh CCCD 2 mặt (bắt buộc từ 12/09/2026) — duyệt đơn chép sang hồ sơ, nhận phòng mới qua.
     const donMoi = async (ma, sdt) => (await t.db.query(
-      `INSERT INTO applications (name, phone, gender, code, status, facility_id, desired_check_in)
-       VALUES ($1,$2,'female',$3,'pending',$4,$5) RETURNING id`,
+      `INSERT INTO applications (name, phone, gender, code, status, facility_id, desired_check_in, cccd_front, cccd_back)
+       VALUES ($1,$2,'female',$3,'pending',$4,$5,'test/f.jpg','test/b.jpg') RETURNING id`,
       [P + ' ' + ma, sdt, P + '_' + ma, fac, ngay(3)])).rows[0].id;
     const duyet = async (appId, user, ciDate) => {
       const r = await t.api('POST', `/api/applications/${appId}/approve`, T, {
@@ -82,6 +83,27 @@ module.exports = {
     const rB = await t.api('POST', `/api/students/${sA}/checkin`, T, { date: ngay(1), room_id: rid });
     t.eq('B: check-in ngày mai → 400 (ngày thật không ở tương lai)', rB.status, 400, `HTTP ${rB.status} ${rB.json && rB.json.error || ''}`);
     t.eq('B: hồ sơ vẫn chưa có ngày vào thật', (await hoSo(sA)).ci, null);
+
+    // ── B2. Thiếu ảnh CCCD thì KHÔNG nhận phòng được (luật 12/09/2026) ───────────────────
+    // Phòng riêng để phép đếm chỗ ở của phòng chính bên dưới không bị ca này làm lệch.
+    const ridK = (await t.db.query(
+      `INSERT INTO rooms (name,facility_id,capacity,gender,hang,monthly_fee) VALUES ($1,$2,4,'female','B',1200000) RETURNING id`,
+      [P + '_RK', fac])).rows[0].id;
+    const sK = (await t.db.query(
+      `INSERT INTO students (code,name,gender,planned_check_in,status,rental_type) VALUES ($1,$1,'female',$2,'out','ghep') RETURNING id`,
+      [P + '_K', ngay(3)])).rows[0].id;
+    const ciK = () => t.api('POST', `/api/students/${sK}/checkin`, T, { date: ngay(0), room_id: ridK });
+    const rK1 = await ciK();
+    t.eq('B2: hồ sơ trắng ảnh CCCD → check-in 400', rK1.status, 400, `HTTP ${rK1.status} ${rK1.json && rK1.json.error || ''}`);
+    t.ok('B2: báo lỗi nói rõ thiếu mặt nào', /CCCD mặt trước và mặt sau/.test((rK1.json && rK1.json.error) || ''),
+      String(rK1.json && rK1.json.error));
+    t.eq('B2: hồ sơ KHÔNG bị đổi (chưa có ngày vào thật)', (await hoSo(sK)).ci, null);
+    await t.db.query(`UPDATE students SET cccd_front='test/f.jpg' WHERE id=$1`, [sK]);
+    const rK2 = await ciK();
+    t.eq('B2: mới có 1 mặt vẫn chặn → 400', rK2.status, 400, `HTTP ${rK2.status} ${rK2.json && rK2.json.error || ''}`);
+    await t.db.query(`UPDATE students SET cccd_back='test/b.jpg' WHERE id=$1`, [sK]);
+    const rK3 = await ciK();
+    t.eq('B2: bổ sung đủ 2 mặt → 200', rK3.status, 200, `HTTP ${rK3.status} ${rK3.json && rK3.json.error || ''}`);
 
     // ── C. Xác nhận nhận phòng (BQL) ─────────────────────────────────────────────────────
     const rC = await t.api('POST', `/api/students/${sA}/checkin`, T, { date: ngay(0), room_id: rid, note: 'Đến sớm 3 ngày' });

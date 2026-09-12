@@ -23,9 +23,14 @@ const ok = (t, d, x = '') => { if (d) console.log('  [OK] ' + t); else { fail++;
   const s = await page.evaluate(() => {
     const T = tongChiSo(ST.rooms);
     const tungPhong = ST.rooms.filter(phongTinhGiuong).reduce((a, r) => a + chiSoPhong(r).trong, 0);
-    const kpiText = [...document.querySelectorAll('.kpis .kpi')].map(k => k.textContent).find(t => /Giường còn trống/.test(t)) || '';
-    const mauWhole = tongChiSo(ST.rooms.filter(r => (r.room_type || 'shared') !== 'whole')).cap;
-    return { trong: T.trong, cap: T.cap, vuot: T.vuot, datCho: T.datCho, thucCon: T.thucCon, tungPhong, kpiText, mauWhole };
+    const kpiText = [...document.querySelectorAll('.kpis .kpi')].map(k => k.textContent).find(t => /Giường trống/.test(t)) || '';
+    const oDangO = [...document.querySelectorAll('.kpis .kpi')].map(k => k.textContent).find(t => /Học viên đang ở/.test(t)) || '';
+    const capGhepVaNguyen = tongChiSo(ST.rooms.filter(r => ['shared', 'whole'].includes(r.room_type || 'shared'))).cap;
+    const capAnNinhNhanVien = ST.rooms.filter(r => ['security', 'staff'].includes(r.room_type || 'shared'))
+      .reduce((a, r) => a + (+r.capacity || 0), 0);
+    const nguoiTinhGiuong = ST.students.filter(dangOTinhGiuong).length;
+    return { trong: T.trong, cap: T.cap, vuot: T.vuot, datCho: T.datCho, thucCon: T.thucCon, tungPhong,
+      kpiText, oDangO, capGhepVaNguyen, capAnNinhNhanVien, nguoiTinhGiuong };
   });
 
   ok('Σ từng phòng == tổng (không lệch tích luỹ)', s.tungPhong === s.trong, `${s.tungPhong} vs ${s.trong}`);
@@ -34,10 +39,14 @@ const ok = (t, d, x = '') => { if (d) console.log('  [OK] ' + t); else { fail++;
     s.kpiText.includes(`${s.thucCon}`) && s.kpiText.includes(`/ ${s.cap}`), s.kpiText.slice(0, 120));
   ok('KPI KHÔNG còn chuỗi ba số gây rối (→ thực còn / quá tải)',
     !s.kpiText.includes('→') && !/quá tải/.test(s.kpiText), s.kpiText.slice(0, 160));
-  ok('Phòng whole KHÔNG góp vào mẫu số', s.mauWhole === s.cap, `bỏ whole=${s.mauWhole} vs mẫu=${s.cap}`);
-  if (s.datCho > 0) {
-    ok('KPI ghi chú đã trừ N chỗ đặt trước', s.kpiText.includes(`đã trừ ${s.datCho} chỗ đặt trước`), s.kpiText.slice(0, 160));
-  } else console.log('  [BỎ QUA] CSDL này không có ai đặt chỗ trước');
+  // Owner chốt 12/09: mẫu số = thuê ghép + thuê nguyên phòng; phòng an ninh/nhân viên nằm ngoài
+  ok('Mẫu số = giường phòng ghép + phòng nguyên', s.capGhepVaNguyen === s.cap, `${s.capGhepVaNguyen} vs ${s.cap}`);
+  if (s.capAnNinhNhanVien > 0) {
+    ok('Giường phòng an ninh/nhân viên KHÔNG vào mẫu số',
+      s.cap === s.capGhepVaNguyen, `an ninh+nhân viên=${s.capAnNinhNhanVien}`);
+  } else console.log('  [BỎ QUA] CSDL này không có phòng an ninh/nhân viên');
+  ok('Ô "Học viên đang ở" đếm cùng tập người với sổ giường',
+    s.oDangO.includes(`${s.nguoiTinhGiuong}`), s.oDangO.slice(0, 120));
 
   // Màn Phòng, lọc còn trống: dải "Đang lọc" phải nói đúng con số của tongChiSo
   await page.evaluate(() => roomGo('trong'));

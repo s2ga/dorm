@@ -28,8 +28,8 @@ module.exports = {
       `INSERT INTO rooms (name, facility_id, capacity, gender, hang, monthly_fee) VALUES ($1,$2,4,'male','B',1200000) RETURNING id`,
       [P + '_R', fac])).rows[0].id;
     const sapVao = async ma => (await t.db.query(
-      `INSERT INTO students (code,name,gender,room_id,planned_check_in,status,rental_type)
-       VALUES ($1,$1,'male',$2,$3,'in','ghep') RETURNING id`, [ma, rid, lichVao])).rows[0].id;
+      `INSERT INTO students (code,name,gender,room_id,planned_check_in,status,rental_type,cccd_front,cccd_back)
+       VALUES ($1,$1,'male',$2,$3,'in','ghep','test/f.jpg','test/b.jpg') RETURNING id`, [ma, rid, lichVao])).rows[0].id;
 
     const lichVao = congNgay(3);            // dự kiến vào 3 ngày nữa
     const ky = lichVao.slice(0, 7);

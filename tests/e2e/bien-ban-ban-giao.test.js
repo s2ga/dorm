@@ -47,8 +47,9 @@ module.exports = {
       return id;
     };
     const sapVao = async (ma, room, fac) => (await t.db.query(
-      `INSERT INTO students (code,name,gender,room_id,facility_id,planned_check_in,status,rental_type)
-       VALUES ($1,$1,'male',$2,$3,$4,'in','ghep') RETURNING id`, [ma, room, fac, ngay(0)])).rows[0].id;
+      // cccd_front/back phải có: xác nhận nhận phòng đòi đủ 2 mặt (luật 12/09/2026).
+      `INSERT INTO students (code,name,gender,room_id,facility_id,planned_check_in,status,rental_type,cccd_front,cccd_back)
+       VALUES ($1,$1,'male',$2,$3,$4,'in','ghep','test/f.jpg','test/b.jpg') RETURNING id`, [ma, room, fac, ngay(0)])).rows[0].id;
     const mkUser = async (u, role, fac) => {
       await t.db.query(`INSERT INTO users (username,password_hash,role,approved,facility_id) VALUES ($1,$2,$3,true,$4)`,
         [u, bcrypt.hashSync(PW, 10), role, fac]);

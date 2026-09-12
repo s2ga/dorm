@@ -443,6 +443,24 @@ select[size] option{padding:8px 9px;border-radius:8px}
 /* Lỗi chọn tệp: nằm lại ngay dưới ô, không trôi mất như toast. */
 .tep-loi{margin-top:6px;padding:7px 10px;border-radius:8px;font-size:12.5px;line-height:1.45;
   background:var(--red-bg);color:var(--red-ink);border:1px solid var(--red)}
+/* Sửa ảnh CCCD (xoay/cắt): khung xem + vùng chọn kéo được. Vùng ngoài bị làm tối bằng bóng đổ
+   khổng lồ, nên khung phải overflow:hidden và 4 mốc góc nằm hẳn bên trong. */
+.anh-khung{position:relative;display:inline-block;overflow:hidden;line-height:0;touch-action:none;background:var(--bg2);user-select:none}
+.anh-khung canvas{display:block;max-width:100%;max-height:54vh;width:auto;height:auto}
+.anh-vung{position:absolute;box-sizing:border-box;border:1.5px solid #fff;outline:1px solid rgba(0,0,0,.55);
+  box-shadow:0 0 0 9999px rgba(0,0,0,.42);cursor:move}
+.anh-moc{position:absolute;width:16px;height:16px;border:1.5px solid #fff;background:var(--brand);border-radius:3px}
+.anh-moc[data-goc="tt"]{left:2px;top:2px;cursor:nwse-resize}
+.anh-moc[data-goc="tp"]{right:2px;top:2px;cursor:nesw-resize}
+.anh-moc[data-goc="dt"]{left:2px;bottom:2px;cursor:nesw-resize}
+.anh-moc[data-goc="dp"]{right:2px;bottom:2px;cursor:nwse-resize}
+/* Thanh nút xoay/cắt đặt cạnh ảnh xem trước trong form. */
+.anh-cong-cu{display:flex;align-items:center;gap:2px;margin-top:6px;flex-wrap:wrap}
+.anh-nut{display:inline-flex;align-items:center;gap:4px;padding:5px 9px;border:1px solid var(--line);border-radius:999px;
+  background:var(--card);color:var(--ink);font:inherit;font-size:12px;line-height:1;cursor:pointer}
+.anh-nut:hover{background:var(--bg2)}
+.anh-nut[disabled]{opacity:.45;cursor:default}
+.anh-nut .ic-svg{width:15px;height:15px}
 /* Chip "Xem" ở màn Hồ sơ lưu trữ: là thẻ <a> nên phải trông bấm được, không giống nhãn tĩnh. */
 .tep-mo{display:inline-flex;align-items:center;gap:4px;text-decoration:none;cursor:pointer}
 .tep-mo svg{width:13px;height:13px}

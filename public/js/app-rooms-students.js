@@ -431,6 +431,7 @@ function stuSortVal(s) {
 // và màn Dịch vụ (máy giặt). Giữ logic stuFilter (drill-down vẫn dùng) + dải này để thấy & bỏ bộ lọc đang áp.
 const STU_FILTER_LABELS = {
   in: 'Đang ở', upcoming: 'Sắp vào', leaving: 'Sắp trả', out: 'Đã trả',
+  in_ktx: 'Đang ở (tính vào tổng giường)', sap_tra: 'Sắp trả phòng', sap_vao: 'Sắp vào',
   departure: 'Xuất cảnh', departure_expected: 'Dự kiến xuất cảnh',
   noresi: 'Chưa tạm trú', resi_overdue: 'Chưa tạm trú (quá hạn)', resi_processing: 'Tạm trú: đang xử lý', resi_registered: 'Đã có tạm trú',
   nocontract: 'HĐ chưa ký', nocontract_ghep: 'Thuê ghép chưa ký HĐ', nocontract_phong: 'Thuê nguyên phòng chưa ký HĐ',
@@ -442,6 +443,10 @@ function viewStudents() {
   el('topActions').innerHTML = `<button class="btn" data-act="showDeletedStudents">${IC.lock} Đã khoá</button><button class="btn pri" data-act="adminGo" data-args='["reg"]'>${IC.filePen} Đăng ký / duyệt đơn</button>`;
   let list = ST.students.slice();
   if (stuFilter === 'in') list = list.filter(isOccupying);
+  // Ba bộ lọc của thẻ KPI Tổng quan — dùng CHUNG hàm với thẻ để số trên thẻ và số dòng luôn bằng nhau.
+  if (stuFilter === 'in_ktx') list = list.filter(dangOTinhGiuong);
+  if (stuFilter === 'sap_tra') list = list.filter(sapTraPhong);
+  if (stuFilter === 'sap_vao') list = list.filter(sapNhanPhong);
   if (stuFilter === 'upcoming') list = list.filter(s => liveStatus(s) === 'upcoming');
   if (stuFilter === 'out') list = list.filter(s => liveStatus(s) === 'left');
   if (stuFilter === 'noresi') list = list.filter(s => isOccupying(s) && s.residency_status !== 'registered');
@@ -598,17 +603,58 @@ function noNgayVoiPhong(oNgay, idSelect, gender) {
   ve();
 }
 // BL-86: CCCD 2 mặt (đồng bộ form đăng ký) — ghi cột cccd_front/cccd_back, không phải cột cũ cccd_image.
+// BL-108: thẻ chụp lệch hướng không có phép xử lý tự động nào sửa được -> nút xoay/cắt ngay dưới ảnh.
 let _cccdFront = null, _cccdBack = null, _cccdFrontChanged = false, _cccdBackChanged = false;
+const cccdOAnh = side => el(side === 'back' ? 'cccdBackPrev' : 'cccdFrontPrev');
+const cccdNguon = side => {
+  const o = cccdOAnh(side), img = o && o.querySelector('img');
+  return img ? img.src : null;
+};
+// Ảnh sửa xong CHỜ nút Lưu của form mới ghi — một lần ghi, cùng nhịp với các ô khác.
+function cccdVeAnh(side, src, doi) {
+  if (doi) {
+    if (side === 'back') { _cccdBack = src; _cccdBackChanged = true; }
+    else { _cccdFront = src; _cccdFrontChanged = true; }
+  }
+  const box = cccdOAnh(side); if (!box) return;
+  box.innerHTML = `<img src="${src}" style="max-width:100%;max-height:180px;border-radius:8px;border:1px solid var(--line)">
+    <div class="anh-cong-cu">
+      <button class="anh-nut" type="button" data-act="cccdXoay" data-args='["${side}",-1]' title="Xoay trái 90° — bấm tiếp tới khi đúng chiều" aria-label="Xoay trái">${IC.rotateLeft}</button>
+      <button class="anh-nut" type="button" data-act="cccdXoay" data-args='["${side}",1]' title="Xoay phải 90° — bấm tiếp tới khi đúng chiều" aria-label="Xoay phải">${IC.rotateRight}</button>
+      <button class="anh-nut" type="button" data-act="cccdCat" data-args='["${side}"]' title="Cắt gọn phần thừa quanh thẻ">${IC.crop} Cắt</button>
+    </div>
+    <div id="cccdDoc_${side}" class="muted" style="font-size:11.5px;color:var(--amber-ink);margin-top:5px" hidden>${IC.alert} Ảnh đang DỌC — thẻ CCCD phải nằm ngang thì bản in tạm trú mới đúng mẫu.</div>`;
+  const img = box.querySelector('img');
+  const soiChieu = () => {
+    const c = el('cccdDoc_' + side);
+    if (c) c.hidden = !(img.naturalHeight > img.naturalWidth);
+  };
+  img.addEventListener('load', soiChieu);
+  if (img.complete && img.naturalWidth) soiChieu();
+}
 function previewCccd(input, side) {
   const f = input.files[0]; if (!f) return;
   if (!tepHopLe(input, f, 'Ảnh CCCD', ['image/png', 'image/jpeg'])) return;
   const r = new FileReader();
-  r.onload = () => {
-    if (side === 'back') { _cccdBack = r.result; _cccdBackChanged = true; }
-    else { _cccdFront = r.result; _cccdFrontChanged = true; }
-    el(side === 'back' ? 'cccdBackPrev' : 'cccdFrontPrev').innerHTML = `<img src="${r.result}" style="max-width:100%;max-height:180px;border-radius:8px;border:1px solid var(--line)">`;
-  };
+  r.onload = () => cccdVeAnh(side, r.result, true);
   r.readAsDataURL(f);
+}
+async function cccdXoay(side, chieu) {
+  const src = cccdNguon(side); if (!src) return;
+  const nut = [...this.parentElement.querySelectorAll('button')];
+  nut.forEach(n => n.disabled = true);
+  try {
+    const bm = await anhNap(src);
+    cccdVeAnh(side, anhVeXoay(bm, chieu < 0 ? -90 : 90).toDataURL('image/jpeg', ANH_CHAT), true);
+    if (bm.close) bm.close();
+  } catch (e) {
+    toast('Xoay ảnh thất bại: ' + (e.message || 'lỗi kết nối'), 'err');
+    nut.forEach(n => n.disabled = false);
+  }
+}
+function cccdCat(side) {
+  const src = cccdNguon(side); if (!src) return;
+  return anhSuaMo(src, 'Cắt & xoay ảnh CCCD', canvas => cccdVeAnh(side, canvas.toDataURL('image/jpeg', ANH_CHAT), true));
 }
 // Một nhóm ô trong form dài: tiêu đề nhỏ + đường kẻ. Form hồ sơ có gần 30 ô, không chia thì cuộn
 // một mạch không có mốc nào để bám.
@@ -648,10 +694,10 @@ async function studentForm(id) {
           <div class="grid2">
             <div><div class="muted" style="font-size:12px;margin-bottom:4px">Mặt trước</div>
               <input type="file" id="f_cccd_front" accept="image/png,image/jpeg" data-change="onCccdFront">
-              <div id="cccdFrontPrev" style="margin-top:6px">${s.cccd_front ? `<img src="${s.cccd_front}" style="max-width:100%;max-height:180px;border-radius:8px;border:1px solid var(--line)">` : ''}</div></div>
+              <div id="cccdFrontPrev" style="margin-top:6px"></div></div>
             <div><div class="muted" style="font-size:12px;margin-bottom:4px">Mặt sau</div>
               <input type="file" id="f_cccd_back" accept="image/png,image/jpeg" data-change="onCccdBack">
-              <div id="cccdBackPrev" style="margin-top:6px">${s.cccd_back ? `<img src="${s.cccd_back}" style="max-width:100%;max-height:180px;border-radius:8px;border:1px solid var(--line)">` : ''}</div></div>
+              <div id="cccdBackPrev" style="margin-top:6px"></div></div>
           </div>
           ${!s.cccd_front && !s.cccd_back && s.cccd_image ? `<div style="margin-top:8px"><div class="muted" style="font-size:12px;margin-bottom:4px">${IC.info} Ảnh cũ (1 mặt) — tải 2 mặt ở trên để cập nhật:</div><img src="${s.cccd_image}" style="max-width:100%;max-height:160px;border-radius:8px;border:1px solid var(--line)"></div>` : ''}
         </div>`)}
@@ -724,6 +770,8 @@ async function studentForm(id) {
         </div>`) : `<div class="hint">${IC.info}<span>Giảm giá theo % nay chỉnh ở màn <strong>Tiền phòng</strong> — bấm ✎ trên phiếu của học viên. Tiền nằm ở đâu thì sửa ở đó.</span></div>`}
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveStudent" data-args='[${id || 0}]'>Lưu</button></div>`, true);
+  if (s.cccd_front) cccdVeAnh('front', s.cccd_front);
+  if (s.cccd_back) cccdVeAnh('back', s.cccd_back);
   attachDate(el('f_birth'), s.birth_date, { max: today() });
   attachDate(el('f_cstart'), s.class_start_date);
   attachDate(el('f_departure'), s.expected_departure);

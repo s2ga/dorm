@@ -74,8 +74,8 @@ module.exports = {
     t.ok('sap_ra chỉ đếm người ĐÃ vào ở: ngày 0 chỉ A (không tính B)', pA.sap_ra[0] === 1, String(pA.sap_ra[0]));
 
     // ── dem_giuong ───────────────────────────────────────────────────────────────────
-    t.ok('Phòng thường dem_giuong=true, whole=false',
-      pA.dem_giuong === true && phongCua(j, ridWhole).dem_giuong === false,
+    t.ok('Phòng thuê ghép và thuê nguyên phòng đều dem_giuong=true (owner chốt 12/09/2026)',
+      pA.dem_giuong === true && phongCua(j, ridWhole).dem_giuong === true,
       `${pA.dem_giuong}/${phongCua(j, ridWhole).dem_giuong}`);
 
     // ── Validate ─────────────────────────────────────────────────────────────────────

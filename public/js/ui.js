@@ -515,6 +515,145 @@ function tepHopLe(input, f, nhan, loai) {
   return true;
 }
 
+/* ===== SỬA ẢNH DÙNG CHUNG (CCCD): xoay hai chiều + cắt ==========================================
+   Thẻ chụp lệch hướng thì không phép xử lý tự động nào sửa được, phải xoay tay (BL-108). Dùng ở
+   trang in tạm trú và form Sửa hồ sơ, nên để chung đây. Nơi gọi tự quyết lưu đi đâu qua `xong`. */
+const ANH_CHAT = 0.92;
+const ANH_MOC = { tt: [1, 1], tp: [0, 1], dt: [1, 0], dp: [0, 0] };  // góc kéo -> neo là góc đối diện
+// Vẽ lại ảnh sau khi quay `goc` độ (bội số của 90) — canvas đảo cạnh khi quay 90/270.
+function anhVeXoay(src, goc) {
+  const g = ((goc % 360) + 360) % 360, nga = g === 90 || g === 270;
+  const cv = document.createElement('canvas');
+  cv.width = nga ? src.height : src.width; cv.height = nga ? src.width : src.height;
+  const cx = cv.getContext('2d');
+  cx.translate(cv.width / 2, cv.height / 2); cx.rotate(g * Math.PI / 180);
+  cx.drawImage(src, -src.width / 2, -src.height / 2);
+  return cv;
+}
+async function anhNap(nguon) {
+  const r = await fetch(nguon);
+  if (!r.ok) throw new Error('không đọc được ảnh');
+  return createImageBitmap(await r.blob());
+}
+// Mỗi lượt ghi là một lượt nén JPEG nên màn này gom mọi thao tác, bấm Lưu mới ghi MỘT lần.
+let _anhSua = null;
+async function anhSuaMo(nguon, tieuDe, xong) {
+  let bm;
+  try { bm = await anhNap(nguon); }
+  catch (e) { toast('Không mở được ảnh: ' + (e.message || 'lỗi kết nối'), 'err'); return; }
+  _anhSua = { bm, goc: 0, box: { x: 0, y: 0, w: 1, h: 1 }, xong };
+  openModal(`
+    <div class="mh"><h3>${IC.crop} ${esc(tieuDe || 'Cắt & xoay ảnh')}</h3><button class="x" aria-label="Đóng" data-act="anhSuaDong">×</button></div>
+    <div class="mb">
+      <div class="hint">${IC.info}<span>Kéo trong ảnh để khoanh vùng, kéo 4 góc để co giãn, kéo giữa khung để dời.
+        Xoay bao nhiêu lần cũng được — bấm <strong>Xong</strong> mới áp dụng.</span></div>
+      <div style="text-align:center;margin-top:10px"><div id="anhKhung" class="anh-khung"><canvas id="anhNen"></canvas>
+        <div id="anhVung" class="anh-vung">${Object.keys(ANH_MOC).map(g => `<div class="anh-moc" data-goc="${g}"></div>`).join('')}</div></div></div>
+      <div class="flex" style="gap:8px;justify-content:center;margin-top:12px;flex-wrap:wrap">
+        <button class="btn sm" type="button" data-act="anhSuaXoay" data-args='[-1]'>${IC.rotateLeft} Xoay trái</button>
+        <button class="btn sm" type="button" data-act="anhSuaXoay" data-args='[1]'>${IC.rotateRight} Xoay phải</button>
+        <button class="btn sm" type="button" data-act="anhSuaChonHet">${IC.undo} Chọn lại cả ảnh</button>
+      </div>
+    </div>
+    <div class="mf"><button class="btn pri" data-act="anhSuaLuu">${IC.check} Xong</button>
+      <button class="btn" data-act="anhSuaDong">Huỷ</button></div>`, true);
+  anhSuaVe();
+  anhSuaKeo();
+}
+function anhSuaVe() {
+  const cv = el('anhNen'); if (!cv || !_anhSua) return;
+  const anh = anhVeXoay(_anhSua.bm, _anhSua.goc);
+  cv.width = anh.width; cv.height = anh.height;
+  cv.getContext('2d').drawImage(anh, 0, 0);
+  anhSuaVeVung();
+}
+function anhSuaVeVung() {
+  const v = el('anhVung'); if (!v || !_anhSua) return;
+  const b = _anhSua.box, pc = n => (n * 100) + '%';
+  v.style.left = pc(b.x); v.style.top = pc(b.y); v.style.width = pc(b.w); v.style.height = pc(b.h);
+}
+// Khung chọn tính theo TỈ LỆ 0–1 của ảnh nên không phụ thuộc cỡ hiển thị.
+function anhSuaKeo() {
+  const khung = el('anhKhung'), vung = el('anhVung');
+  if (!khung) return;
+  let kieu = null, dau = null, neo = null;
+  const ke = (v, min, max) => Math.min(max, Math.max(min, v));
+  const viTri = e => {
+    const r = khung.getBoundingClientRect();
+    return { x: ke((e.clientX - r.left) / r.width, 0, 1), y: ke((e.clientY - r.top) / r.height, 0, 1) };
+  };
+  // Khung đang phủ kín ảnh thì kéo trong ảnh là VẼ VÙNG MỚI — dời khung to bằng cả ảnh thì vô nghĩa.
+  const phuKin = () => _anhSua.box.w > 0.995 && _anhSua.box.h > 0.995;
+  khung.addEventListener('pointerdown', e => {
+    if (!_anhSua) return;
+    const moc = e.target.closest ? e.target.closest('.anh-moc') : null;
+    kieu = moc ? moc.dataset.goc : (vung.contains(e.target) && !phuKin() ? 'keo' : 'moi');
+    dau = viTri(e); neo = Object.assign({}, _anhSua.box);
+    khung.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  khung.addEventListener('pointermove', e => {
+    if (!kieu || !_anhSua) return;
+    const p = viTri(e);
+    if (kieu === 'keo') {
+      _anhSua.box = { x: ke(neo.x + p.x - dau.x, 0, 1 - neo.w), y: ke(neo.y + p.y - dau.y, 0, 1 - neo.h), w: neo.w, h: neo.h };
+    } else {
+      const m = ANH_MOC[kieu];
+      const ax = m ? neo.x + (m[0] ? neo.w : 0) : dau.x;
+      const ay = m ? neo.y + (m[1] ? neo.h : 0) : dau.y;
+      _anhSua.box = { x: Math.min(p.x, ax), y: Math.min(p.y, ay), w: Math.abs(p.x - ax), h: Math.abs(p.y - ay) };
+    }
+    anhSuaVeVung();
+  });
+  // Quệt hụt ra nền để lại khung bé xíu, cắt ra là mất ảnh -> trả về chọn cả ảnh.
+  const buong = () => {
+    if (!kieu) return;
+    kieu = null;
+    if (_anhSua && (_anhSua.box.w < 0.03 || _anhSua.box.h < 0.03)) anhSuaChonHet();
+  };
+  khung.addEventListener('pointerup', buong);
+  khung.addEventListener('pointercancel', buong);
+}
+function anhSuaChonHet() {
+  if (!_anhSua) return;
+  _anhSua.box = { x: 0, y: 0, w: 1, h: 1 };
+  anhSuaVeVung();
+}
+// Xoay cả khung chọn theo ảnh để người dùng khỏi khoanh lại từ đầu.
+function anhSuaXoay(chieu) {
+  if (!_anhSua) return;
+  const b = _anhSua.box, phai = chieu > 0;
+  _anhSua.goc += phai ? 90 : -90;
+  _anhSua.box = phai
+    ? { x: 1 - (b.y + b.h), y: b.x, w: b.h, h: b.w }
+    : { x: b.y, y: 1 - (b.x + b.w), w: b.h, h: b.w };
+  anhSuaVe();
+}
+function anhSuaCatRa(t) {
+  const anh = anhVeXoay(t.bm, t.goc), b = t.box;
+  const sw = Math.max(1, Math.round(b.w * anh.width)), sh = Math.max(1, Math.round(b.h * anh.height));
+  const out = document.createElement('canvas'); out.width = sw; out.height = sh;
+  out.getContext('2d').drawImage(anh, Math.round(b.x * anh.width), Math.round(b.y * anh.height), sw, sh, 0, 0, sw, sh);
+  return out;
+}
+async function anhSuaLuu() {
+  if (!_anhSua) return;
+  const nut = this, t = _anhSua;
+  nut.disabled = true;
+  try {
+    await t.xong(anhSuaCatRa(t));
+    anhSuaDong();
+  } catch (e) {
+    toast('Lưu ảnh thất bại: ' + (e.message || 'lỗi kết nối'), 'err');
+    nut.disabled = false;
+  }
+}
+function anhSuaDong() {
+  if (_anhSua && _anhSua.bm && _anhSua.bm.close) _anhSua.bm.close();
+  _anhSua = null;
+  closeModal();
+}
+
 // Nhấp tiêu đề cột để SẮP XẾP — áp cho mọi bảng danh sách. Màn Học viên có sắp xếp riêng (dựng lại
 // từ dữ liệu, th mang data-sort) nên bỏ qua, không gắn đè.
 // Sắp ở lớp DOM: đảo thứ tự <tr> rồi gọi applyRowFilters để phễu/tìm kiếm/phân trang khớp lại.

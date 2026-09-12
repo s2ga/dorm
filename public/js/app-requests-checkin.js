@@ -440,10 +440,15 @@ async function bienBanTraLai(id) {
 function checkInForm(id, hoId) {
   const s = studentById(id);
   const bb = hoId ? hoReportById(hoId) : null;
+  // Đủ 2 mặt CCCD mới nhận phòng được (owner chốt 12/09/2026) — máy chủ chặn, đây là báo trước.
+  const thieuCccd = [!s.has_cccd_front ? 'mặt trước' : null, !s.has_cccd_back ? 'mặt sau' : null].filter(Boolean).join(' và ');
   quenPhongMoc();
   openModal(`
     <div class="mh"><h3>${IC.key} Check-in: ${esc(s.name)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
+      ${thieuCccd ? `<div class="bang-tin" style="display:block;border-color:var(--red)">${IC.alert} <strong>Thiếu ảnh CCCD ${thieuCccd}</strong> — chưa nhận phòng được.
+        <div class="muted" style="font-size:12.5px;margin-top:4px">Hồ sơ đăng ký tạm trú gửi công an bắt buộc đủ 2 mặt. Học viên đang ở đây thì chụp bổ sung ngay, đi rồi rất khó đòi.</div>
+        <button class="btn sm" style="margin-top:8px" data-act="studentForm" data-args='[${id}]'>${IC.filePen} Bổ sung ảnh CCCD</button></div>` : ''}
       ${hoBanner(bb)}
       <div class="grid2">
         <div class="field"><label>Ngày vào</label><input id="c_date"></div>
@@ -457,7 +462,7 @@ function checkInForm(id, hoId) {
       <div class="hint">${IC.info}<span>Xác nhận xong hệ thống <strong>tự cấp số hợp đồng</strong> kế tiếp của dãy và tên file scan chuẩn.
         Ở <strong>dưới ${shortTermMaxDays()} ngày</strong> (điền ngày dự kiến trả) → ký phiếu bàn giao, <strong>không</strong> cấp số.</span></div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn green" data-act="doCheckIn" data-args='[${id}${bb ? ',' + bb.id : ''}]'>Xác nhận check-in</button></div>`);
+    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn green" data-act="doCheckIn" data-args='[${id}${bb ? ',' + bb.id : ''}]'${thieuCccd ? ' disabled title="Thiếu ảnh CCCD — bổ sung ảnh trước"' : ''}>Xác nhận check-in</button></div>`);
   attachDate(el('c_date'), bb ? String(bb.actual_date).slice(0, 10) : today(), { choTrong: 1, gt: s.gender });
   attachDate(el('c_pout'), (s.planned_check_out || '').slice(0, 10));
   noNgayVoiPhong(el('c_date'), 'c_room', s.gender);

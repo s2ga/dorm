@@ -10,7 +10,7 @@ async function viewExec() {
   const collection = totalYear ? Math.round(paidYear / totalYear * 100) : 0;
   // Chỉ so cùng kỳ khi năm trước có dữ liệu đủ ý nghĩa (>=5% năm nay), tránh % ảo
   const yoy = (prevYear > totalYear * 0.05) ? Math.round((totalYear - prevYear) / prevYear * 100) : null;
-  const occ = ST.students.filter(isOccupying).length;
+  const occ = ST.students.filter(dangOTinhGiuong).length;  // cùng tập người với sổ giường bên dưới
   const T = tongChiSo(ST.rooms);                      // một nguồn số duy nhất — xem chiSoPhong
   const capacity = T.cap;
   const availBeds = T.thucCon;   // "còn trống" hiển thị = đã trừ chỗ đặt trước (owner chốt 21/08)
@@ -31,7 +31,7 @@ async function viewExec() {
     const month = `${year}-${String(i + 1).padStart(2, '0')}`;
     return { month, label: 'Th' + (i + 1), total: revByMonth.get(month) || 0 };
   });
-  const female = ST.students.filter(s => isOccupying(s) && s.gender === 'female').length;
+  const female = ST.students.filter(s => dangOTinhGiuong(s) && s.gender === 'female').length;
   const male = occ - female;
   // --- Vận hành & tuân thủ (điểm 3): máy giặt · hợp đồng · hư hỏng · vi phạm ---
   const occStu = ST.students.filter(isOccupying);
@@ -64,7 +64,7 @@ async function viewExec() {
     <div class="kpis">
       ${kpi(IC.userCheck, 'ic-green', occRate + '%', 'Tỉ lệ lấp đầy', `${usedBeds}/${capacity} giường${overPeople ? ` · <strong style="color:var(--red-ink)">${IC.alert} quá tải ${overPeople} người (${overRoomCount} phòng)</strong>` : ''}`, actAttr('adminGo', 'rooms'))}
       ${kpi(IC.trendingUp, 'ic-brand', money(totalYear), 'Dự báo doanh thu ' + year, yoy != null ? (yoy >= 0 ? '▲' : '▼') + Math.abs(yoy) + '% vs ' + (+year - 1) : '', actAttr('adminGo', 'revenue'))}
-      ${kpi(IC.users, 'ic-blue', occ, 'Học viên đang ở', '', actAttr('stuGoAdmin', 'in'))}
+      ${kpi(IC.users, 'ic-blue', occ, 'Học viên đang ở', '', actAttr('stuGoAdmin', 'in_ktx'))}
       ${kpi(IC.planeTakeoff, 'ic-gray', dep, 'Đã xuất cảnh (năm ' + year + ')', '', actAttr('stuGoAdmin', 'departure'))}
     </div>
     <div class="panel"><div class="hd"><h2>${IC.trendingUp} Dự báo doanh thu theo tháng — ${year}</h2><span class="muted" style="font-size:12px">Ước tính từ phiếu báo đã lập (thu thật do Bravo quản lý)</span></div>
@@ -185,8 +185,11 @@ function tamTruSheet() {
   const hangThieu = s => `<tr><td class="num" data-label="STT">—</td>${oTen(s)}<td data-label="Ảnh CCCD"><span class="badge red">Thiếu ${missSide(s)}</span>
         <button class="btn sm" style="margin-left:6px;white-space:nowrap" data-act="studentForm" data-args='[${s.id}]'>${IC.filePen} Bổ sung ảnh</button></td></tr>`;
   const bang = rows => `<div class="table-wrap card-tbl"><table><thead><tr><th class="num">STT</th><th>Học viên</th><th>Phòng</th><th>Ngày vào</th><th>Ảnh CCCD</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-  const cell = (s, side, nhan) => `<div class="tt-cell"><img src="/api/students/${s.id}/cccd/${side}" alt="${nhan}">
-        <button class="tt-xoay rc-noprint" type="button" data-act="tamTruXoay" data-args='[${s.id},"${side}"]' title="Xoay ảnh 90° và lưu vào hồ sơ">${IC.refresh}<span class="tt-doc-nhan">ảnh dọc</span></button></div>`;
+  const cell = (s, side, nhan) => `<div class="tt-cell"><img src="/api/students/${s.id}/cccd/${side}" alt="${nhan}" data-anh="${s.id}-${side}">
+        <div class="tt-cong-cu rc-noprint"><span class="tt-doc-nhan">ảnh dọc</span>
+          <button class="tt-nut" type="button" data-act="tamTruXoay" data-args='[${s.id},"${side}",-1]' title="Xoay trái 90° — bấm tiếp tới khi đúng chiều" aria-label="Xoay trái">${IC.rotateLeft}</button>
+          <button class="tt-nut" type="button" data-act="tamTruXoay" data-args='[${s.id},"${side}",1]' title="Xoay phải 90° — bấm tiếp tới khi đúng chiều" aria-label="Xoay phải">${IC.rotateRight}</button>
+          <button class="tt-nut" type="button" data-act="tamTruCatMo" data-args='[${s.id},"${side}"]' title="Cắt gọn ảnh cho vừa khung thẻ">${IC.crop}<span>Cắt</span></button></div></div>`;
   const pair = s => `<div class="tt-pair">${cell(s, 'front', 'CCCD mặt trước')}${cell(s, 'back', 'CCCD mặt sau')}</div>`;
 
   el('content').innerHTML = `
@@ -199,11 +202,13 @@ function tamTruSheet() {
     .tt-pair{display:grid;grid-template-columns:1fr 1fr;gap:8px;break-inside:avoid;page-break-inside:avoid}
     .tt-cell{position:relative;border:1.5px dashed #8fae91;padding:4px;background:#fff}
     .tt-cell img{width:100%;aspect-ratio:85.6/54;object-fit:contain;display:block}
-    .tt-xoay{position:absolute;top:8px;right:8px;display:none;align-items:center;gap:5px;padding:4px 8px;border:1px solid var(--line);border-radius:999px;background:#fff;color:var(--ink);font:inherit;font-size:12px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.12)}
-    .tt-xoay .ic-svg{width:14px;height:14px}
-    .tt-cell:hover .tt-xoay,.tt-cell.tt-doc .tt-xoay{display:inline-flex}
-    .tt-doc-nhan{display:none;color:var(--amber-ink,#b5822f);font-weight:700}
-    .tt-cell.tt-doc{border-color:var(--amber-ink,#b5822f)}
+    .tt-cong-cu{position:absolute;top:6px;right:6px;display:flex;align-items:center;gap:2px;padding:3px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.94);box-shadow:0 2px 8px rgba(0,0,0,.12)}
+    .tt-nut{display:inline-flex;align-items:center;gap:4px;padding:5px 8px;border:0;border-radius:999px;background:transparent;color:var(--ink);font:inherit;font-size:12px;line-height:1;cursor:pointer}
+    .tt-nut:hover{background:var(--bg2)}
+    .tt-nut[disabled]{opacity:.45;cursor:default}
+    .tt-nut .ic-svg{width:15px;height:15px}
+    .tt-doc-nhan{display:none;padding:0 4px 0 8px;color:var(--amber-ink);font-weight:700;font-size:12px}
+    .tt-cell.tt-doc{border-color:var(--amber-ink)}
     .tt-cell.tt-doc .tt-doc-nhan{display:inline}
     @media print{ @page{size:A4;margin:10mm} .tt-cell,.tt-cell.tt-doc{border-color:#8fae91} }
   </style>
@@ -214,7 +219,7 @@ function tamTruSheet() {
           <select id="ttThang" data-change="tamTruChonThang">${['', ...thangs].map(m => `<option value="${m}"${m === _tamTruThang ? ' selected' : ''}>${nhanThang(m)} (${demThang(m)})</option>`).join('')}</select></label>
         <span class="badge green">${ready.length} đủ ảnh — sẽ in</span>
         <span class="badge ${missing.length ? 'red' : 'gray'}">${missing.length} thiếu ảnh</span>
-        <span class="muted tt-note">Bản in chỉ có ảnh theo mẫu tạm trú · ảnh dọc bấm ${IC.refresh} trên ảnh để xoay ngang</span>
+        <span class="muted tt-note">Bản in chỉ có ảnh theo mẫu tạm trú · ${IC.rotateLeft}${IC.rotateRight} xoay tới khi đúng chiều · ${IC.crop} cắt gọn phần thừa quanh thẻ</span>
       </div></div>
     ${ready.length ? `<div class="panel"><div class="hd"><h2>Trong bản in (${ready.length})</h2><span class="muted" style="font-size:12px">STT = thứ tự ảnh trên giấy</span></div>${bang(ready.map(hang).join(''))}</div>` : ''}
     ${missing.length ? `<details class="panel"><summary style="cursor:pointer;padding:14px 18px;font-weight:700;color:var(--red-ink,#b4432b)">${IC.alert} ${missing.length} học viên thiếu ảnh CCCD — chưa đưa vào bản in</summary>${bang(missing.map(hangThieu).join(''))}</details>` : ''}
@@ -232,19 +237,31 @@ function tamTruDanhDauDoc() {
     if (img.complete && img.naturalWidth) danhDau();
   });
 }
-// Xoay 90° theo chiều kim đồng hồ rồi lưu đè vào hồ sơ (PUT nhận data URL y như form Học viên).
-async function tamTruXoay(id, side) {
-  const nut = this, img = nut.parentElement.querySelector('img');
-  nut.disabled = true;
+// Mỗi lượt sửa đọc lại ảnh ĐANG LƯU rồi ghi đè, nên xoay/cắt bao nhiêu lượt cũng được, chiều nào cũng được.
+// Ghi đè file thật (không phải transform CSS) để bản in và hồ sơ lưu trữ cùng đúng chiều.
+const ttAnhUrl = (id, side) => `/api/students/${id}/cccd/${side}`;
+// PUT nhận data URL y như form Học viên; ghi xong nạp lại đúng ô ảnh trên trang in.
+async function tamTruGhiAnh(id, side, canvas) {
+  await API.updateStudent(id, { ['cccd_' + side]: canvas.toDataURL('image/jpeg', ANH_CHAT) });
+  const img = document.querySelector(`#printArea img[data-anh="${id}-${side}"]`);
+  if (img) img.src = ttAnhUrl(id, side) + '?t=' + Date.now();
+}
+async function tamTruXoay(id, side, chieu) {
+  const nut = [...this.parentElement.querySelectorAll('button')];
+  nut.forEach(n => n.disabled = true);
   try {
-    const bm = await createImageBitmap(await (await fetch(`/api/students/${id}/cccd/${side}`)).blob());
-    const cv = document.createElement('canvas'); cv.width = bm.height; cv.height = bm.width;
-    const cx = cv.getContext('2d'); cx.translate(cv.width, 0); cx.rotate(Math.PI / 2); cx.drawImage(bm, 0, 0);
-    await API.updateStudent(id, { ['cccd_' + side]: cv.toDataURL('image/jpeg', 0.92) });
-    img.src = `/api/students/${id}/cccd/${side}?t=${Date.now()}`;
+    const bm = await anhNap(ttAnhUrl(id, side) + '?t=' + Date.now());
+    await tamTruGhiAnh(id, side, anhVeXoay(bm, chieu < 0 ? -90 : 90));
     toast('Đã xoay và lưu ảnh vào hồ sơ');
   } catch (e) { toast('Xoay ảnh thất bại: ' + (e.message || 'lỗi kết nối'), 'err'); }
-  nut.disabled = false;
+  nut.forEach(n => n.disabled = false);
+}
+// Cắt ở đây ghi thẳng vào hồ sơ vì trang in không có nút Lưu nào khác.
+function tamTruCatMo(id, side) {
+  return anhSuaMo(ttAnhUrl(id, side) + '?t=' + Date.now(), 'Cắt & xoay ảnh CCCD', async canvas => {
+    await tamTruGhiAnh(id, side, canvas);
+    toast('Đã lưu ảnh vào hồ sơ');
+  });
 }
 
 // Đợt đang hiện trên trang in (để nút In biết chuyển ai). Bấm In = hồ sơ đã xuất đi công an -> cả đợt
@@ -319,7 +336,12 @@ function depositModal() {
 async function viewDashboard() {
   el('content').innerHTML = '<div class="spinner"></div>';
   const occ = ST.students.filter(isOccupying);
-  const inCount = occ.length;
+  // Ô đếm người đi cùng sổ giường: bỏ người ở phòng an ninh/nhân viên ra, để 4 ô KPI cộng trừ khớp nhau.
+  // Danh sách "Cần xử lý" phía dưới vẫn quét occ (mọi người đang ở) — không giấu việc của ai.
+  const inCount = ST.students.filter(dangOTinhGiuong).length;
+  const ngoaiSoGiuong = ST.students.filter(dangONgoaiSoGiuong).length;
+  const sapTra = ST.students.filter(sapTraPhong).length;
+  const sapVao = ST.students.filter(sapNhanPhong).length;
   // "Hôm nay" = việc PHẢI LÀM hôm nay -> tính theo lịch dự kiến (BL-117), người đã xác nhận rồi không đếm nữa
   const checkinToday = ST.students.filter(s => !s.check_in_date && s.planned_check_in && String(s.planned_check_in).slice(0, 10) === today()).length;
   const checkoutToday = ST.students.filter(s => s.check_in_date && !s.check_out_date && s.planned_check_out && String(s.planned_check_out).slice(0, 10) === today()).length;
@@ -369,8 +391,10 @@ async function viewDashboard() {
 
   el('content').innerHTML = `
     <div class="kpis">
-      ${kpi('ic-green', IC.userCheck, inCount, 'Học viên đang ở', actAttr('stuGoAdmin', 'in'))}
-      ${kpi('ic-blue', IC.bed, `${T.thucCon}<span class="muted" style="font-size:15px;font-weight:600"> / ${capacity}</span>`, `Giường còn trống${T.datCho ? ` · đã trừ ${T.datCho} chỗ đặt trước` : ''}`, actAttr('roomGo', 'trong'))}
+      ${kpi('ic-green', IC.userCheck, inCount, 'Học viên đang ở', actAttr('stuGoAdmin', 'in_ktx'), ngoaiSoGiuong ? `${ngoaiSoGiuong} người ở phòng an ninh/nhân viên tính riêng` : '')}
+      ${kpi('ic-blue', IC.bed, `${T.thucCon}<span class="muted" style="font-size:15px;font-weight:600"> / ${capacity}</span>`, 'Giường trống', actAttr('roomGo', 'trong'), `${T.soPhong} phòng ở`)}
+      ${kpi('ic-amber', IC.logOut, sapTra, 'Sắp trả phòng', actAttr('stuGoAdmin', 'sap_tra'))}
+      ${kpi('ic-gray', IC.key, sapVao, 'Sắp vào', actAttr('stuGoAdmin', 'sap_vao'))}
       ${kpi('ic-brand', IC.receipt, money(billedThisMonth), 'Phiếu báo tháng này', actAttr('adminGo', 'invoices'), billedLastMonth ? 'Tháng trước ' + money(billedLastMonth) : '')}
     </div>
 

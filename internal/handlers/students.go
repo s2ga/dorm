@@ -755,6 +755,19 @@ func studentsCoreFields(b map[string]interface{}, checkIn interface{}) []interfa
 // studentsCccdCol: whitelist side -> cột (chống SQL injection). cccd-url.js SIDE_COL.
 var studentsCccdCol = map[string]string{"front": "cccd_front", "back": "cccd_back", "image": "cccd_image"}
 
+// studentsThieuCccd: tên các mặt CCCD còn thiếu, rỗng nghĩa là đủ 2 mặt.
+// Cột cũ cccd_image (1 mặt) KHÔNG tính — mẫu tạm trú gửi công an đòi cả trước lẫn sau.
+func studentsThieuCccd(truoc, sau string) string {
+	var thieu []string
+	if strings.TrimSpace(truoc) == "" {
+		thieu = append(thieu, "mặt trước")
+	}
+	if strings.TrimSpace(sau) == "" {
+		thieu = append(thieu, "mặt sau")
+	}
+	return strings.Join(thieu, " và ")
+}
+
 // StudentCccdImage: GET /:id/cccd/:side — proxy ảnh CCCD từ S3 (bucket riêng tư). students.routes.js:60-75
 func (h *Handlers) StudentCccdImage(c *gin.Context) {
 	col, ok := studentsCccdCol[c.Param("side")]
@@ -1882,7 +1895,7 @@ func (h *Handlers) StudentCheckin(c *gin.Context) {
 		badRequest(c, "Ngày dự kiến trả không hợp lệ")
 		return
 	}
-	meRows, err := h.pool().Query(ctx, "SELECT gender, rental_type, name, planned_check_in::text AS lich_vao, planned_check_out::text AS lich_tra FROM students WHERE id=$1 AND deleted_at IS NULL", id)
+	meRows, err := h.pool().Query(ctx, "SELECT gender, rental_type, name, cccd_front, cccd_back, planned_check_in::text AS lich_vao, planned_check_out::text AS lich_tra FROM students WHERE id=$1 AND deleted_at IS NULL", id)
 	if err != nil {
 		serverErr(c)
 		return
@@ -1894,6 +1907,12 @@ func (h *Handlers) StudentCheckin(c *gin.Context) {
 	}
 	if me == nil {
 		notFound(c, "Không tìm thấy học viên")
+		return
+	}
+	// Đủ 2 mặt CCCD là điều kiện nhận phòng (owner chốt 12/09/2026): học viên đang đứng tại chỗ,
+	// chụp bổ sung được ngay; qua bước này rồi thì rất khó đòi.
+	if thieu := studentsThieuCccd(studentsJSString(me["cccd_front"]), studentsJSString(me["cccd_back"])); thieu != "" {
+		badRequest(c, "Chưa có ảnh CCCD "+thieu+" trong hồ sơ. Bấm Sửa hồ sơ để tải ảnh lên rồi xác nhận nhận phòng.")
 		return
 	}
 	roomIDPtr := studentsRoomIDPtr(b["room_id"])

@@ -26,7 +26,7 @@ func (h *Handlers) publicDemNguoiDangO(c *gin.Context) (int, error) {
 	var n int
 	err := h.pool().QueryRow(c.Request.Context(),
 		`SELECT COUNT(*)::int c FROM students s
-		 JOIN rooms r ON r.id = s.room_id AND COALESCE(r.room_type,'shared')='shared' AND r.deleted_at IS NULL
+		 JOIN rooms r ON r.id = s.room_id AND COALESCE(r.room_type,'shared') IN ('shared','whole') AND r.deleted_at IS NULL
 		 WHERE s.deleted_at IS NULL
 		   AND s.check_in_date <= CURRENT_DATE AND (s.check_out_date IS NULL OR s.check_out_date > CURRENT_DATE)`).Scan(&n)
 	return n, err
@@ -70,16 +70,24 @@ func (h *Handlers) PublicInfo(c *gin.Context) {
 		return
 	}
 	if err := h.pool().QueryRow(ctx,
-		"SELECT COALESCE(SUM(capacity),0)::int c FROM rooms WHERE COALESCE(room_type,'shared')='shared' AND deleted_at IS NULL").Scan(&beds); err != nil {
+		"SELECT COALESCE(SUM(capacity),0)::int c FROM rooms WHERE COALESCE(room_type,'shared') IN ('shared','whole') AND deleted_at IS NULL").Scan(&beds); err != nil {
 		serverErr(c)
 		return
 	}
-	// Giường trống: kẹp ở 0 theo TỪNG phòng. public.routes.js:66-70
+	// Giường trống: kẹp ở 0 theo TỪNG phòng, đã trừ chỗ đã đặt (owner chốt 12/09/2026 — một con số,
+	// không bắt người đọc tự trừ). Cùng công thức thucCon của giao diện quản trị.
 	if err := h.pool().QueryRow(ctx,
-		`SELECT COALESCE(SUM(GREATEST(0, r.capacity -
-		    (SELECT COUNT(*) FROM students s WHERE s.room_id=r.id AND s.deleted_at IS NULL
-		       AND s.check_in_date<=CURRENT_DATE AND (s.check_out_date IS NULL OR s.check_out_date>CURRENT_DATE)))),0)::int c
-		 FROM rooms r WHERE COALESCE(r.room_type,'shared')='shared' AND r.deleted_at IS NULL`).Scan(&bedFree); err != nil {
+		`SELECT COALESCE(SUM(GREATEST(0, GREATEST(0, r.capacity - o.dang_o) - o.dat_cho)),0)::int c
+		   FROM rooms r
+		   JOIN LATERAL (
+		     SELECT COUNT(*) FILTER (WHERE s.check_in_date <= CURRENT_DATE
+		              AND (s.check_out_date IS NULL OR s.check_out_date > CURRENT_DATE))::int AS dang_o,
+		            COUNT(*) FILTER (WHERE s.check_in_date IS NULL AND s.check_out_date IS NULL
+		              AND s.planned_check_in IS NOT NULL)::int AS dat_cho
+		       FROM students s
+		      WHERE s.room_id = r.id AND s.deleted_at IS NULL
+		   ) o ON TRUE
+		  WHERE COALESCE(r.room_type,'shared') IN ('shared','whole') AND r.deleted_at IS NULL`).Scan(&bedFree); err != nil {
 		serverErr(c)
 		return
 	}
@@ -98,7 +106,7 @@ func (h *Handlers) PublicInfo(c *gin.Context) {
 		        AND s.check_in_date <= CURRENT_DATE
 		        AND (s.check_out_date IS NULL OR s.check_out_date > CURRENT_DATE)
 		   ) o ON TRUE
-		  WHERE COALESCE(r.room_type,'shared')='shared' AND r.deleted_at IS NULL`).Scan(&bedSoon); err != nil {
+		  WHERE COALESCE(r.room_type,'shared') IN ('shared','whole') AND r.deleted_at IS NULL`).Scan(&bedSoon); err != nil {
 		serverErr(c)
 		return
 	}
@@ -159,10 +167,14 @@ func (h *Handlers) PublicAvailableRooms(c *gin.Context) {
 	rows, err := h.pool().Query(c.Request.Context(), `
 		SELECT name, gender, hang, free FROM (
 		  SELECT r.name, r.floor, r.gender, r.hang,
-		    GREATEST(0, COALESCE(r.capacity,0) - (
+		    GREATEST(0, GREATEST(0, COALESCE(r.capacity,0) - (
 		      SELECT COUNT(*) FROM students s
 		       WHERE s.room_id=r.id AND s.deleted_at IS NULL
 		         AND s.check_in_date <= CURRENT_DATE AND (s.check_out_date IS NULL OR s.check_out_date > CURRENT_DATE)
+		    )) - (
+		      SELECT COUNT(*) FROM students s
+		       WHERE s.room_id=r.id AND s.deleted_at IS NULL
+		         AND s.check_in_date IS NULL AND s.check_out_date IS NULL AND s.planned_check_in IS NOT NULL
 		    ))::int AS free
 		  FROM rooms r
 		  WHERE COALESCE(r.room_type,'shared')='shared' AND r.deleted_at IS NULL
@@ -332,10 +344,12 @@ func (h *Handlers) PublicApply(c *gin.Context) {
 		conflict(c, gin.H{"error": "Bạn đã có một đơn đăng ký đang chờ duyệt. Ký túc xá sẽ liên hệ sớm — không cần gửi lại."})
 		return
 	}
-	// Kiểm ảnh CCCD TRƯỚC khi chèn.
+	// Kiểm ảnh CCCD TRƯỚC khi chèn. Đủ HAI mặt là BẮT BUỘC (owner chốt 12/09/2026): thiếu ảnh thì
+	// hồ sơ tạm trú gửi công an không lập được, mà đòi lại sau khi học viên đã đi thì rất khó.
 	for _, f := range []struct{ val, ten string }{{b.CccdFront, "mặt trước"}, {b.CccdBack, "mặt sau"}} {
 		if f.val == "" {
-			continue
+			badRequest(c, "Vui lòng tải lên ảnh CCCD "+f.ten+" — hồ sơ đăng ký tạm trú bắt buộc có đủ 2 mặt.")
+			return
 		}
 		if !strings.HasPrefix(f.val, "data:image/") {
 			badRequest(c, "Ảnh CCCD "+f.ten+" không phải file ảnh. Vui lòng chụp lại và tải lên.")

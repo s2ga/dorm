@@ -249,8 +249,9 @@ async function renderPublicRegister() {
         <label class="check" style="margin-top:8px"><input type="checkbox" id="a_park" data-change="onPlateBoxToggle"> ${IC.bike} Gửi xe (${money(info.parking_fee)}/xe/tháng)</label>
         <div id="plateBox" style="display:none;margin-top:8px"><input id="a_plate" placeholder="Biển số xe (VD: 63-B4 508.58)"></div>
       </div>
-      <div class="field"><label>Ảnh CCCD (2 mặt)</label>
-        <div class="muted" style="font-size:12px;margin:-2px 0 8px">${IC.info} Chụp <strong>ngang</strong>, đủ sáng, thấy rõ 4 góc. Ảnh sẽ tự xoay đúng chiều khi tải lên.</div>
+      <div class="field"><label>Ảnh CCCD (2 mặt) ${SAO}</label>
+        <div class="muted" style="font-size:12px;margin:-2px 0 8px">${IC.info} Chụp <strong>ngang</strong>, đủ sáng, thấy rõ 4 góc. Ảnh sẽ tự xoay đúng chiều khi tải lên.
+          <strong>Bắt buộc đủ 2 mặt</strong> để ký túc xá làm hồ sơ đăng ký tạm trú cho bạn.</div>
         <div class="grid2">
           <div><div class="muted" style="font-size:12px;margin-bottom:4px"><strong>Mặt trước</strong> — có ảnh chân dung & số CCCD</div>
             <input type="file" id="a_cccd_front" accept="image/*" data-change="onPubCccdFront"><div id="cccdFrontPrev" style="margin-top:6px"></div></div>
@@ -269,6 +270,13 @@ async function renderPublicRegister() {
     const ngayVao = el('a_movein').dataset.iso || '';
     if (!ngayVao) { toast('Chọn ngày muốn nhận phòng', 'err'); el('a_movein').focus(); return; }
     if (ngayVao < today()) { toast('Ngày muốn nhận phòng đã qua — chọn lại', 'err'); el('a_movein').focus(); return; }
+    // Đủ 2 mặt CCCD là bắt buộc (owner chốt 12/09/2026) — thiếu thì không lập được hồ sơ tạm trú.
+    const thieuMat = [!window._pubCccd.front ? 'mặt trước' : null, !window._pubCccd.back ? 'mặt sau' : null].filter(Boolean);
+    if (thieuMat.length) {
+      toast('Còn thiếu ảnh CCCD ' + thieuMat.join(' và ') + ' — bắt buộc đủ 2 mặt', 'err');
+      el(window._pubCccd.front ? 'a_cccd_back' : 'a_cccd_front').focus();
+      return;
+    }
     // e.submitter có thể null (gửi form bằng lệnh, không qua nút bấm) -> tra ngược nút Gửi.
     // Đây là form học viên LẠ tự đăng ký: văng lỗi ở đây là mất đơn mà không ai biết.
     const btn = e.submitter || e.target.querySelector('[type=submit]') || {};
@@ -488,9 +496,9 @@ const ROOM_TYPE = { shared: ['Thuê ghép', 'gray'], whole: ['Thuê nguyên phò
 const roomType = r => (ROOM_TYPE[r.room_type] ? r.room_type : 'shared');
 const roomIsShared = r => roomType(r) === 'shared';          // CHỈ dùng cho nhãn/giá ("/người"), cấm dùng để đếm giường
 const roomTypeBadge = r => { const [l, c] = ROOM_TYPE[roomType(r)]; return `<span class="badge ${c}">${l}</span>`; };
-// Phòng xếp/đếm THEO GIƯỜNG. 'whole' bán trọn phòng nên ra khỏi cả tử lẫn mẫu số giường trống;
-// phòng an ninh / nhân viên CÓ đếm vì ô Xếp phòng cho xếp người vào đó (owner chốt 20/08).
-const phongTinhGiuong = r => ['shared', 'security', 'staff'].includes(roomType(r));
+// Tổng giường ký túc xá = phòng thuê ghép + thuê nguyên phòng (owner chốt 12/09/2026).
+// Phòng an ninh và phòng nhân viên vẫn xếp người được nhưng KHÔNG vào tổng giường.
+const phongTinhGiuong = r => ['shared', 'whole'].includes(roomType(r));
 // Chỉ số MỘT phòng — nguồn số DUY NHẤT của toàn app. Chỉ đọc occupancy/upcoming/leaving máy chủ trả
 // (đã theo mốc ngày nếu gọi kèm ?date=), không tự đếm lại từ ST.students.
 function chiSoPhong(r) {
@@ -617,6 +625,17 @@ const statusBadge = s => { const [l, c] = STATUS_INFO[liveStatus(s)]; return `<s
 const isOccupying = s => ['staying', 'leaving', 'cho_ra'].includes(liveStatus(s));
 const choXacNhanVao = s => !s.deleted_at && liveStatus(s) === 'cho_vao';
 const choXacNhanRa = s => !s.deleted_at && liveStatus(s) === 'cho_ra';
+// Người đi CÙNG sổ giường của tongChiSo: ở phòng thuê ghép/nguyên phòng, hoặc chưa xếp phòng.
+// Người ở phòng an ninh/nhân viên nằm ngoài tổng giường nên cũng nằm ngoài các ô đếm giường.
+function trongSoGiuong(s) {
+  if (!s.room_id) return true;
+  const r = roomById(s.room_id);
+  return !!r && phongTinhGiuong(r);
+}
+const dangOTinhGiuong = s => isOccupying(s) && trongSoGiuong(s);
+const dangONgoaiSoGiuong = s => isOccupying(s) && !trongSoGiuong(s);
+const sapTraPhong = s => dangOTinhGiuong(s) && !!_d10(s.planned_check_out);
+const sapNhanPhong = s => !_d10(s.check_in_date) && !_d10(s.check_out_date) && !!_d10(s.planned_check_in) && trongSoGiuong(s);
 
 // ---- Rule hợp đồng thuê ghép (điểm 5 — Sếp) ----
 const DAY_MS = 86400000;
