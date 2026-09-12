@@ -394,6 +394,9 @@ async function rejectCout(id) { if (!confirm('Từ chối đơn trả phòng?'))
 /* ---- Biên bản bàn giao của an ninh (BL-121): quản trị xác nhận mới đổi hồ sơ ---- */
 const HO_VS_NHAN = { sach: ['Sạch', 'green'], ban_nhe: ['Bẩn nhẹ', 'amber'], ban_nang: ['Bẩn nặng', 'red'] };
 const hoReportById = id => (ST.hoReports || []).find(r => r.id === id);
+// Mở Check-in/out từ hồ sơ hay danh sách (không kèm hoId) vẫn phải thấy biên bản an ninh ĐANG CHỜ của
+// học viên đó — không thì quản trị bị hỏi lại số công-tơ mà an ninh đã bắt buộc nhập.
+const hoChoCuaHV = (sid, kind) => (ST.hoReports || []).find(r => r.student_id === sid && r.kind === kind && r.status === 'pending');
 const hoHuHaoText = r => {
   const ls = Array.isArray(r.damages) ? r.damages : [];
   if (!ls.length) return '';
@@ -439,7 +442,7 @@ async function bienBanTraLai(id) {
 // hoId (tuỳ chọn) = mở từ biên bản an ninh: điền sẵn số liệu, lưu qua đường xác nhận biên bản.
 function checkInForm(id, hoId) {
   const s = studentById(id);
-  const bb = hoId ? hoReportById(hoId) : null;
+  const bb = hoId ? hoReportById(hoId) : hoChoCuaHV(id, 'checkin');
   // Đủ 2 mặt CCCD mới nhận phòng được (owner chốt 12/09/2026) — máy chủ chặn, đây là báo trước.
   const thieuCccd = [!s.has_cccd_front ? 'mặt trước' : null, !s.has_cccd_back ? 'mặt sau' : null].filter(Boolean).join(' và ');
   quenPhongMoc();
@@ -458,7 +461,7 @@ function checkInForm(id, hoId) {
         <div class="field"><label>Ngày dự kiến trả <span class="opt">(bỏ trống nếu ở dài hạn)</span></label><input id="c_pout"></div>
         <div class="field"><label>Ghi chú</label><input id="c_note" placeholder="VD: quay lại ở"></div>
       </div>
-      ${bb && s.room_id ? meterField('c_meter', s.room_name, 'nhận phòng') : ''}
+      ${bb && s.room_id ? meterField('c_meter', s.room_name, 'nhận phòng', bb.meter_reading != null ? 'an ninh đã ghi ở biên bản, sửa nếu đọc lại khác' : '') : ''}
       <div class="hint">${IC.info}<span>Xác nhận xong hệ thống <strong>tự cấp số hợp đồng</strong> kế tiếp của dãy và tên file scan chuẩn.
         Ở <strong>dưới ${shortTermMaxDays()} ngày</strong> (điền ngày dự kiến trả) → ký phiếu bàn giao, <strong>không</strong> cấp số.</span></div>
     </div>
@@ -503,7 +506,7 @@ async function chepTenFileHD(t) {
 // hoId (tuỳ chọn) = mở từ biên bản an ninh: điền sẵn số liệu, lưu qua đường xác nhận biên bản.
 function checkOutForm(id, hoId) {
   const s = studentById(id);
-  const bb = hoId ? hoReportById(hoId) : null;
+  const bb = hoId ? hoReportById(hoId) : hoChoCuaHV(id, 'checkout');
   openModal(`
     <div class="mh"><h3>${IC.doorOpen} Check-out: ${esc(s.name)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
@@ -516,7 +519,7 @@ function checkOutForm(id, hoId) {
         ${CHECKOUT_REASONS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}
       </select></div>
       <div class="field"><label>Ghi chú</label><input id="c_note" placeholder="VD: hết hạn ở, chuyển đi..."></div>
-      ${s.room_id ? meterField('c_meter', s.room_name, 'rời phòng') : ''}
+      ${s.room_id ? meterField('c_meter', s.room_name, 'rời phòng', bb && bb.meter_reading != null ? 'an ninh đã ghi ở biên bản, sửa nếu đọc lại khác' : '') : ''}
       <div class="hint">${IC.info} App sẽ tự xét điều kiện hoàn cọc dựa trên ngày báo và lý do.</div>
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn danger" data-act="doCheckOut" data-args='[${id}${bb ? ',' + bb.id : ''}]'>Xác nhận check-out</button></div>`);

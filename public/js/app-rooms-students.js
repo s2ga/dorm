@@ -1144,9 +1144,9 @@ function duplicateModal(d) {
 
 /* Ô chốt chỉ số công-tơ, dùng chung cho Trả phòng và Chuyển phòng.
    KHÔNG bắt buộc: bỏ trống thì app quay về chia tiền điện cả tháng theo số ngày ở (như trước). */
-function meterField(id, roomName, verb) {
+function meterField(id, roomName, verb, nguon) {
   return `<div class="field">
-    <label>Chỉ số công-tơ phòng ${esc(roomName || '')} hôm ${verb} <span class="muted">— không bắt buộc</span></label>
+    <label>Chỉ số công-tơ phòng ${esc(roomName || '')} hôm ${verb} <span class="muted">— ${nguon || 'không bắt buộc'}</span></label>
     <input id="${id}" type="number" min="0" step="0.1" inputmode="decimal" placeholder="Số trên đồng hồ điện, VD: 1234.5">
     <div class="hint">${IC.info}<span>Nhập số này thì tiền điện dùng <strong>trước</strong> và <strong>sau</strong> hôm đó được tách riêng — ai dùng nấy trả.
     Bỏ trống thì app chia tiền điện cả tháng theo số ngày ở của từng người.</span></div>
