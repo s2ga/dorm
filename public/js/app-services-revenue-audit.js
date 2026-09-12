@@ -245,21 +245,26 @@ async function viewRevenue() {
   const data = await guard(() => API.revenue(revYear));
   _revData = data;
   const sum = k => data.reduce((a, m) => a + (+m[k] || 0), 0);
-  const cot = REV_SERVICES.filter(([k]) => !REV_AN_KHI_0.includes(k) || sum(k));
-  const grand = sum('total'), paid = sum('paid');
+  // Cọc là tiền GIỮ HỘ (trả lại khi trả phòng) — để riêng, không cộng vào doanh thu.
+  const cot = REV_SERVICES.filter(([k]) => k !== 'deposit' && (!REV_AN_KHI_0.includes(k) || sum(k)));
+  const coc = sum('deposit');
+  const grand = sum('total') - coc;
+  const thangCuoi = data.length ? data[data.length - 1].month : '';
+  const dtThang = m => (+m.total || 0) - (+m.deposit || 0);
 
   // Bảng theo tháng
   const monthRows = data.map(m => `<tr>
     <td><strong>${m.month.slice(5)}/${m.month.slice(0, 4)}</strong></td>
     ${cot.map(([k]) => `<td class="num">${+m[k] ? money(m[k]) : '<span class="muted">—</span>'}</td>`).join('')}
-    <td class="num"><strong>${money(m.total)}</strong></td>
+    <td class="num"><strong>${money(dtThang(m))}</strong></td>
+    <td class="num rev-coc">${+m.deposit ? money(m.deposit) : '<span class="muted">—</span>'}</td>
   </tr>`).join('');
 
   // Cơ cấu doanh thu (BL-65: chuyển từ màn Tiền phòng sang đây — đúng nơi phân tích doanh thu)
   const REV_COLOR = { room: 'var(--brand)', electric: '#5f7ea3', water: '#4f8f63', service: '#b5822f', washing: '#9a7bb0', parking: '#c25545', other: '#8a8a8a', deposit: '#6f8f7c' };
   const revMax = Math.max(1, ...REV_SERVICES.map(([k]) => sum(k)));
   const shortSvc = l => l.replace('Phí ', '').replace(' sinh hoạt', '').replace(' (tiền phòng)', '');
-  const revComp = data.length ? `<div class="panel"><div class="hd"><h2>${IC.coins} Cơ cấu doanh thu — năm ${revYear}</h2><span class="muted" style="font-size:12px">Tỉ trọng theo khoản</span></div>
+  const revComp = data.length ? `<div class="panel"><div class="hd"><h2>${IC.coins} Cơ cấu doanh thu — năm ${revYear}</h2><span class="muted" style="font-size:12px">Tỉ trọng theo khoản · không gồm cọc giữ hộ</span></div>
     <div class="pad rev-comp">
       ${cot.map(([k, l]) => { const amt = sum(k); return `<div class="rev-row">
         <div class="rev-lbl">${shortSvc(l)}</div>
@@ -271,22 +276,28 @@ async function viewRevenue() {
   el('content').innerHTML = `
     <div class="cards">
       <div class="stat"><div class="l">${IC.calendar} Năm</div><div class="v sm"><select id="ry" style="font-size:15px;font-weight:600;padding:6px 8px">${(years.length ? years : [revYear]).map(y => `<option value="${y}" ${y === revYear ? 'selected' : ''}>${y}</option>`).join('')}</select></div></div>
-      <div class="stat"><div class="l">${IC.trendingUp} Tổng dự báo doanh thu năm</div><div class="v sm">${money(grand)}</div></div>
+      <div class="stat"><div class="l">${IC.trendingUp} Tổng tiền đã lập phiếu</div><div class="v sm">${money(grand)}
+        <div class="sub2" style="font-weight:500">${thangCuoi ? `đã lập tới Tháng ${thangCuoi.slice(5)}/${thangCuoi.slice(0, 4)}` : 'chưa lập phiếu nào'}${coc ? ` · cọc giữ hộ ${money(coc)} (không tính doanh thu)` : ''}</div></div></div>
     </div>
 
     ${revComp}
-    <div class="panel"><div class="hd"><h2>${IC.trendingUp} Dự báo doanh thu theo tháng — năm ${revYear}</h2>
+    <div class="panel"><div class="hd"><h2>${IC.trendingUp} Tiền đã lập phiếu theo tháng — năm ${revYear}</h2>
       <button class="btn sm" data-act="exportRevenue">${IC.download} Xuất Excel (CSV)</button></div>
       <div class="table-wrap">
       ${data.length ? `<table><thead><tr><th>Tháng</th>
         ${cot.map(([, l]) => `<th class="num">${l.replace('Phí ', '').replace(' sinh hoạt', '').replace(' (tiền phòng)', '')}</th>`).join('')}
-        <th class="num">Tổng</th></tr></thead>
+        <th class="num">Doanh thu</th>
+        <th class="num rev-coc" title="Tiền giữ hộ, trả lại khi học viên trả phòng — không cộng vào doanh thu">Cọc giữ hộ</th></tr></thead>
         <tbody>${monthRows}
           <tr style="background:var(--bg2)"><td><strong>Cả năm</strong></td>
           ${cot.map(([k]) => `<td class="num"><strong>${money(sum(k))}</strong></td>`).join('')}
-          <td class="num"><strong>${money(grand)}</strong></td></tr>
+          <td class="num"><strong>${money(grand)}</strong></td>
+          <td class="num rev-coc"><strong>${coc ? money(coc) : '—'}</strong></td></tr>
         </tbody></table>` : '<div class="empty">Chưa có phiếu báo trong năm này.</div>'}
       </div>
+      <div class="pad"><div class="hint">${IC.info}<span>Đây là tiền <strong>đã ghi trên phiếu báo</strong>, chưa trừ phần chưa thu — không phải tiền đã về két.
+        Cột <strong>Doanh thu</strong> = các khoản bên trái <strong>đã trừ khoản giảm</strong> (phòng trưởng, giảm %) nên nhỏ hơn tổng cộng ngang;
+        <strong>cọc giữ hộ</strong> để riêng vì sẽ trả lại khi học viên trả phòng.</span></div></div>
     </div>
 
     <div class="panel"><div class="hd"><h2>${IC.receipt} Tổng theo dịch vụ (đối chiếu Bravo) — năm ${revYear}</h2></div>
@@ -295,7 +306,7 @@ async function viewRevenue() {
           <td><strong>${esc(ST.settings[codeKey] || '—')}</strong></td>
           <td class="muted">${esc(ST.settings.bravo_fee_type || '')}</td>
           <td>${l}</td><td class="num">${money(v)}</td></tr>`; }).join('')}
-        <tr style="background:var(--bg2)"><td colspan="3"><strong>TỔNG TIỀN PHIẾU</strong></td><td class="num"><strong>${money(grand)}</strong></td></tr>
+        <tr style="background:var(--bg2)"><td colspan="3"><strong>TỔNG TIỀN PHIẾU</strong> <span class="muted" style="font-weight:500">(gồm cả cọc)</span></td><td class="num"><strong>${money(grand + coc)}</strong></td></tr>
       </tbody></table></div>
       <div class="pad muted" style="font-size:12.5px">${IC.bulb} Mã sản phẩm Bravo chỉnh trong <a href="#" data-act="adminGo" data-args='["settings"]'>Cài đặt</a>. Số liệu = tổng tiền đã lập phiếu báo, gồm cả tiền cọc thu ở kỳ nhận phòng. Thu tiền thực tế do Bravo quản lý. Số HV xuất cảnh xem ở <a href="#" data-act="adminGo" data-args='["exec"]'>Điều hành</a>.</div>
     </div>`;
@@ -304,11 +315,13 @@ async function viewRevenue() {
 }
 function exportRevenue() {
   const data = _revData;
-  const cols = REV_SERVICES.map(x => x[1]);
-  const head = ['Thang', ...cols, 'Tong'];
-  const rows = data.map(m => [m.month, ...REV_SERVICES.map(([k]) => +m[k] || 0), +m.total || 0]);
+  // Cùng luật với bảng trên màn: cọc là cột RIÊNG, không cộng vào Doanh thu.
+  const svc = REV_SERVICES.filter(([k]) => k !== 'deposit');
+  const head = ['Thang', ...svc.map(x => x[1]), 'Doanh thu', 'Coc giu ho'];
+  const dt = m => (+m.total || 0) - (+m.deposit || 0);
+  const rows = data.map(m => [m.month, ...svc.map(([k]) => +m[k] || 0), dt(m), +m.deposit || 0]);
   const sum = k => data.reduce((a, m) => a + (+m[k] || 0), 0);
-  rows.push(['Ca nam', ...REV_SERVICES.map(([k]) => sum(k)), sum('total')]);  // BL-29: bỏ cột paid thừa (head/data không có) -> dòng tổng khớp cột
+  rows.push(['Ca nam', ...svc.map(([k]) => sum(k)), sum('total') - sum('deposit'), sum('deposit')]);
   const csv = '﻿' + [head, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
