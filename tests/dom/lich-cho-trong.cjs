@@ -29,10 +29,19 @@ const ok = (t, d, x = '') => { if (d) console.log('  [OK] ' + t); else { fail++;
     await page.locator('.card-tbl #lctGrid').count() === 0);
   ok('Ô ngày là <button> focus được', await page.locator('#lctGrid button.lct-d').count() > 0);
   ok('Ô hôm nay có class nay', await page.locator('#lctGrid .lct-d.nay').count() === 1);
-  ok('Chế độ "Tất cả": mỗi ô hiện TÁCH nam/nữ, không một số gộp',
-    await page.locator('#lctGrid .lct-gt').count() === soO
-    && /♂\d+ ♀\d+/.test(await page.locator('#lctGrid .lct-gt').first().textContent() || ''),
-    await page.locator('#lctGrid .lct-gt').first().textContent());
+  // Kiểu Booking/Agoda: MỖI Ô MỘT con số lớn + nền theo mức; nam/nữ xuống dòng phụ nhỏ.
+  ok('Mỗi ô đúng MỘT con số lớn', await page.locator('#lctGrid .lct-so').count() === soO,
+    `${await page.locator('#lctGrid .lct-so').count()}/${soO}`);
+  ok('Không còn kiểu cũ nhồi 4 số/ô (.lct-gt/.lct-v/.lct-k)',
+    await page.locator('#lctGrid .lct-gt, #lctGrid .lct-v, #lctGrid .lct-k').count() === 0);
+  ok('Chế độ "Tất cả": dòng phụ tách ♂/♀',
+    /♂\d+ · ♀\d+/.test(await page.locator('#lctGrid .lct-ph').first().textContent() || ''),
+    await page.locator('#lctGrid .lct-ph').first().textContent());
+  ok('Có chip "Tất cả" để bỏ lọc giới tính',
+    await page.locator('[data-act="lichGioiTinh"][data-args=\'[""]\']').count() === 1);
+  ok('Mỗi ô được tô một mức còn chỗ (còn / sắp hết / hết / quá tải)',
+    await page.locator('#lctGrid .lct-d.co, #lctGrid .lct-d.it, #lctGrid .lct-d.het, #lctGrid .lct-d.vuot').count() === soO);
+  ok('Có chú giải màu thay cho ký hiệu ▨ ⌀ ▾ ▴', await page.locator('.lct-legend .lct-lg').count() === 3);
 
   // Ô hôm nay khớp tuyệt đối KPI (tongChiSo trên ST.rooms)
   const so = await page.evaluate(() => {
@@ -51,9 +60,10 @@ const ok = (t, d, x = '') => { if (d) console.log('  [OK] ' + t); else { fail++;
   // Lọc giới tính → ô lịch chuyển sang MỘT số + màu
   await page.locator('[data-act="lichGioiTinh"][data-args*="male"]').first().click();
   await page.waitForTimeout(1500);
-  ok('Lọc Nam: ô hiện một số + màu tình trạng',
-    await page.locator('#lctGrid .lct-v').count() > 0
-    && await page.locator('#lctGrid .lct-d.co, #lctGrid .lct-d.het, #lctGrid .lct-d.vuot').count() > 0);
+  ok('Lọc Nam: vẫn một số/ô, dòng phụ bỏ tách ♂/♀',
+    await page.locator('#lctGrid .lct-so').count() > 0
+    && !/♂/.test(await page.locator('#lctGrid .lct-ph').first().textContent() || ''),
+    await page.locator('#lctGrid .lct-ph').first().textContent());
 
   // Lật tháng trong cửa sổ đệm → không gọi mạng thêm
   const truoc = goiLich;

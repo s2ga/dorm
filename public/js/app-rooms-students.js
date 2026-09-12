@@ -81,6 +81,7 @@ let roomTab = 'ds';       // 'ds' | 'lich'
 let lichNgay = '';        // ngày đang chọn ('' = chưa chọn)
 let lichThangGoc = '';    // 'YYYY-MM' tháng đang xem ('' = tháng hiện tại)
 let lichGT = '';          // '' | 'male' | 'female'
+const LCT_SAP_HET = 2;    // còn ≤ ngần này giường thì ô lịch đổi màu "sắp hết" (chỉ là mức hiển thị)
 const segTabPhong = () => `<div class="seg-thu tab">
   <button class="seg ${roomTab === 'ds' ? 'on' : ''}" data-act="roomTabGo" data-args='["ds"]'>Danh sách</button>
   <button class="seg ${roomTab === 'lich' ? 'on' : ''}" data-act="roomTabGo" data-args='["lich"]'>${IC.calendar} Lịch chỗ trống</button>
@@ -139,19 +140,32 @@ async function viewLichChoTrong() {
     const Tn = tongNgay(iso, lichGT);
     const Tnam = lichGT ? null : tongNgay(iso, 'male');
     const Tnu = lichGT ? null : tongNgay(iso, 'female');
-    const cls = Tn ? (Tn.vuot ? ' vuot' : Tn.thucCon ? ' co' : ' het') : '';
-    const kyHieu = Tn ? `${Tn.datCho ? `<span class="lct-vao">▾${Tn.datCho}</span>` : ''}${Tn.sapRa ? `<span class="lct-ra">▴${Tn.sapRa}</span>` : ''}` : '';
+    // Màu ô luôn theo MỨC CÒN CHỖ (thông tin chính); quá tải ở một phòng lẻ chỉ thêm viền + chấm đỏ,
+    // không được chiếm chỗ con số và dòng ♂/♀.
+    const cls = (!Tn ? '' : !Tn.thucCon ? ' het' : Tn.thucCon <= LCT_SAP_HET ? ' it' : ' co') + (Tn && Tn.vuot ? ' vuot' : '');
+    const phu = !Tn ? '' : !Tn.thucCon ? 'Hết'
+      : lichGT ? 'giường' : `♂${Tnam ? Tnam.thucCon : 0} · ♀${Tnu ? Tnu.thucCon : 0}`;
+    const cham = Tn ? `${Tn.datCho ? '<i class="lct-ch vao"></i>' : ''}${Tn.sapRa ? '<i class="lct-ch ra"></i>' : ''}${Tn.vuot ? '<i class="lct-ch qua"></i>' : ''}` : '';
+    const doc = !Tn ? 'không có dữ liệu'
+      : `còn nhận được ${Tn.thucCon} giường${lichGT ? (lichGT === 'female' ? ' nữ' : ' nam') : ''}`
+        + (Tn.vuot ? ` · đang quá tải ${Tn.vuot} người` : '')
+        + (Tn.datCho ? ` · ${Tn.datCho} người sắp vào` : '') + (Tn.sapRa ? ` · ${Tn.sapRa} người sắp ra` : '');
     oCell += `<button type="button" class="lct-d${cls}${iso === homNay ? ' nay' : ''}${iso === lichNgay ? ' chon' : ''}"
-      data-act="lichChonNgay" data-args='["${iso}"]'
-      aria-label="${fmtDMY(iso)}: ${Tn ? `còn ${Tn.thucCon} giường${lichGT ? (lichGT === 'female' ? ' nữ' : ' nam') : ''} (đã trừ chỗ đặt trước)` : 'không có dữ liệu'}">
-      <span class="lct-n">${d}</span>
-      ${lichGT
-    ? `<span class="lct-v">${Tn ? (Tn.thucCon || (Tn.vuot ? '⌀' : '▨')) : '·'}</span>`
-    : `<span class="lct-gt">${Tnam ? `♂${Tnam.thucCon}` : ''} ${Tnu ? `♀${Tnu.thucCon}` : ''}</span>`}
-      <span class="lct-k">${kyHieu}</span></button>`;
+      data-act="lichChonNgay" data-args='["${iso}"]' title="${fmtDMY(iso)}: ${doc}" aria-label="${fmtDMY(iso)}: ${doc}">
+      <span class="lct-n">${d}</span><span class="lct-cham">${cham}</span>
+      <span class="lct-so">${Tn ? Tn.thucCon : '·'}</span>
+      <span class="lct-ph">${phu}</span></button>`;
   }
 
   const nutGT = (g, nhan) => `<button class="btn sm ${lichGT === g ? 'pri' : ''}" data-act="lichGioiTinh" data-args='["${g}"]' aria-pressed="${lichGT === g}">${nhan}</button>`;
+  const chuThich = `<div class="lct-legend">
+    <span><i class="lct-lg co"></i> Còn chỗ</span>
+    <span><i class="lct-lg it"></i> Sắp hết (≤${LCT_SAP_HET})</span>
+    <span><i class="lct-lg het"></i> Hết chỗ</span>
+    <span><i class="lct-ch vao"></i> có người vào</span>
+    <span><i class="lct-ch ra"></i> có người ra</span>
+    <span><i class="lct-ch qua"></i> có phòng quá tải</span>
+  </div>`;
   el('content').innerHTML = `
     <div class="cards">
       <div class="stat"><div class="l">${IC.bed} Còn nhận được ${lichNgay ? fmtDMY(ngayThe) : 'hôm nay'}</div><div class="v sm">${T.thucCon} <span class="muted" style="font-size:13px">giường · ${T.soPhongThucCon} phòng</span></div></div>
@@ -167,11 +181,10 @@ async function viewLichChoTrong() {
           <button class="btn sm" data-act="lichHomNay">Hôm nay</button>
           <button class="btn sm" data-act="lichThang" data-args='[1]' aria-label="Tháng sau">›</button>
         </div></div>
-        <div class="pad" style="padding-bottom:6px"><div class="rowbtns">${nutGT('male', '♂ Nam')}${nutGT('female', '♀ Nữ')}
-          <span class="muted" style="font-size:12px;margin-left:6px">${lichGT ? '' : 'ô lịch: ♂ nam · ♀ nữ'}</span></div></div>
+        <div class="pad" style="padding-bottom:6px"><div class="rowbtns">${nutGT('', 'Tất cả')}${nutGT('male', '♂ Nam')}${nutGT('female', '♀ Nữ')}</div></div>
         <div class="lct-dow">${['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map(w => `<span>${w}</span>`).join('')}</div>
         <div class="lct-grid" id="lctGrid">${oCell}</div>
-        <div class="pad"><div class="hint">${IC.info}<span>Số trong ô = giường <strong>còn nhận được</strong> (đã trừ chỗ đặt trước). ▨ hết chỗ · ⌀ quá tải · ▾ sắp vào · ▴ sắp ra. Bấm một ngày để xem từng phòng.</span></div></div>
+        <div class="pad">${chuThich}<div class="sub2" style="margin-top:6px">Số trong ô là <strong>giường còn nhận được</strong> ngày đó (đã trừ chỗ đã đặt). Bấm một ngày để xem từng phòng.</div></div>
       </div>
       <div class="panel" style="margin:0" id="lctNgayPanel">${lichNgayPanelHTML(ngayThe)}</div>
     </div>`;
