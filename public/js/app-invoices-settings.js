@@ -237,9 +237,10 @@ function oneInvoiceForm() {
         <select id="oi_stu" size="7" style="margin-top:8px"></select>
         <div class="muted" id="oi_dem" style="font-size:12px;margin-top:6px"></div>
       </div>
-      <div class="field"><label>Kỳ (tháng)</label><input id="oi_month" type="month" value="${invMonth}"></div>
+      <div class="field"><label>Kỳ (tháng)</label><input id="oi_month"></div>
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveOneInvoice">Tạo &amp; xem phiếu báo</button></div>`);
+  attachMonth(el('oi_month'), invMonth);
   locHVHoaDon();
 }
 // Ô chọn học viên gần 200 dòng: lọc theo tên/mã/số phòng, giữ nguyên người đang chọn nếu còn khớp.
@@ -256,7 +257,7 @@ function locHVHoaDon() {
     : 'Không có học viên nào khớp';
 }
 async function saveOneInvoice() {
-  const student_id = +el('oi_stu').value, month = el('oi_month').value;
+  const student_id = +el('oi_stu').value, month = el('oi_month').dataset.ym;
   if (!student_id) return toast('Chọn học viên', 'err');
   if (!month) return toast('Chọn kỳ', 'err');
   const r = await guard(() => API.generateOneInvoice({ student_id, month }));
@@ -286,12 +287,16 @@ async function renderGenerateForm(month) {
   modalThay(`
     <div class="mh"><h3>${IC.receipt} Tạo hóa đơn tháng</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <div class="field"><label>Kỳ (tháng)</label><input id="g_month" type="month" value="${month}" data-change="onGenMonth"></div>
+      <div class="field"><label>Kỳ (tháng)</label><input id="g_month"></div>
       <div class="hint">${IC.bulb} Phiếu kỳ <strong>${month}</strong> = tiền phòng/nước/dịch vụ kỳ ${month} (thu trước) + <strong>tiền điện kỳ ${kyDien}</strong>. Nhập <strong>số cuối công-tơ đọc cuối kỳ ${kyDien}</strong>; số đầu tự nối. Tiền điện = (cuối − đầu) × ${money(ST.settings.electric_unit)}, chia theo ngày ở từng chặng.</div>
       ${electricTable(rooms, lichSu)}
       <p class="muted" style="font-size:12px;margin-top:10px">Hóa đơn <strong>chưa đóng</strong> sẽ được <strong>tính lại</strong> theo điện & ngày mới; hóa đơn <strong>đã đóng</strong> được giữ nguyên. Phòng có người rời kỳ ${kyDien} mà thiếu chỉ số ngày rời sẽ bị <strong>bỏ qua</strong> — nhập bổ sung ở màn <em>Chỉ số điện</em> rồi chạy lại.</p>
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="runGenerate">Lưu số điện & tạo/cập nhật hóa đơn</button></div>`);
+  // attachMonth phát Event('change') KHÔNG nổi bọt -> data-change (uỷ quyền ở document) không bắt được;
+  // phải gắn onchange thẳng vào ô.
+  attachMonth(el('g_month'), month);
+  el('g_month').onchange = () => renderGenerateForm(el('g_month').dataset.ym);
 }
 let _kwhTruoc = {};   // room_id -> kWh kỳ trước, để tính chênh lệch ngay khi đang gõ
 // Tăng -> đỏ, giảm -> xanh (ngược quy ước chứng khoán: ở đây tăng là tốn thêm tiền).
@@ -400,12 +405,14 @@ async function renderElectricForm(month) {
   modalThay(`
     <div class="mh"><h3>${IC.zap} Chỉ số điện theo tháng</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <div class="field"><label>Kỳ (tháng)</label><input id="e_month" type="month" value="${month}" data-change="onElecMonth"></div>
+      <div class="field"><label>Kỳ (tháng)</label><input id="e_month"></div>
       <div class="hint">Nhập số đầu (lần đầu để test) và số cuối ĐỌC CUỐI KỲ. Tháng sau số đầu tự nối tiếp. Tiền điện kỳ này lên <strong>phiếu kỳ sau</strong> (tiền phòng thu trước, điện thu sau khi có số).</div>
       ${electricTable(rooms, lichSu)}
       <div id="chot_giua_ky">${chotGiuaKyHTML(month, reads, rooms)}</div>
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Đóng</button><button class="btn pri" data-act="saveElectric">Lưu chỉ số điện</button></div>`);
+  attachMonth(el('e_month'), month);
+  el('e_month').onchange = () => renderElectricForm(el('e_month').dataset.ym);
 }
 // Chốt giữa kỳ: chỉ số công-tơ hôm HV rời/chuyển phòng, nhập bù được cho lượt đã check-out.
 // Mốc TRƯỚC của một lần chốt = lần chốt liền trước trong kỳ, không có thì lấy chỉ số đầu kỳ.
@@ -551,7 +558,7 @@ async function luuTatCaChotGiuaKy() {
       i.value = '';                       // đã lưu -> đừng khôi phục lại vào bảng vừa vẽ
     } catch (e) { loi.push(`${i.dataset.mrten}: ${(e && e.message) || 'lỗi'}`); }
   }
-  await veLaiChotGiuaKy(el('e_month').value || elecMonth);
+  await veLaiChotGiuaKy(el('e_month').dataset.ym || elecMonth);
   if (loi.length) alert(`Lưu được ${ok}/${o.length} ô.\n\nKhông lưu được:\n• ${loi.join('\n• ')}`);
   toast(loi.length ? `Lưu ${ok}/${o.length} ô — ${loi.length} ô lỗi` : `Đã chốt ${ok} chỉ số · tính lại ${hoaDon} hóa đơn`, loi.length ? 'err' : 'ok');
 }
@@ -578,13 +585,13 @@ async function luuChotGiuaKy(idx, roomId, date, studentId) {
   const r = await guard(() => API.saveMeterRead({ room_id: roomId, date, reading: +v, student_id: studentId || undefined }));
   if (inp) inp.value = '';
   toast(`Đã chốt chỉ số · tính lại ${r.recalculated} hóa đơn của ${r.affected} học viên liên quan`);
-  await veLaiChotGiuaKy(el('e_month').value || elecMonth);
+  await veLaiChotGiuaKy(el('e_month').dataset.ym || elecMonth);
 }
 async function xoaChotGiuaKy(id) {
   if (!confirm('Gỡ lần chốt này? Hóa đơn liên quan sẽ được tính lại.')) return;
   await guard(() => API.deleteMeterRead(id));
   toast('Đã gỡ lần chốt');
-  await veLaiChotGiuaKy(el('e_month').value || elecMonth);
+  await veLaiChotGiuaKy(el('e_month').dataset.ym || elecMonth);
 }
 async function saveElectric() {
   if (badElectricRooms().length) return toast('Có phòng "số cuối < số đầu" — sửa lại chỉ số điện trước khi lưu', 'err');
@@ -595,7 +602,7 @@ async function saveElectric() {
     + `Mỗi dòng chốt giữa kỳ có nút "Lưu" riêng — nút này chỉ lưu bảng chỉ số cuối kỳ phía trên.\n\n`
     + `Vẫn đóng và bỏ những ô đó?`)) return;
   const readings = readElectricInputs();
-  await guard(() => API.saveElectric({ month: el('e_month').value, readings }));
+  await guard(() => API.saveElectric({ month: el('e_month').dataset.ym, readings }));
   closeModal(); toast('Đã lưu chỉ số cuối kỳ');
 }
 const GEN_NHAN = {
@@ -638,7 +645,7 @@ function genTomTat(r, month, xemTruoc) {
       hoá đơn <strong>đã thu</strong> không bị đụng, học viên vào giữa tháng được tạo bù.</span></div>` : ''}`;
 }
 async function runGenerate() {
-  const month = el('g_month').value; if (!month) return toast('Chọn kỳ', 'err');
+  const month = el('g_month').dataset.ym; if (!month) return toast('Chọn kỳ', 'err');
   if (badElectricRooms().length) return toast('Có phòng "số cuối < số đầu" — sửa lại chỉ số điện trước khi lập hóa đơn', 'err');
   const readings = readElectricInputs();
   const pv = await guard(() => API.generateInvoices({ month, readings, preview: true }));   // dry-run, không lưu
@@ -695,7 +702,7 @@ function invoiceForm(id) {
     <div class="mb">
       <div class="grid2">
         <div class="field"><label>Học viên *</label><select id="i_stu" ${id ? 'disabled' : ''}>${opts}</select></div>
-        <div class="field"><label>Kỳ</label><input id="i_month" type="month" value="${i.month}"></div>
+        <div class="field"><label>Kỳ</label><input id="i_month"></div>
       </div>
       <div class="grid2">${f('Số ngày ở', 'days_stayed')}${f('Tiền phòng', 'room_charge')}</div>
       <div class="grid2">${f('Tiền điện', 'electric_charge')}${f('Nước', 'water_charge')}</div>
@@ -718,6 +725,7 @@ function invoiceForm(id) {
   })()}
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveInvoice" data-args='[${id || 0}]'>Lưu</button></div>`, true);
+  attachMonth(el('i_month'), i.month);
 }
 // BL-101: % giảm nằm ở hồ sơ (PUT students chỉ gửi đúng các cột %), xong tính lại phiếu đang mở.
 async function luuGiamPct(invoiceId, sid) {
@@ -732,7 +740,7 @@ async function luuGiamPct(invoiceId, sid) {
 }
 async function saveInvoice(id) {
   const g = k => +el('i_' + k).value || 0;
-  const body = { student_id: +el('i_stu').value, month: el('i_month').value, days_stayed: g('days_stayed'),
+  const body = { student_id: +el('i_stu').value, month: el('i_month').dataset.ym, days_stayed: g('days_stayed'),
     room_charge: g('room_charge'), electric_charge: g('electric_charge'), water_charge: g('water_charge'),
     service_charge: g('service_charge'), washing_charge: g('washing_charge'), parking_charge: g('parking_charge'),
     other_charge: g('other_charge'), deposit_charge: g('deposit_charge'), other_note: el('i_other_note').value.trim() };

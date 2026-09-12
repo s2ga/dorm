@@ -648,9 +648,8 @@ async function loadHandovers(month) {
   hoMonth = d.month; _hoDS = d;
   const laNhan = maintTab === 'nhan';
   const esq = s => esc(String(s || '')).replace(/'/g, '&#39;');
-  const monthsList = [];
-  for (let i = -1; i <= 12; i++) { const dt = new Date(); dt.setDate(1); dt.setMonth(dt.getMonth() - i); monthsList.push(dt.toISOString().slice(0, 7)); }
-  const monthOpts = monthsList.map(m => `<option value="${m}" ${m === hoMonth ? 'selected' : ''}>${monthLabel(m)}</option>`).join('');
+  // Xa nhất là tháng sau (biên bản chỉ lập cho việc đã/đang tới), không giới hạn về quá khứ.
+  const thangToiDa = (() => { const dt = new Date(); dt.setDate(1); dt.setMonth(dt.getMonth() + 1); return dt.toISOString().slice(0, 7); })();
   // An ninh đứng trước mặt học viên: biển số và ngày đến đều đối chiếu được ngay, sai thì sửa tại chỗ.
   const oXe = x => {
     const xe = x.vehicles || [];
@@ -677,7 +676,7 @@ async function loadHandovers(month) {
   const cotNgay = laNhan ? 'Ngày' : 'Ngày ĐK';
   area.innerHTML = `
     <div class="panel"><div class="hd"><h2>${laNhan ? IC.userCheck : IC.doorOpen} ${tieuDe} — ${monthLabel(hoMonth)}</h2>
-      <select data-change="onHandoverMonth" aria-label="Chọn tháng" style="font-weight:600;padding:6px 8px;border-radius:8px;max-width:100%">${monthOpts}</select></div>
+      <input id="ho_month" aria-label="Chọn tháng" title="Chọn tháng" style="font-weight:600;padding:6px 8px;border-radius:8px;max-width:150px"></div>
       <div class="pad">
         ${maintCanhBao(chuaXong.length, `học viên ${laNhan ? 'nhận' : 'trả'} phòng chưa có biên bản`,
     `Tháng này không còn ai cần lập biên bản ${laNhan ? 'nhận' : 'trả'} phòng.`)}
@@ -689,6 +688,8 @@ async function loadHandovers(month) {
     : `<div class="empty">${maintChiChuaXong ? 'Không còn ai chưa xác nhận.' : `Không có ai ${laNhan ? 'nhận' : 'trả'} phòng tháng này.`}</div>`}
       </div>
     </div>`;
+  attachMonth(el('ho_month'), hoMonth, { max: thangToiDa });
+  el('ho_month').onchange = () => loadHandovers(el('ho_month').dataset.ym);
 }
 // Sửa biển số = gửi ĐỀ NGHỊ; quản trị viên duyệt thì hồ sơ xe mới đổi, kết quả hiện trên dòng xe (BL-120).
 function maintSuaBienForm(vehicleId, bienCu) {

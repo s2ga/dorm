@@ -259,14 +259,11 @@ function doPrint() { window.print(); }
 function reloadPage() { location.reload(); } // BL-22: nút "Tải lại" trang công khai (CSP chặn inline onclick)
 
 /* ---- Wrapper cho change/input/error dung `this` (phan tu) ---- */
-function onHandoverMonth() { loadHandovers(this.value); }
 function onCccdFront() { previewCccd(this, 'front'); }
 function onCccdBack() { previewCccd(this, 'back'); }
 function onPubCccdFront() { pubCccd(this, 'front'); }
 function onPubCccdBack() { pubCccd(this, 'back'); }
 function onFacSel() { setFacilityFilter(this.value); }
-function onElecMonth() { renderElectricForm(this.value); }
-function onGenMonth() { renderGenerateForm(this.value); }
 function onIntroMedia() { uploadIntroMedia(this.dataset.mkey, this); }
 function onRulesDoc() { uploadRulesDoc(this); }
 function onApLoginToggle() { el('apLogin').style.display = this.checked ? 'block' : 'none'; }
