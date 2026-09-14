@@ -213,8 +213,8 @@ function notifItems() {
   const pk = ST.pkAlerts;
   if (pk) {
     const den = actAttr('gotoParkingAdmin');
-    if (pk.plate_requests) items.push({ n: pk.plate_requests, ic: IC.pencil, tx: `${pk.plate_requests} đề nghị sửa biển số xe chờ duyệt`, act: den });
-    if (pk.reports_new) items.push({ n: pk.reports_new, ic: IC.flag, tx: `${pk.reports_new} báo cáo bãi xe từ an ninh chưa xem`, act: den });
+    if (pk.plate_requests) items.push({ n: pk.plate_requests, ic: IC.pencil, tx: `${pk.plate_requests} đề nghị sửa biển số xe chờ duyệt`, act: actAttr('gotoParkingAdmin', 'bien') });
+    if (pk.reports_new) items.push({ n: pk.reports_new, ic: IC.flag, tx: `${pk.reports_new} báo cáo bãi xe từ an ninh chưa xem`, act: actAttr('gotoParkingAdmin', 'baocao') });
     const vl = (pk.vang_lau || []).length;
     if (vl) items.push({ n: vl, ic: IC.bike, tx: `${vl} xe vắng liên tiếp từ ${pk.alert_days} ngày: ${esc(pk.vang_lau.slice(0, 3).map(x => x.plate).join(', '))}${vl > 3 ? '…' : ''}`, act: den });
     if (pk.chua_chot) items.push({ n: 1, ic: IC.alert, tx: `Quá ${esc(pk.alert_time)} mà an ninh chưa chốt bãi xe hôm nay`, act: den });
@@ -223,7 +223,13 @@ function notifItems() {
   }
   return items;
 }
-function gotoParkingAdmin() { svcTab = 'parking'; adminGo('services'); }
+// Chuông đếm báo cáo "chưa xem" nên màn đích phải ĐẶT LẠI bộ lọc về đó, không thì bấm vào con số 3
+// lại rơi vào danh sách 30 ngày của lần xem trước. muc = cuộn thẳng tới đúng khối.
+function gotoParkingAdmin(muc) {
+  pkAdminLoc = 'new';
+  svcTab = 'parking'; adminGo('services');
+  if (muc) setTimeout(() => { const o = el('pk_panel_' + muc); if (o) o.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 700);
+}
 function updateNotif() {
   const total = notifItems().reduce((a, i) => a + i.n, 0);
   const d = el('notifDot'); if (d) { d.textContent = total > 99 ? '99+' : total; d.style.display = total ? '' : 'none'; }

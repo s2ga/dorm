@@ -100,6 +100,9 @@ async function viewServices() {
     try {
       const [dn, bc, al] = await Promise.all([API.plateRequests('pending'), API.parkingReportsAdmin(pkAdminLoc), API.parkingAlerts()]);
       deNghi = dn.rows || []; baoCao = bc.rows || []; cb = al;
+      // Vừa xem/xử lý xong một báo cáo thì chuông phải giảm theo — trước đây số mới chỉ nằm ở biến
+      // cục bộ, ST.pkAlerts giữ số cũ tới lượt poll sau.
+      if (al) { ST.pkAlerts = al; updateNotif(); }
     } catch (e) { loiPk = (e && e.message) || 'Không tải được phần bãi xe'; }
     // Vừa chuyển phòng: hiện "cũ → mới" cùng nguồn với màn an ninh.
     const phongXe = v => `${v.prev_room_name ? `<span class="muted" title="Chuyển phòng từ ${fmtDate(v.moved_on)}">${esc(v.prev_room_name)} ${IC.chevronRight} </span>` : ''}${esc(v.room_name || '—')}`;
@@ -151,7 +154,7 @@ function pkAdminPanels(deNghi, baoCao, cb) {
       ${vangLau.map(x => `<strong>${esc(x.plate)}</strong> (${esc(x.student_name || '')}${x.room_name ? ' · ' + esc(x.room_name) : ''} · ${x.days} ngày)`).join(' · ')}</span></div>` : ''}
   </div></div>`;
 
-  const oDeNghi = `<div class="panel"><div class="hd"><h2>${IC.pencil} Đề nghị sửa biển số từ an ninh (${deNghi.length})</h2></div>
+  const oDeNghi = `<div class="panel" id="pk_panel_bien"><div class="hd"><h2>${IC.pencil} Đề nghị sửa biển số từ an ninh (${deNghi.length})</h2></div>
     <div class="table-wrap">${deNghi.length ? `<table><thead><tr><th>Biển đang lưu</th><th>Biển đề nghị</th><th>Chủ xe</th><th>Phòng</th><th>Ghi chú</th><th>Người gửi</th><th></th></tr></thead><tbody>
       ${deNghi.map(q => `<tr>
         <td>${esc(q.plate_hien_tai || q.plate_cu || '—')}</td><td><strong>${esc(q.plate_moi)}</strong></td>
@@ -163,7 +166,7 @@ function pkAdminPanels(deNghi, baoCao, cb) {
         </div></td></tr>`).join('')}
     </tbody></table>` : '<div class="empty">Không có đề nghị nào chờ duyệt.</div>'}</div></div>`;
 
-  const oBaoCao = `<div class="panel"><div class="hd"><h2>${IC.flag} Báo cáo bãi xe từ an ninh (${baoCao.length})</h2>
+  const oBaoCao = `<div class="panel" id="pk_panel_baocao"><div class="hd"><h2>${IC.flag} Báo cáo bãi xe từ an ninh (${baoCao.length})</h2>
       <div class="toolbar"><button class="btn sm ${pkAdminLoc === 'new' ? 'pri' : ''}" data-act="pkAdminLocGo" data-args='["new"]'>Chưa xem</button>
       <button class="btn sm ${pkAdminLoc === 'all' ? 'pri' : ''}" data-act="pkAdminLocGo" data-args='["all"]'>30 ngày gần đây</button></div></div>
     <div class="table-wrap">${baoCao.length ? `<table><thead><tr><th>Ngày</th><th>Loại</th><th>Biển số</th><th>Nội dung</th><th>Người gửi</th><th>Trạng thái</th><th></th></tr></thead><tbody>
