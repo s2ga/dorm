@@ -121,6 +121,7 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	veh.POST("/plate-requests/:id/reject", h.RejectPlateRequest)
 	veh.GET("/parking-reports", h.AdminParkingReports)
 	veh.POST("/parking-reports/:id/status", h.AdminParkingReportStatus)
+	veh.POST("/parking-reports/:id/vehicle", h.AdminParkingReportAssign)
 	veh.GET("/parking-alerts", h.AdminParkingAlerts)
 
 	// Cổng học viên (me) — mở theo liên kết hồ sơ (student_id), không theo vai:

@@ -158,6 +158,7 @@ const API = {
   parkingReportsAdmin: (status, from, to) => api('/vehicles/parking-reports?status=' + encodeURIComponent(status || 'new')
     + '&from=' + encodeURIComponent(from || '') + '&to=' + encodeURIComponent(to || '') + facAmp(true)),
   parkingReportStatus: (id, status, note) => api('/vehicles/parking-reports/' + id + '/status', { method: 'POST', body: { status, note } }),
+  parkingReportAssign: (id, b) => api('/vehicles/parking-reports/' + id + '/vehicle', { method: 'POST', body: b }),
   parkingAlerts: () => api('/vehicles/parking-alerts' + facAmp(false)),
 
   assets: () => api('/assets'),

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -423,6 +424,95 @@ func (h *Handlers) AdminParkingReportStatus(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true, "id": id, "status": b.Status})
+}
+
+// errGanXe: lỗi nghiệp vụ trong transaction gán xe — chỉ để BẮT transaction quay lui, lời lỗi lấy ở biến ngoài.
+var errGanXe = errors.New("không ghi được xe")
+
+// AdminParkingReportAssign: POST /api/vehicles/parking-reports/:id/vehicle — báo cáo "xe lạ" hoá ra là
+// xe của một học viên đang ở: ghi vào danh sách gửi xe rồi đóng báo cáo trong CÙNG một lượt, để không
+// còn cảnh xác nhận xong mà biển số không nằm ở đâu cả.
+func (h *Handlers) AdminParkingReportAssign(c *gin.Context) {
+	u := auth.CurrentUser(c)
+	id, ok := paramInt(c, "id")
+	if !ok {
+		badRequest(c, "Mã báo cáo không hợp lệ")
+		return
+	}
+	var b struct {
+		StudentID   json.RawMessage `json:"student_id"`
+		Plate       string          `json:"plate"`
+		VehicleType string          `json:"vehicle_type"`
+		Sticker     string          `json:"sticker"`
+		Note        string          `json:"note"`
+	}
+	_ = c.ShouldBindJSON(&b)
+	sid, ok := vehicleNum(b.StudentID)
+	if !ok {
+		badRequest(c, "Chọn học viên là chủ xe")
+		return
+	}
+	ctx := c.Request.Context()
+	var (
+		facID, vehID   *int
+		kind, plateBao string
+	)
+	err := h.pool().QueryRow(ctx, "SELECT facility_id, vehicle_id, kind, plate FROM parking_reports WHERE id=$1", id).
+		Scan(&facID, &vehID, &kind, &plateBao)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			notFound(c, "Không tìm thấy báo cáo")
+			return
+		}
+		serverErr(c, err)
+		return
+	}
+	if fe := scope.AssertFacility(u, facID); fe != nil {
+		c.JSON(fe.Status, gin.H{"error": fe.Error})
+		return
+	}
+	if kind != parkingBaoCaoXeLa {
+		badRequest(c, "Chỉ báo cáo XE LẠ mới cần ghi vào danh sách gửi xe.")
+		return
+	}
+	if vehID != nil {
+		conflict(c, gin.H{"error": "Báo cáo này đã gắn với một xe trong danh sách gửi xe."})
+		return
+	}
+	plate := strings.TrimSpace(b.Plate)
+	if plate == "" {
+		plate = plateBao // an ninh đọc sao ghi vậy; quản trị sửa lại được ở ô biển số
+	}
+	note := strings.TrimSpace(b.Note)
+
+	var (
+		xe  map[string]interface{}
+		st  int
+		loi string
+	)
+	txErr := h.DB.WithTx(ctx, func(tx pgx.Tx) error {
+		xe, st, loi = h.vehicleTao(ctx, tx, u, vehicleTaoIn{
+			StudentID: sid, Plate: plate, VehicleType: b.VehicleType, Sticker: b.Sticker, Note: note,
+		})
+		if loi != "" || xe == nil {
+			return errGanXe
+		}
+		vid, _ := parkingSo(xe["id"])
+		_, e := tx.Exec(ctx, `UPDATE parking_reports
+			SET vehicle_id=$1, status=$2, handled_by=$3, handled_at=now(),
+			    handled_note = CASE WHEN $4 = '' THEN 'Đã ghi vào danh sách gửi xe: ' || $5 ELSE $4 END
+			WHERE id=$6`, vid, parkingBcDaXuLy, u.Username, note, plate, id)
+		return e
+	})
+	if txErr != nil {
+		if errors.Is(txErr, errGanXe) && loi != "" {
+			c.JSON(st, gin.H{"error": loi})
+			return
+		}
+		serverErr(c, txErr)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "id": id, "status": parkingBcDaXuLy, "vehicle": xe})
 }
 
 /* ===================== Chuỗi vắng · tổng kết ngày · chốt ===================== */

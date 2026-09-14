@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -182,33 +183,30 @@ type vehicleCreateBody struct {
 	ToDate      json.RawMessage `json:"to_date"`
 }
 
-// CreateVehicle: POST /api/vehicles (admin,staff). vehicles.routes.js:49-88
-func (h *Handlers) CreateVehicle(c *gin.Context) {
-	u := auth.CurrentUser(c)
-	var b vehicleCreateBody
-	_ = c.ShouldBindJSON(&b)
-	sid, ok := vehicleNum(b.StudentID)
-	if !ok {
-		badRequest(c, "Thiếu học viên")
-		return
-	}
-	ctx := c.Request.Context()
+type vehicleTaoIn struct {
+	StudentID                         int
+	Plate, VehicleType, Sticker, Note string
+	FromRaw, ToRaw                    json.RawMessage
+}
+
+// vehicleTao: TOÀN BỘ luật đăng ký xe, dùng chung cho mọi đường ghi xe (thêm tay ở màn Gửi xe,
+// ghi từ báo cáo xe lạ của an ninh). Trả về hàng xe vừa ghi, mã HTTP và lời lỗi cho người dùng;
+// lỗi kỹ thuật trả mã 500 kèm lời rỗng. q nhận cả pool lẫn transaction.
+func (h *Handlers) vehicleTao(ctx context.Context, q db.Querier, u *auth.User, in vehicleTaoIn) (map[string]interface{}, int, string) {
 	// HV phải TỒN TẠI + chưa xoá; trước đây id rác -> FK 23503 -> 500, giờ 400 có nghĩa (V2-25). vehicles.routes.js:56-58
 	var (
 		stFac                           *int
 		stStatus                        string
 		stCheckIn, stCheckOut, stLichRa *time.Time
 	)
-	err := h.pool().QueryRow(ctx,
-		`SELECT facility_id, status, check_in_date, check_out_date, planned_check_out FROM students WHERE id=$1 AND deleted_at IS NULL`, sid).
+	err := q.QueryRow(ctx,
+		`SELECT facility_id, status, check_in_date, check_out_date, planned_check_out FROM students WHERE id=$1 AND deleted_at IS NULL`, in.StudentID).
 		Scan(&stFac, &stStatus, &stCheckIn, &stCheckOut, &stLichRa)
 	if err != nil {
-		badRequest(c, "Học viên không tồn tại hoặc đã xoá")
-		return
+		return nil, http.StatusBadRequest, "Học viên không tồn tại hoặc đã xoá"
 	}
 	if fe := scope.AssertFacility(u, stFac); fe != nil { // đa cơ sở. vehicles.routes.js:59
-		c.JSON(fe.Status, gin.H{"error": fe.Error})
-		return
+		return nil, fe.Status, fe.Error
 	}
 	// Không đăng ký xe cho HV đã TRẢ PHÒNG: đang ở = status 'in' + đã tới ngày nhận & chưa tới ngày trả.
 	// vehicles.routes.js:62-66
@@ -221,30 +219,26 @@ func (h *Handlers) CreateVehicle(c *gin.Context) {
 		occupying = stCheckOut.Format("2006-01-02") > today
 	}
 	if !occupying {
-		badRequest(c, "Học viên đã trả phòng (hoặc chưa tới ngày nhận phòng) — không đăng ký xe.")
-		return
+		return nil, http.StatusBadRequest, "Học viên đã trả phòng (hoặc chưa tới ngày nhận phòng) — không đăng ký xe."
 	}
 	// Biển số BẮT BUỘC — biển rỗng lọt qua unique index, nhân phí gửi xe tuỳ ý (V2-21). vehicles.routes.js:70
-	if strings.TrimSpace(b.Plate) == "" {
-		badRequest(c, "Biển số xe là bắt buộc")
-		return
+	if strings.TrimSpace(in.Plate) == "" {
+		return nil, http.StatusBadRequest, "Biển số xe là bắt buộc"
 	}
 	// Trùng biển (kể cả khác format dấu chấm/gạch) -> 400 có nghĩa (V2-22). vehicles.routes.js:72-76
-	bien := vehicleChuanBien(b.Plate)
+	bien := vehicleChuanBien(in.Plate)
 	var dupName string
-	if h.pool().QueryRow(ctx,
+	if q.QueryRow(ctx,
 		`SELECT s.name FROM vehicles v JOIN students s ON s.id=v.student_id
 		  WHERE v.deleted_at IS NULL AND regexp_replace(upper(v.plate),'[^0-9A-Z]','','g') = $1`, bien).Scan(&dupName) == nil {
-		badRequest(c, "Biển số này đã đăng ký cho học viên "+dupName)
-		return
+		return nil, http.StatusBadRequest, "Biển số này đã đăng ký cho học viên " + dupName
 	}
 	// Khoảng hiệu lực: không gửi thì lấy theo lượt ở của chủ xe (nhận phòng -> trả phòng),
 	// trả phòng còn bỏ ngỏ thì to_date để trống = còn hiệu lực.
-	coFrom, from, e1 := vehicleNgay(b.FromDate, "Ngày bắt đầu")
-	coTo, to, e2 := vehicleNgay(b.ToDate, "Ngày ngừng")
+	coFrom, from, e1 := vehicleNgay(in.FromRaw, "Ngày bắt đầu")
+	coTo, to, e2 := vehicleNgay(in.ToRaw, "Ngày ngừng")
 	if e1 != "" || e2 != "" {
-		badRequest(c, e1+e2)
-		return
+		return nil, http.StatusBadRequest, e1 + e2
 	}
 	if !coFrom || from == nil {
 		if from = vehicleNgayCua(stCheckIn); from == nil {
@@ -258,23 +252,44 @@ func (h *Handlers) CreateVehicle(c *gin.Context) {
 		}
 	}
 	if e := vehicleKhoangNgay(from, to); e != "" {
-		badRequest(c, e)
-		return
+		return nil, http.StatusBadRequest, e
 	}
-	rows, err := h.pool().Query(ctx,
+	rows, err := q.Query(ctx,
 		`INSERT INTO vehicles (student_id, plate, vehicle_type, sticker, note, from_date, to_date)
 		 VALUES ($1,$2,$3,$4,$5,$6::date,$7::date) RETURNING *`,
-		sid, strings.TrimSpace(b.Plate), b.VehicleType, b.Sticker, b.Note, from, to)
+		in.StudentID, strings.TrimSpace(in.Plate), in.VehicleType, in.Sticker, in.Note, from, to)
 	if err != nil {
 		if vehicleIsDup(err) { // vehicles.routes.js:84
-			badRequest(c, "Biển số này đã tồn tại")
-			return
+			return nil, http.StatusBadRequest, "Biển số này đã tồn tại"
 		}
-		serverErr(c)
-		return
+		return nil, http.StatusInternalServerError, ""
 	}
 	row, err := db.RowToMap(rows)
 	if err != nil || row == nil {
+		return nil, http.StatusInternalServerError, ""
+	}
+	return row, http.StatusCreated, ""
+}
+
+// CreateVehicle: POST /api/vehicles (admin,staff). vehicles.routes.js:49-88
+func (h *Handlers) CreateVehicle(c *gin.Context) {
+	u := auth.CurrentUser(c)
+	var b vehicleCreateBody
+	_ = c.ShouldBindJSON(&b)
+	sid, ok := vehicleNum(b.StudentID)
+	if !ok {
+		badRequest(c, "Thiếu học viên")
+		return
+	}
+	row, st, loi := h.vehicleTao(c.Request.Context(), h.pool(), u, vehicleTaoIn{
+		StudentID: sid, Plate: b.Plate, VehicleType: b.VehicleType, Sticker: b.Sticker, Note: b.Note,
+		FromRaw: b.FromDate, ToRaw: b.ToDate,
+	})
+	if loi != "" {
+		c.JSON(st, gin.H{"error": loi})
+		return
+	}
+	if row == nil {
 		serverErr(c)
 		return
 	}

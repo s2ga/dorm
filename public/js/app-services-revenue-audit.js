@@ -166,6 +166,7 @@ function pkAdminPanels(deNghi, baoCao, cb) {
         </div></td></tr>`).join('')}
     </tbody></table>` : '<div class="empty">Không có đề nghị nào chờ duyệt.</div>'}</div></div>`;
 
+  window._pkBaoCao = baoCao;   // pkGanXeForm tra lại biển số / nội dung của báo cáo khi bấm ghi xe
   const oBaoCao = `<div class="panel" id="pk_panel_baocao"><div class="hd"><h2>${IC.flag} Báo cáo bãi xe từ an ninh (${baoCao.length})</h2>
       <div class="toolbar"><button class="btn sm ${pkAdminLoc === 'new' ? 'pri' : ''}" data-act="pkAdminLocGo" data-args='["new"]'>Chưa xem</button>
       <button class="btn sm ${pkAdminLoc === 'all' ? 'pri' : ''}" data-act="pkAdminLocGo" data-args='["all"]'>30 ngày gần đây</button></div></div>
@@ -177,6 +178,7 @@ function pkAdminPanels(deNghi, baoCao, cb) {
         <td>${bd(TT, x.status)}${x.handled_by ? `<div class="muted" style="font-size:11px">${esc(x.handled_by)} · ${luc(x.handled_at)}</div>` : ''}</td>
         <td class="num"><div class="rowbtns" style="justify-content:flex-end">
           ${x.has_photo ? `<button class="btn sm ghost" title="Xem ảnh" data-act="pkXemAnhBaoCao" data-args='[${x.id}]'>${IC.search}</button>` : ''}
+          ${x.kind === 'stranger' && !x.vehicle_id ? `<button class="btn sm pri" title="Xe này là của một học viên đang ở — ghi vào danh sách gửi xe" data-act="pkGanXeForm" data-args='[${x.id}]'>${IC.bike} Ghi vào danh sách xe</button>` : ''}
           ${x.status === 'new' ? `<button class="btn sm" data-act="pkBcTrangThai" data-args='[${x.id},"seen"]'>Đã xem</button>` : ''}
           ${x.status !== 'done' ? `<button class="btn sm green" data-act="pkBcTrangThai" data-args='[${x.id},"done"]'>${IC.check} Đã xử lý</button>` : ''}
         </div></td></tr>`).join('')}
@@ -205,6 +207,45 @@ async function pkTuChoiBienLuu(id) {
 async function pkBcTrangThai(id, st) {
   await guard(() => API.parkingReportStatus(id, st, ''));
   toast(st === 'done' ? 'Đã đánh dấu xử lý xong' : 'Đã đánh dấu đã xem'); viewServices();
+}
+// Xe lạ hoá ra là xe của một HV đang ở: ghi thẳng vào danh sách gửi xe rồi đóng báo cáo — một lượt,
+// không phải sang màn khác gõ lại biển số.
+function pkGanXeForm(id) {
+  const bc = (window._pkBaoCao || []).find(x => x.id === id) || {};
+  const dsHV = ST.students.filter(isOccupying)
+    .sort((a, b) => (a.room_name || '').localeCompare(b.room_name || '', 'vi') || (a.name || '').localeCompare(b.name || '', 'vi'));
+  if (!dsHV.length) return toast('Không có học viên đang ở để gán xe', 'err');
+  openModal(`
+    <div class="mh"><h3>${IC.bike} Ghi xe lạ vào danh sách gửi xe</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mb">
+      <div class="field"><label>Chủ xe *</label><select id="pg_stu">
+        <option value="">— Chọn học viên đang ở —</option>
+        ${dsHV.map(x => `<option value="${x.id}">${x.room_name ? esc(x.room_name) + ' — ' : ''}${esc(x.name)}${x.code ? ' (' + esc(x.code) + ')' : ''}</option>`).join('')}
+      </select></div>
+      <div class="grid2">
+        <div class="field"><label>Biển số *</label><input id="pg_plate" value="${esc(bc.plate || '')}" placeholder="63-B4 508.58"></div>
+        <div class="field"><label>Loại xe</label><input id="pg_type" placeholder="Xe số / Xe ga..."></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>Mã dán xe</label><input id="pg_sticker" placeholder="201.1"></div>
+        <div class="field"><label>Ghi chú</label><input id="pg_note" value="${esc(bc.note || '')}"></div>
+      </div>
+      <div class="hint">${IC.bulb} Hiệu lực lấy theo lượt ở của học viên (nhận phòng → trả phòng), sửa được ở màn Gửi xe.
+        Phí gửi xe ${money(ST.settings.parking_fee)}/xe/tháng tính từ đó. Lưu xong báo cáo này chuyển sang <strong>Đã xử lý</strong>.</div>
+    </div>
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="pkGanXeLuu" data-args='[${id}]'>Lưu vào danh sách xe</button></div>`);
+  setTimeout(() => el('pg_stu') && el('pg_stu').focus(), 50);
+}
+async function pkGanXeLuu(id) {
+  const sid = +((el('pg_stu') || {}).value || 0);
+  if (!sid) return toast('Chọn chủ xe', 'err');
+  const plate = el('pg_plate').value.trim();
+  if (!plate) return toast('Nhập biển số', 'err');
+  await guard(() => API.parkingReportAssign(id, {
+    student_id: sid, plate, vehicle_type: el('pg_type').value.trim(),
+    sticker: el('pg_sticker').value.trim(), note: el('pg_note').value.trim(),
+  }));
+  await refreshCache(); closeModal(); toast('Đã ghi ' + plate + ' vào danh sách gửi xe'); viewServices();
 }
 function addWashingForm() {
   const avail = ST.students.filter(s => !s.uses_washing && isOccupying(s)).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'vi'));
