@@ -6,7 +6,9 @@ async function viewExec() {
   const year = curMonth().slice(0, 4);
   const [rev, revPrev] = await Promise.all([API.revenue(year), API.revenue(String(+year - 1)).catch(() => [])]); // BL-21: lỗi -> reject -> adminGo bắt -> renderViewError
   const sum = (arr, k) => arr.reduce((a, m) => a + (+m[k] || 0), 0);
-  const totalYear = sum(rev, 'total'), paidYear = sum(rev, 'paid'), prevYear = sum(revPrev, 'total');
+  // Cọc là tiền GIỮ HỘ, không phải doanh thu — trừ ra y như màn Doanh thu, nếu không hai màn lệch nhau.
+  const truCoc = arr => sum(arr, 'total') - sum(arr, 'deposit');
+  const totalYear = truCoc(rev), paidYear = sum(rev, 'paid'), prevYear = truCoc(revPrev);
   const collection = totalYear ? Math.round(paidYear / totalYear * 100) : 0;
   // Chỉ so cùng kỳ khi năm trước có dữ liệu đủ ý nghĩa (>=5% năm nay), tránh % ảo
   const yoy = (prevYear > totalYear * 0.05) ? Math.round((totalYear - prevYear) / prevYear * 100) : null;
@@ -26,7 +28,7 @@ async function viewExec() {
   ].filter(x => x[1] > 0);
   const svcTotal = svcs.reduce((a, s) => a + s[1], 0) || 1;
   // BL-49: dựng đủ 12 khe tháng (Th1…Th12) của năm để cột nằm trong ngữ cảnh trục, không lơ lửng giữa vùng trắng.
-  const revByMonth = new Map(rev.map(m => [m.month, +m.total || 0]));
+  const revByMonth = new Map(rev.map(m => [m.month, (+m.total || 0) - (+m.deposit || 0)]));
   const chartRows = Array.from({ length: 12 }, (_, i) => {
     const month = `${year}-${String(i + 1).padStart(2, '0')}`;
     return { month, label: 'Th' + (i + 1), total: revByMonth.get(month) || 0 };
@@ -62,12 +64,12 @@ async function viewExec() {
   el('content').innerHTML = `<div id="printArea">
     <div class="print-only" style="margin-bottom:14px"><h2 style="font-family:var(--serif);margin:0">${esc(ST.settings.dorm_name || 'Ký túc xá')} — Báo cáo điều hành ${year}</h2><div class="muted">Xuất ngày ${fmtDate(today())}</div></div>
     <div class="kpis">
-      ${kpi(IC.userCheck, 'ic-green', occRate + '%', 'Tỉ lệ lấp đầy', `${usedBeds}/${capacity} giường${overPeople ? ` · <strong style="color:var(--red-ink)">${IC.alert} quá tải ${overPeople} người (${overRoomCount} phòng)</strong>` : ''}`, actAttr('adminGo', 'rooms'))}
-      ${kpi(IC.trendingUp, 'ic-brand', money(totalYear), 'Dự báo doanh thu ' + year, yoy != null ? (yoy >= 0 ? '▲' : '▼') + Math.abs(yoy) + '% vs ' + (+year - 1) : '', actAttr('adminGo', 'revenue'))}
+      ${kpi(IC.userCheck, 'ic-green', occRate + '%', 'Tỉ lệ lấp đầy', `${usedBeds}/${capacity} giường${overPeople ? ` · <strong style="color:var(--red-ink)">${IC.alert} quá tải ${overPeople} người (${overRoomCount} phòng)</strong>` : ''}`, actAttr('roomGo', 'all'))}
+      ${kpi(IC.trendingUp, 'ic-brand', money(totalYear), 'Tổng tiền đã lập phiếu ' + year, `không gồm cọc giữ hộ${yoy != null ? ` · ${(yoy >= 0 ? '▲' : '▼') + Math.abs(yoy)}% vs ${+year - 1}` : ''}`, actAttr('doanhThuGo', year))}
       ${kpi(IC.users, 'ic-blue', occ, 'Học viên đang ở', '', actAttr('stuGoAdmin', 'in_ktx'))}
-      ${kpi(IC.planeTakeoff, 'ic-gray', dep, 'Đã xuất cảnh (năm ' + year + ')', '', actAttr('stuGoAdmin', 'departure'))}
+      ${kpi(IC.planeTakeoff, 'ic-gray', dep, 'Đã xuất cảnh (năm ' + year + ')', '', actAttr('xuatCanhGo', year))}
     </div>
-    <div class="panel"><div class="hd"><h2>${IC.trendingUp} Dự báo doanh thu theo tháng — ${year}</h2><span class="muted" style="font-size:12px">Ước tính từ phiếu báo đã lập (thu thật do Bravo quản lý)</span></div>
+    <div class="panel"><div class="hd"><h2>${IC.trendingUp} Tiền đã lập phiếu theo tháng — ${year}</h2><span class="muted" style="font-size:12px">Cộng từ phiếu báo đã lập, không gồm cọc giữ hộ (thu thật do Bravo quản lý)</span></div>
     <div class="pad">${chartRows.some(r => r.total) ? svgBars(chartRows) : '<div class="empty">Chưa có phiếu báo năm này.</div>'}</div></div>
     <div class="grid2" style="align-items:start">
       <div class="panel" style="margin:0"><div class="hd"><h2>${IC.pie} Cơ cấu doanh thu dự báo</h2></div><div class="pad" style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
@@ -395,7 +397,7 @@ async function viewDashboard() {
       ${kpi('ic-blue', IC.bed, `${T.thucCon}<span class="muted" style="font-size:15px;font-weight:600"> / ${capacity}</span>`, 'Giường trống', actAttr('roomGo', 'trong'), `${T.soPhong} phòng ở`)}
       ${kpi('ic-amber', IC.logOut, sapTra, 'Sắp trả phòng', actAttr('stuGoAdmin', 'sap_tra'))}
       ${kpi('ic-gray', IC.key, sapVao, 'Sắp vào', actAttr('stuGoAdmin', 'sap_vao'))}
-      ${kpi('ic-brand', IC.receipt, money(billedThisMonth), 'Phiếu báo tháng này', actAttr('adminGo', 'invoices'), billedLastMonth ? 'Tháng trước ' + money(billedLastMonth) : '')}
+      ${kpi('ic-brand', IC.receipt, money(billedThisMonth), 'Phiếu báo tháng này', actAttr('phieuThangNayGo'), billedLastMonth ? 'Tháng trước ' + money(billedLastMonth) : '')}
     </div>
 
     <div class="panel"><div class="hd"><h2>${IC.zap} Cần xử lý</h2></div><div class="pad">
@@ -408,7 +410,7 @@ async function viewDashboard() {
         ${todo(IC.flag, 'Đăng ký Tạm Trú', resiOverdue, actAttr('residencyModal'), 'warn')}
         ${todo(IC.fileText, 'Hợp đồng', contractIncomplete, actAttr('contractIssuesModal'), 'warn')}
         ${todo(IC.receipt, 'Lập phiếu thu', billOverdue, actAttr('billOverdueModal'), 'bad')}
-        ${todo(IC.alert, 'Quản lý vi phạm', needMail, actAttr('adminGo', 'violations'), 'bad')}
+        ${todo(IC.alert, 'Quản lý vi phạm', needMail, actAttr('viPhamGo', 'canbao'), 'bad')}
       </div>
     </div></div>
 

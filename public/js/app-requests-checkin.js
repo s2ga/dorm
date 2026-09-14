@@ -3,6 +3,8 @@
 let regFilter = 'pending';   // BL-59: màn Đăng ký mặc định chỉ hiện đơn CẦN XỬ LÝ (Chờ duyệt)
 let coutFilter = 'pending';  // Trả phòng: mặc định đơn chờ xác nhận — cùng con số với ô Tổng quan
 let dmgFilter = 'open';      // Báo hư hỏng: mặc định việc chưa xong — cùng con số với ô Tổng quan
+let fbFilter = 'open';       // Góp ý: mặc định việc chưa xong — cùng con số với badge trên menu
+let vioFilter = 'all';       // Vi phạm: 'canbao' = chỉ HV đủ ngưỡng chưa báo nhà trường
 async function viewRequests() {
   const view = ST.view;
   el('content').innerHTML = '<div class="spinner"></div>';
@@ -96,7 +98,18 @@ async function viewRequests() {
     note = `${IC.info} Duyệt & chuyển bộ phận bảo trì xử lý.`;
     body = tbl;
   } else if (view === 'violations') {
-    const vioRows = vios.map(v => `<tr>
+    // Chuông/Tổng quan đếm SỐ HỌC VIÊN cần báo nhà trường (đủ ngưỡng, chưa báo lần nào) — bấm vào
+    // phải ra đúng nhóm đó, không phải toàn bộ lượt vi phạm của mọi người.
+    const theoHV = new Map();
+    vios.forEach(v => { const b = theoHV.get(v.student_id) || { n: 0, daBao: false }; b.n++; if (v.notified_school) b.daBao = true; theoHV.set(v.student_id, b); });
+    const hvCanBao = id => { const b = theoHV.get(id); return !!b && b.n >= threshold && !b.daBao; };
+    const soHVCanBao = [...theoHV.keys()].filter(hvCanBao).length;
+    const dsVio = vioFilter === 'canbao' ? vios.filter(v => hvCanBao(v.student_id)) : vios;
+    const pillV = (f, tx, n) => `<button class="btn sm ${vioFilter === f ? 'pri' : ''}" data-act="vioGo" data-args='["${f}"]'
+      aria-pressed="${vioFilter === f}">${tx} <span class="badge ${vioFilter === f ? '' : 'gray'}">${n}</span></button>`;
+    const pillsV = `<div class="pill-row" style="padding:12px 14px 0">
+      ${pillV('canbao', `${IC.alert} Cần báo nhà trường`, soHVCanBao + ' HV')}${pillV('all', 'Tất cả', vios.length + ' lượt')}</div>`;
+    const vioRows = dsVio.map(v => `<tr>
       <td>${fmtDate(v.date)}</td>
       <td><a href="#" data-act="studentDetail" data-args='[${v.student_id}]'><strong>${esc(v.student_name)}</strong></a>${v.student_code ? `<div class="muted" style="font-size:11px">${esc(v.student_code)}</div>` : ''}${v.room_name ? `<div class="muted" style="font-size:11px">${(studentById(v.student_id) || {}).room_id ? `<a href="#" data-act="roomDetail" data-args='[${(studentById(v.student_id) || {}).room_id}]' title="Xem chi tiết phòng">${esc(v.room_name)}</a>` : esc(v.room_name)}</div>` : ''}</td>
       <td>${esc(v.type_name)}${v.note ? `<div class="muted" style="font-size:12px">${esc(v.note)}</div>` : ''}</td>
@@ -107,15 +120,22 @@ async function viewRequests() {
         ${v.level >= threshold && !v.notified_school ? `<button class="btn sm" data-act="notifySchool" data-args='[${v.student_id}]'>${IC.inbox} Gửi mail</button>` : ''}
         <button class="btn sm ghost" data-act="delViolation" data-args='[${v.id}]'>${IC.trash}</button>
       </div></td></tr>`).join('');
-    hd = `${IC.alert} Danh sách vi phạm (${vios.length})`;
+    hd = vioFilter === 'canbao'
+      ? `${IC.alert} Vi phạm cần báo nhà trường (${soHVCanBao} học viên · ${dsVio.length} lượt)`
+      : `${IC.alert} Danh sách vi phạm (${dsVio.length})`;
     actions = `<button class="btn sm" data-act="violationStatsModal">${IC.trendingUp} Thống kê</button>
       <button class="btn sm pri" data-act="violationForm">${IC.plus} Ghi nhận vi phạm</button>`;
     banner = (vstats && vstats.needMail) ? `<div class="bang-tin" style="background:var(--red-bg);border-color:#e3b8ad;color:var(--red-ink)">${IC.alert} <strong>${vstats.needMail} học viên</strong> vi phạm ≥ ${threshold} lần cần báo nhà trường. Cấu hình SMTP trong <a href="#" data-act="adminGo" data-args='["settings"]'>Cài đặt</a> để gửi email tự động, hoặc bấm <strong>Gửi mail</strong> ở từng dòng.</div>` : '';
-    body = vios.length ? `<div class="table-wrap"><table><thead><tr><th>Ngày</th><th>Học viên</th><th>Loại vi phạm</th><th>Mức độ</th><th class="num">Lần</th><th>Nhà trường</th><th></th></tr></thead><tbody>${vioRows}</tbody></table></div>` : '<div class="empty">Chưa ghi nhận vi phạm nào. Bấm <strong>Ghi nhận vi phạm</strong> hoặc mở chi tiết học viên.</div>';
+    body = pillsV + (dsVio.length ? `<div class="table-wrap"><table><thead><tr><th>Ngày</th><th>Học viên</th><th>Loại vi phạm</th><th>Mức độ</th><th class="num">Lần</th><th>Nhà trường</th><th></th></tr></thead><tbody>${vioRows}</tbody></table></div>`
+      : `<div class="empty">${!vios.length ? 'Chưa ghi nhận vi phạm nào. Bấm <strong>Ghi nhận vi phạm</strong> hoặc mở chi tiết học viên.' : 'Không còn học viên nào cần báo nhà trường.'}</div>`);
   } else {
-    // Hộp thư góp ý: học viên báo vi phạm / cần hỗ trợ khác (category violation, other)
-    const fb = damage.filter(d => ['violation', 'other'].includes(d.category));
-    const tbl = fb.length ? `<div class="table-wrap"><table><thead><tr><th>Ngày</th><th>Loại</th><th>Học viên</th><th>Phòng</th><th>Nội dung</th><th>Trạng thái</th><th></th></tr></thead><tbody>
+    // Hộp thư góp ý: học viên báo vi phạm / cần hỗ trợ khác (category violation, other).
+    // Badge trên menu đếm việc CHƯA XONG nên màn mặc định cũng mở đúng nhóm đó (giống Báo hư hỏng).
+    const fbAll = damage.filter(d => ['violation', 'other'].includes(d.category));
+    const fb = fbFilter === 'all' ? fbAll : fbFilter === 'done' ? fbAll.filter(d => d.status === 'done') : fbAll.filter(d => d.status !== 'done');
+    const pillF = (f, tx, n) => `<button class="btn sm ${fbFilter === f ? 'pri' : ''}" data-act="fbGo" data-args='["${f}"]'>${tx} (${n})</button>`;
+    const pillsF = `<div class="pill-row" style="padding:12px 14px 0">${pillF('open', 'Chưa xong', fbAll.filter(d => d.status !== 'done').length)}${pillF('done', 'Đã xử lý', fbAll.filter(d => d.status === 'done').length)}${pillF('all', 'Tất cả', fbAll.length)}</div>`;
+    const tbl = pillsF + (fb.length ? `<div class="table-wrap"><table><thead><tr><th>Ngày</th><th>Loại</th><th>Học viên</th><th>Phòng</th><th>Nội dung</th><th>Trạng thái</th><th></th></tr></thead><tbody>
       ${fb.map(d => `<tr>
         <td>${fmtDate(String(d.created_at).slice(0, 10))}</td>
         <td>${supCatBadge(d.category)}</td>
@@ -128,7 +148,7 @@ async function viewRequests() {
           ${d.status !== 'done' ? `<button class="btn sm green" data-act="setDamage" data-args='[${d.id},"done"]'>${IC.check} Xong</button>` : `<button class="btn sm" data-act="setDamage" data-args='[${d.id},"new"]'>Mở lại</button>`}
           <button class="btn sm ghost" title="Ghi chú" data-act="noteForm" data-args='["damage", ${d.id}]'>${IC.filePen}</button>
         </div></td></tr>`).join('')}
-    </tbody></table></div>` : '<div class="empty">Chưa có góp ý / yêu cầu hỗ trợ nào.</div>';
+    </tbody></table></div>` : `<div class="empty">${fbAll.length ? 'Không có mục nào khớp bộ lọc.' : 'Chưa có góp ý / yêu cầu hỗ trợ nào.'}</div>`);
     hd = `${IC.inbox} Góp ý / yêu cầu hỗ trợ (${fb.length})`;
     body = tbl;
   }
@@ -188,10 +208,15 @@ function khongDenForm(id) {
   });
 }
 function dmgGo(f) { dmgFilter = f; viewRequests(); }
-// Ba ô Cần xử lý ở Tổng quan: đặt đúng bộ lọc TRƯỚC khi sang màn, để số bấm vào == số hiện ra.
+function fbGo(f) { fbFilter = f; viewRequests(); }
+function vioGo(f) { vioFilter = f; viewRequests(); }
+// Đi từ một CON SỐ (ô Tổng quan, chuông, badge menu) sang màn danh sách: đặt đúng bộ lọc TRƯỚC khi
+// sang, để số bấm vào == số hiện ra. Không có bước này thì rơi vào bộ lọc của lần xem trước.
 function nhanPhongGo() { regFilter = 'pending'; adminGo('reg'); }
 function traPhongGo() { coutFilter = 'pending'; adminGo('checkout'); }
 function baoTriGo() { dmgFilter = 'open'; adminGo('repair'); }
+function gopYGo() { fbFilter = 'open'; adminGo('feedback'); }
+function viPhamGo(f) { vioFilter = f || 'canbao'; adminGo('violations'); }
 /* ---- Ghi chú xử lý cho đơn hỗ trợ ---- */
 function noteForm(type, id) {
   const cur = (type === 'app' ? (ST.applications.find(a => a.id === id) || {}).admin_note

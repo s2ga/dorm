@@ -55,7 +55,13 @@ function renderAdmin() {
         <div class="content" id="content"><div class="spinner"></div></div>
       </div>
     </div>`;
-  document.querySelectorAll('#nav button').forEach(b => b.addEventListener('click', () => adminGo(b.dataset.v)));
+  // Badge trên menu đếm việc CẦN XỬ LÝ -> bấm vào phải mở đúng nhóm đó. Gọi qua tên hàm để không
+  // phụ thuộc thứ tự nạp file (các hàm này nằm ở app-requests-checkin.js, nạp sau file này).
+  const NAV_GO = { reg: 'nhanPhongGo', checkout: 'traPhongGo', repair: 'baoTriGo', feedback: 'gopYGo', violations: 'viPhamGo', hoso: 'hoSoGo' };
+  document.querySelectorAll('#nav button').forEach(b => b.addEventListener('click', () => {
+    const fn = window[NAV_GO[b.dataset.v]];
+    return typeof fn === 'function' ? fn() : adminGo(b.dataset.v);
+  }));
   document.addEventListener('keydown', _escDrawer);   // BL-31: Esc đóng drawer (dedup nhờ named fn)
   startTableResize();
   // Màn ban đầu: ƯU TIÊN đường dẫn (deep-link /hoc-vien...), rồi tới ?view= cũ (giữ tương thích link cũ),
@@ -193,8 +199,10 @@ const hoChoDuyet = k => (ST.hoReports || []).filter(r => r.status === 'pending' 
 /* ---- Trung tâm thông báo (chuông) ---- */
 function notifItems() {
   const items = [];
-  const pHo = hoChoDuyet();
-  if (pHo) items.push({ n: pHo, ic: IC.filePen, tx: `${pHo} biên bản bàn giao an ninh gửi, chờ xác nhận`, act: actAttr('adminGo', hoChoDuyet('checkout') ? 'checkout' : 'reg') });
+  // Tách hai loại biên bản: gộp một dòng thì con số dẫn tới MỘT màn, màn đó không chứa đủ ngần ấy.
+  const hoVao = hoChoDuyet('checkin'), hoRa = hoChoDuyet('checkout');
+  if (hoVao) items.push({ n: hoVao, ic: IC.filePen, tx: `${hoVao} biên bản NHẬN phòng an ninh gửi, chờ xác nhận`, act: actAttr('nhanPhongGo') });
+  if (hoRa) items.push({ n: hoRa, ic: IC.filePen, tx: `${hoRa} biên bản TRẢ phòng an ninh gửi, chờ xác nhận`, act: actAttr('traPhongGo') });
   // BL-19: dataset phụ tải hỏng -> cảnh báo trên chuông + nút Thử lại, thay vì để badge/số về 0 giả im lặng.
   if (ST.cacheErrors && ST.cacheErrors.length) items.push({ n: ST.cacheErrors.length, ic: IC.alert, tx: `Chưa tải được: ${ST.cacheErrors.join(', ')} — số liệu có thể chưa đầy đủ. Bấm để thử lại`, act: actAttr('retryCache') });
   const pApps = ST.applications.filter(a => a.status === 'pending').length;
@@ -204,10 +212,10 @@ function notifItems() {
   const refund = ST.students.filter(s => liveStatus(s) === 'left' && s.deposit_status === 'held').length;
   const pend = ST.pendingCount || 0;
   if (pend) items.push({ n: pend, ic: IC.shield, tx: `${pend} tài khoản Microsoft chờ duyệt`, act: actAttr('gotoUsers') });
-  if (pApps) items.push({ n: pApps, ic: IC.filePen, tx: `${pApps} đơn đăng ký chờ duyệt`, act: actAttr('adminGo', 'reg') });
-  if (pDmg) items.push({ n: pDmg, ic: IC.wrench, tx: `${pDmg} báo hư hỏng chưa xử lý`, act: actAttr('adminGo', 'repair') });
-  if (pCout) items.push({ n: pCout, ic: IC.logOut, tx: `${pCout} đơn xin trả phòng`, act: actAttr('adminGo', 'checkout') });
-  if (needMail) items.push({ n: needMail, ic: IC.alert, tx: `${needMail} học viên vi phạm cần báo nhà trường`, act: actAttr('adminGo', 'violations') });
+  if (pApps) items.push({ n: pApps, ic: IC.filePen, tx: `${pApps} đơn đăng ký chờ duyệt`, act: actAttr('nhanPhongGo') });
+  if (pDmg) items.push({ n: pDmg, ic: IC.wrench, tx: `${pDmg} báo hư hỏng chưa xử lý`, act: actAttr('baoTriGo') });
+  if (pCout) items.push({ n: pCout, ic: IC.logOut, tx: `${pCout} đơn xin trả phòng`, act: actAttr('traPhongGo') });
+  if (needMail) items.push({ n: needMail, ic: IC.alert, tx: `${needMail} học viên vi phạm cần báo nhà trường`, act: actAttr('viPhamGo', 'canbao') });
   if (refund) items.push({ n: refund, ic: IC.handCoins, tx: `${refund} khoản cọc chờ hoàn (đã trả phòng)`, act: actAttr('quyCoc') });
   // BL-120 bãi xe: đề nghị sửa biển, báo cáo an ninh, xe vắng lâu, chưa chốt; bản chốt hôm nay chỉ để đọc (n=0).
   const pk = ST.pkAlerts;
@@ -360,10 +368,12 @@ const FILTERS = {
       const s = q.get('sort') || '';
       stuSort = s ? { key: s.replace(/^-/, ''), dir: s[0] === '-' ? -1 : 1 } : { key: '', dir: 1 };
       stuSearch = q.get('q') || '';
+      stuNam = /^\d{4}$/.test(q.get('nam') || '') ? q.get('nam') : '';
     },
     write: () => {
       const p = new URLSearchParams();
       if (stuFilter && stuFilter !== 'all') p.set('f', stuFilter);
+      if (stuFilter === 'departure' && stuNam) p.set('nam', stuNam);
       if (stuSort && stuSort.key) p.set('sort', (stuSort.dir === -1 ? '-' : '') + stuSort.key);
       if (stuSearch) p.set('q', stuSearch);
       return p;

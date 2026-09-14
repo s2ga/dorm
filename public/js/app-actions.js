@@ -238,8 +238,12 @@ function actAttr(fn, ...args) {
 }
 
 /* ---- Wrapper: gan bien LOC roi ve lai danh sach (thay cac onclick da-lenh) ---- */
-function stuGo(f) { stuFilter = f; viewStudents(); }
-function stuGoAdmin(f) { closeModal(); stuFilter = f; adminGo('students'); } // closeModal khi khong co modal = vo hai
+function stuGo(f) { stuFilter = f; stuNam = ''; viewStudents(); }
+// Đi từ một CON SỐ (thẻ Tổng quan, chuông) sang danh sách: phải xoá ô tìm kiếm của lần xem trước,
+// không thì danh sách ra ít hơn con số vừa bấm. closeModal khi khong co modal = vo hai.
+function stuGoAdmin(f) { closeModal(); stuFilter = f; stuSearch = ''; stuNam = ''; adminGo('students'); }
+// Xuất cảnh đếm theo NĂM (báo cáo điều hành) -> danh sách phải cùng năm đó.
+function xuatCanhGo(nam) { closeModal(); stuFilter = 'departure'; stuSearch = ''; stuNam = nam || ''; adminGo('students'); }
 function logGo(f) { logFilter = f; viewCheckin(); }
 function roomDel(b) { roomShowDeleted = b; viewRooms(); }
 function svcGo(t) { svcTab = t; viewServices(); }

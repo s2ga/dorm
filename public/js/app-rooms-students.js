@@ -424,6 +424,7 @@ const roomFloorOf = n => { const m = String(n || '').match(/\d/); return m ? m[0
 
 /* ---------- HỌC VIÊN ---------- */
 let stuSearch = '', stuFilter = 'all', stuSort = { key: '', dir: 1 }, stuFacilityFilter = 0;
+let stuNam = '';   // năm áp thêm cho bộ lọc 'departure' (thẻ "Đã xuất cảnh (năm N)" ở Điều hành)
 // Đa cơ sở: điều hành (Auth.user.facility_id null) thấy nhiều cơ sở -> hiện bộ chọn + nhãn cơ sở.
 // Quản lý/bảo trì đã bị backend ép theo cơ sở mình nên KHÔNG cần bộ chọn.
 const isExecutiveUser = () => !Auth.user || Auth.user.facility_id == null;
@@ -470,7 +471,8 @@ function viewStudents() {
   if (stuFilter === 'nodeposit') list = list.filter(s => isOccupying(s) && s.deposit_status === 'none');
   if (stuFilter === 'handover_pending') list = list.filter(handoverPending);
   if (stuFilter === 'leaving') list = list.filter(s => liveStatus(s) === 'leaving');
-  if (stuFilter === 'departure') list = list.filter(s => s.check_out_date && DEPARTURE_REASONS.includes(s.checkout_reason));
+  if (stuFilter === 'departure') list = list.filter(s => s.check_out_date && DEPARTURE_REASONS.includes(s.checkout_reason)
+    && (!stuNam || String(s.check_out_date).slice(0, 4) === stuNam));
   if (stuFilter === 'departure_expected') { list = list.filter(willDepartSoon).sort((a, b) => nextDepartureDate(a).localeCompare(nextDepartureDate(b))); }
   if (stuFilter === 'resi_overdue') list = list.filter(s => isOccupying(s) && s.residency_status === 'unregistered' && stayDays(s) > overdueDays());
   if (stuFilter === 'resi_processing') list = list.filter(s => isOccupying(s) && s.residency_status === 'processing');
@@ -490,7 +492,7 @@ function viewStudents() {
   el('content').innerHTML = `
     ${stuFilter !== 'all' ? `<div class="pill-row" style="align-items:center">
       <span class="muted" style="font-size:13px">Đang lọc:</span>
-      <span class="badge gray" style="font-size:13px">${esc(STU_FILTER_LABELS[stuFilter] || stuFilter)}</span>
+      <span class="badge gray" style="font-size:13px">${esc(STU_FILTER_LABELS[stuFilter] || stuFilter)}${stuFilter === 'departure' && stuNam ? ' — năm ' + esc(stuNam) : ''}</span>
       <button class="btn sm ghost" data-act="stuGo" data-args='["all"]' title="Bỏ lọc, xem tất cả học viên">✕ Bỏ lọc</button>
     </div>` : ''}
     <div class="panel"><div class="hd"><h2>Học viên (<span id="stuCount">${list.length}</span>)</h2>
@@ -1447,4 +1449,6 @@ let vehSearch = '';
 /* ---------- DỊCH VỤ (Máy giặt · Gửi xe — mọi dịch vụ tùy chọn ở 1 nơi) ---------- */
 let svcTab = 'washing';
 let roomFilter = 'all';   // 'trong' = còn giường (drill-down từ KPI Tổng quan) · 'vuot' = đang quá tải
-function roomGo(f) { roomFilter = f; adminGo('rooms'); }
+// Đi từ con số sang danh sách phòng: ép về tab DANH SÁCH và xoá ô tìm kiếm cũ, không thì thẻ
+// "Giường trống" lại mở lịch tháng của lần xem trước và bộ lọc bị vứt.
+function roomGo(f) { roomTab = 'ds'; roomSearch = ''; roomFilter = f; adminGo('rooms'); }

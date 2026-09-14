@@ -5,6 +5,8 @@
    bản scan HĐ ở chỗ khác — không có màn nào trả lời "ai còn thiếu giấy tờ". */
 let hsLoc = 'all';
 function hsGo(k) { hsLoc = hsLoc === k ? 'all' : k; viewHoSo(); }
+// Vào màn từ menu = xem TOÀN BỘ hồ sơ; không giữ bộ lọc của lần xem trước để ba ô đếm khớp bảng.
+function hoSoGo() { hsLoc = 'all'; adminGo('hoso'); }
 // Ô giấy tờ: có tệp thì là ĐƯỜNG MỞ TỆP luôn (mở tab mới, máy chủ trả inline nên ảnh/PDF xem thẳng),
 // không bắt vào hồ sơ rồi mới bấm tiếp.
 const hsCo = (co, nhan, href) => co
@@ -19,6 +21,7 @@ async function viewHoSo() {
   const thieu = s => !coHD(s) || !s.has_contract_scan || !duCCCD(s);
   const boLoc = {
     all: () => true,
+    du: s => !thieu(s),
     thieu_hd: s => !coHD(s),
     thieu_scan: s => !s.has_contract_scan,
     thieu_cccd: s => !duCCCD(s),
@@ -28,19 +31,24 @@ async function viewHoSo() {
   const dem = k => ds.filter(boLoc[k]).length;
   const pill = (k, nhan, n, mau) => `<button class="btn sm ${hsLoc === k ? 'pri' : ''}" data-act="hsGo" data-args='["${k}"]'
     aria-pressed="${hsLoc === k}">${nhan} <span class="badge ${hsLoc === k ? '' : (mau || 'gray')}">${n}</span></button>`;
+  // Ba ô trên cùng là ba BỘ LỌC: bấm vào con số nào thì bảng dưới ra đúng nhóm đó, ô đang áp được tô viền.
+  const o = (k, ic, nhan, n, mau) => `<div class="stat clickable${hsLoc === k ? ' dang-loc' : ''}" data-act="hsGo" data-args='["${k}"]'
+    role="button" tabindex="0" title="Bấm để xem danh sách ${nhan.toLowerCase()}"><div class="l">${ic} ${nhan}</div>
+    <div class="v sm"${mau ? ` style="color:${mau}"` : ''}>${n}</div></div>`;
 
   el('topActions').innerHTML = '';
   el('content').innerHTML = `
     <div class="cards">
-      <div class="stat"><div class="l">${IC.users} Tổng hồ sơ</div><div class="v sm">${ds.length}</div></div>
-      <div class="stat"><div class="l">${IC.fileText} Đủ giấy tờ</div><div class="v sm" style="color:var(--green)">${ds.length - dem('thieu')}</div></div>
-      <div class="stat"><div class="l">${IC.alert} Còn thiếu</div><div class="v sm" style="color:${dem('thieu') ? 'var(--red)' : 'var(--green)'}">${dem('thieu')}</div></div>
+      ${o('all', IC.users, 'Tổng hồ sơ', ds.length)}
+      ${o('du', IC.fileText, 'Đủ giấy tờ', dem('du'), 'var(--green)')}
+      ${o('thieu', IC.alert, 'Còn thiếu', dem('thieu'), dem('thieu') ? 'var(--red)' : 'var(--green)')}
     </div>
     <div class="panel"><div class="hd"><h2>${IC.fileText} Hồ sơ lưu trữ — hợp đồng & CCCD (<span id="hsCount">${list.length}</span>)</h2>
       <div class="toolbar"><div class="search"><span class="i">${IC.search}</span>
         <input id="hsSearch" placeholder="Tìm tên HV / mã / số phòng..."></div></div></div>
       <div class="pill-row" style="padding:12px 16px 0;margin:0">
         ${pill('all', 'Tất cả', ds.length)}
+        ${pill('du', `${IC.check} Đủ giấy tờ`, dem('du'), 'green')}
         ${pill('thieu', `${IC.alert} Còn thiếu gì đó`, dem('thieu'), 'red')}
         ${pill('thieu_hd', 'Chưa có số HĐ', dem('thieu_hd'), 'amber')}
         ${pill('thieu_scan', 'Chưa scan HĐ', dem('thieu_scan'), 'amber')}
@@ -269,6 +277,8 @@ async function toggleWashing(id, on) {
 
 /* ---------- BÁO CÁO DOANH THU ---------- */
 let revYear = curMonth().slice(0, 4);
+// Thẻ "Tổng tiền đã lập phiếu <năm>" ở Điều hành phải mở đúng NĂM đó, không giữ năm của lần xem trước.
+function doanhThuGo(nam) { if (nam) revYear = String(nam); adminGo('revenue'); }
 const REV_SERVICES = [
   ['room', 'Phí lưu trú (tiền phòng)', 'bravo_room'],
   ['electric', 'Phí điện sinh hoạt', 'bravo_electric'],

@@ -86,7 +86,7 @@ async function viewInvoices() {
   el('content').innerHTML = `
     <div class="cards">
       <div class="stat"><div class="l">${IC.calendar} Kỳ</div><div class="v sm"><input id="im" style="font-size:15px;font-weight:600;padding:6px 8px;width:100%" title="Chọn kỳ (tháng)"></div></div>
-      <div class="stat"><div class="l">${IC.receipt} Số phiếu</div><div class="v sm">${all.length}</div></div>
+      <div class="stat"><div class="l">${IC.receipt} Số phiếu</div><div class="v sm">${list.length}</div></div>
       <div class="stat"><div class="l">Tổng tiền phiếu (dự báo)</div><div class="v sm">${money(total)}</div></div>
     </div>
     <div class="panel"><div class="hd"><h2>Phiếu báo tiền phòng ${monthLabel(invMonth)} (<span id="invCount">${list.length}</span>)</h2>
@@ -97,9 +97,9 @@ async function viewInvoices() {
         ${all.length ? `<button class="btn sm" data-act="exportCSV">${IC.download} Xuất Excel (CSV)</button>` : ''}</div></div>
       ${/* invFilter đã có sẵn logic lọc nhưng CHƯA TỪNG có nút bấm — chỉ vào được bằng ?loc= trên URL. */''}
       <div class="pill-row" style="padding:12px 16px 0;margin:0">
-        ${[['all', 'Tất cả', all.length],
-    ['unpaid', `${IC.clock} Chưa thu`, all.filter(i => i.status !== 'paid').length],
-    ['paid', `${IC.checkCircle} Đã thu`, all.filter(i => i.status === 'paid').length]]
+        ${[['all', 'Tất cả', list.length],
+    ['unpaid', `${IC.clock} Chưa thu`, list.filter(i => i.status !== 'paid').length],
+    ['paid', `${IC.checkCircle} Đã thu`, list.filter(i => i.status === 'paid').length]]
     .map(([k, nhan, n]) => `<button class="btn sm ${invFilter === k ? 'pri' : ''}" data-act="invLoc" data-args='["${k}"]'
       aria-pressed="${invFilter === k}">${nhan} <span class="badge ${invFilter === k ? '' : 'gray'}" id="inv_pill_${k}">${n}</span></button>`).join('')}
       </div>
@@ -787,6 +787,8 @@ function invLoc(k) {
   if (_invTbl && document.contains(_invTbl)) applyRowFilters(_invTbl); else viewInvoices();
   syncFilterUrl();
 }
+// Thẻ "Phiếu báo tháng này" ở Tổng quan: về ĐÚNG kỳ tháng này, bỏ bộ lọc + ô tìm của lần xem trước.
+function phieuThangNayGo() { invMonth = curMonth(); invFilter = 'all'; invSearch = ''; adminGo('invoices'); }
 async function phieuBao(inv) {
   if (typeof inv !== 'object') inv = _invAll.find(x => x.id === +inv);  // nut truyen id; noi khac (sau khi sinh HD) truyen thang object
   if (!inv) return toast('Không tìm thấy hóa đơn', 'err');
