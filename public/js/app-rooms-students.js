@@ -1,6 +1,7 @@
 // === app-rooms-students.js — tach tu app.js (CHANG 4 refactor). Classic script, GIU global scope cho onclick. ===
 // KHONG doi thu tu nap trong index.html; boot()/chong-bam/click-listener nam o app-portals-boot.js (cuoi).
 async function viewRooms() {
+  if (!LICH_CHO_TRONG_HIEN) roomTab = 'ds';   // link cũ ?tab=lich rơi về Danh sách, URL tự sạch
   if (roomTab === 'lich' && !roomShowDeleted) return viewLichChoTrong();
   // Nút chuyển qua/lại "phòng đã xoá" nay ở HÀNG NÚT TRÊN, cạnh "Thêm phòng" (trước nó nằm trong
   // thanh công cụ của panel, lẫn với ô tìm kiếm). Cùng MỘT VỊ TRÍ đổi nhãn theo chế độ đang xem:
@@ -77,16 +78,17 @@ async function viewRooms() {
 }
 
 /* ---------- LỊCH CHỖ TRỐNG (tab của màn Phòng) ---------- */
+const LICH_CHO_TRONG_HIEN = false;   // false = ẩn tab Lịch chỗ trống; mã bên dưới giữ nguyên để bật lại
 let roomTab = 'ds';       // 'ds' | 'lich'
 let lichNgay = '';        // ngày đang chọn ('' = chưa chọn)
 let lichThangGoc = '';    // 'YYYY-MM' tháng đang xem ('' = tháng hiện tại)
 let lichGT = '';          // '' | 'male' | 'female'
 const LCT_SAP_HET = 2;    // còn ≤ ngần này giường thì ô lịch đổi màu "sắp hết" (chỉ là mức hiển thị)
-const segTabPhong = () => `<div class="seg-thu tab">
+const segTabPhong = () => !LICH_CHO_TRONG_HIEN ? '' : `<div class="seg-thu tab">
   <button class="seg ${roomTab === 'ds' ? 'on' : ''}" data-act="roomTabGo" data-args='["ds"]'>Danh sách</button>
   <button class="seg ${roomTab === 'lich' ? 'on' : ''}" data-act="roomTabGo" data-args='["lich"]'>${IC.calendar} Lịch chỗ trống</button>
 </div>`;
-function roomTabGo(t) { roomTab = t === 'lich' ? 'lich' : 'ds'; viewRooms(); }
+function roomTabGo(t) { roomTab = LICH_CHO_TRONG_HIEN && t === 'lich' ? 'lich' : 'ds'; viewRooms(); }
 function lichThang(huong) {
   const [y, m] = (lichThangGoc || curMonth()).split('-').map(Number);
   const d = new Date(y, m - 1 + huong, 1);

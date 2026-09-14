@@ -1,5 +1,6 @@
 // Tab "Lịch chỗ trống" ở màn Phòng: lưới tháng ăn CÙNG nguồn số với KPI (tongChiSo),
 // ô hôm nay phải khớp tuyệt đối Tổng quan — không được thành định nghĩa thứ sáu.
+// Công tắc LICH_CHO_TRONG_HIEN = false (đang ẩn) thì chỉ kiểm là đã ẩn thật, mọi đường vào rơi về Danh sách.
 const { chromium } = require('playwright');
 
 const BASE = process.env.TEST_BASE || 'http://localhost:3000';
@@ -21,6 +22,21 @@ const ok = (t, d, x = '') => { if (d) console.log('  [OK] ' + t); else { fail++;
 
   await page.goto('/phong?tab=lich');
   await page.waitForTimeout(3200);
+
+  if (!(await page.evaluate(() => LICH_CHO_TRONG_HIEN))) {
+    ok('Màn Phòng KHÔNG còn nút chuyển sang Lịch chỗ trống', await page.locator('[data-act="roomTabGo"]').count() === 0);
+    ok('Link cũ /phong?tab=lich mở Danh sách phòng', await page.locator('#roomCount').count() === 1);
+    ok('Link cũ không vẽ lưới lịch', await page.locator('#lctGrid').count() === 0);
+    ok('URL tự bỏ tab=lich', !/tab=lich/.test(page.url()), page.url());
+    await page.evaluate(() => roomTabGo('lich'));
+    await page.waitForTimeout(1500);
+    ok('Gọi thẳng roomTabGo("lich") cũng không mở lịch', await page.locator('#lctGrid').count() === 0);
+    ok('Không gọi API lịch lần nào', goiLich === 0, `${goiLich} lượt`);
+    ok('Không có lỗi JS', loi.length === 0, loi.slice(0, 2).join(' | '));
+    await ctx.close(); await browser.close();
+    console.log(fail ? `\n==> ${fail} lỗi` : '\n==> Tab Lịch chỗ trống đang ẩn đúng');
+    process.exit(fail ? 1 : 0);
+  }
 
   ok('Lưới lịch tồn tại (#lctGrid)', await page.locator('#lctGrid').count() > 0);
   const soO = await page.locator('#lctGrid .lct-d:not(.mo)').count();
