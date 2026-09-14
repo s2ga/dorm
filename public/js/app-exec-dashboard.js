@@ -248,20 +248,28 @@ async function tamTruGhiAnh(id, side, canvas) {
   const img = document.querySelector(`#printArea img[data-anh="${id}-${side}"]`);
   if (img) img.src = ttAnhUrl(id, side) + '?t=' + Date.now();
 }
+// Ảnh gốc + góc đang xoay của từng ô, giữ trong phiên. Xoay lượt sau dựng lại từ GỐC nên bấm bao
+// nhiêu lượt cũng được, đủ cả 4 chiều, mà ảnh chỉ qua một lần nén — xoay chồng lên ảnh đã nén thì
+// mỗi lượt lại mờ thêm.
+const _ttGoc = new Map();
 async function tamTruXoay(id, side, chieu) {
+  const khoa = id + '-' + side;
   const nut = [...this.parentElement.querySelectorAll('button')];
   nut.forEach(n => n.disabled = true);
   try {
-    const bm = await anhNap(ttAnhUrl(id, side) + '?t=' + Date.now());
-    await tamTruGhiAnh(id, side, anhVeXoay(bm, chieu < 0 ? -90 : 90));
+    let g = _ttGoc.get(khoa);
+    if (!g) { g = { bm: await anhNap(ttAnhUrl(id, side) + '?t=' + Date.now()), goc: 0 }; _ttGoc.set(khoa, g); }
+    g.goc = (g.goc + (chieu < 0 ? -90 : 90) + 360) % 360;
+    await tamTruGhiAnh(id, side, anhVeXoay(g.bm, g.goc));
     toast('Đã xoay và lưu ảnh vào hồ sơ');
-  } catch (e) { toast('Xoay ảnh thất bại: ' + (e.message || 'lỗi kết nối'), 'err'); }
+  } catch (e) { toast('Xoay ảnh thất bại: ' + (e.message || 'không đọc được ảnh'), 'err'); }
   nut.forEach(n => n.disabled = false);
 }
 // Cắt ở đây ghi thẳng vào hồ sơ vì trang in không có nút Lưu nào khác.
 function tamTruCatMo(id, side) {
   return anhSuaMo(ttAnhUrl(id, side) + '?t=' + Date.now(), 'Cắt & xoay ảnh CCCD', async canvas => {
     await tamTruGhiAnh(id, side, canvas);
+    _ttGoc.delete(id + '-' + side);   // ảnh đã cắt là gốc mới, xoay tiếp phải xoay bản đã cắt
     toast('Đã lưu ảnh vào hồ sơ');
   });
 }

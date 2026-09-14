@@ -530,10 +530,20 @@ function anhVeXoay(src, goc) {
   cx.drawImage(src, -src.width / 2, -src.height / 2);
   return cv;
 }
+// Nạp bằng thẻ <img>, KHÔNG dùng fetch: CSP connect-src chỉ mở 'self' nên fetch một data: URL bị
+// chặn — ảnh vừa chọn từ máy (FileReader) hay vừa xoay xong đều là data: URL, xoay/cắt lần nữa là hỏng.
+// img-src đã mở data: và blob: nên đường này chạy cho mọi nguồn.
 async function anhNap(nguon) {
-  const r = await fetch(nguon);
-  if (!r.ok) throw new Error('không đọc được ảnh');
-  return createImageBitmap(await r.blob());
+  const img = new Image();
+  img.decoding = 'async';
+  img.src = nguon;
+  await new Promise((xong, loi) => {
+    if (img.complete && img.naturalWidth) return xong();
+    img.onload = xong;
+    img.onerror = () => loi(new Error('không đọc được ảnh'));
+  });
+  if (!img.naturalWidth) throw new Error('không đọc được ảnh');
+  return createImageBitmap(img);
 }
 // Mỗi lượt ghi là một lượt nén JPEG nên màn này gom mọi thao tác, bấm Lưu mới ghi MỘT lần.
 let _anhSua = null;

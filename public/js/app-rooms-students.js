@@ -620,7 +620,11 @@ function noNgayVoiPhong(oNgay, idSelect, gender) {
 // BL-86: CCCD 2 mặt (đồng bộ form đăng ký) — ghi cột cccd_front/cccd_back, không phải cột cũ cccd_image.
 // BL-108: thẻ chụp lệch hướng không có phép xử lý tự động nào sửa được -> nút xoay/cắt ngay dưới ảnh.
 let _cccdFront = null, _cccdBack = null, _cccdFrontChanged = false, _cccdBackChanged = false;
+// Ảnh GỐC + góc đang xoay của từng mặt. Xoay luôn dựng lại từ gốc nên bấm bao nhiêu lượt cũng được,
+// đủ cả 4 chiều, mà chỉ nén JPEG một lần — xoay chồng lên ảnh đã nén thì mỗi lượt lại mờ thêm.
+let _cccdGoc = { front: null, back: null };
 const cccdOAnh = side => el(side === 'back' ? 'cccdBackPrev' : 'cccdFrontPrev');
+const cccdDatGoc = (side, src) => { _cccdGoc[side === 'back' ? 'back' : 'front'] = src ? { src, goc: 0 } : null; };
 const cccdNguon = side => {
   const o = cccdOAnh(side), img = o && o.querySelector('img');
   return img ? img.src : null;
@@ -651,25 +655,32 @@ function previewCccd(input, side) {
   const f = input.files[0]; if (!f) return;
   if (!tepHopLe(input, f, 'Ảnh CCCD', ['image/png', 'image/jpeg'])) return;
   const r = new FileReader();
-  r.onload = () => cccdVeAnh(side, r.result, true);
+  r.onload = () => { cccdDatGoc(side, r.result); cccdVeAnh(side, r.result, true); };
   r.readAsDataURL(f);
 }
 async function cccdXoay(side, chieu) {
-  const src = cccdNguon(side); if (!src) return;
+  const k = side === 'back' ? 'back' : 'front';
+  if (!_cccdGoc[k]) cccdDatGoc(side, cccdNguon(side));
+  const g = _cccdGoc[k]; if (!g) return;
   const nut = [...this.parentElement.querySelectorAll('button')];
   nut.forEach(n => n.disabled = true);
   try {
-    const bm = await anhNap(src);
-    cccdVeAnh(side, anhVeXoay(bm, chieu < 0 ? -90 : 90).toDataURL('image/jpeg', ANH_CHAT), true);
+    g.goc = (g.goc + (chieu < 0 ? -90 : 90) + 360) % 360;
+    const bm = await anhNap(g.src);
+    cccdVeAnh(side, anhVeXoay(bm, g.goc).toDataURL('image/jpeg', ANH_CHAT), true);
     if (bm.close) bm.close();
   } catch (e) {
-    toast('Xoay ảnh thất bại: ' + (e.message || 'lỗi kết nối'), 'err');
+    toast('Xoay ảnh thất bại: ' + (e.message || 'không đọc được ảnh'), 'err');
     nut.forEach(n => n.disabled = false);
   }
 }
 function cccdCat(side) {
   const src = cccdNguon(side); if (!src) return;
-  return anhSuaMo(src, 'Cắt & xoay ảnh CCCD', canvas => cccdVeAnh(side, canvas.toDataURL('image/jpeg', ANH_CHAT), true));
+  // Ảnh đã cắt thành ảnh gốc mới: xoay tiếp sau đó phải xoay bản đã cắt, không quay về bản chưa cắt.
+  return anhSuaMo(src, 'Cắt & xoay ảnh CCCD', canvas => {
+    const ra = canvas.toDataURL('image/jpeg', ANH_CHAT);
+    cccdDatGoc(side, ra); cccdVeAnh(side, ra, true);
+  });
 }
 // Một nhóm ô trong form dài: tiêu đề nhỏ + đường kẻ. Form hồ sơ có gần 30 ô, không chia thì cuộn
 // một mạch không có mốc nào để bám.
@@ -679,6 +690,7 @@ async function studentForm(id) {
   const s = id ? await guard(() => API.student(id)) : { name: '', code: '', gender: 'female', phone: '', id_card: '', room_id: '', check_in_date: today(), note: '', uses_washing: false, rental_type: 'ghep', residency_status: 'unregistered', contract_status: 'unsigned', class_name: '', birth_date: '', contract_no: '', contract_date: '', class_start_date: '', expected_departure: '', parent_phone: '' };
   window._svV = s._v || null;   // ghi nhớ hồ sơ này ở phiên bản nào lúc mình MỞ form
   _cccdFront = null; _cccdBack = null; _cccdFrontChanged = false; _cccdBackChanged = false;
+  _cccdGoc = { front: null, back: null };
   const opt = (val, cur, label) => `<option value="${val}" ${cur === val ? 'selected' : ''}>${label}</option>`;
   // BL-117: ô "ngày trả" ở form là LỊCH DỰ KIẾN (chỉ đặt sang ngày tương lai). Đã có ngày trả THẬT
   // (đã xác nhận) thì khoá ô — phiếu đã phát, công-tơ đã chốt.
@@ -785,8 +797,8 @@ async function studentForm(id) {
         </div>`) : `<div class="hint">${IC.info}<span>Giảm giá theo % nay chỉnh ở màn <strong>Tiền phòng</strong> — bấm ✎ trên phiếu của học viên. Tiền nằm ở đâu thì sửa ở đó.</span></div>`}
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveStudent" data-args='[${id || 0}]'>Lưu</button></div>`, true);
-  if (s.cccd_front) cccdVeAnh('front', s.cccd_front);
-  if (s.cccd_back) cccdVeAnh('back', s.cccd_back);
+  if (s.cccd_front) { cccdDatGoc('front', s.cccd_front); cccdVeAnh('front', s.cccd_front); }
+  if (s.cccd_back) { cccdDatGoc('back', s.cccd_back); cccdVeAnh('back', s.cccd_back); }
   attachDate(el('f_birth'), s.birth_date, { max: today() });
   attachDate(el('f_cstart'), s.class_start_date);
   attachDate(el('f_departure'), s.expected_departure);
@@ -795,6 +807,15 @@ async function studentForm(id) {
   attachDate(el('f_in'), s.check_in_date || s.planned_check_in || today(), { choTrong: 1, gt: s.gender });
   noNgayVoiPhong(el('f_in'), 'f_room', s.gender);
   attachDate(el('f_cdate'), s.contract_date);
+  // Điền NGÀY KÝ mà ô Tình trạng vẫn đứng ở "Chưa ký" thì hồ sơ hiện sai và còn bị nhắc quá hạn.
+  // Chỉ nâng từ chưa ký / không cần — không đè "phiếu bàn giao" hay "đã có scan" người ta chọn tay.
+  el('f_cdate').onchange = () => {
+    const st = el('f_cstatus');
+    if (el('f_cdate').dataset.iso && st && ['unsigned', 'none'].includes(st.value)) {
+      st.value = 'done';
+      toast('Có ngày ký → đã chuyển tình trạng HĐ sang "Đã ký"');
+    }
+  };
   attachDate(el('f_out'), daRoi ? '' : coHienTai, { min: addDays(today(), 1) });
   dongBoHinhThucThue();
   setTimeout(() => el('f_name').focus(), 50);
