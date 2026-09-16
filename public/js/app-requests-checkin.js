@@ -69,7 +69,7 @@ async function viewRequests() {
         <td>${REASON_LABEL[c.reason] || 'Khác'}${c.note ? `<div class="muted" style="font-size:12px">${esc(c.note)}</div>` : ''}${noteLine(c.admin_note)}</td>
         <td>${nhanDonTraPhong(c)}</td>
         <td class="num"><div class="rowbtns" style="justify-content:flex-end">
-          ${c.status === 'pending' ? `<button class="btn sm danger" data-act="confirmCout" data-args='[${c.id}]'>Xác nhận trả phòng</button><button class="btn sm" data-act="rejectCout" data-args='[${c.id}]'>Từ chối</button>` : ''}
+          ${c.status === 'pending' ? `<button class="btn sm danger" data-act="confirmCout" data-args='[${c.id}]' title="Chốt lịch trả dự kiến — chưa phải check-out thật">Đồng ý</button><button class="btn sm" data-act="rejectCout" data-args='[${c.id}]'>Từ chối</button>` : ''}
           <button class="btn sm ghost" title="Ghi chú" data-act="noteForm" data-args='["cout", ${c.id}]'>${IC.filePen}</button>
         </div></td></tr>`).join('')}
     </tbody></table></div>` : `<div class="empty">${emptyC}</div>`);
