@@ -891,7 +891,19 @@ func (h *Handlers) UploadContractScan(c *gin.Context) {
 	if cu != nil && *cu != "" && *cu != key {
 		_ = h.Store.DeleteObject(ctx, h.Store.CccdBucket, *cu)
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true, "ext": p.Ext})
+	c.JSON(http.StatusOK, gin.H{"ok": true, "ext": p.Ext, "hoan_tat": h.hopDongDuBaThuLaHoanTat(ctx, id)})
+}
+
+// Có bản scan + số HĐ + ngày ký thì hợp đồng là "Đã hoàn tất" (owner chốt 17/09/2026). Dùng chung cho
+// lúc lưu hồ sơ, lúc tải scan và migration 0007 dọn dữ liệu cũ.
+const studentsSQLHopDongDuBaThu = `contract_scan IS NOT NULL AND btrim(contract_scan) <> ''
+   AND btrim(COALESCE(contract_no, '')) <> '' AND lower(btrim(contract_no)) <> 'x' AND contract_date IS NOT NULL`
+
+// hopDongDuBaThuLaHoanTat: đủ ba thứ mà chưa "done" thì nâng lên "done"; trả true nếu vừa nâng.
+func (h *Handlers) hopDongDuBaThuLaHoanTat(ctx context.Context, id int) bool {
+	tag, err := h.pool().Exec(ctx, `UPDATE students SET contract_status = 'done'
+	   WHERE id = $1 AND `+studentsSQLHopDongDuBaThu+` AND contract_status IS DISTINCT FROM 'done'`, id)
+	return err == nil && tag.RowsAffected() > 0
 }
 
 // DeleteContractScan: DELETE /:id/contract-scan (admin,staff).
@@ -1676,6 +1688,9 @@ func (h *Handlers) UpdateStudent(c *gin.Context) {
 		}
 	}
 	studentsLogOverloads(ctx, h.pool(), c, u, intFromDB(row["id"]), studentsJSString(row["name"]), chkU.Warnings)
+	if h.hopDongDuBaThuLaHoanTat(ctx, intFromDB(row["id"])) {
+		row["contract_status"] = "done"
+	}
 	studentsSignCccd(row)
 	row["warnings"] = chkU.Warnings
 	c.JSON(http.StatusOK, row)
