@@ -18,7 +18,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
 	"golang.org/x/crypto/bcrypt"
-	"golang.org/x/text/unicode/norm"
 	"ktx/internal/auth"
 	"ktx/internal/billing"
 	"ktx/internal/checkout"
@@ -359,19 +358,7 @@ func studentsPad2(seq int) string {
 
 // studentsSoHopDong: SỐ HỢP ĐỒNG theo quy định — "NN/YYYY/HĐKTX-<pháp nhân>", chữ Đ (U+0110).
 func studentsSoHopDong(seq int, year, entity string) string {
-	return studentsPad2(seq) + studentsHauToSoHD(year, entity)
-}
-
-// studentsHauToSoHD: phần đứng sau số thứ tự. Tách riêng để câu UPDATE cấp số nhận nguyên chuỗi này,
-// không có bản sao khuôn thứ hai nằm trong SQL.
-func studentsHauToSoHD(year, entity string) string {
-	return "/" + year + "/HĐKTX-" + entity
-}
-
-// studentsTenFileScan: QUY ƯỚC ĐẶT TÊN FILE bản scan, KHÔNG phải số hợp đồng.
-func studentsTenFileScan(seq int, entity, date, name string) string {
-	return studentsPad2(seq) + ".HDTP-" + entity + "_" +
-		strings.ReplaceAll(studentsSlice10(date), "-", "") + "_" + studentsTenKhongDau(name)
+	return studentsPad2(seq) + "/" + year + "/HĐKTX-" + entity
 }
 
 // studentsEntityOf: pháp nhân theo giới tính. students.routes.js:171
@@ -1107,77 +1094,6 @@ func (h *Handlers) laThanhVienTron(ctx context.Context, studentID int) (bool, er
 		return false, nil
 	}
 	return tron, err
-}
-
-// studentsTenKhongDau: HỌ TÊN IN HOA bỏ dấu cho tên file scan chuẩn giấy (cùng cách bỏ dấu với chuanHoaTen).
-func studentsTenKhongDau(s string) string {
-	s = strings.ToUpper(strings.TrimSpace(s))
-	s = strings.ReplaceAll(s, "Đ", "D")
-	var b strings.Builder
-	for _, r := range norm.NFD.String(s) {
-		if unicode.Is(unicode.Mn, r) {
-			continue
-		}
-		b.WriteRune(r)
-	}
-	return strings.Join(strings.Fields(b.String()), " ")
-}
-
-// capSoHDKhiNhanPhong: cấp số HĐ chuẩn giấy lúc xác nhận nhận phòng — MAX tính ngay trong câu UPDATE
-// nên cấp số là một lệnh nguyên tử, không cấp trùng. Trả ("","") khi hồ sơ không thuộc diện ký HĐTP
-// (đã có số · phòng an ninh/nhân viên · thành viên thuê trọn · ở ngắn dưới ngưỡng).
-func (h *Handlers) capSoHDKhiNhanPhong(ctx context.Context, id int, date, plannedOut string) (so, tenFile string) {
-	st, err := h.DB.GetSettings(ctx)
-	if err != nil {
-		return "", ""
-	}
-	rows, err := h.pool().Query(ctx, `
-	  SELECT s.name, s.gender, COALESCE(s.contract_no,'') AS cno, COALESCE(r.room_type,'shared') AS room_type,
-	         COALESCE(r.room_type = 'whole' AND NOT EXISTS (
-	           SELECT 1 FROM room_leaders rl WHERE rl.student_id = s.id AND rl.to_date IS NULL), false) AS tron
-	    FROM students s LEFT JOIN rooms r ON r.id = s.room_id
-	   WHERE s.id = $1 AND s.deleted_at IS NULL`, id)
-	if err != nil {
-		return "", ""
-	}
-	me, err := db.RowToMap(rows)
-	if err != nil || me == nil {
-		return "", ""
-	}
-	loai := studentsJSString(me["room_type"])
-	if strings.TrimSpace(studentsJSString(me["cno"])) != "" || loai == "security" || loai == "staff" || me["tron"] == true {
-		return "", ""
-	}
-	if plannedOut != "" { // có ngày dự kiến trả: ở dưới ngưỡng = diện phiếu bàn giao, không cấp số
-		nguong := 60
-		if v, e := strconv.Atoi(st["shortterm_max_days"]); e == nil && v > 0 {
-			nguong = v
-		}
-		d1, e1 := time.Parse("2006-01-02", studentsSlice10(date))
-		d2, e2 := time.Parse("2006-01-02", studentsSlice10(plannedOut))
-		if e1 == nil && e2 == nil {
-			if songay := int(d2.Sub(d1).Hours() / 24); songay > 0 && songay < nguong {
-				return "", ""
-			}
-		}
-	}
-	entity := studentsEntityOf(studentsJSString(me["gender"]), st)
-	year := studentsSlice10(date)[:4]
-	var moi *string
-	var seq int
-	// Số thứ tự tính NGAY trong câu UPDATE để không tách thành đọc-rồi-ghi; hậu tố khuôn truyền từ Go
-	// nên chỉ có MỘT nơi định nghĩa khuôn. KHÔNG dùng lpad: nó CẮT số dài hơn độ rộng ('901' -> '90').
-	if err := h.pool().QueryRow(ctx, `
-	  UPDATE students
-	     SET contract_no = (SELECT CASE WHEN t.n < 10 THEN '0' ELSE '' END || t.n::text || $4
-	                          FROM (SELECT (`+studentsSQLMaxSoHD("$2", "$3")+`) + 1 AS n) t),
-	         contract_date = $5
-	   WHERE id = $1 AND (contract_no IS NULL OR btrim(contract_no) = '')
-	   RETURNING contract_no, (split_part(contract_no,'/',1))::int`,
-		id, year, entity, studentsHauToSoHD(year, entity), studentsSlice10(date)).Scan(&moi, &seq); err != nil || moi == nil {
-		return "", ""
-	}
-	return *moi, studentsTenFileScan(seq, entity, date, studentsJSString(me["name"]))
 }
 
 // GetStudent: GET /:id (admin,staff). Kèm vehicles, violations, _v (xmin). students.routes.js:219-241
@@ -1963,7 +1879,6 @@ func (h *Handlers) StudentCheckin(c *gin.Context) {
 	if pout != "" { // giữ lại ngày dự kiến trả (bước xác nhận vừa xoá cột này theo luật BL-117)
 		_, _ = h.pool().Exec(ctx, "UPDATE students SET planned_check_out=$1 WHERE id=$2", pout, id)
 	}
-	soHD, tenFileHD := h.capSoHDKhiNhanPhong(ctx, id, d, pout)
 	rows, err := h.pool().Query(ctx, "SELECT * FROM students WHERE id=$1", id)
 	if err != nil {
 		serverErr(c)
@@ -1977,10 +1892,6 @@ func (h *Handlers) StudentCheckin(c *gin.Context) {
 	if row == nil {
 		notFound(c, "Không tìm thấy học viên")
 		return
-	}
-	if soHD != "" { // frontend hiện số + tên file chuẩn để ghi lên HĐ giấy và lưu bản scan
-		row["so_hd_moi"] = soHD
-		row["ten_file_hd"] = tenFileHD
 	}
 	c.JSON(http.StatusOK, row)
 }

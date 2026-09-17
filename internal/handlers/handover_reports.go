@@ -504,7 +504,6 @@ func (h *Handlers) nhanPhongTuBienBan(c *gin.Context, u *auth.User, id int, d, n
 	if pout != "" {
 		_, _ = h.pool().Exec(ctx, "UPDATE students SET planned_check_out=$1 WHERE id=$2", pout, id)
 	}
-	soHD, tenFileHD := h.capSoHDKhiNhanPhong(ctx, id, d, pout)
 	recalcedRoommates := []int{}
 	if hasMeter && roomIDPtr != nil {
 		if _, e := meter.RecordRead(ctx, h.pool(), *roomIDPtr, d, reading, "checkin", &id,
@@ -533,12 +532,7 @@ func (h *Handlers) nhanPhongTuBienBan(c *gin.Context, u *auth.User, id int, d, n
 		serverErr(c, err)
 		return nil, false
 	}
-	out := gin.H{"student": row, "recalced_roommates": recalcedRoommates, "check_in_date": d}
-	if soHD != "" {
-		out["so_hd_moi"] = soHD
-		out["ten_file_hd"] = tenFileHD
-	}
-	return out, true
+	return gin.H{"student": row, "recalced_roommates": recalcedRoommates, "check_in_date": d}, true
 }
 
 // HandoverReportReturn: POST /api/handover-reports/:id/return (admin,staff) — trả lại kèm lý do, an ninh lập lại.

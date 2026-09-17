@@ -487,8 +487,8 @@ function checkInForm(id, hoId) {
         <div class="field"><label>Ghi chú</label><input id="c_note" placeholder="VD: quay lại ở"></div>
       </div>
       ${bb && s.room_id ? meterField('c_meter', s.room_name, 'nhận phòng', bb.meter_reading != null ? 'an ninh đã ghi ở biên bản, sửa nếu đọc lại khác' : '') : ''}
-      <div class="hint">${IC.info}<span>Xác nhận xong hệ thống <strong>tự cấp số hợp đồng</strong> kế tiếp của dãy và tên file scan chuẩn.
-        Ở <strong>dưới ${shortTermMaxDays()} ngày</strong> (điền ngày dự kiến trả) → ký phiếu bàn giao, <strong>không</strong> cấp số.</span></div>
+      <div class="hint">${IC.info}<span>Ở <strong>dưới ${shortTermMaxDays()} ngày</strong> (điền ngày dự kiến trả) → ký phiếu bàn giao.
+        Số hợp đồng lấy bằng nút ${IC.zap} trong hồ sơ học viên.</span></div>
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn green" data-act="doCheckIn" data-args='[${id}${bb ? ',' + bb.id : ''}]'${thieuCccd ? ' disabled title="Thiếu ảnh CCCD — bổ sung ảnh trước"' : ''}>Xác nhận check-in</button></div>`);
   attachDate(el('c_date'), bb ? String(bb.actual_date).slice(0, 10) : today(), { choTrong: 1, gt: s.gender });
@@ -509,24 +509,7 @@ async function doCheckIn(id, hoId) {
   const r = await guard(() => withOverloadConfirm(ok => hoId ? API.handoverReportApprove(hoId, body(ok)) : API.checkIn(id, body(ok))));
   if (r === null) return;
   await refreshCache(); await luuXongVeLai(veLaiNen);
-  if (r.so_hd_moi) baoSoHDMoi(r); else toast(hoId ? 'Đã xác nhận biên bản — học viên đã nhận phòng' : 'Đã check-in');
-}
-// Vừa cấp số HĐ lúc xác nhận -> hiện số + tên file chuẩn để ghi lên hợp đồng giấy và đặt tên bản scan.
-function baoSoHDMoi(r) {
-  openModal(`
-    <div class="mh"><h3>${IC.fileText} Đã check-in & cấp số hợp đồng</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
-    <div class="mb">
-      <p style="margin:0 0 8px">Ghi lên hợp đồng giấy: số <strong style="font-size:19px">${esc(r.so_hd_moi)}</strong>
-        · ngày ký <strong>${fmtDate(r.check_in_date)}</strong> (theo ngày nhận phòng)</p>
-      <div class="field" style="margin:0"><label>Tên file để lưu bản scan</label>
-        <div class="flex" style="gap:6px"><input readonly value="${esc(r.ten_file_hd)}" style="flex:1">
-          <button class="btn" data-act="chepTenFileHD" data-args='[${JSON.stringify(r.ten_file_hd)}]'>${IC.clipboard} Chép</button></div></div>
-    </div>
-    <div class="mf"><button class="btn pri" data-act="closeModal">Xong</button></div>`);
-}
-async function chepTenFileHD(t) {
-  try { await navigator.clipboard.writeText(t); toast('Đã chép tên file'); }
-  catch (e) { toast('Trình duyệt không cho chép tự động — chị chép tay giúp nhé', 'err'); }
+  toast(hoId ? 'Đã xác nhận biên bản — học viên đã nhận phòng' : 'Đã check-in');
 }
 // hoId (tuỳ chọn) = mở từ biên bản an ninh: điền sẵn số liệu, lưu qua đường xác nhận biên bản.
 function checkOutForm(id, hoId) {
