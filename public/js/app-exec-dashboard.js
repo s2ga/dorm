@@ -401,16 +401,14 @@ async function viewDashboard() {
   const totalVehicles = occ.reduce((a, s) => a + (+s.vehicle_count || 0), 0);
   const refundPending = ST.students.filter(s => liveStatus(s) === 'left' && s.deposit_status === 'held').length;
   const needMail = (ST.vstats && ST.vstats.needMail) || 0;
-  const logs = ST.logs, apps = ST.applications, damage = ST.damage, couts = ST.couts;
+  const logs = ST.logs, damage = ST.damage;
   let invAll = [];
   // BL-12: chỉ lấy hoá đơn THÁNG NÀY (dashboard chỉ dùng 2 con số của tháng hiện tại) thay vì kéo
   // mọi hoá đơn từ trước tới nay. Server đã hỗ trợ lọc theo tháng sẵn.
   try { invAll = await API.invoices(curMonth()); } catch {}
-  const pApps = apps.filter(a => a.status === 'pending').length;
   // CHỈ đếm hư hỏng phòng (category='damage') — ô "Bảo trì" bấm vào mở trang repair (chỉ hiện damage).
   // Trước đây đếm gộp cả feedback/vi phạm (category violation/other) -> số > số dòng thực (khớp updateNavBadges).
   const pDmg = damage.filter(d => (d.category || 'damage') === 'damage' && d.status !== 'done').length;
-  const pCout = couts.filter(c => c.status === 'pending').length;
   // App CHỈ lập phiếu báo tiền phòng — KHÔNG quản lý doanh thu/công nợ (đã có Bravo)
   const billedThisMonth = invAll.filter(i => i.month === curMonth()).reduce((a, i) => a + (+i.total || 0), 0);
   // Mốc tháng trước làm ngữ cảnh cho ô "Phiếu báo tháng này" (đầu tháng billing chưa chạy xong nên
@@ -449,8 +447,8 @@ async function viewDashboard() {
       <div class="todo-grid">
         ${/* Nhận phòng và Trả phòng TÁCH RIÊNG (owner 26/08): đây sẽ là hai nơi BQL vào xác nhận vào/ra
               thực tế (BL-117). Tiền cọc + Dự kiến xuất cảnh bỏ khỏi Tổng quan theo yêu cầu cùng ngày. */''}
-        ${todo(IC.key, 'Nhận phòng', pApps + ST.students.filter(choXacNhanVao).length + hoChoDuyet('checkin'), actAttr('nhanPhongGo'), 'on')}
-        ${todo(IC.logOut, 'Trả phòng', pCout + ST.students.filter(choXacNhanRa).length + hoChoDuyet('checkout'), actAttr('traPhongGo'), 'on')}
+        ${todo(IC.key, 'Nhận phòng', nguoiCanXuLyPhong('checkin').tong, actAttr('nhanPhongGo'), 'on')}
+        ${todo(IC.logOut, 'Trả phòng', nguoiCanXuLyPhong('checkout').tong, actAttr('traPhongGo'), 'on')}
         ${todo(IC.wrench, 'Bảo trì', pDmg, actAttr('baoTriGo'), 'warn')}
         ${todo(IC.flag, 'Đăng ký Tạm Trú', resiOverdue, actAttr('residencyModal'), 'warn')}
         ${todo(IC.fileText, 'Hợp đồng', contractIncomplete, actAttr('contractIssuesModal'), 'warn')}

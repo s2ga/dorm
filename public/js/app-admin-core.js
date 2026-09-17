@@ -196,6 +196,16 @@ function updateNavBadges() {
 }
 // Số biên bản bàn giao an ninh gửi đang chờ quản trị (BL-121); k = 'checkin' | 'checkout' | bỏ trống = cả hai.
 const hoChoDuyet = k => (ST.hoReports || []).filter(r => r.status === 'pending' && (!k || r.kind === k)).length;
+// Số NGƯỜI quản trị cần xử lý nhận/trả phòng: một người nằm ở nhiều nguồn chỉ đếm một lần.
+// Thẻ Tổng quan và tiêu đề màn đích cùng gọi hàm này nên hai con số luôn bằng nhau.
+function nguoiCanXuLyPhong(kind) {
+  const vao = kind === 'checkin';
+  const ngay = new Set(ST.students.filter(vao ? choXacNhanVao : choXacNhanRa).map(s => s.id));
+  const bienBan = new Set((ST.hoReports || []).filter(r => r.status === 'pending' && r.kind === kind).map(r => r.student_id));
+  const don = new Set(vao ? [] : (ST.couts || []).filter(c => c.status === 'pending').map(c => c.student_id));
+  const tong = new Set([...ngay, ...bienBan, ...don]).size;
+  return { tong, ngay: ngay.size, bienBan: bienBan.size, don: don.size, trung: ngay.size + bienBan.size + don.size - tong };
+}
 /* ---- Trung tâm thông báo (chuông) ---- */
 function notifItems() {
   const items = [];

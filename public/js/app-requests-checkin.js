@@ -34,7 +34,8 @@ async function viewRequests() {
           : regFilter === 'rejected' ? 'Chưa có đơn nào bị từ chối.' : 'Không có đơn phù hợp.';
     // BL-117: đã duyệt + tới ngày dự kiến mà chưa ai xác nhận đã vào -> BQL xác nhận (Check-in ghi ngày
     // thật) hoặc bấm "Không đến" (khoá hồ sơ, nhả chỗ). Tới lúc đó họ KHÔNG được tính là đang ở.
-    body = bienBanChoDuyetHTML('checkin') + choXacNhanVaoHTML() + pills + (shown.length ? `<div class="table-wrap"><table><thead><tr><th>Ngày gửi</th><th>Họ tên</th><th>SĐT</th><th>GT</th><th>Hình thức</th><th>Muốn nhận phòng</th><th>Nguyện vọng</th><th>Trạng thái</th><th></th></tr></thead><tbody>
+    banner = canXuLyPhongPanel('checkin');
+    body = pills + (shown.length ? `<div class="table-wrap"><table><thead><tr><th>Ngày gửi</th><th>Họ tên</th><th>SĐT</th><th>GT</th><th>Hình thức</th><th>Muốn nhận phòng</th><th>Nguyện vọng</th><th>Trạng thái</th><th></th></tr></thead><tbody>
       ${shown.map(a => `<tr>
         <td>${fmtDate(String(a.created_at).slice(0, 10))}</td>
         <td>${a.student_id ? `<a href="#" data-act="studentDetail" data-args='[${a.student_id}]' title="Xem chi tiết học viên"><strong>${esc(a.name)}</strong></a>` : `<strong>${esc(a.name)}</strong>`}${a.class_name ? `<div class="muted" style="font-size:11px">${esc(a.class_name)}</div>` : ''}${a.facility_name ? `<div class="sub2">${IC.building} ${esc(a.facility_name)}</div>` : ''}</td>
@@ -59,7 +60,8 @@ async function viewRequests() {
     const emptyC = !couts.length ? 'Chưa có đơn trả phòng.'
       : coutFilter === 'pending' ? 'Không có đơn nào chờ xác nhận.' : 'Không có đơn phù hợp.';
     hd = `${IC.logOut} Đơn trả phòng (${shownC.length})`;
-    body = bienBanChoDuyetHTML('checkout') + choXacNhanRaHTML() + pillsC + (shownC.length ? `<div class="table-wrap"><table><thead><tr><th>Ngày gửi</th><th>Học viên</th><th>Phòng</th><th>Ngày trả</th><th>Lý do</th><th>Trạng thái</th><th></th></tr></thead><tbody>
+    banner = canXuLyPhongPanel('checkout');
+    body = pillsC + (shownC.length ? `<div class="table-wrap"><table><thead><tr><th>Ngày gửi</th><th>Học viên</th><th>Phòng</th><th>Ngày trả</th><th>Lý do</th><th>Trạng thái</th><th></th></tr></thead><tbody>
       ${shownC.map(c => `<tr>
         <td>${fmtDate(String(c.created_at).slice(0, 10))}</td>
         <td>${c.student_id ? `<a href="#" data-act="studentDetail" data-args='[${c.student_id}]' title="Xem chi tiết học viên">${esc(c.student_name || '—')}</a>` : esc(c.student_name || '—')}</td><td>${(studentById(c.student_id) || {}).room_id ? `<a href="#" data-act="roomDetail" data-args='[${(studentById(c.student_id) || {}).room_id}]' title="Xem chi tiết phòng">${esc(c.room_name || '—')}</a>` : esc(c.room_name || '—')}</td>
@@ -159,6 +161,21 @@ function coutGo(f) { coutFilter = f; viewRequests(); }
 // Khối "chờ xác nhận" (BL-117): đã tới ngày dự kiến mà chưa ai bấm xác nhận. Mọi con số/nút ở đây đi
 // theo liveStatus dùng chung, không tự đếm.
 const _quaNgay = iso => Math.max(0, Math.floor((Date.parse(today()) - Date.parse(String(iso).slice(0, 10))) / DAY_MS));
+// Khối đầu màn Đăng ký / Trả phòng: tiêu đề là ĐÚNG con số trên thẻ Tổng quan (cùng nguoiCanXuLyPhong).
+function canXuLyPhongPanel(kind) {
+  const n = nguoiCanXuLyPhong(kind);
+  if (!n.tong) return '';
+  const vao = kind === 'checkin';
+  const phan = [
+    n.bienBan ? `${n.bienBan} có biên bản an ninh chờ xác nhận` : '',
+    n.ngay ? `${n.ngay} đã tới ngày dự kiến ${vao ? 'vào' : 'trả'}` : '',
+    n.don ? `${n.don} có đơn trả phòng chờ đồng ý (bảng bên dưới)` : '',
+  ].filter(Boolean).join(' · ');
+  const trung = n.trung ? ` · ${n.trung} người nằm ở nhiều nhóm nên chỉ đếm một lần` : '';
+  return `<div class="panel"><div class="hd"><h2>${vao ? IC.key : IC.logOut} ${vao ? 'Nhận phòng' : 'Trả phòng'} — ${n.tong} người cần ${vao ? 'xác nhận' : 'xử lý'}</h2></div>
+    <div class="pad muted" style="font-size:12.5px">${phan}${trung}</div>
+    ${bienBanChoDuyetHTML(kind)}${vao ? choXacNhanVaoHTML() : choXacNhanRaHTML()}<div style="height:14px"></div></div>`;
+}
 function choXacNhanVaoHTML() {
   const ds = ST.students.filter(choXacNhanVao).sort((a, b) => String(a.planned_check_in).localeCompare(String(b.planned_check_in)));
   if (!ds.length) return '';
