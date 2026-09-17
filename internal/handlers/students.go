@@ -43,13 +43,13 @@ func studentsIsCccdKey(v string) bool {
 // server/routes/students.routes.js:43-57
 func (h *Handlers) studentsResolveCccd(ctx context.Context, sid int, field, value, oldKey string) (setNull bool, key string, changed bool) {
 	if value == "" {
-		if studentsIsCccdKey(oldKey) {
+		if studentsIsCccdKey(oldKey) && h.studentsKhoaThuocHoSo(ctx, sid, oldKey) {
 			_ = h.Store.DeleteObject(ctx, h.Store.CccdBucket, oldKey)
 		}
 		return true, "", true // set NULL
 	}
 	if studentsIsCccdKey(value) {
-		return false, value, true // giữ key
+		return false, "", false // khoá đã qua studentsValidateCccd = đúng khoá hiện tại -> không đổi
 	}
 	if !strings.HasPrefix(value, "data:image/") {
 		return false, "", false // giá trị lạ -> không đổi
@@ -62,20 +62,48 @@ func (h *Handlers) studentsResolveCccd(ctx context.Context, sid int, field, valu
 	if _, e := h.Store.PutDataUrl(ctx, h.Store.CccdBucket, k, value); e != nil {
 		return false, "", false // lỗi kho -> giữ nguyên (không chặn nghiệp vụ)
 	}
-	if studentsIsCccdKey(oldKey) && oldKey != k {
+	if studentsIsCccdKey(oldKey) && oldKey != k && h.studentsKhoaThuocHoSo(ctx, sid, oldKey) {
 		_ = h.Store.DeleteObject(ctx, h.Store.CccdBucket, oldKey)
 	}
 	return false, k, true
 }
 
-// studentsValidateCccd: 400 nếu có data:image/ nhưng sai chữ ký. Gọi TRƯỚC khi ghi.
-func (h *Handlers) studentsValidateCccd(c *gin.Context, b map[string]interface{}) bool {
-	if h.Store == nil {
+// studentsKhoaDuoiHoSo: khoá nằm trong thư mục students/<sid>/ của chính hồ sơ.
+func studentsKhoaDuoiHoSo(sid int, key string) bool {
+	return sid > 0 && strings.HasPrefix(key, "students/"+itoa(sid)+"/")
+}
+
+// studentsKhoaThuocHoSo: khoá của chính hồ sơ, hoặc của đơn đăng ký đã được duyệt thành hồ sơ này.
+func (h *Handlers) studentsKhoaThuocHoSo(ctx context.Context, sid int, key string) bool {
+	if studentsKhoaDuoiHoSo(sid, key) {
 		return true
 	}
+	rest, ok := strings.CutPrefix(key, "applications/")
+	if !ok {
+		return false
+	}
+	appID, _, ok := strings.Cut(rest, "/")
+	if !ok || !studentsIsDigits(appID) {
+		return false
+	}
+	var one int
+	return h.pool().QueryRow(ctx, "SELECT 1 FROM applications WHERE id=$1 AND student_id=$2", appID, sid).Scan(&one) == nil
+}
+
+// studentsValidateCccd: 400 nếu gửi khoá S3 khác khoá hồ sơ đang giữ (cur nil = tạo mới), hoặc data:image/
+// sai chữ ký. Chỉ xét field có gửi lên. Gọi TRƯỚC khi ghi.
+func (h *Handlers) studentsValidateCccd(c *gin.Context, sent, cur map[string]interface{}) bool {
 	for _, f := range []string{"cccd_image", "cccd_front", "cccd_back"} {
-		v := studentsJSString(b[f])
-		if strings.HasPrefix(v, "data:image/") && storage.ParseDataUrl(v) == nil {
+		rv, ok := sent[f]
+		if !ok {
+			continue
+		}
+		v := studentsJSString(rv)
+		if studentsIsCccdKey(v) && (cur == nil || v != studentsJSString(cur[f])) {
+			badRequest(c, "Ảnh CCCD không hợp lệ — chỉ nhận ảnh tải lên từ máy")
+			return false
+		}
+		if h.Store != nil && strings.HasPrefix(v, "data:image/") && storage.ParseDataUrl(v) == nil {
 			badRequest(c, "Ảnh CCCD không hợp lệ (chỉ nhận JPG/PNG/WEBP/GIF)")
 			return false
 		}
@@ -381,12 +409,17 @@ func studentsSignCccd(row map[string]interface{}) {
 		return
 	}
 	id := studentsJSString(row["id"])
+	// Kèm phiên bản bản ghi (nếu có) để URL đổi sau mỗi lần lưu, trình duyệt không hiện lại ảnh cũ.
+	phienBan := ""
+	if v := studentsJSString(row["_v"]); v != "" {
+		phienBan = "?v=" + v
+	}
 	sides := [][2]string{{"cccd_front", "front"}, {"cccd_back", "back"}, {"cccd_image", "image"}}
 	for _, p := range sides {
 		field, side := p[0], p[1]
 		v, _ := row[field].(string)
 		if v != "" && !strings.HasPrefix(v, "data:") && !strings.HasPrefix(v, "http:") && !strings.HasPrefix(v, "https:") {
-			row[field] = "/api/students/" + id + "/cccd/" + side
+			row[field] = "/api/students/" + id + "/cccd/" + side + phienBan
 		} else if v == "" {
 			row[field] = nil
 		} else {
@@ -396,7 +429,7 @@ func studentsSignCccd(row map[string]interface{}) {
 	// Bản scan HĐ cũng là khoá S3 -> đổi thành đường xem có kiểm quyền, kèm đuôi tệp để biết ảnh hay PDF.
 	if v, _ := row["contract_scan"].(string); v != "" {
 		row["contract_scan_ext"] = strings.ToLower(strings.TrimPrefix(filepath.Ext(v), "."))
-		row["contract_scan"] = "/api/students/" + id + "/contract-scan"
+		row["contract_scan"] = "/api/students/" + id + "/contract-scan" + phienBan
 	} else {
 		row["contract_scan"] = nil
 	}
@@ -762,83 +795,100 @@ func (h *Handlers) StudentCccdImage(c *gin.Context) {
 		c.Status(http.StatusNotFound)
 		return
 	}
-	u := auth.CurrentUser(c)
-	id, _ := paramInt(c, "id")
-	isStaff := u.Role == "admin" || u.Role == "staff" || u.Role == "secretary"
-	if !isStaff && (u.StudentID == nil || *u.StudentID != id) {
-		c.Status(http.StatusForbidden)
+	obj, ok := h.studentsMoGiayTo(c, col)
+	if !ok {
 		return
 	}
-	if h.Store == nil {
+	studentsTraTep(c, obj, "image/jpeg")
+}
+
+// studentsMoGiayTo: kiểm quyền xem giấy tờ của hồ sơ :id rồi mở object S3 của cột col.
+// Chính chủ xem được; admin/staff/secretary xem được hồ sơ thuộc cơ sở mình. false = đã phản hồi.
+func (h *Handlers) studentsMoGiayTo(c *gin.Context, col string) (*storage.Object, bool) {
+	idStr := c.Param("id")
+	if !studentsIsDigits(idStr) {
 		c.Status(http.StatusNotFound)
-		return
+		return nil, false
+	}
+	id, _ := strconv.Atoi(idStr)
+	u := auth.CurrentUser(c)
+	chinhChu := u != nil && u.StudentID != nil && *u.StudentID == id
+	nhanVien := u != nil && (u.Role == "admin" || u.Role == "staff" || u.Role == "secretary")
+	if !chinhChu && !nhanVien {
+		c.Status(http.StatusForbidden)
+		return nil, false
 	}
 	ctx := c.Request.Context()
 	var k *string
-	if h.pool().QueryRow(ctx, "SELECT "+col+" AS k FROM students WHERE id=$1 AND deleted_at IS NULL", id).Scan(&k) != nil || k == nil || *k == "" {
+	var fid *int
+	err := h.pool().QueryRow(ctx, "SELECT "+col+", facility_id FROM students WHERE id=$1 AND deleted_at IS NULL", id).Scan(&k, &fid)
+	if errors.Is(err, pgx.ErrNoRows) {
 		c.Status(http.StatusNotFound)
-		return
+		return nil, false
+	}
+	if err != nil {
+		serverErr(c)
+		return nil, false
+	}
+	if !chinhChu {
+		if fe := scope.AssertFacility(u, fid); fe != nil {
+			c.JSON(fe.Status, gin.H{"error": fe.Error})
+			return nil, false
+		}
+	}
+	if k == nil || *k == "" || h.Store == nil {
+		c.Status(http.StatusNotFound)
+		return nil, false
 	}
 	obj, err := h.Store.GetObject(ctx, h.Store.CccdBucket, *k)
 	if err != nil {
 		c.Status(http.StatusNotFound)
-		return
+		return nil, false
 	}
+	return obj, true
+}
+
+// studentsTraTep: stream object với no-cache + ETag — trình duyệt hỏi lại mỗi lần, tệp chưa đổi thì nhận 304.
+func studentsTraTep(c *gin.Context, obj *storage.Object, ctMacDinh string) {
 	defer obj.Body.Close()
+	c.Header("Cache-Control", "private, no-cache")
+	c.Header("X-Content-Type-Options", "nosniff")
+	if obj.ETag != "" {
+		c.Header("ETag", obj.ETag)
+		if studentsEtagKhop(c.GetHeader("If-None-Match"), obj.ETag) {
+			c.Status(http.StatusNotModified)
+			return
+		}
+	}
 	ct := obj.ContentType
 	if ct == "" {
-		ct = "image/jpeg"
+		ct = ctMacDinh
 	}
 	c.Header("Content-Type", ct)
-	c.Header("X-Content-Type-Options", "nosniff")
-	c.Header("Cache-Control", "private, max-age=300")
 	_, _ = io.Copy(c.Writer, obj.Body)
 }
 
-// studentsXemDuocHoSo: nhân viên + thư ký xem được mọi hồ sơ; học viên chỉ xem hồ sơ của chính mình.
-func studentsXemDuocHoSo(u *auth.User, id int) bool {
-	if u == nil {
-		return false
+// studentsEtagKhop: If-None-Match (một hoặc nhiều giá trị, có thể dạng W/) có chứa etag không.
+func studentsEtagKhop(ifNoneMatch, etag string) bool {
+	chuan := strings.TrimPrefix(etag, "W/")
+	for _, v := range strings.Split(ifNoneMatch, ",") {
+		v = strings.TrimSpace(v)
+		if v == "*" || strings.TrimPrefix(v, "W/") == chuan {
+			return true
+		}
 	}
-	if u.Role == "admin" || u.Role == "staff" || u.Role == "secretary" {
-		return true
-	}
-	return u.StudentID != nil && *u.StudentID == id
+	return false
 }
 
 // StudentContractScan: GET /:id/contract-scan — proxy bản scan HĐ từ bucket riêng tư.
 func (h *Handlers) StudentContractScan(c *gin.Context) {
-	id, _ := paramInt(c, "id")
-	if !studentsXemDuocHoSo(auth.CurrentUser(c), id) {
-		c.Status(http.StatusForbidden)
+	obj, ok := h.studentsMoGiayTo(c, "contract_scan")
+	if !ok {
 		return
 	}
-	if h.Store == nil {
-		c.Status(http.StatusNotFound)
-		return
-	}
-	ctx := c.Request.Context()
-	var k *string
-	if h.pool().QueryRow(ctx, "SELECT contract_scan FROM students WHERE id=$1 AND deleted_at IS NULL", id).Scan(&k) != nil || k == nil || *k == "" {
-		c.Status(http.StatusNotFound)
-		return
-	}
-	obj, err := h.Store.GetObject(ctx, h.Store.CccdBucket, *k)
-	if err != nil {
-		c.Status(http.StatusNotFound)
-		return
-	}
-	defer obj.Body.Close()
-	ct := obj.ContentType
-	if ct == "" {
-		ct = "application/octet-stream"
-	}
-	c.Header("Content-Type", ct)
-	c.Header("X-Content-Type-Options", "nosniff")
 	// inline: PDF/ảnh mở thẳng trong tab, không ép tải về.
 	c.Header("Content-Disposition", "inline")
-	c.Header("Cache-Control", "private, max-age=300")
-	_, _ = io.Copy(c.Writer, obj.Body)
+	studentsTraTep(c, obj, "application/octet-stream")
 }
 
 // UploadContractScan: POST /:id/contract-scan (admin,staff) — nhận ẢNH hoặc PDF dạng data URL.
@@ -1356,7 +1406,7 @@ func (h *Handlers) CreateStudent(c *gin.Context) {
 		strings.ToLower(strings.TrimSpace(studentsStrOr(b["email"]))), // $36 — hạ chữ thường để khớp SSO không phụ thuộc hoa/thường
 	)
 
-	if !h.studentsValidateCccd(c, b) { // 400 nếu ảnh CCCD sai chữ ký (trước khi ghi)
+	if !h.studentsValidateCccd(c, b, nil) { // 400 nếu ảnh CCCD sai (trước khi ghi)
 		return
 	}
 	var student map[string]interface{}
@@ -1600,7 +1650,7 @@ func (h *Handlers) UpdateStudent(c *gin.Context) {
 	}
 	sql += " RETURNING *"
 
-	if !h.studentsValidateCccd(c, b) { // 400 nếu ảnh CCCD sai chữ ký (trước khi ghi)
+	if !h.studentsValidateCccd(c, raw, cur) { // 400 nếu ảnh CCCD sai (trước khi ghi)
 		return
 	}
 	upRows, err := h.pool().Query(ctx, sql, params...)

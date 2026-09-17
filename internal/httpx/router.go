@@ -247,7 +247,7 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 
 	// Học viên (students)
 	st := api.Group("/students", a.RequireAuth())
-	st.GET("/:id/cccd/:side", h.StudentCccdImage)       // chỉ requireAuth (nay 501 stub)
+	st.GET("/:id/cccd/:side", h.StudentCccdImage)       // chính chủ hoặc admin/staff/secretary cùng cơ sở (kiểm trong handler)
 	st.GET("/:id/contract-scan", h.StudentContractScan) // học viên xem được bản scan HĐ của chính mình
 	st.GET("/archive", a.RequireRole("admin", "staff", "secretary"), h.ListStudentsArchive)
 	rs := st.Group("", a.RequireRole("admin", "staff"))
@@ -317,7 +317,8 @@ func (s *Server) serveStaticOrSPA(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Không tìm thấy"})
 		return
 	}
-	if p == "/" || p == "" {
+	// /index.html trả thẳng vỏ SPA (200): service worker cache đường này làm trang dự phòng khi mất mạng.
+	if p == "/" || p == "" || p == "/index.html" {
 		s.serveIndex(c)
 		return
 	}
@@ -327,6 +328,14 @@ func (s *Server) serveStaticOrSPA(c *gin.Context) {
 	absFull, _ := filepath.Abs(full)
 	if strings.HasPrefix(absFull, absPub) {
 		if fi, err := os.Stat(full); err == nil && !fi.IsDir() {
+			// sw.js, JS, CSS: hỏi lại máy chủ mỗi lần (chưa đổi thì 304) — số ?v= không chắc đổi theo từng
+			// lần sửa nội dung. Chỉ bộ đọc biển số (nhị phân không đổi theo bản app) được giữ lâu.
+			switch {
+			case p == "/sw.js" || strings.HasPrefix(p, "/js/") || strings.HasPrefix(p, "/css/"):
+				c.Header("Cache-Control", "no-cache")
+			case strings.HasPrefix(p, "/vendor/") && c.Query("v") != "":
+				c.Header("Cache-Control", "public, max-age=31536000, immutable")
+			}
 			c.File(full)
 			return
 		}
@@ -335,11 +344,17 @@ func (s *Server) serveStaticOrSPA(c *gin.Context) {
 }
 
 // serveIndex ưu tiên file trên đĩa (sửa index.html ở local là thấy ngay), thiếu thì dùng bản nhúng.
+// no-cache: vỏ SPA quyết định bản JS nào được nạp, nên luôn hỏi lại máy chủ sau mỗi lần phát hành.
 func (s *Server) serveIndex(c *gin.Context) {
+	c.Header("Cache-Control", "no-cache")
 	index := filepath.Join(s.Pub, "index.html")
-	if fi, err := os.Stat(index); err == nil && !fi.IsDir() {
-		c.File(index)
-		return
+	if f, err := os.Open(index); err == nil {
+		defer f.Close()
+		// ServeContent thay c.File: c.File chuyển 301 mọi đường kết thúc bằng /index.html.
+		if fi, err := f.Stat(); err == nil && !fi.IsDir() {
+			http.ServeContent(c.Writer, c.Request, "index.html", fi.ModTime(), f)
+			return
+		}
 	}
 	c.Data(http.StatusOK, "text/html; charset=utf-8", ktxassets.IndexHTML)
 }

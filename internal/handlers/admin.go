@@ -117,6 +117,18 @@ var adminKiemTraList = []adminKiemTra{
              AND s.check_out_date IS NOT NULL AND i.month > to_char(s.check_out_date, 'YYYY-MM')
            ORDER BY i.month, s.name`,
 	},
+	{
+		ma: "cccd_cua_nguoi_khac", ten: "Hồ sơ mang ảnh CCCD của người khác",
+		viSao:   "Ảnh CCCD của hồ sơ này đang trỏ tới tệp của hồ sơ hoặc đơn đăng ký khác — bản in gửi công an sẽ ra ảnh người khác.",
+		cachSua: "Mở hồ sơ, tải lại ảnh CCCD đúng của học viên này.",
+		sql: `SELECT s.name AS khoa, x.mat || ' đang dùng tệp ' || x.k || ' (#' || s.id || ')' AS chi_tiet
+            FROM students s
+            CROSS JOIN LATERAL (VALUES ('mặt trước', s.cccd_front), ('mặt sau', s.cccd_back), ('ảnh cũ', s.cccd_image)) AS x(mat, k)
+           WHERE s.deleted_at IS NULL AND (x.k LIKE 'students/%' OR x.k LIKE 'applications/%')
+             AND x.k NOT LIKE 'students/' || s.id || '/%'
+             AND NOT EXISTS (SELECT 1 FROM applications a WHERE a.student_id = s.id AND x.k LIKE 'applications/' || a.id || '/%')
+           ORDER BY s.id`,
+	},
 }
 
 // DataHealth: GET /api/admin/data-health — chạy các SQL kiểm trùng + đọc schema_guard. admin.routes.js:50-60

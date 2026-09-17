@@ -39,7 +39,8 @@ module.exports = {
 
     // Hồ sơ trả về ĐƯỜNG XEM có kiểm quyền, kèm đuôi tệp để giao diện biết ảnh hay PDF.
     const hs = await t.api('GET', `/api/students/${sid}`, T);
-    t.eq('Hồ sơ trả đường proxy', hs.json.contract_scan, `/api/students/${sid}/contract-scan`);
+    t.ok('Hồ sơ trả đường proxy (kèm ?v= phiên bản hồ sơ)',
+      String(hs.json.contract_scan).split('?')[0] === `/api/students/${sid}/contract-scan`, hs.json.contract_scan);
     t.eq('Kèm đuôi tệp', hs.json.contract_scan_ext, 'png');
 
     // ── Đổi sang PDF: khoá đổi đuôi, tệp cũ được dọn ─────────────────────────────────

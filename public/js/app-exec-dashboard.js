@@ -199,6 +199,7 @@ function tamTruMo() { _tamTruThang = null; tamTruSheet(); }
 function tamTruChonThang() { _tamTruThang = this.value; tamTruSheet(); }
 function tamTruSheet() {
   closeModal();
+  _ttGoc.clear();   // vẽ lại trang = đọc lại ảnh đang lưu, không xoay tiếp từ bản cũ trong bộ nhớ
   const all = ST.students.filter(s => isOccupying(s) && s.residency_status === 'unregistered')
     .sort((a, b) => String(a.room_name || '').localeCompare(String(b.room_name || ''), 'vi') || String(a.name).localeCompare(String(b.name), 'vi'));
   const thangCua = s => String(s.check_in_date || '').slice(0, 7);
@@ -224,7 +225,8 @@ function tamTruSheet() {
   const hangThieu = s => `<tr><td class="num" data-label="STT">—</td>${oTen(s)}<td data-label="Ảnh CCCD"><span class="badge red">Thiếu ${missSide(s)}</span>
         <button class="btn sm" style="margin-left:6px;white-space:nowrap" data-act="studentForm" data-args='[${s.id}]'>${IC.filePen} Bổ sung ảnh</button></td></tr>`;
   const bang = rows => `<div class="table-wrap card-tbl"><table><thead><tr><th class="num">STT</th><th>Học viên</th><th>Phòng</th><th>Ngày vào</th><th>Ảnh CCCD</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-  const cell = (s, side, nhan) => `<div class="tt-cell"><img src="/api/students/${s.id}/cccd/${side}" alt="${nhan}" data-anh="${s.id}-${side}">
+  const lanVe = Date.now();   // URL mới mỗi lần vẽ: Firefox dùng lại ảnh cũ cùng URL trong trang dù máy chủ báo no-cache
+  const cell = (s, side, nhan) => `<div class="tt-cell"><img src="${ttAnhUrl(s.id, side)}?t=${lanVe}" alt="${nhan}" data-anh="${s.id}-${side}">
         <div class="tt-cong-cu rc-noprint"><span class="tt-doc-nhan">ảnh dọc</span>
           <button class="tt-nut" type="button" data-act="tamTruXoay" data-args='[${s.id},"${side}",-1]' title="Xoay trái 90° — bấm tiếp tới khi đúng chiều" aria-label="Xoay trái">${IC.rotateLeft}</button>
           <button class="tt-nut" type="button" data-act="tamTruXoay" data-args='[${s.id},"${side}",1]' title="Xoay phải 90° — bấm tiếp tới khi đúng chiều" aria-label="Xoay phải">${IC.rotateRight}</button>
@@ -285,19 +287,31 @@ async function tamTruGhiAnh(id, side, canvas) {
   const img = document.querySelector(`#printArea img[data-anh="${id}-${side}"]`);
   if (img) img.src = ttAnhUrl(id, side) + '?t=' + Date.now();
 }
-// Ảnh gốc + góc đang xoay của từng ô, giữ trong phiên. Xoay lượt sau dựng lại từ GỐC nên bấm bao
-// nhiêu lượt cũng được, đủ cả 4 chiều, mà ảnh chỉ qua một lần nén — xoay chồng lên ảnh đã nén thì
-// mỗi lượt lại mờ thêm.
+// Ảnh gốc + góc đang xoay + ETag từng ô: xoay lượt sau dựng lại từ GỐC (chỉ nén một lần);
+// ETag khác bản vừa lưu = ảnh đã bị thay ở nơi khác -> bỏ gốc cũ.
 const _ttGoc = new Map();
+async function ttEtag(id, side, etagCu) {
+  const r = await fetch(ttAnhUrl(id, side), { cache: 'no-store', headers: etagCu ? { 'If-None-Match': etagCu } : {} });
+  if (r.body) r.body.cancel().catch(() => {});
+  if (r.status === 304) return etagCu;
+  if (!r.ok) throw new Error('không đọc được ảnh');
+  return r.headers.get('ETag') || '';
+}
 async function tamTruXoay(id, side, chieu) {
   const khoa = id + '-' + side;
   const nut = [...this.parentElement.querySelectorAll('button')];
   nut.forEach(n => n.disabled = true);
   try {
     let g = _ttGoc.get(khoa);
-    if (!g) { g = { bm: await anhNap(ttAnhUrl(id, side) + '?t=' + Date.now()), goc: 0 }; _ttGoc.set(khoa, g); }
+    if (g && (!g.etag || await ttEtag(id, side, g.etag) !== g.etag)) g = null;
+    if (!g) {
+      const etag = await ttEtag(id, side, '');
+      g = { bm: await anhNap(ttAnhUrl(id, side) + '?t=' + Date.now()), goc: 0, etag };
+      _ttGoc.set(khoa, g);
+    }
     g.goc = (g.goc + (chieu < 0 ? -90 : 90) + 360) % 360;
     await tamTruGhiAnh(id, side, anhVeXoay(g.bm, g.goc));
+    g.etag = await ttEtag(id, side, '');
     toast('Đã xoay và lưu ảnh vào hồ sơ');
   } catch (e) { toast('Xoay ảnh thất bại: ' + (e.message || 'không đọc được ảnh'), 'err'); }
   nut.forEach(n => n.disabled = false);

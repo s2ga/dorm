@@ -114,6 +114,72 @@ const ok = (ten, dk, them = '') => {
     await page.waitForTimeout(500);
   }
 
+  // ── QA-014: trang in tạm trú giữ ảnh gốc để xoay. Ảnh bị thay ở tab/máy khác thì lượt xoay sau phải
+  // đọc ảnh MỚI, không được lấy ảnh cũ trong bộ nhớ ghi đè lên ảnh vừa thay. ─────────────────────────
+  const taoAnh = (w, h) => page.evaluate(([w, h]) => {
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const cx = cv.getContext('2d'); cx.fillStyle = '#9ab'; cx.fillRect(0, 0, w, h);
+    return cv.toDataURL('image/jpeg', 0.92);
+  }, [w, h]);
+  const hv = await ctx.request.post('/api/students', {
+    data: { name: '__test_dom_ttgoc', gender: 'male', check_in_date: '2099-01-01', rental_type: 'ghep' } });
+  const hvId = hv.ok() ? (await hv.json()).id : 0;
+  ok('Tạo hồ sơ thử cho trang in tạm trú', hvId > 0, 'HTTP ' + hv.status());
+  if (hvId) {
+    try {
+      const len = await ctx.request.put('/api/students/' + hvId, { data: { cccd_front: await taoAnh(60, 20) } });
+      const coKho = len.ok() && !!(await (await ctx.request.get('/api/students/' + hvId)).json()).cccd_front;
+      if (!coKho) ok('S3 chưa cấu hình — bỏ qua kịch bản trang in', true);
+      else {
+        const coAnh = id => page.evaluate(async id => {
+          const bm = await anhNap(ttAnhUrl(id, 'front') + '?t=' + Date.now());
+          return `${bm.width}x${bm.height}`;
+        }, id);
+        // Đếm số lần trang in NẠP LẠI ảnh gốc: ảnh chưa đổi thì lượt xoay sau phải dùng lại gốc đang giữ.
+        await page.evaluate(() => {
+          window._demNapGoc = 0;
+          const goc = anhNap;
+          window.anhNap = src => { if (window._dangXoay) window._demNapGoc++; return goc(src); };
+        });
+        const xoayTrenTrangIn = id => page.evaluate(async id => {
+          const hop = document.createElement('div');
+          hop.innerHTML = '<button></button><button></button>';
+          document.body.appendChild(hop);
+          window._dangXoay = true;
+          try { await tamTruXoay.call(hop.lastChild, id, 'front', 1); } finally { window._dangXoay = false; }
+          hop.remove();
+          return window._demNapGoc;
+        }, id);
+
+        const n1 = await xoayTrenTrangIn(hvId);
+        ok('Trang in: xoay lượt đầu lưu ảnh dọc', await coAnh(hvId) === '20x60', await coAnh(hvId));
+        const n2 = await xoayTrenTrangIn(hvId);
+        ok('Ảnh chưa bị ai thay: lượt xoay thứ hai dùng lại ảnh gốc đang giữ, không nạp lại',
+          n1 === 1 && n2 === 1, `số lần nạp gốc: ${n1} → ${n2}`);
+        ok('Hai lượt xoay phải = 180° so với gốc (ngang)', await coAnh(hvId) === '60x20', await coAnh(hvId));
+
+        // Máy/tab KHÁC thay ảnh (không đi qua bộ nhớ của trang này).
+        const thay = await ctx.request.put('/api/students/' + hvId, { data: { cccd_front: await taoAnh(100, 30) } });
+        ok('Nơi khác thay bằng ảnh mới 100x30', thay.ok() && await coAnh(hvId) === '100x30', await coAnh(hvId));
+        const n3 = await xoayTrenTrangIn(hvId);
+        const sau = await coAnh(hvId);
+        ok('Trang in: xoay sau khi ảnh bị thay ở nơi khác → xoay ẢNH MỚI (30x100), không ghi đè bằng ảnh cũ',
+          sau === '30x100' && n3 === 2, `${sau} · số lần nạp gốc: ${n3}`);
+
+        await page.evaluate(() => _ttGoc.set('giu-thu', { bm: null, goc: 0, etag: '' }));
+        await page.evaluate(() => tamTruSheet());
+        await page.waitForTimeout(800);
+        ok('Mở lại trang in thì bỏ hết ảnh gốc đang giữ', await page.evaluate(() => _ttGoc.size) === 0,
+          String(await page.evaluate(() => _ttGoc.size)));
+        const src = await page.evaluate(() => [...document.querySelectorAll('#printArea img')].map(i => i.getAttribute('src')));
+        ok('Ảnh trên trang in có URL mới mỗi lần vẽ (?t=)', src.every(s => /\?t=\d+$/.test(s)), src.slice(0, 2).join(' · ') || '(không có ảnh nào)');
+      }
+    } finally {
+      await ctx.request.put('/api/students/' + hvId, { data: { cccd_front: '' } });
+      await ctx.request.delete('/api/students/' + hvId);
+    }
+  }
+
   ok('Không có lỗi JS', loiJS.length === 0, loiJS.slice(0, 3).join(' | '));
   await ctx.close(); await browser.close();
   console.log(fail ? `\n==> ${fail} lỗi` : '\n==> Xoay ảnh CCCD đủ 4 chiều, không giới hạn lượt');
