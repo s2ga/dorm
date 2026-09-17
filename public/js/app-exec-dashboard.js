@@ -91,47 +91,84 @@ async function viewExec() {
 
 /* ---------- TỔNG QUAN ---------- */
 // Popup "Đăng ký tạm trú": 3 trạng thái, bấm từng trạng thái xem danh sách
-// BL-112: ai CẦN phiếu kỳ này — người đang ở, CỘNG người đã trả phòng trong kỳ (họ vẫn ở một phần
-// tháng nên vẫn phải thu, và đây là ca dễ mất tiền nhất vì đợt lập phiếu bỏ qua họ). Người sắp vào thì chưa.
-const canPhieuKyNay = s => !s.deleted_at && (isOccupying(s)
-  || (liveStatus(s) === 'left' && (s.check_out_date || '').slice(0, 7) === curMonth()));
-const dsQuaHanPhieu = daCoPhieu => ST.students
-  .filter(s => canPhieuKyNay(s) && !daCoPhieu.has(s.id) && stayDays(s) > overdueDays())
-  .sort((a, b) => stayDays(b) - stayDays(a));
+// BL-112/BL-119: "chưa lập phiếu" phải khớp ĐÚNG dân số đợt lập phiếu backend — nếu không sẽ vừa réo
+// oan vừa bỏ sót người mất tiền. Ngày vào/ra lấy COALESCE(thật, dự kiến) như backend.
+const _vaoHieuLuc = s => (s.check_in_date || s.planned_check_in || '').slice(0, 10);
+const _raHieuLuc = s => (s.check_out_date || s.planned_check_out || '').slice(0, 10);
+const _soNgayTinhTu = ngay => ngay ? Math.floor((Date.parse(today()) - Date.parse(ngay)) / DAY_MS) : 0;
+const _thangTruoc = m => { const [y, mm] = m.split('-').map(Number); return mm === 1 ? `${y - 1}-12` : `${y}-${String(mm - 1).padStart(2, '0')}`; };
+// Người ĐỨNG PHIẾU của phòng: phòng nguyên căn chỉ 1 người ký HĐ chịu tiền cả phòng (khớp nguyenphong.go),
+// thành viên khác KHÔNG có phiếu riêng nên đừng réo; phòng ghép/nhân viên thì ai cũng có phiếu riêng.
+function laNguoiDungPhieuPhong(s) {
+  if (!thueNguyenPhong(s)) return true;
+  const cung = ST.students.filter(x => !x.deleted_at && x.room_id === s.room_id && _vaoHieuLuc(x) && !x.check_out_date);
+  if (!cung.length) return true;
+  const coHD = cung.filter(x => { const h = (x.contract_no || '').trim().toLowerCase(); return h && h !== 'x'; });
+  const pool = coHD.length ? coHD : cung;
+  const dung = pool.slice().sort((a, b) => (_vaoHieuLuc(a).localeCompare(_vaoHieuLuc(b))) || (a.id - b.id))[0];
+  return !!dung && dung.id === s.id;
+}
+// Cần phiếu tháng M? = người đứng phiếu, ngày vào hiệu lực <= hết tháng M, chưa rời trước tháng M.
+const canPhieuThang = (s, M) => !s.deleted_at && laNguoiDungPhieuPhong(s)
+  && _vaoHieuLuc(s) && _vaoHieuLuc(s).slice(0, 7) <= M
+  && (!_raHieuLuc(s) || _raHieuLuc(s).slice(0, 7) >= M);
+// Tách 2 khối: KỲ NÀY (gồm người sắp vào theo lịch) và người rời KỲ TRƯỚC còn thiếu phiếu (mất khỏi
+// radar sau mùng 1 — dễ đi rồi mới nhớ chưa thu). Cần cả 2 tập id-đã-có-phiếu để lọc.
+function dsChuaLapPhieu(coPhieuKyNay, coPhieuKyTruoc) {
+  const M = curMonth(), Mt = _thangTruoc(M);
+  const kyNay = ST.students.filter(s => canPhieuThang(s, M) && !coPhieuKyNay.has(s.id)
+    && (['left', 'upcoming', 'cho_vao'].includes(liveStatus(s)) || _soNgayTinhTu(_vaoHieuLuc(s)) > overdueDays()))
+    .sort((a, b) => _soNgayTinhTu(_vaoHieuLuc(b)) - _soNgayTinhTu(_vaoHieuLuc(a)));
+  const kyTruoc = ST.students.filter(s => !s.deleted_at && laNguoiDungPhieuPhong(s)
+    && (s.check_out_date || '').slice(0, 7) === Mt && !coPhieuKyTruoc.has(s.id))
+    .sort((a, b) => (a.check_out_date || '').localeCompare(b.check_out_date || ''));
+  return { kyNay, kyTruoc };
+}
 
 async function billOverdueModal() {
   openModal(`<div class="mh"><h3>${IC.receipt} Chưa lập phiếu thu</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb"><div class="spinner"></div></div>`, true);
-  let inv = [];
-  try { inv = await API.invoices(curMonth()); }
+  const M = curMonth(), Mt = _thangTruoc(M);
+  let inv, invT;
+  try { [inv, invT] = await Promise.all([API.invoices(M), API.invoices(Mt)]); }
   catch (e) {
     return modalThay(`<div class="mh"><h3>${IC.receipt} Chưa lập phiếu thu</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
       <div class="mb"><div class="bang-tin">${IC.alert} <span>Không tải được danh sách phiếu: ${esc(e.message || 'lỗi kết nối')}</span></div></div>
       <div class="mf"><button class="btn" data-act="closeModal">Đóng</button></div>`);
   }
-  const ds = dsQuaHanPhieu(new Set(inv.map(i => i.student_id)));
-  const daRoi = s => liveStatus(s) === 'left';
-  modalThay(`
-    <div class="mh"><h3>${IC.receipt} Chưa lập phiếu thu kỳ ${curMonth()} (${ds.length})</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
-    <div class="mb">
-      <div class="hint">${IC.info} Đã ở quá ${overdueDays()} ngày mà kỳ này chưa có phiếu. Gồm cả người
-        <strong>đã trả phòng trong kỳ</strong> — đợt lập phiếu hàng tháng bỏ qua họ nên dễ đi rồi mới nhớ chưa thu.</div>
-      ${ds.length ? `<div class="table-wrap card-tbl" style="margin-top:10px"><table>
-        <thead><tr><th>Học viên</th><th>Phòng</th><th>Ngày vào</th><th class="num">Đã ở</th><th>Tình trạng</th></tr></thead>
-        <tbody>${ds.map(s => `<tr>
-          <td><div class="flex stu-name" data-act="studentDetail" data-args='[${s.id}]' role="button" tabindex="0" title="Mở hồ sơ">
-            <div><strong>${esc(s.name)}</strong>${s.code ? `<div class="sub2">${esc(s.code)}</div>` : ''}</div>
-            <span class="row-chev">${IC.chevronRight}</span></div></td>
-          <td data-label="Phòng">${esc(s.room_name || '—')}</td>
-          <td data-label="Ngày vào">${fmtDate(s.check_in_date)}</td>
-          <td class="num" data-label="Đã ở">${stayDays(s)} ngày</td>
-          <td data-label="Tình trạng">${daRoi(s)
+  const { kyNay, kyTruoc } = dsChuaLapPhieu(new Set(inv.map(i => i.student_id)), new Set(invT.map(i => i.student_id)));
+  const tong = kyNay.length + kyTruoc.length;
+  // Cột "Đã ở" tính theo ngày vào hiệu lực; người sắp vào ra số âm nên hiện "—" cho khỏi rối.
+  const dong = s => {
+    const vao = _vaoHieuLuc(s), n = _soNgayTinhTu(vao), duKien = !s.check_in_date && s.planned_check_in;
+    return `<tr>
+      <td><div class="flex stu-name" data-act="studentDetail" data-args='[${s.id}]' role="button" tabindex="0" title="Mở hồ sơ">
+        <div><strong>${esc(s.name)}</strong>${s.code ? `<div class="sub2">${esc(s.code)}</div>` : ''}</div>
+        <span class="row-chev">${IC.chevronRight}</span></div></td>
+      <td data-label="Phòng">${esc(s.room_name || '—')}</td>
+      <td data-label="Ngày vào">${fmtDate(vao)}${duKien ? ' <span class="badge gray" style="font-size:10px" title="Ngày dự kiến — chưa xác nhận vào">dự kiến</span>' : ''}</td>
+      <td class="num" data-label="Đã ở">${n > 0 ? n + ' ngày' : '—'}</td>
+      <td data-label="Tình trạng">${liveStatus(s) === 'left'
     ? `<span class="badge red">Đã trả ${fmtDate(s.check_out_date)}</span>`
     : statusBadge(s)}</td>
-        </tr>`).join('')}</tbody></table></div>`
-    : `<div class="empty" style="margin-top:10px">${IC.checkCircle} Không sót ai — mọi người cần thu kỳ này đều đã có phiếu.</div>`}
+    </tr>`;
+  };
+  const bang = arr => `<div class="table-wrap card-tbl" style="margin-top:10px"><table>
+    <thead><tr><th>Học viên</th><th>Phòng</th><th>Ngày vào</th><th class="num">Đã ở</th><th>Tình trạng</th></tr></thead>
+    <tbody>${arr.map(dong).join('')}</tbody></table></div>`;
+  modalThay(`
+    <div class="mh"><h3>${IC.receipt} Chưa lập phiếu thu (${tong})</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mb">
+      <div class="hint">${IC.info} Đúng dân số đợt lập phiếu: đã bỏ thành viên phòng thuê nguyên căn (nằm trong
+        phiếu người ký HĐ), tính cả người sắp vào theo lịch và người rời kỳ trước còn thiếu phiếu.</div>
+      ${tong ? `<h4 class="asset-h" style="margin:16px 0 0">Kỳ này (${M}) — ${kyNay.length}</h4>
+        ${kyNay.length ? bang(kyNay) : `<div class="empty" style="margin-top:8px">${IC.checkCircle} Kỳ này không sót ai.</div>`}
+        ${kyTruoc.length ? `<h4 class="asset-h" style="margin:18px 0 0;color:var(--red-ink)">${IC.alert} Rời kỳ trước (${Mt}) mà chưa có phiếu — ${kyTruoc.length}</h4>
+          <p class="muted" style="margin:4px 0 0;font-size:13px">Họ đã đi, đợt lập phiếu hằng tháng không còn quét tới. Vào màn Tiền phòng kỳ ${Mt} để lập nốt.</p>
+          ${bang(kyTruoc)}` : ''}`
+    : `<div class="empty" style="margin-top:10px">${IC.checkCircle} Không sót ai — mọi người cần thu đều đã có phiếu.</div>`}
     </div>
-    <div class="mf">${ds.length ? `<button class="btn pri" data-act="adminGo" data-args='["invoices"]'>${IC.receipt} Sang màn Tiền phòng để lập</button>` : ''}
+    <div class="mf">${tong ? `<button class="btn pri" data-act="adminGo" data-args='["invoices"]'>${IC.receipt} Sang màn Tiền phòng để lập</button>` : ''}
       <button class="btn" data-act="closeModal">Đóng</button></div>`);
 }
 
@@ -382,11 +419,11 @@ async function viewDashboard() {
   const prevMonth = _cmm === 1 ? `${_cy - 1}-12` : `${_cy}-${String(_cmm - 1).padStart(2, '0')}`;
   const billedLastMonth = invAll.filter(i => i.month === prevMonth).reduce((a, i) => a + (+i.total || 0), 0);
   const billStudents = new Set(invAll.filter(i => i.month === curMonth()).map(i => i.student_id));
-  const noBill = occ.filter(s => !billStudents.has(s.id)).length; // HV đang ở chưa lập phiếu tháng này
-  // BL-112: quá hạn lập phiếu. Gác bằng overdueDays() vì mùng 1 thì CẢ KTX chưa có phiếu — không gác
-  // thì ô nhắc thành báo động giả rồi bị phớt. Đây cũng là phần "chưa lập phiếu" mà nhãn ô cài đặt
-  // "Nhắc khi ở quá N ngày" vốn đã hứa nhưng chưa nối.
-  const billOverdue = dsQuaHanPhieu(billStudents).length;
+  // BL-112/BL-119: đếm khớp modal — cần cả phiếu kỳ trước để bắt người rời kỳ trước còn thiếu phiếu.
+  let invPrev = [];
+  try { invPrev = await API.invoices(prevMonth); } catch {}
+  const _chuaLap = dsChuaLapPhieu(billStudents, new Set(invPrev.map(i => i.student_id)));
+  const billOverdue = _chuaLap.kyNay.length + _chuaLap.kyTruoc.length;
 
   // act = onclick đầy đủ → mọi ô KPI đều drill-through tới đúng danh sách đằng sau con số
   const kpi = (cls, ico, val, label, act, sub) => `<div class="kpi${act ? ' clickable' : ''}" ${act ? act + ' role="button" tabindex="0"' : ''}><span class="ic ${cls}">${ico}</span><div><div class="v">${val}</div><div class="l">${label}${sub ? ` · ${sub}` : ''}</div></div></div>`;
