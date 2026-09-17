@@ -7,6 +7,7 @@ let fbFilter = 'open';       // Góp ý: mặc định việc chưa xong — cù
 let vioFilter = 'all';       // Vi phạm: 'canbao' = chỉ HV đủ ngưỡng chưa báo nhà trường
 async function viewRequests() {
   const view = ST.view;
+  const cuonToiDon = _cuonPanelDon; _cuonPanelDon = false;   // lấy cờ ra ngay: tải lỗi thì cờ không sót lại lần sau
   el('content').innerHTML = '<div class="spinner"></div>';
   let apps = [], damage = [], couts = [], vios = [], vstats = null, hoReports = [];
   try { [apps, damage, couts, vios, vstats, hoReports] = await Promise.all([API.applications(), API.damageAll(), API.checkoutReqs(), API.violations(), API.violationStats().catch(() => null), API.handoverReports('pending').catch(() => ST.hoReports || [])]); }
@@ -154,7 +155,8 @@ async function viewRequests() {
     hd = `${IC.inbox} Góp ý / yêu cầu hỗ trợ (${fb.length})`;
     body = tbl;
   }
-  el('content').innerHTML = `${banner}<div class="panel"><div class="hd"><h2>${hd}</h2>${actions ? `<div class="toolbar">${actions}</div>` : ''}</div>${note ? `<div class="pad muted" style="font-size:12.5px">${note}</div>` : ''}${body}</div>`;
+  el('content').innerHTML = `${banner}<div class="panel" id="pnDon"><div class="hd"><h2>${hd}</h2>${actions ? `<div class="toolbar">${actions}</div>` : ''}</div>${note ? `<div class="pad muted" style="font-size:12.5px">${note}</div>` : ''}${body}</div>`;
+  if (cuonToiDon) el('pnDon').scrollIntoView({ block: 'start' });
 }
 function regGo(f) { regFilter = f; viewRequests(); }   // BL-59: đổi bộ lọc trạng thái đơn đăng ký
 function coutGo(f) { coutFilter = f; viewRequests(); }
@@ -169,10 +171,9 @@ function canXuLyPhongPanel(kind) {
   const phan = [
     n.bienBan ? `${n.bienBan} có biên bản an ninh chờ xác nhận` : '',
     n.ngay ? `${n.ngay} đã tới ngày dự kiến ${vao ? 'vào' : 'trả'}` : '',
-    n.don ? `${n.don} có đơn trả phòng chờ đồng ý (bảng bên dưới)` : '',
   ].filter(Boolean).join(' · ');
-  const trung = n.trung ? ` · ${n.trung} người nằm ở nhiều nhóm nên chỉ đếm một lần` : '';
-  return `<div class="panel"><div class="hd"><h2>${vao ? IC.key : IC.logOut} ${vao ? 'Nhận phòng' : 'Trả phòng'} — ${n.tong} người cần ${vao ? 'xác nhận' : 'xử lý'}</h2></div>
+  const trung = n.trung ? ` · ${n.trung} người nằm ở cả hai nhóm nên chỉ đếm một lần` : '';
+  return `<div class="panel"><div class="hd"><h2>${vao ? IC.key : IC.logOut} ${vao ? 'Nhận phòng' : 'Trả phòng'} — ${n.tong} người cần xác nhận</h2></div>
     <div class="pad muted" style="font-size:12.5px">${phan}${trung}</div>
     ${bienBanChoDuyetHTML(kind)}${vao ? choXacNhanVaoHTML() : choXacNhanRaHTML()}<div style="height:14px"></div></div>`;
 }
@@ -229,8 +230,11 @@ function fbGo(f) { fbFilter = f; viewRequests(); }
 function vioGo(f) { vioFilter = f; viewRequests(); }
 // Đi từ một CON SỐ (ô Tổng quan, chuông, badge menu) sang màn danh sách: đặt đúng bộ lọc TRƯỚC khi
 // sang, để số bấm vào == số hiện ra. Không có bước này thì rơi vào bộ lọc của lần xem trước.
-function nhanPhongGo() { regFilter = 'pending'; adminGo('reg'); }
-function traPhongGo() { coutFilter = 'pending'; adminGo('checkout'); }
+// muc = 'don': cuộn tới panel đơn chờ duyệt (số đơn trên chuông nằm ở panel đó, không phải khối đầu trang).
+// Cuộn sau khi viewRequests VẼ XONG — màn này còn chờ tải API nên hẹn giờ cố định sẽ trượt.
+let _cuonPanelDon = false;
+function nhanPhongGo(muc) { regFilter = 'pending'; _cuonPanelDon = muc === 'don'; adminGo('reg'); }
+function traPhongGo(muc) { coutFilter = 'pending'; _cuonPanelDon = muc === 'don'; adminGo('checkout'); }
 function baoTriGo() { dmgFilter = 'open'; adminGo('repair'); }
 function gopYGo() { fbFilter = 'open'; adminGo('feedback'); }
 function viPhamGo(f) { vioFilter = f || 'canbao'; adminGo('violations'); }

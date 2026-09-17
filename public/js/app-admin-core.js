@@ -185,34 +185,30 @@ async function setFacilityFilter(f) {
 function updateNavBadges() {
   const dmg = ST.damage || [];
   const setBadge = (id, n) => { const b = el(id); if (b) { b.textContent = n; b.style.display = n ? '' : 'none'; } };
-  // Biên bản bàn giao an ninh gửi (BL-121) cộng vào đúng menu Nhận phòng / Trả phòng.
-  setBadge('navReg', ST.applications.filter(a => a.status === 'pending').length + hoChoDuyet('checkin'));
-  setBadge('navCheckout', ST.couts.filter(c => c.status === 'pending').length + hoChoDuyet('checkout'));
+  // Cùng một con số với thẻ Tổng quan và khối đầu màn đích (nguoiCanXuLyPhong).
+  setBadge('navReg', nguoiCanXuLyPhong('checkin').tong);
+  setBadge('navCheckout', nguoiCanXuLyPhong('checkout').tong);
   setBadge('navRepair', dmg.filter(d => (d.category || 'damage') === 'damage' && d.status !== 'done').length);
   setBadge('navViol', (ST.vstats && ST.vstats.needMail) || 0);
   setBadge('navFeed', dmg.filter(d => ['violation', 'other'].includes(d.category) && d.status !== 'done').length);
   setBadge('navSettings', ST.pendingCount || 0);   // SSO: tài khoản chờ duyệt
   updateNotif();
 }
-// Số biên bản bàn giao an ninh gửi đang chờ quản trị (BL-121); k = 'checkin' | 'checkout' | bỏ trống = cả hai.
-const hoChoDuyet = k => (ST.hoReports || []).filter(r => r.status === 'pending' && (!k || r.kind === k)).length;
-// Số NGƯỜI quản trị cần xử lý nhận/trả phòng: một người nằm ở nhiều nguồn chỉ đếm một lần.
-// Thẻ Tổng quan và tiêu đề màn đích cùng gọi hàm này nên hai con số luôn bằng nhau.
+// Số NGƯỜI cần quản trị xác nhận nhận/trả phòng: tới ngày dự kiến ∪ biên bản an ninh chờ duyệt, một
+// người chỉ đếm một lần. Thẻ Tổng quan, badge menu, chuông và khối đầu màn đích đều gọi hàm này.
 function nguoiCanXuLyPhong(kind) {
-  const vao = kind === 'checkin';
-  const ngay = new Set(ST.students.filter(vao ? choXacNhanVao : choXacNhanRa).map(s => s.id));
+  const ngay = new Set(ST.students.filter(kind === 'checkin' ? choXacNhanVao : choXacNhanRa).map(s => s.id));
   const bienBan = new Set((ST.hoReports || []).filter(r => r.status === 'pending' && r.kind === kind).map(r => r.student_id));
-  const don = new Set(vao ? [] : (ST.couts || []).filter(c => c.status === 'pending').map(c => c.student_id));
-  const tong = new Set([...ngay, ...bienBan, ...don]).size;
-  return { tong, ngay: ngay.size, bienBan: bienBan.size, don: don.size, trung: ngay.size + bienBan.size + don.size - tong };
+  const tong = new Set([...ngay, ...bienBan]).size;
+  return { tong, ngay: ngay.size, bienBan: bienBan.size, trung: ngay.size + bienBan.size - tong };
 }
 /* ---- Trung tâm thông báo (chuông) ---- */
 function notifItems() {
   const items = [];
-  // Tách hai loại biên bản: gộp một dòng thì con số dẫn tới MỘT màn, màn đó không chứa đủ ngần ấy.
-  const hoVao = hoChoDuyet('checkin'), hoRa = hoChoDuyet('checkout');
-  if (hoVao) items.push({ n: hoVao, ic: IC.filePen, tx: `${hoVao} biên bản NHẬN phòng an ninh gửi, chờ xác nhận`, act: actAttr('nhanPhongGo') });
-  if (hoRa) items.push({ n: hoRa, ic: IC.filePen, tx: `${hoRa} biên bản TRẢ phòng an ninh gửi, chờ xác nhận`, act: actAttr('traPhongGo') });
+  // Nhận và trả là HAI dòng: gộp một dòng thì con số dẫn tới MỘT màn, màn đó không chứa đủ ngần ấy.
+  const nVao = nguoiCanXuLyPhong('checkin').tong, nRa = nguoiCanXuLyPhong('checkout').tong;
+  if (nVao) items.push({ n: nVao, ic: IC.key, tx: `${nVao} người cần xác nhận NHẬN phòng`, act: actAttr('nhanPhongGo') });
+  if (nRa) items.push({ n: nRa, ic: IC.logOut, tx: `${nRa} người cần xác nhận TRẢ phòng`, act: actAttr('traPhongGo') });
   // BL-19: dataset phụ tải hỏng -> cảnh báo trên chuông + nút Thử lại, thay vì để badge/số về 0 giả im lặng.
   if (ST.cacheErrors && ST.cacheErrors.length) items.push({ n: ST.cacheErrors.length, ic: IC.alert, tx: `Chưa tải được: ${ST.cacheErrors.join(', ')} — số liệu có thể chưa đầy đủ. Bấm để thử lại`, act: actAttr('retryCache') });
   const pApps = ST.applications.filter(a => a.status === 'pending').length;
@@ -222,9 +218,9 @@ function notifItems() {
   const refund = ST.students.filter(s => liveStatus(s) === 'left' && s.deposit_status === 'held').length;
   const pend = ST.pendingCount || 0;
   if (pend) items.push({ n: pend, ic: IC.shield, tx: `${pend} tài khoản Microsoft chờ duyệt`, act: actAttr('gotoUsers') });
-  if (pApps) items.push({ n: pApps, ic: IC.filePen, tx: `${pApps} đơn đăng ký chờ duyệt`, act: actAttr('nhanPhongGo') });
+  if (pApps) items.push({ n: pApps, ic: IC.filePen, tx: `${pApps} đơn đăng ký chờ duyệt`, act: actAttr('nhanPhongGo', 'don') });
   if (pDmg) items.push({ n: pDmg, ic: IC.wrench, tx: `${pDmg} báo hư hỏng chưa xử lý`, act: actAttr('baoTriGo') });
-  if (pCout) items.push({ n: pCout, ic: IC.logOut, tx: `${pCout} đơn xin trả phòng`, act: actAttr('traPhongGo') });
+  if (pCout) items.push({ n: pCout, ic: IC.filePen, tx: `${pCout} đơn xin trả phòng chờ đồng ý`, act: actAttr('traPhongGo', 'don') });
   if (needMail) items.push({ n: needMail, ic: IC.alert, tx: `${needMail} học viên vi phạm cần báo nhà trường`, act: actAttr('viPhamGo', 'canbao') });
   if (refund) items.push({ n: refund, ic: IC.handCoins, tx: `${refund} khoản cọc chờ hoàn (đã trả phòng)`, act: actAttr('quyCoc') });
   // BL-120 bãi xe: đề nghị sửa biển, báo cáo an ninh, xe vắng lâu, chưa chốt; bản chốt hôm nay chỉ để đọc (n=0).
