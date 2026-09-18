@@ -32,9 +32,14 @@ func serverErr(c *gin.Context, cause ...error) {
 }
 func conflict(c *gin.Context, body gin.H)     { c.JSON(http.StatusConflict, body) }
 
-// paramInt đọc tham số :id dạng số nguyên.
+// paramInt đọc tham số :id dạng số nguyên. CHỈ nhận chữ số (BL-105): Atoi còn nhận "+12", trong khi
+// rào cơ sở kiểm bằng studentsIsDigits — hai mức khoan dung lệch nhau chính là cửa vượt rào.
 func paramInt(c *gin.Context, name string) (int, bool) {
-	n, err := strconv.Atoi(c.Param(name))
+	s := c.Param(name)
+	if !studentsIsDigits(s) {
+		return 0, false
+	}
+	n, err := strconv.Atoi(s)
 	if err != nil {
 		return 0, false
 	}

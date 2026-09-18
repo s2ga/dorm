@@ -659,7 +659,8 @@ func (h *Handlers) studentsFacilityGuard(c *gin.Context, u *auth.User, idStr str
 		return true
 	}
 	if !studentsIsDigits(idStr) {
-		return true // id phi số -> để handler xử (students.routes.js:28)
+		notFound(c, "Không tìm thấy học viên") // BL-105: phi số -> 404, không nhả cho handler
+		return false
 	}
 	var fid *int
 	err := h.pool().QueryRow(c.Request.Context(), "SELECT facility_id FROM students WHERE id=$1", idStr).Scan(&fid)
