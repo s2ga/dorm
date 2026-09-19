@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -30,6 +31,47 @@ func (h *Handlers) publicDemNguoiDangO(c *gin.Context) (int, error) {
 		 WHERE s.deleted_at IS NULL
 		   AND s.check_in_date <= CURRENT_DATE AND (s.check_out_date IS NULL OR s.check_out_date > CURRENT_DATE)`).Scan(&n)
 	return n, err
+}
+
+// publicPhongOWhere: tập phòng học viên ở được — thuê ghép + thuê trọn, bỏ phòng an ninh và phòng
+// nhân viên. /info và /stats dùng CHUNG câu này để không đếm ra hai con số khác nhau (BL-125).
+const publicPhongOWhere = `COALESCE(room_type,'shared') IN ('shared','whole') AND deleted_at IS NULL`
+
+// publicGiuongTheoGioiTinh: giường trống và giường sắp trống của phòng nam / phòng nữ.
+func (h *Handlers) publicGiuongTheoGioiTinh(ctx context.Context) (map[string]int, map[string]int, error) {
+	trong, sapTrong := map[string]int{"male": 0, "female": 0}, map[string]int{"male": 0, "female": 0}
+	rows, err := h.pool().Query(ctx,
+		`SELECT CASE WHEN COALESCE(r.gender,'male') = 'female' THEN 'female' ELSE 'male' END AS gioi,
+		        COALESCE(SUM(GREATEST(0, GREATEST(0, r.capacity - o.dang_o) - o.dat_cho)),0)::int AS trong,
+		        COALESCE(SUM(GREATEST(0, GREATEST(0, r.capacity - o.dang_o + o.sap_roi) - o.dat_cho)
+		                   - GREATEST(0, GREATEST(0, r.capacity - o.dang_o) - o.dat_cho)),0)::int AS sap_trong
+		   FROM rooms r
+		   JOIN LATERAL (
+		     SELECT COUNT(*) FILTER (WHERE s.check_in_date <= CURRENT_DATE
+		              AND (s.check_out_date IS NULL OR s.check_out_date > CURRENT_DATE))::int AS dang_o,
+		            COUNT(*) FILTER (WHERE s.check_in_date <= CURRENT_DATE
+		              AND (s.check_out_date IS NULL OR s.check_out_date > CURRENT_DATE)
+		              AND s.planned_check_out IS NOT NULL)::int AS sap_roi,
+		            COUNT(*) FILTER (WHERE s.check_in_date IS NULL AND s.check_out_date IS NULL
+		              AND s.planned_check_in IS NOT NULL)::int AS dat_cho
+		       FROM students s
+		      WHERE s.room_id = r.id AND s.deleted_at IS NULL
+		   ) o ON TRUE
+		  WHERE COALESCE(r.room_type,'shared') IN ('shared','whole') AND r.deleted_at IS NULL
+		  GROUP BY 1`)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var gioi string
+		var t, st int
+		if err := rows.Scan(&gioi, &t, &st); err != nil {
+			return nil, nil, err
+		}
+		trong[gioi], sapTrong[gioi] = t, st
+	}
+	return trong, sapTrong, rows.Err()
 }
 
 // PublicInfo: GET /api/info — thông tin KTX + đơn giá cho trang đăng ký. public.routes.js:54-93
@@ -65,51 +107,25 @@ func (h *Handlers) PublicInfo(c *gin.Context) {
 	// không phải chỗ ở của học viên nên không đếm.
 	var rooms, beds, bedFree, bedSoon int
 	if err := h.pool().QueryRow(ctx,
-		"SELECT COUNT(*)::int c FROM rooms WHERE COALESCE(room_type,'shared') IN ('shared','whole') AND deleted_at IS NULL").Scan(&rooms); err != nil {
+		"SELECT COUNT(*)::int c FROM rooms WHERE "+publicPhongOWhere).Scan(&rooms); err != nil {
 		serverErr(c)
 		return
 	}
 	if err := h.pool().QueryRow(ctx,
-		"SELECT COALESCE(SUM(capacity),0)::int c FROM rooms WHERE COALESCE(room_type,'shared') IN ('shared','whole') AND deleted_at IS NULL").Scan(&beds); err != nil {
+		"SELECT COALESCE(SUM(capacity),0)::int c FROM rooms WHERE "+publicPhongOWhere).Scan(&beds); err != nil {
 		serverErr(c)
 		return
 	}
-	// Giường trống: kẹp ở 0 theo TỪNG phòng, đã trừ chỗ đã đặt (owner chốt 12/09/2026 — một con số,
-	// không bắt người đọc tự trừ). Cùng công thức thucCon của giao diện quản trị.
-	if err := h.pool().QueryRow(ctx,
-		`SELECT COALESCE(SUM(GREATEST(0, GREATEST(0, r.capacity - o.dang_o) - o.dat_cho)),0)::int c
-		   FROM rooms r
-		   JOIN LATERAL (
-		     SELECT COUNT(*) FILTER (WHERE s.check_in_date <= CURRENT_DATE
-		              AND (s.check_out_date IS NULL OR s.check_out_date > CURRENT_DATE))::int AS dang_o,
-		            COUNT(*) FILTER (WHERE s.check_in_date IS NULL AND s.check_out_date IS NULL
-		              AND s.planned_check_in IS NOT NULL)::int AS dat_cho
-		       FROM students s
-		      WHERE s.room_id = r.id AND s.deleted_at IS NULL
-		   ) o ON TRUE
-		  WHERE COALESCE(r.room_type,'shared') IN ('shared','whole') AND r.deleted_at IS NULL`).Scan(&bedFree); err != nil {
-		serverErr(c)
+	// Giường trống và giường SẮP trống, tách theo phòng nam / phòng nữ. Kẹp ở 0 theo TỪNG phòng rồi mới
+	// cộng, và trừ chỗ đã đặt ở CẢ HAI con số (owner chốt 12/09/2026) — không thì giường đã có chủ bị
+	// khoe hai lần. "Sắp trống" là phần TĂNG THÊM của chính "trống" khi người đã có lịch trả đi hết.
+	freeTheoGT, soonTheoGT, err := h.publicGiuongTheoGioiTinh(ctx)
+	if err != nil {
+		serverErr(c, err)
 		return
 	}
-	// Giường SẮP trống: người đang ở đã có ngày trả phòng ở tương lai. Tính bằng hiệu hai lần kẹp 0,
-	// không phải bằng cách đếm đầu người — phòng đang ở VƯỢT sức chứa thì một người rời chỉ bớt phần
-	// vượt, chưa sinh ra giường trống nào.
-	if err := h.pool().QueryRow(ctx,
-		`SELECT COALESCE(SUM(GREATEST(0, r.capacity - o.dang_o + o.sap_roi)
-		                  - GREATEST(0, r.capacity - o.dang_o)),0)::int c
-		   FROM rooms r
-		   JOIN LATERAL (
-		     SELECT COUNT(*)::int AS dang_o,
-		            COUNT(*) FILTER (WHERE s.planned_check_out IS NOT NULL)::int AS sap_roi
-		       FROM students s
-		      WHERE s.room_id = r.id AND s.deleted_at IS NULL
-		        AND s.check_in_date <= CURRENT_DATE
-		        AND (s.check_out_date IS NULL OR s.check_out_date > CURRENT_DATE)
-		   ) o ON TRUE
-		  WHERE COALESCE(r.room_type,'shared') IN ('shared','whole') AND r.deleted_at IS NULL`).Scan(&bedSoon); err != nil {
-		serverErr(c)
-		return
-	}
+	bedFree = freeTheoGT["male"] + freeTheoGT["female"]
+	bedSoon = soonTheoGT["male"] + soonTheoGT["female"]
 	// Số người đang ở: đếm NGƯỜI THẬT (thấy được cả người ở vượt sức chứa). public.routes.js:74
 	occupancy, err := h.publicDemNguoiDangO(c)
 	if err != nil {
@@ -122,6 +138,8 @@ func (h *Handlers) PublicInfo(c *gin.Context) {
 		"address": facAddr, "facility_name": facName,
 		"facilities": facilities,
 		"room_count": rooms, "bed_count": beds, "occupancy": occupancy, "bed_free": bedFree, "bed_soon": bedSoon,
+		"bed_free_male": freeTheoGT["male"], "bed_free_female": freeTheoGT["female"],
+		"bed_soon_male": soonTheoGT["male"], "bed_soon_female": soonTheoGT["female"],
 		"room_fee": s["room_fee"], "deposit_fee": s["deposit_fee"],
 		"electric_unit": s["electric_unit"], "water_fee": s["water_fee"], "service_fee": s["service_fee"],
 		"washing_fee": s["washing_fee"], "parking_fee": s["parking_fee"],
@@ -141,7 +159,7 @@ func (h *Handlers) PublicStats(c *gin.Context) {
 	ctx := c.Request.Context()
 	var rooms, zones int
 	if err := h.pool().QueryRow(ctx,
-		"SELECT COUNT(*)::int c FROM rooms WHERE COALESCE(room_type,'shared')='shared' AND deleted_at IS NULL").Scan(&rooms); err != nil {
+		"SELECT COUNT(*)::int c FROM rooms WHERE "+publicPhongOWhere).Scan(&rooms); err != nil {
 		serverErr(c)
 		return
 	}

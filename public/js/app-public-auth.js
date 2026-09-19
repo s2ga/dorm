@@ -129,6 +129,9 @@ async function renderPublicRegister() {
   const priceRow = (label, val, unit, note) => `<tr><td>${label}${note ? `<div class="price-sub">${note}</div>` : ''}</td><td class="num"><strong>${money(val)}</strong><span class="muted"> ${unit}</span></td></tr>`;
   const priceRowOpt = (label, val, unit) => `<tr><td>${label} <span class="price-opt">tùy chọn</span><div class="price-sub">Chỉ tính khi đăng ký sử dụng</div></td><td class="num"><strong>${money(val)}</strong><span class="muted"> ${unit}</span></td></tr>`;
   const T = (k, def) => esc(info[k] || def); // nội dung trang giới thiệu (admin chỉnh trong Cài đặt)
+  // Giường trống tách phòng nam / phòng nữ; "sắp trống" là phần tăng thêm khi người có lịch trả đi hết.
+  const oGiuongTrong = (nhan, trong, sapTrong) =>
+    `<div><b>${trong != null ? trong : '—'}</b><span>${nhan}${sapTrong ? ` · +${sapTrong} sắp trống` : ''}</span></div>`;
   el('app').innerHTML = `
   <div class="intro">
     <header class="intro-hero">
@@ -138,8 +141,8 @@ async function renderPublicRegister() {
         <h1>${T('intro_hero_title', 'Không gian nội trú\nan tâm & nề nếp').replace(/\n/g, '<br>')}</h1>
         <p>${info.address ? esc(info.address) + ' — ' : ''}${T('intro_hero_desc', 'chỗ ở tiện nghi, kỷ luật, đồng hành cùng học viên trên hành trình sang Nhật.')}</p>
         <div class="intro-stats">
-          <div><b>${info.room_count != null ? info.room_count : '—'}</b><span>Phòng ở</span></div>
-          <div><b>${info.bed_free != null ? info.bed_free : '—'}</b><span>Giường trống${info.bed_soon ? ` · +${info.bed_soon} sắp trống` : ''}</span></div>
+          ${oGiuongTrong('Giường trống nam', info.bed_free_male, info.bed_soon_male)}
+          ${oGiuongTrong('Giường trống nữ', info.bed_free_female, info.bed_soon_female)}
           <div><b>${money(info.room_fee)}</b><span>Thuê ghép / tháng</span></div>
         </div>
         <div class="intro-cta">
