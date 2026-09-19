@@ -1643,18 +1643,16 @@ function stuAccPwForm(id) {
     <div class="mh"><h3>Đặt lại mật khẩu học viên</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <p class="muted" style="margin-top:0">Học viên: <strong>${esc(u.student_name || '')}</strong> · Tài khoản: <strong>${esc(u.username)}</strong></p>
-      <div class="field"><label>Mật khẩu mới *</label><input id="sa_newpass" type="text" placeholder="Tối thiểu 6 ký tự"></div>
-      <div class="hint" style="font-size:12px">${IC.info} Học viên sẽ bị <strong>buộc đổi mật khẩu</strong> ở lần đăng nhập kế, và mọi thiết bị đang đăng nhập bị đá ra ngay.</div>
+      <div class="hint" style="font-size:12px">${IC.key} Máy tự tạo mật khẩu mới và hiện <strong>một lần</strong>. Học viên bị <strong>buộc đổi mật khẩu</strong> ở lần đăng nhập kế, và mọi thiết bị đang đăng nhập bị đá ra ngay.</div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="doStuAccPw" data-args='[${id}]'>Đổi mật khẩu</button></div>`);
-  setTimeout(() => { const f = el('sa_newpass'); if (f) f.focus(); }, 50);
+    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="doStuAccPw" data-args='[${id}]'>Cấp lại mật khẩu</button></div>`);
 }
 async function doStuAccPw(id) {
   const u = (window._stuAccCache || []).find(x => x.id === id); if (!u) return;
-  const pw = el('sa_newpass').value.trim();
-  if (pw.length < 6) return toast('Mật khẩu tối thiểu 6 ký tự', 'err');
-  await guard(() => API.setAccount(u.student_id, { password: pw })); // endpoint hồ sơ HV: đặt MK + buộc đổi + thu hồi phiên
-  closeModal(); toast('Đã đổi mật khẩu học viên'); loadStudentAccounts();
+  const r = await guard(() => API.setAccount(u.student_id, {})); // endpoint hồ sơ HV: đặt MK + buộc đổi + thu hồi phiên
+  closeModal(); loadStudentAccounts();
+  if (r && r.password) credentialModal(r.username, r.password);
+  else toast('Đã cấp lại mật khẩu học viên');
 }
 async function revokeStuSession(id) {
   const u = (window._stuAccCache || []).find(x => x.id === id); if (!u) return;

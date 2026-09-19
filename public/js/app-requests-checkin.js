@@ -362,10 +362,8 @@ function approveForm(id) {
       <div class="hint">${IC.info} Duyệt đơn chỉ là <strong>xếp chỗ ở</strong>. <strong>Hợp đồng</strong> nhập ở màn hồ sơ học viên khi ký thật; <strong>tiền cọc</strong> tự bật cờ đã đóng khi phiếu thu kỳ nhận phòng được đánh dấu đã thu.</div>
       <label class="check" style="margin-top:8px"><input type="checkbox" id="ap_login" checked data-change="onApLoginToggle"> ${IC.key} Tạo tài khoản đăng nhập cho học viên</label>
       <div id="apLogin" style="background:var(--bg2);padding:12px;border-radius:10px;margin-top:8px">
-        <div class="grid2">
-          <div class="field" style="margin:0"><label>Tên đăng nhập <span class="opt">(trống = SĐT)</span></label><input id="ap_user" value="${esc(a.phone || '')}"></div>
-          <div class="field" style="margin:0"><label>Mật khẩu</label><input id="ap_pass" type="text" value="123456"></div>
-        </div>
+        <div class="field" style="margin:0"><label>Tên đăng nhập <span class="opt">(trống = SĐT)</span></label><input id="ap_user" value="${esc(a.phone || '')}"></div>
+        <div class="hint" style="margin-top:8px">${IC.key} Mật khẩu do máy tự tạo và chỉ hiện <strong>một lần</strong> sau khi lưu — đưa tận tay học viên, lần đầu đăng nhập bạn ấy phải đổi.</div>
       </div>
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="doApprove" data-args='[${a.id}]'>Xác nhận thêm</button></div>`);
@@ -377,7 +375,8 @@ async function doApprove(id) {
   const body = {
     room_id: el('ap_room').value || null, check_in_date: el('ap_date').dataset.iso,
   };
-  if (el('ap_login').checked) { body.create_login = true; body.login_username = el('ap_user').value.trim(); body.login_password = el('ap_pass').value.trim(); }
+  // Không gửi login_password: máy chủ tự sinh rồi trả về một lần (credentialModal).
+  if (el('ap_login').checked) { body.create_login = true; body.login_username = el('ap_user').value.trim(); }
   const r = await guard(() => withDuplicateGuide(() => withOverloadConfirm(ok => API.approveApplication(id, { ...body, confirm_overload: ok }))));
   if (r === null) return; // đã có hồ sơ / người dùng huỷ — modal kia đã chỉ đường
   if (r === null) return; // hủy ở hộp xác nhận quá tải

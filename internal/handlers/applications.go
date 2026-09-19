@@ -477,17 +477,27 @@ func (h *Handlers) ApproveApplication(c *gin.Context) {
 	}
 
 	// Tài khoản đăng nhập (tuỳ chọn) — validate trước transaction. applications.routes.js:122-133
+	// Không gửi khoá login_password = máy tự sinh mật khẩu, trả về MỘT LẦN cho nhân viên đưa học viên.
 	uname, pass := "", ""
 	if jsTruthy(b.CreateLogin) {
 		uname = strings.TrimSpace(applicationsFirstNonEmpty(applicationsDeref(b.LoginUsername), appPhone, appCode))
-		pass = strings.TrimSpace(applicationsDeref(b.LoginPassword))
 		if uname == "" {
 			badRequest(c, "Cần tên đăng nhập")
 			return
 		}
-		if len([]rune(pass)) < valid.InitialPasswordMin {
-			badRequest(c, "Mật khẩu tối thiểu "+itoa(valid.InitialPasswordMin)+" ký tự")
-			return
+		if b.LoginPassword == nil {
+			mk, e := auth.MatKhauNgauNhien()
+			if e != nil {
+				serverErr(c, e)
+				return
+			}
+			pass = mk
+		} else {
+			pass = strings.TrimSpace(*b.LoginPassword)
+			if len([]rune(pass)) < valid.InitialPasswordMin {
+				badRequest(c, "Mật khẩu tối thiểu "+itoa(valid.InitialPasswordMin)+" ký tự")
+				return
+			}
 		}
 		var one int
 		e := h.pool().QueryRow(ctx, "SELECT 1 FROM users WHERE lower(username)=lower($1) AND deleted_at IS NULL", uname).Scan(&one)

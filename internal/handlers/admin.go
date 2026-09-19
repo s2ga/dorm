@@ -118,6 +118,18 @@ var adminKiemTraList = []adminKiemTra{
            ORDER BY i.month, s.name`,
 	},
 	{
+		ma: "hv_con_mat_khau_khoi_tao", ten: "Tài khoản học viên còn mật khẩu khởi tạo",
+		viSao:   "Mật khẩu do máy cấp mà học viên chưa đổi — tài khoản cũ đặt 123456 nằm hết ở đây.",
+		cachSua: `Màn Cài đặt → Tài khoản học viên → nút "MK" để cấp lại mật khẩu mới, đưa tận tay học viên.`,
+		sql: `SELECT u.username AS khoa, COALESCE(s.name,'(chưa gắn hồ sơ)') || COALESCE(' · phòng ' || r.name, '')
+                || ' · tạo ' || to_char(u.created_at, 'DD/MM/YYYY') AS chi_tiet
+            FROM users u
+            LEFT JOIN students s ON s.id = u.student_id AND s.deleted_at IS NULL
+            LEFT JOIN rooms r ON r.id = s.room_id
+           WHERE u.role = 'student' AND u.deleted_at IS NULL AND u.must_change_password
+           ORDER BY u.created_at`,
+	},
+	{
 		ma: "cccd_cua_nguoi_khac", ten: "Hồ sơ mang ảnh CCCD của người khác",
 		viSao:   "Ảnh CCCD của hồ sơ này đang trỏ tới tệp của hồ sơ hoặc đơn đăng ký khác — bản in gửi công an sẽ ra ảnh người khác.",
 		cachSua: "Mở hồ sơ, tải lại ảnh CCCD đúng của học viên này.",

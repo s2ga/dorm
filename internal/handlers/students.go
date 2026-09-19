@@ -1314,6 +1314,7 @@ func (h *Handlers) CreateStudent(c *gin.Context) {
 	// Tài khoản đăng nhập (tuỳ chọn)
 	createLogin := studentsJSTruthy(b["create_login"])
 	var uname, pass string
+	matKhauTuSinh := false
 	if createLogin {
 		if studentsJSTruthy(b["login_username"]) {
 			uname = studentsJSString(b["login_username"])
@@ -1321,17 +1322,24 @@ func (h *Handlers) CreateStudent(c *gin.Context) {
 			uname = studentsJSString(b["code"])
 		}
 		uname = strings.TrimSpace(uname)
-		if studentsJSTruthy(b["login_password"]) {
-			pass = studentsJSString(b["login_password"])
-		}
-		pass = strings.TrimSpace(pass)
 		if uname == "" {
 			badRequest(c, "Cần tên đăng nhập (hoặc mã HV) để tạo tài khoản")
 			return
 		}
-		if len([]rune(pass)) < valid.InitialPasswordMin {
-			badRequest(c, "Mật khẩu tài khoản tối thiểu "+itoa(valid.InitialPasswordMin)+" ký tự")
-			return
+		// Không gửi khoá login_password = máy tự sinh, trả về MỘT LẦN cho nhân viên đưa học viên.
+		if _, co := b["login_password"]; !co {
+			mk, e := auth.MatKhauNgauNhien()
+			if e != nil {
+				serverErr(c, e)
+				return
+			}
+			pass, matKhauTuSinh = mk, true
+		} else {
+			pass = strings.TrimSpace(studentsJSString(b["login_password"]))
+			if len([]rune(pass)) < valid.InitialPasswordMin {
+				badRequest(c, "Mật khẩu tài khoản tối thiểu "+itoa(valid.InitialPasswordMin)+" ký tự")
+				return
+			}
 		}
 		var one int
 		if h.pool().QueryRow(ctx, "SELECT 1 FROM users WHERE lower(username)=lower($1) AND deleted_at IS NULL", uname).Scan(&one) == nil {
@@ -1493,6 +1501,9 @@ func (h *Handlers) CreateStudent(c *gin.Context) {
 	studentsLogOverloads(ctx, h.pool(), c, u, intFromDB(student["id"]), studentsJSString(student["name"]), chk.Warnings)
 	studentsSignCccd(student)
 	student["warnings"] = chk.Warnings
+	if matKhauTuSinh {
+		student["account"] = gin.H{"username": uname, "password": pass}
+	}
 	c.JSON(http.StatusCreated, student)
 }
 
@@ -2844,8 +2855,17 @@ func (h *Handlers) StudentAccount(c *gin.Context) {
 	}
 	ctx := c.Request.Context()
 	_, b := studentsReadBody(c)
-	password := studentsStrOr(b["password"])
-	if password == "" || len([]rune(password)) < valid.InitialPasswordMin {
+	// Không gửi khoá password = máy tự sinh và trả về MỘT LẦN; có gửi thì giữ luật tối thiểu 6 ký tự.
+	_, coMatKhau := b["password"]
+	password, tuSinh := studentsStrOr(b["password"]), false
+	if !coMatKhau {
+		mk, e := auth.MatKhauNgauNhien()
+		if e != nil {
+			serverErr(c, e)
+			return
+		}
+		password, tuSinh = mk, true
+	} else if password == "" || len([]rune(password)) < valid.InitialPasswordMin {
 		badRequest(c, "Mật khẩu tối thiểu "+itoa(valid.InitialPasswordMin)+" ký tự")
 		return
 	}
@@ -2888,7 +2908,11 @@ func (h *Handlers) StudentAccount(c *gin.Context) {
 			serverErr(c)
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"ok": true, "username": studentsJSString(existing["username"])})
+		out := gin.H{"ok": true, "username": studentsJSString(existing["username"])}
+		if tuSinh {
+			out["password"] = password
+		}
+		c.JSON(http.StatusOK, out)
 		return
 	}
 	// Cùng thứ tự lùi với đường duyệt đơn (applications.go): hồ sơ vào từ đơn đăng ký chưa có mã HV,
@@ -2917,5 +2941,9 @@ func (h *Handlers) StudentAccount(c *gin.Context) {
 		serverErr(c)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true, "username": uname})
+	out := gin.H{"ok": true, "username": uname}
+	if tuSinh {
+		out["password"] = password
+	}
+	c.JSON(http.StatusOK, out)
 }

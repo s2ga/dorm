@@ -792,10 +792,8 @@ async function studentForm(id) {
         <label class="check"><input type="checkbox" id="f_dep"> ${IC.lock} Đã đóng cọc ${money(ST.settings.deposit_fee)} khi nhận phòng <span class="opt">— chỉ tick khi đã thật sự nhận tiền</span></label>
         <label class="check" style="margin-top:8px"><input type="checkbox" id="f_login" data-change="onLoginBoxToggle"> ${IC.key} Tạo tài khoản đăng nhập</label>
         <div id="loginBox" style="display:none;background:var(--bg2);padding:12px;border-radius:10px;margin-top:8px">
-          <div class="grid2">
-            <div class="field" style="margin:0"><label>Tên đăng nhập <span class="opt">(trống = mã HV)</span></label><input id="f_luser"></div>
-            <div class="field" style="margin:0"><label>Mật khẩu</label><input id="f_lpass" type="text" placeholder="tối thiểu 6 ký tự"></div>
-          </div>
+          <div class="field" style="margin:0"><label>Tên đăng nhập <span class="opt">(trống = mã HV)</span></label><input id="f_luser"></div>
+          <div class="hint" style="margin-top:8px">${IC.key} Mật khẩu do máy tự tạo, hiện <strong>một lần</strong> sau khi lưu.</div>
         </div>`) : `<div class="hint">${IC.info}<span>Giảm giá theo % nay chỉnh ở màn <strong>Tiền phòng</strong> — bấm ✎ trên phiếu của học viên. Tiền nằm ở đâu thì sửa ở đó.</span></div>`}
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveStudent" data-args='[${id || 0}]'>Lưu</button></div>`, true);
@@ -853,7 +851,7 @@ async function saveStudent(id) {
   if (!body.name) return toast('Nhập họ tên', 'err');
   if (!id) {
     body.deposit_paid = el('f_dep').checked;
-    if (el('f_login').checked) { body.create_login = true; body.login_username = el('f_luser').value.trim(); body.login_password = el('f_lpass').value.trim(); }
+    if (el('f_login').checked) { body.create_login = true; body.login_username = el('f_luser').value.trim(); }
   }
   // Chỉ gửi mặt ảnh NÀO vừa chọn — không gửi = giữ nguyên ảnh cũ trên máy chủ.
   if (_cccdFrontChanged) body.cccd_front = _cccdFront;
@@ -1395,14 +1393,16 @@ function accountForm(id, code) {
     <div class="mb">
       <div class="field"><label>Tên đăng nhập <span class="opt">${code ? 'gợi ý sẵn — sửa được' : 'hồ sơ chưa có mã HV lẫn SĐT, phải tự đặt'}</span></label>
         <input id="a_user" value="${esc(code || '')}" placeholder="vd mã học viên hoặc số điện thoại"></div>
-      <div class="field"><label>Mật khẩu mới</label><input id="a_pass" type="text" placeholder="tối thiểu 6 ký tự"></div>
+      <div class="hint">${IC.key} Máy tự tạo mật khẩu và hiện <strong>một lần</strong> sau khi lưu — đưa tận tay học viên, lần đầu đăng nhập bạn ấy phải đổi.</div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveAccount" data-args='[${id}]'>Lưu</button></div>`);
-  setTimeout(() => el('a_pass').focus(), 50);
+    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveAccount" data-args='[${id}]'>Tạo / cấp lại mật khẩu</button></div>`);
+  setTimeout(() => el('a_user').focus(), 50);
 }
 async function saveAccount(id) {
-  const r = await guard(() => API.setAccount(id, { username: el('a_user').value.trim(), password: el('a_pass').value.trim() }));
-  await refreshCache(); await luuXongVeLai(veLaiNen); toast('Đã lưu tài khoản: ' + r.username);
+  const r = await guard(() => API.setAccount(id, { username: el('a_user').value.trim() }));
+  await refreshCache(); await luuXongVeLai(veLaiNen);
+  if (r && r.password) credentialModal(r.username, r.password);
+  else toast('Đã lưu tài khoản: ' + r.username);
 }
 /* Cọc */
 function depositForm(id) {
