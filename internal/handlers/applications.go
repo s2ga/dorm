@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/crypto/bcrypt"
 	"ktx/internal/auth"
 	"ktx/internal/db"
@@ -638,7 +639,25 @@ func (h *Handlers) ApproveApplication(c *gin.Context) {
 			c.JSON(ae.status, gin.H{"error": ae.msg})
 			return
 		}
-		serverErr(c)
+		// Mã HV và CCCD có UNIQUE trong CSDL (owner chốt 17/09: mã không được trùng). Va phải thì nói
+		// rõ phải làm gì, đừng trả "Lỗi máy chủ".
+		var pe *pgconn.PgError
+		if errors.As(txErr, &pe) && pe.Code == "23505" {
+			switch {
+			case strings.Contains(pe.ConstraintName, "students_code"):
+				conflict(c, gin.H{"error": `Mã học viên "` + appCode + `" đã có hồ sơ khác dùng. Sửa mã trên đơn, ` +
+					"hoặc xử lý ngay trên hồ sơ cũ (Chuyển phòng / Check-in lại) rồi Từ chối đơn này."})
+				return
+			case strings.Contains(pe.ConstraintName, "students_id_card"):
+				conflict(c, gin.H{"error": "Số CCCD này đã có hồ sơ khác dùng. Kiểm lại hồ sơ cũ rồi Từ chối đơn này."})
+				return
+			case strings.Contains(pe.ConstraintName, "vehicles_plate"):
+				conflict(c, gin.H{"error": `Biển số "` + strings.TrimSpace(applicationsStr(app, "plate")) +
+					`" đang gắn cho xe khác. Gỡ xe cũ ở màn Xe rồi duyệt lại đơn này.`})
+				return
+			}
+		}
+		serverErr(c, txErr)
 		return
 	}
 

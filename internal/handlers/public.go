@@ -291,7 +291,11 @@ func (h *Handlers) PublicApply(c *gin.Context) {
 		return
 	}
 	var b publicApplyBody
-	_ = c.ShouldBindJSON(&b)
+	if err := c.ShouldBindJSON(&b); err != nil {
+		st, msg := bindJSONLoi(err)
+		c.JSON(st, gin.H{"error": msg})
+		return
+	}
 	if strings.TrimSpace(b.Name) == "" {
 		badRequest(c, "Vui lòng nhập họ tên")
 		return
@@ -323,6 +327,11 @@ func (h *Handlers) PublicApply(c *gin.Context) {
 	fields := map[string]string{"name": b.Name, "phone": b.Phone, "code": b.Code, "class_name": b.ClassName, "pref": b.Pref, "note": b.Note, "plate": b.Plate}
 	get := func(k string) (string, bool) { v, ok := fields[k]; return v, ok }
 	if e := valid.TooLong(get, []valid.TooLongField{{Key: "name", Max: 120}, {Key: "phone", Max: 20}, {Key: "code", Max: 40}, {Key: "class_name", Max: 80}, {Key: "pref", Max: 500}, {Key: "note", Max: 2000}, {Key: "plate", Max: 20}}); e != "" {
+		badRequest(c, e)
+		return
+	}
+	// Cửa công khai không được lỏng hơn cửa nội bộ: dữ liệu đơn được chép thẳng sang hồ sơ lúc duyệt.
+	if e := valid.KhongChoHTML(get, []string{"name", "phone", "code", "class_name", "pref", "note", "plate"}); e != "" {
 		badRequest(c, e)
 		return
 	}

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"path/filepath"
@@ -31,6 +32,16 @@ func serverErr(c *gin.Context, cause ...error) {
 	c.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi máy chủ"})
 }
 func conflict(c *gin.Context, body gin.H)     { c.JSON(http.StatusConflict, body) }
+
+// bindJSONLoi: phân loại lỗi đọc body JSON — quá lớn (413) hay hỏng/sai kiểu (400). Không nuốt lỗi
+// rồi chạy tiếp với thân rỗng, vì người gửi sẽ nhận thông điệp sai chỗ ("Vui lòng nhập họ tên").
+func bindJSONLoi(err error) (int, string) {
+	var qua *http.MaxBytesError
+	if errors.As(err, &qua) {
+		return http.StatusRequestEntityTooLarge, "Dữ liệu gửi lên quá lớn — ảnh CCCD quá nặng. Chụp lại ảnh nhẹ hơn rồi gửi lại."
+	}
+	return http.StatusBadRequest, "Dữ liệu gửi lên không đọc được. Tải lại trang rồi gửi lại."
+}
 
 // paramInt đọc tham số :id dạng số nguyên. CHỈ nhận chữ số (BL-105): Atoi còn nhận "+12", trong khi
 // rào cơ sở kiểm bằng studentsIsDigits — hai mức khoan dung lệch nhau chính là cửa vượt rào.
