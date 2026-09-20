@@ -28,7 +28,7 @@ module.exports = {
       const R1 = (await t.db.query(`INSERT INTO rooms (name,facility_id,capacity,gender,hang,monthly_fee) VALUES ($1,$2,4,'female','B',1200000) RETURNING id`, [P + '_R1', fac])).rows[0].id;
       const R2 = (await t.db.query(`INSERT INTO rooms (name,facility_id,capacity,gender,hang,monthly_fee) VALUES ($1,$2,4,'female','B',1200000) RETURNING id`, [P + '_R2', fac])).rows[0].id;
 
-      const base = { name: P + ' An', gender: 'female', code: P + '_MA1', id_card: P + '_CCCD1', room_id: R1, check_in_date: '2026-07-01', rental_type: 'ghep' };
+      const base = { name: P + ' An', gender: 'female', birth_date: '2004-05-06', code: P + '_MA1', id_card: P + '_CCCD1', room_id: R1, check_in_date: '2026-07-01', rental_type: 'ghep' };
       const a = await t.api('POST', '/api/students', T, base);
       t.eq('Tạo học viên mới → OK', a.status, 201, `HTTP ${a.status} ${a.json && a.json.error || ''}`);
       const id1 = a.json.id;
@@ -59,9 +59,9 @@ module.exports = {
       // ===== KHÔNG được chặn nhầm người ngay tình
       const ok1 = await t.api('PUT', `/api/students/${id2}`, T, { name: P + ' Binh sua ten', gender: 'female', code: P + '_MA2', id_card: P + '_CCCD2' });
       t.eq('Sửa hồ sơ mà GIỮ NGUYÊN mã của chính mình → phải cho qua', ok1.status, 200, `HTTP ${ok1.status} — ${ok1.json && ok1.json.error || ''}`);
-      const ok2 = await t.api('POST', '/api/students', T, { name: P + ' Cuc', gender: 'female', check_in_date: '2026-07-01', rental_type: 'ghep' });
+      const ok2 = await t.api('POST', '/api/students', T, { name: P + ' Cuc', gender: 'female', birth_date: '2004-05-06', check_in_date: '2026-07-01', rental_type: 'ghep' });
       t.eq('Tạo học viên KHÔNG có mã, KHÔNG có CCCD → phải cho qua (ô trống không tính là trùng)', ok2.status, 201, `HTTP ${ok2.status} — ${ok2.json && ok2.json.error || ''}`);
-      const ok3 = await t.api('POST', '/api/students', T, { name: P + ' Dung', gender: 'female', check_in_date: '2026-07-01', rental_type: 'ghep' });
+      const ok3 = await t.api('POST', '/api/students', T, { name: P + ' Dung', gender: 'female', birth_date: '2004-05-06', check_in_date: '2026-07-01', rental_type: 'ghep' });
       t.eq('Tạo người thứ hai cũng không mã → vẫn cho qua (không đụng nhau)', ok3.status, 201, `HTTP ${ok3.status}`);
 
       // ===== Hồ sơ đã XOÁ thì mã được dùng lại

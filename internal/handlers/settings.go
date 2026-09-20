@@ -92,6 +92,7 @@ var settingsAllowed = []string{
 	"legal_female", "legal_male", "due_day_from", "due_day_to",
 	"overdue_remind_days", "shortterm_max_days", "deposit_notice_min_days", "partial_half_factor",
 	"room_cap_A", "room_cap_B", "room_cap_C", "room_cap_D", "checkout_max_future_days", "max_cccd_mb",
+	"tuoi_toi_thieu", "tuoi_toi_da",
 	"room_price_A", "room_price_B", "room_price_C", "room_price_D",
 	"room_area_A", "room_area_B", "room_area_C", "room_area_D",
 	"security_day_phone", "security_night_phone", "security_day_from", "security_day_to",

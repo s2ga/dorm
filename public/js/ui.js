@@ -13,6 +13,12 @@ const curMonth = () => today().slice(0, 7);
 const prevKy = m => { const d = new Date(m + '-15T00:00:00'); d.setMonth(d.getMonth() - 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
 const addDays = (iso, n) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 function fmtDate(d) { if (!d) return '—'; const p = String(d).slice(0, 10).split('-'); return `${p[2]}/${p[1]}/${p[0]}`; }
+// Tuổi tròn tại mốc (mặc định hôm nay), so theo bộ ba năm/tháng/ngày như máy chủ.
+const soTuoi = (ngaySinh, moc = today()) => {
+  const ns = String(ngaySinh || '').slice(0, 10);
+  if (ns.length !== 10) return -1;
+  return Number(moc.slice(0, 4)) - Number(ns.slice(0, 4)) - (moc.slice(5) < ns.slice(5) ? 1 : 0);
+};
 // BL-95: gói TOÀN BỘ nội dung mỗi .hint vào một lớp phủ, thay bằng đúng một nút "Ghi chú". Làm ở đây
 // thay vì sửa 68 chỗ dựng HTML. Mặt nút dựng mới, không lấy icon có sẵn trong note.
 function gonNote(goc) {

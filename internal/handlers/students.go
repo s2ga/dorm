@@ -1357,6 +1357,13 @@ func (h *Handlers) CreateStudent(c *gin.Context) {
 	if studentsJSTruthy(b["check_out_date"]) {
 		checkOut = studentsJSString(b["check_out_date"])
 	}
+	// BL-128: tạo hồ sơ kèm xếp phòng và vào ở ngay = một bước nhận phòng -> bắt buộc ngày sinh đúng
+	// khoảng tuổi; các trường hợp còn lại chỉ kiểm khi có nhập.
+	if e := h.kiemNgaySinh(ctx, studentsJSString(b["birth_date"]), roomIDPtr,
+		studentsJSTruthy(b["room_id"]) && checkIn <= today); e != "" {
+		badRequest(c, e)
+		return
+	}
 	status := "in"
 	if checkOut != "" && checkOut <= today {
 		status = "out"
@@ -1549,6 +1556,21 @@ func (h *Handlers) UpdateStudent(c *gin.Context) {
 			s := studentsJSString(v)
 			if s != "" && !valid.IsValidYmd(s) {
 				badRequest(c, "Ngày không hợp lệ ("+k+")")
+				return
+			}
+		}
+	}
+	// BL-128: chỉ xét khi lần lưu này ĐỔI ngày sinh — hồ sơ cũ đang sai tuổi vẫn sửa được thứ khác
+	// (owner chốt 19/09: liệt kê ở Kiểm dữ liệu, không chặn cứng), nhưng không được xoá trắng.
+	if rv, sent := raw["birth_date"]; sent {
+		moi, cu := studentsSlice10(studentsJSString(rv)), studentsSlice10(studentsJSString(cur["birth_date"]))
+		if moi == "" && cu != "" {
+			badRequest(c, "Không được xoá trắng ngày sinh của hồ sơ.")
+			return
+		}
+		if moi != "" && moi != cu {
+			if e := h.kiemNgaySinh(ctx, moi, studentsRoomIDPtr(b["room_id"]), false); e != "" {
+				badRequest(c, e)
 				return
 			}
 		}
@@ -1888,7 +1910,7 @@ func (h *Handlers) StudentCheckin(c *gin.Context) {
 		badRequest(c, "Ngày dự kiến trả không hợp lệ")
 		return
 	}
-	meRows, err := h.pool().Query(ctx, "SELECT gender, rental_type, name, cccd_front, cccd_back, planned_check_in::text AS lich_vao, planned_check_out::text AS lich_tra FROM students WHERE id=$1 AND deleted_at IS NULL", id)
+	meRows, err := h.pool().Query(ctx, "SELECT gender, rental_type, name, cccd_front, cccd_back, room_id, birth_date::text AS birth_date, planned_check_in::text AS lich_vao, planned_check_out::text AS lich_tra FROM students WHERE id=$1 AND deleted_at IS NULL", id)
 	if err != nil {
 		serverErr(c)
 		return
@@ -1909,6 +1931,14 @@ func (h *Handlers) StudentCheckin(c *gin.Context) {
 		return
 	}
 	roomIDPtr := studentsRoomIDPtr(b["room_id"])
+	if roomIDPtr == nil {
+		roomIDPtr = intPtrFromDB(me["room_id"])
+	}
+	// BL-128: nhận phòng là cửa chốt cuối — tới đây vẫn thiếu/sai ngày sinh thì không cho qua.
+	if e := h.kiemNgaySinh(ctx, studentsJSString(me["birth_date"]), roomIDPtr, true); e != "" {
+		badRequest(c, e)
+		return
+	}
 	chkI, err := roomrules.CheckRoomAssignment(ctx, h.pool(), &id, studentsJSString(me["gender"]), studentsJSString(me["rental_type"]), roomIDPtr)
 	if err != nil {
 		serverErr(c)

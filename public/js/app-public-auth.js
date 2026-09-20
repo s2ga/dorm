@@ -237,7 +237,8 @@ async function renderPublicRegister() {
       ${info.facilities && info.facilities.length ? `<div class="field"><label>Cơ sở đăng ký ${SAO}</label><select id="a_facility">${info.facilities.map(f => `<option value="${f.id}">${esc(f.name)}${f.address ? ' — ' + esc(f.address) : ''}</option>`).join('')}</select></div>` : ''}
       <div class="grid2">
         <div class="field"><label>Giới tính ${SAO}</label><select id="a_gender"><option value="female">Nữ</option><option value="male">Nam</option></select></div>
-        <div class="field"><label>Ngày sinh</label><input id="a_birth"></div>
+        <div class="field"><label>Ngày sinh *</label><input id="a_birth">
+          <div class="price-sub">Ký túc xá nhận học viên từ ${info.age_min || 17} đến ${info.age_max || 39} tuổi.</div></div>
       </div>
       <div class="field"><label>Ngày muốn nhận phòng ${SAO}</label><input id="a_movein" required>
         <div class="muted" style="font-size:12.5px;margin-top:4px">${IC.info} Ban quản lý xếp phòng theo ngày này. Chọn từ hôm nay trở đi; chưa chắc ngày nào thì cứ chọn tạm rồi báo lại sau.</div>
@@ -270,6 +271,14 @@ async function renderPublicRegister() {
   el('applyForm').addEventListener('submit', async e => {
     e.preventDefault();
     // Ô ngày là input đọc-chỉ có lịch riêng nên `required` của trình duyệt không bắt được -> chặn ở đây.
+    const ngaySinh = el('a_birth').dataset.iso || '';
+    if (!ngaySinh) { toast('Chọn ngày sinh', 'err'); el('a_birth').focus(); return; }
+    const tuoi = soTuoi(ngaySinh);
+    const tMin = info.age_min || 17, tMax = info.age_max || 39;
+    if (tuoi < tMin || tuoi > tMax) {
+      toast(`Ký túc xá nhận học viên từ ${tMin} đến ${tMax} tuổi — ngày sinh này ra ${tuoi} tuổi`, 'err');
+      el('a_birth').focus(); return;
+    }
     const ngayVao = el('a_movein').dataset.iso || '';
     if (!ngayVao) { toast('Chọn ngày muốn nhận phòng', 'err'); el('a_movein').focus(); return; }
     if (ngayVao < today()) { toast('Ngày muốn nhận phòng đã qua — chọn lại', 'err'); el('a_movein').focus(); return; }

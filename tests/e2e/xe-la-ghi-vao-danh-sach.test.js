@@ -37,12 +37,12 @@ module.exports = {
       `INSERT INTO rooms (name,facility_id,capacity,gender,hang,monthly_fee,room_type)
        VALUES ($1,$2,4,'male','B',1200000,'shared') RETURNING id`, [P + '_R1', fac])).rows[0].id;
     const hv1 = await t.api('POST', '/api/students', T, {
-      name: P + ' Mot', code: P + '_M1', gender: 'male', room_id: R1, check_in_date: doiNgay(-40),
+      name: P + ' Mot', code: P + '_M1', gender: 'male', birth_date: '2004-05-06', room_id: R1, check_in_date: doiNgay(-40),
       check_out_date: doiNgay(60), rental_type: 'ghep', confirm_overload: true,   // BL-117: ngày tương lai = LỊCH trả phòng
     });
     t.eq('Dựng HV đang ở', hv1.status, 201, loi(hv1));
     const hv2 = await t.api('POST', '/api/students', T, {
-      name: P + ' Hai', code: P + '_M2', gender: 'male', room_id: R1, check_in_date: doiNgay(-30), rental_type: 'ghep', confirm_overload: true,
+      name: P + ' Hai', code: P + '_M2', gender: 'male', birth_date: '2004-05-06', room_id: R1, check_in_date: doiNgay(-30), rental_type: 'ghep', confirm_overload: true,
     });
     t.eq('Dựng HV thứ hai', hv2.status, 201, loi(hv2));
     const s1 = hv1.json.id, s2 = hv2.json.id;

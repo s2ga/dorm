@@ -26,8 +26,8 @@ module.exports = {
     // Hồ sơ SẮP VÀO (BL-117): chỉ có lịch dự kiến, chưa có ngày vào thật.
     // cccd_front/back phải có: nhận phòng đòi đủ 2 mặt (luật 12/09/2026), khoá riêng ở xac-nhan-vao-ra.
     const mkStu = async (n, ten, soHD) => (await t.db.query(
-      `INSERT INTO students (code,name,gender,planned_check_in,status,rental_type,residency_status,contract_no,cccd_front,cccd_back)
-       VALUES ($1,$2,'male','2026-09-01','out','ghep','unregistered',$3,'test/f.jpg','test/b.jpg') RETURNING id`,
+      `INSERT INTO students (code,name,gender,birth_date,planned_check_in,status,rental_type,residency_status,contract_no,cccd_front,cccd_back)
+       VALUES ($1,$2,'male','2004-05-06','2026-09-01','out','ghep','unregistered',$3,'test/f.jpg','test/b.jpg') RETURNING id`,
       [P + n, ten, soHD || ''])).rows[0].id;
     const checkin = (id, body) => t.api('POST', `/api/students/${id}/checkin`, T, body);
     const soTrongCSDL = async id => (await t.db.query('SELECT contract_no, contract_date FROM students WHERE id=$1', [id])).rows[0];

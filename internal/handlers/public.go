@@ -132,6 +132,7 @@ func (h *Handlers) PublicInfo(c *gin.Context) {
 		serverErr(c)
 		return
 	}
+	tuoiMin, tuoiMax := valid.KhoangTuoi(s["tuoi_toi_thieu"], s["tuoi_toi_da"])
 	// facilities.map(f => ({id, name, address})) — query chỉ chọn đúng 3 cột nên dùng thẳng. public.routes.js:78
 	c.JSON(http.StatusOK, gin.H{
 		"dorm_name": s["dorm_name"], "hotline": s["hotline"], "contact_person": s["contact_person"],
@@ -141,6 +142,7 @@ func (h *Handlers) PublicInfo(c *gin.Context) {
 		"bed_free_male": freeTheoGT["male"], "bed_free_female": freeTheoGT["female"],
 		"bed_soon_male": soonTheoGT["male"], "bed_soon_female": soonTheoGT["female"],
 		"room_fee": s["room_fee"], "deposit_fee": s["deposit_fee"],
+		"age_min": tuoiMin, "age_max": tuoiMax,
 		"electric_unit": s["electric_unit"], "water_fee": s["water_fee"], "service_fee": s["service_fee"],
 		"washing_fee": s["washing_fee"], "parking_fee": s["parking_fee"],
 		"intro_hero_title": s["intro_hero_title"], "intro_hero_desc": s["intro_hero_desc"],
@@ -337,8 +339,9 @@ func (h *Handlers) PublicApply(c *gin.Context) {
 	}
 	today := timeutil.Today()
 	coNgaySinh := strings.TrimSpace(b.BirthDate) != ""
-	if coNgaySinh && !valid.IsValidYmd(b.BirthDate) {
-		badRequest(c, `Ngày sinh không hợp lệ: "`+b.BirthDate+`"`)
+	// BL-128: đăng ký nội trú bắt buộc có ngày sinh và trong khoảng tuổi nhận (owner chốt 15/09/2026).
+	if e := h.kiemNgaySinh(ctx, b.BirthDate, nil, true); e != "" {
+		badRequest(c, e)
 		return
 	}
 	if coNgaySinh && b.BirthDate > today {

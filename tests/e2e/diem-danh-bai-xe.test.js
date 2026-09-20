@@ -50,7 +50,7 @@ module.exports = {
       `INSERT INTO rooms (name,facility_id,capacity,gender,hang,monthly_fee,room_type)
        VALUES ($1,$2,4,'male','B',1200000,'shared') RETURNING id`, [P + '_R', fac])).rows[0].id;
     const hv = await t.api('POST', '/api/students', T, {
-      name: P + ' Nam', code: P + '_MA', gender: 'male', room_id: R,
+      name: P + ' Nam', code: P + '_MA', gender: 'male', birth_date: '2004-05-06', room_id: R,
       check_in_date: lui(90), rental_type: 'ghep', confirm_overload: true,
     });
     t.eq('Dựng học viên thử', hv.status, 201, `HTTP ${hv.status} ${hv.json && hv.json.error || ''}`);

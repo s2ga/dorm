@@ -29,19 +29,19 @@ module.exports = {
         [P + '_nu', fac])).rows[0].id;
 
       // ===== TC-21: nam vào phòng nữ -> phải CHẶN (đây là chặn thật, không phải cảnh báo)
-      const nam = await t.api('POST', '/api/students', T, { code: P + '_nam', name: 'Test Nam', gender: 'male', room_id: rNu, check_in_date: '2026-07-01', rental_type: 'ghep' });
+      const nam = await t.api('POST', '/api/students', T, { code: P + '_nam', name: 'Test Nam', gender: 'male', room_id: rNu, birth_date: '2004-05-06', check_in_date: '2026-07-01', rental_type: 'ghep' });
       t.ok('TC-21 · xếp NAM vào phòng NỮ → phải CHẶN', nam.status === 400, `HTTP ${nam.status} — ${nam.json && nam.json.error}`);
 
       // ===== Xếp đủ 2 người nữ
       const ids = [];
       for (const n of ['_n1', '_n2']) {
-        const r = await t.api('POST', '/api/students', T, { code: P + n, name: 'Test ' + n, gender: 'female', room_id: rNu, check_in_date: '2026-07-01', rental_type: 'ghep' });
+        const r = await t.api('POST', '/api/students', T, { code: P + n, name: 'Test ' + n, gender: 'female', room_id: rNu, birth_date: '2004-05-06', check_in_date: '2026-07-01', rental_type: 'ghep' });
         t.eq(`Xếp người ${n} vào phòng còn chỗ → OK`, r.status, 201, `HTTP ${r.status} ${r.json && r.json.error || ''}`);
         if (r.json && r.json.id) ids.push(r.json.id);
       }
 
       // ===== TC-22: người thứ 3 vào phòng 2 chỗ -> CẢNH BÁO + hỏi xác nhận (KHÔNG chặn — nghiệp vụ cho phép)
-      const over = await t.api('POST', '/api/students', T, { code: P + '_n3', name: 'Test n3', gender: 'female', room_id: rNu, check_in_date: '2026-07-01', rental_type: 'ghep' });
+      const over = await t.api('POST', '/api/students', T, { code: P + '_n3', name: 'Test n3', gender: 'female', room_id: rNu, birth_date: '2004-05-06', check_in_date: '2026-07-01', rental_type: 'ghep' });
       t.ok('TC-22 · người thứ 3 vào phòng 2 chỗ → phải hỏi XÁC NHẬN (409), KHÔNG được chặn thẳng',
         over.status === 409 && over.json && over.json.needs_confirm === true,
         `HTTP ${over.status} — ${over.json && over.json.error}`);
@@ -49,7 +49,7 @@ module.exports = {
         !!(over.json && over.json.warnings && over.json.warnings[0] && over.json.warnings[0].over_by === 1),
         JSON.stringify(over.json && over.json.warnings));
 
-      const okOver = await t.api('POST', '/api/students', T, { code: P + '_n3', name: 'Test n3', gender: 'female', room_id: rNu, check_in_date: '2026-07-01', rental_type: 'ghep', confirm_overload: true });
+      const okOver = await t.api('POST', '/api/students', T, { code: P + '_n3', name: 'Test n3', gender: 'female', room_id: rNu, birth_date: '2004-05-06', check_in_date: '2026-07-01', rental_type: 'ghep', confirm_overload: true });
       t.eq('TC-22 · xác nhận rồi → PHẢI cho xếp (HV vào ở chờ bạn xuất cảnh)', okOver.status, 201, `HTTP ${okOver.status} ${okOver.json && okOver.json.error || ''}`);
       if (okOver.json && okOver.json.id) ids.push(okOver.json.id);
 
@@ -58,7 +58,7 @@ module.exports = {
         !!vet && /vượt 1 người/.test(vet.detail), vet ? `[${vet.username}] ${vet.detail}` : 'KHÔNG ghi vết gì');
 
       // ===== Thuê nguyên phòng vào phòng đã có người -> CHẶN
-      const rP = (await t.api('POST', '/api/students', T, { code: P + '_np', name: 'Test np', gender: 'female', room_id: rNu, check_in_date: '2026-07-01', rental_type: 'phong' }));
+      const rP = (await t.api('POST', '/api/students', T, { code: P + '_np', name: 'Test np', gender: 'female', room_id: rNu, birth_date: '2004-05-06', check_in_date: '2026-07-01', rental_type: 'phong' }));
       t.ok('Thuê NGUYÊN PHÒNG vào phòng đang có người → phải CHẶN', rP.status === 400, `HTTP ${rP.status} — ${rP.json && rP.json.error}`);
 
       // ===== Người ghép vào phòng ĐANG cho thuê nguyên: CẢNH BÁO + xác nhận, KHÔNG chặn (owner 28/08 —
@@ -66,15 +66,15 @@ module.exports = {
       const rWhole = (await t.db.query(
         `INSERT INTO rooms (name, facility_id, capacity, gender, hang, monthly_fee, room_type) VALUES ($1,$2,4,'female','B',1000000,'whole') RETURNING id`,
         [P + '_whole', fac])).rows[0].id;
-      const chuHD = await t.api('POST', '/api/students', T, { code: P + '_chuhd', name: 'Test chủ HĐ', gender: 'female', room_id: rWhole, check_in_date: '2026-07-01', rental_type: 'phong' });
+      const chuHD = await t.api('POST', '/api/students', T, { code: P + '_chuhd', name: 'Test chủ HĐ', gender: 'female', room_id: rWhole, birth_date: '2004-05-06', check_in_date: '2026-07-01', rental_type: 'phong' });
       t.eq('Thuê NGUYÊN PHÒNG vào phòng trống → OK', chuHD.status, 201, `HTTP ${chuHD.status} ${chuHD.json && chuHD.json.error || ''}`);
-      const oChung = await t.api('POST', '/api/students', T, { code: P + '_ochung', name: 'Test ở chung', gender: 'female', room_id: rWhole, check_in_date: '2026-07-01', rental_type: 'ghep' });
+      const oChung = await t.api('POST', '/api/students', T, { code: P + '_ochung', name: 'Test ở chung', gender: 'female', room_id: rWhole, birth_date: '2004-05-06', check_in_date: '2026-07-01', rental_type: 'ghep' });
       t.ok('Người ghép vào phòng thuê nguyên → hỏi XÁC NHẬN (409), KHÔNG chặn thẳng',
         oChung.status === 409 && oChung.json && oChung.json.needs_confirm === true,
         `HTTP ${oChung.status} — ${oChung.json && oChung.json.error}`);
       t.eq('Cảnh báo mang mã VAO_PHONG_NGUYEN', oChung.json && oChung.json.warnings && oChung.json.warnings[0] && oChung.json.warnings[0].code, 'VAO_PHONG_NGUYEN');
       t.ok('Lời cảnh báo nói rõ ở chung theo hợp đồng của ai', /HĐ|hợp đồng/.test((oChung.json && oChung.json.error) || ''), oChung.json && oChung.json.error);
-      const okChung = await t.api('POST', '/api/students', T, { code: P + '_ochung', name: 'Test ở chung', gender: 'female', room_id: rWhole, check_in_date: '2026-07-01', rental_type: 'ghep', confirm_overload: true });
+      const okChung = await t.api('POST', '/api/students', T, { code: P + '_ochung', name: 'Test ở chung', gender: 'female', room_id: rWhole, birth_date: '2004-05-06', check_in_date: '2026-07-01', rental_type: 'ghep', confirm_overload: true });
       t.eq('Xác nhận rồi → PHẢI cho xếp vào phòng thuê nguyên', okChung.status, 201, `HTTP ${okChung.status} ${okChung.json && okChung.json.error || ''}`);
       const vetNP = (await t.db.query(`SELECT detail FROM audit_log WHERE detail LIKE '%VÀO PHÒNG THUÊ NGUYÊN%' AND detail LIKE '%${P}%' ORDER BY id DESC LIMIT 1`)).rows[0];
       t.ok('Xếp vào phòng thuê nguyên PHẢI ghi vết vào nhật ký', !!vetNP, vetNP ? vetNP.detail : 'KHÔNG ghi vết gì');
@@ -101,7 +101,7 @@ module.exports = {
 
       // ===== Số điện thoại rác
       for (const p of ['abc', '123', '0'.repeat(20)]) {
-        const r = await t.api('POST', '/api/students', T, { code: P + '_sdt', name: 'Test sdt', gender: 'female', phone: p, check_in_date: '2026-07-01', rental_type: 'ghep' });
+        const r = await t.api('POST', '/api/students', T, { code: P + '_sdt', name: 'Test sdt', gender: 'female', phone: p, birth_date: '2004-05-06', check_in_date: '2026-07-01', rental_type: 'ghep' });
         t.ok(`Số điện thoại "${p.slice(0, 12)}" → phải CHẶN`, r.status === 400, `HTTP ${r.status} — ${r.json && r.json.error}`);
       }
 

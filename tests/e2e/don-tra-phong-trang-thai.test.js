@@ -29,7 +29,7 @@ module.exports = {
 
     const dựng = async (ma, ngayTra) => {
       const s = await t.api('POST', '/api/students', T, {
-        name: P + ' ' + ma, code: P + ma, gender: 'male', room_id: R,
+        name: P + ' ' + ma, code: P + ma, gender: 'male', birth_date: '2004-05-06', room_id: R,
         check_in_date: '2026-03-01', rental_type: 'ghep', confirm_overload: true,
       });
       t.eq('Dựng hồ sơ ' + ma, s.status, 201, `HTTP ${s.status} ${s.json && s.json.error || ''}`);

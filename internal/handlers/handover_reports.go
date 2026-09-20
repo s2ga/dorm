@@ -429,10 +429,11 @@ func (h *Handlers) nhanPhongTuBienBan(c *gin.Context, u *auth.User, id int, d, n
 		lichVao, lichTra     *string
 		cccdTruoc, cccdSau   *string
 		ciConf               *time.Time
+		ngaySinh             *string
 	)
 	err := h.pool().QueryRow(ctx,
-		"SELECT gender, rental_type, name, room_id, planned_check_in::text, planned_check_out::text, cccd_front, cccd_back, checkin_confirmed_at FROM students WHERE id=$1 AND deleted_at IS NULL", id).
-		Scan(&gender, &rental, &name, &curRoom, &lichVao, &lichTra, &cccdTruoc, &cccdSau, &ciConf)
+		"SELECT gender, rental_type, name, room_id, planned_check_in::text, planned_check_out::text, cccd_front, cccd_back, checkin_confirmed_at, birth_date::text FROM students WHERE id=$1 AND deleted_at IS NULL", id).
+		Scan(&gender, &rental, &name, &curRoom, &lichVao, &lichTra, &cccdTruoc, &cccdSau, &ciConf, &ngaySinh)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			notFound(c, "Không tìm thấy học viên")
@@ -456,6 +457,11 @@ func (h *Handlers) nhanPhongTuBienBan(c *gin.Context, u *auth.User, id int, d, n
 	}
 	if roomIDPtr == nil && rRoom != nil {
 		roomIDPtr = rRoom
+	}
+	// BL-128: cùng luật với Check-in — thiếu hoặc sai ngày sinh thì không xác nhận nhận phòng được.
+	if e := h.kiemNgaySinh(ctx, applicationsDeref(ngaySinh), roomIDPtr, true); e != "" {
+		badRequest(c, e)
+		return nil, false
 	}
 	chk, err := roomrules.CheckRoomAssignment(ctx, h.pool(), &id, gender, rental, roomIDPtr)
 	if err != nil {

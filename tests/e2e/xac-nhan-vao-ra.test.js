@@ -39,8 +39,8 @@ module.exports = {
 
     // Đơn có sẵn ảnh CCCD 2 mặt (bắt buộc từ 12/09/2026) — duyệt đơn chép sang hồ sơ, nhận phòng mới qua.
     const donMoi = async (ma, sdt) => (await t.db.query(
-      `INSERT INTO applications (name, phone, gender, code, status, facility_id, desired_check_in, cccd_front, cccd_back)
-       VALUES ($1,$2,'female',$3,'pending',$4,$5,'test/f.jpg','test/b.jpg') RETURNING id`,
+      `INSERT INTO applications (name, phone, gender, birth_date, code, status, facility_id, desired_check_in, cccd_front, cccd_back)
+       VALUES ($1,$2,'female','2004-05-06',$3,'pending',$4,$5,'test/f.jpg','test/b.jpg') RETURNING id`,
       [P + ' ' + ma, sdt, P + '_' + ma, fac, ngay(3)])).rows[0].id;
     const duyet = async (appId, user, ciDate) => {
       const r = await t.api('POST', `/api/applications/${appId}/approve`, T, {
@@ -90,7 +90,7 @@ module.exports = {
       `INSERT INTO rooms (name,facility_id,capacity,gender,hang,monthly_fee) VALUES ($1,$2,4,'female','B',1200000) RETURNING id`,
       [P + '_RK', fac])).rows[0].id;
     const sK = (await t.db.query(
-      `INSERT INTO students (code,name,gender,planned_check_in,status,rental_type) VALUES ($1,$1,'female',$2,'out','ghep') RETURNING id`,
+      `INSERT INTO students (code,name,gender,birth_date,planned_check_in,status,rental_type) VALUES ($1,$1,'female','2004-05-06',$2,'out','ghep') RETURNING id`,
       [P + '_K', ngay(3)])).rows[0].id;
     const ciK = () => t.api('POST', `/api/students/${sK}/checkin`, T, { date: ngay(0), room_id: ridK });
     const rK1 = await ciK();

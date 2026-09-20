@@ -118,6 +118,23 @@ var adminKiemTraList = []adminKiemTra{
            ORDER BY i.month, s.name`,
 	},
 	{
+		ma: "ngay_sinh_ngoai_tuoi", ten: "Hồ sơ thiếu ngày sinh hoặc ngoài khoảng tuổi nhận",
+		viSao:   "Ký túc xá chỉ nhận học viên trong khoảng tuổi đã chốt; hồ sơ cũ sai tuổi sẽ chặn bước nhận phòng.",
+		cachSua: "Mở hồ sơ, sửa lại ngày sinh cho đúng giấy tờ. Phòng an ninh và phòng nhân viên không tính.",
+		sql: `SELECT s.name AS khoa,
+                CASE WHEN s.birth_date IS NULL THEN 'chưa có ngày sinh'
+                     ELSE 'sinh ' || to_char(s.birth_date,'DD/MM/YYYY') || ' → ' || date_part('year', age(s.birth_date))::int || ' tuổi' END
+                || COALESCE(' · phòng ' || r.name, '') || ' (#' || s.id || ')' AS chi_tiet
+            FROM students s LEFT JOIN rooms r ON r.id = s.room_id
+           WHERE s.deleted_at IS NULL
+             AND COALESCE(r.room_type,'shared') NOT IN ('security','staff')
+             AND (s.check_out_date IS NULL OR s.check_out_date > CURRENT_DATE)
+             AND (s.birth_date IS NULL
+                  OR date_part('year', age(s.birth_date))::int < COALESCE((SELECT NULLIF(value,'')::int FROM settings WHERE key='tuoi_toi_thieu'), 17)
+                  OR date_part('year', age(s.birth_date))::int > COALESCE((SELECT NULLIF(value,'')::int FROM settings WHERE key='tuoi_toi_da'), 39))
+           ORDER BY s.birth_date NULLS FIRST`,
+	},
+	{
 		ma: "hv_con_mat_khau_khoi_tao", ten: "Tài khoản học viên còn mật khẩu khởi tạo",
 		viSao:   "Mật khẩu do máy cấp mà học viên chưa đổi — tài khoản cũ đặt 123456 nằm hết ở đây.",
 		cachSua: `Màn Cài đặt → Tài khoản học viên → nút "MK" để cấp lại mật khẩu mới, đưa tận tay học viên.`,

@@ -41,15 +41,15 @@ module.exports = {
     // Học viên đang ở (đã xác nhận vào từ -30) và học viên mới đặt chỗ (chưa xác nhận vào).
     const dangO = async (ma, room, fac) => {
       const id = (await t.db.query(
-        `INSERT INTO students (code,name,gender,room_id,facility_id,check_in_date,checkin_confirmed_at,status,rental_type,planned_check_out)
-         VALUES ($1,$1,'male',$2,$3,$4,now(),'in','ghep',$5) RETURNING id`, [ma, room, fac, ngay(-30), ngay(5)])).rows[0].id;
+        `INSERT INTO students (code,name,gender,birth_date,room_id,facility_id,check_in_date,checkin_confirmed_at,status,rental_type,planned_check_out)
+         VALUES ($1,$1,'male','2004-05-06',$2,$3,$4,now(),'in','ghep',$5) RETURNING id`, [ma, room, fac, ngay(-30), ngay(5)])).rows[0].id;
       await t.db.query(`INSERT INTO room_stays (student_id,room_id,from_date) VALUES ($1,$2,$3)`, [id, room, ngay(-30)]);
       return id;
     };
     const sapVao = async (ma, room, fac) => (await t.db.query(
       // cccd_front/back phải có: xác nhận nhận phòng đòi đủ 2 mặt (luật 12/09/2026).
-      `INSERT INTO students (code,name,gender,room_id,facility_id,planned_check_in,status,rental_type,cccd_front,cccd_back)
-       VALUES ($1,$1,'male',$2,$3,$4,'in','ghep','test/f.jpg','test/b.jpg') RETURNING id`, [ma, room, fac, ngay(0)])).rows[0].id;
+      `INSERT INTO students (code,name,gender,birth_date,room_id,facility_id,planned_check_in,status,rental_type,cccd_front,cccd_back)
+       VALUES ($1,$1,'male','2004-05-06',$2,$3,$4,'in','ghep','test/f.jpg','test/b.jpg') RETURNING id`, [ma, room, fac, ngay(0)])).rows[0].id;
     const mkUser = async (u, role, fac) => {
       await t.db.query(`INSERT INTO users (username,password_hash,role,approved,facility_id) VALUES ($1,$2,$3,true,$4)`,
         [u, bcrypt.hashSync(PW, 10), role, fac]);

@@ -17,6 +17,8 @@ func defaultSettings(dormName string) [][2]string {
 		{"room_cap_A", "5"}, {"room_cap_B", "4"}, {"room_cap_C", "4"}, {"room_cap_D", "3"},
 		{"checkout_max_future_days", "365"},
 		{"max_cccd_mb", "12"},
+		// Khoảng tuổi nhận học viên nội trú (BL-128, owner chốt 15/09/2026).
+		{"tuoi_toi_thieu", "17"}, {"tuoi_toi_da", "39"},
 		// Rỗng = TỰ ĐỘNG: đủ Tenant ID + Client ID là SSO bật. Chỉ 'false' (admin bấm Tắt) mới chặn.
 		{"sso_enabled", ""},
 		{"sso_tenant_id", ""},

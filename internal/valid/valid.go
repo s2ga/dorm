@@ -89,6 +89,7 @@ var SettingNum = map[string]settingRange{
 	"checkout_max_future_days": {1, 3650}, "max_cccd_mb": {1, 15},
 	// Điểm danh bãi xe: vắng liên tiếp bao nhiêu ngày thì báo cáo gắn cờ "xe bỏ gửi lâu".
 	"parking_absent_alert_days": {1, 365},
+	"tuoi_toi_thieu":            {10, 99}, "tuoi_toi_da": {10, 120},
 }
 
 // SettingTime: khoá settings phải là giờ 'HH:MM'. Giờ rác thì khung ca trực hiện sai trên cổng học
