@@ -1650,6 +1650,15 @@ func (h *Handlers) UpdateStudent(c *gin.Context) {
 			return
 		}
 	}
+	// Lịch dự kiến trả ($27): payload KHÔNG gửi check_out_date -> GIỮ nguyên lịch cũ (đúng hợp đồng ở
+	// saveStudent: ô vắng mặt = không gửi = server giữ nguyên). Gửi rỗng = cố ý huỷ báo trả; gửi ngày = đặt/đổi.
+	// Trước đây field vắng vẫn bị hiểu là null -> sửa việc khác (vd hợp đồng) xoá nhầm ngày trả đã duyệt.
+	var pco interface{}
+	if _, sent := raw["check_out_date"]; sent {
+		pco = studentsDateOrNull(b["check_out_date"])
+	} else if lichCu != "" {
+		pco = lichCu
+	}
 	params := studentsCoreFields(b, nil) // $1..$16
 	params = append(params,
 		studentsDateOrNull(b["class_start_date"]),                     // $17
@@ -1662,7 +1671,7 @@ func (h *Handlers) UpdateStudent(c *gin.Context) {
 		studentsPct(b["washing_discount_pct"]),                        // $24
 		studentsPct(b["parking_discount_pct"]),                        // $25
 		strings.ToLower(strings.TrimSpace(studentsStrOr(b["email"]))), // $26
-		studentsDateOrNull(b["check_out_date"]),                       // $27
+		pco, // $27 — lịch dự kiến trả (xem pco phía trên)
 	)
 	// BL-117: form hồ sơ KHÔNG xác nhận vào/ra. Chưa xác nhận (check_in_date NULL) thì ô "ngày vào" sửa
 	// lịch dự kiến; đã xác nhận thì sửa ngày thật (Reconcile lượt ở như cũ). Ô "ngày trả" luôn là dự kiến.

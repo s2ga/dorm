@@ -76,6 +76,19 @@ module.exports = {
       const l3 = await luot(id);
       t.eq('Lượt ở vẫn đúng một dòng, vẫn mở', l3.length === 1 && l3[0].to_date, null);
 
+      // --- Sửa việc KHÁC không được xoá nhầm lịch trả đã đặt (nguồn lỗi 10 hồ sơ UAT 09/2026) ---
+      const id3 = await themHV(P + '_3', 'Bạn Giữ Lịch');
+      t.eq('Đặt lịch trả cho ca giữ-lịch', (await luu(id3, { check_out_date: iso(45) })).status, 200);
+      const luuBo = async (idx, drop, patch) => {
+        const cur = (await t.api('GET', `/api/students/${idx}`, T)).json;
+        const body = { ...cur, _v: cur._v, ...patch }; drop.forEach(k => delete body[k]);
+        return t.api('PUT', `/api/students/${idx}`, T, body);
+      };
+      t.eq('Sửa SĐT mà KHÔNG gửi field ngày trả → lưu được', (await luuBo(id3, ['check_out_date'], { phone: '0900000123' })).status, 200);
+      t.eq('Field ngày trả VẮNG MẶT → GIỮ nguyên lịch trả (không xoá nhầm)', String((await hoSo(id3)).lich || '').slice(0, 10), iso(45));
+      t.eq('Gửi ngày trả RỖNG → vẫn huỷ báo trả (cố ý, giữ tính năng cũ)', (await luu(id3, { check_out_date: null })).status, 200);
+      t.ok('Gửi rỗng → lịch trả bị xoá đúng ý', !(await hoSo(id3)).lich);
+
       // --- Người ĐÃ trả phòng (xác nhận thật) ---
       const id2 = await themHV(P + '_2', 'Bạn Đã Đi');
       const co = await t.api('POST', `/api/students/${id2}/checkout`, T, { date: iso(-3), reason: 'other' });
