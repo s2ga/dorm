@@ -118,6 +118,16 @@ var adminKiemTraList = []adminKiemTra{
            ORDER BY i.month, s.name`,
 	},
 	{
+		ma: "da_tra_ngay_tuong_lai", ten: "Ghi ĐÃ TRẢ PHÒNG nhưng ngày trả còn ở tương lai",
+		viSao:   "Người vẫn đang ở mà hồ sơ ghi đã đi: tiền phòng cắt sớm, lượt ở đóng trước ngày, tài khoản bị khoá oan.",
+		cachSua: `Là bấm Check-out nhầm ngày chưa tới. Đưa hồ sơ về "đang ở" rồi đặt lại ở ô ngày dự kiến trả.`,
+		sql: `SELECT s.name AS khoa,
+                'ghi đã trả ' || s.check_out_date || COALESCE(' · phòng ' || r.name, '') || ' (#' || s.id || ')' AS chi_tiet
+            FROM students s LEFT JOIN rooms r ON r.id = s.room_id
+           WHERE s.deleted_at IS NULL AND s.check_out_date > CURRENT_DATE
+           ORDER BY s.check_out_date`,
+	},
+	{
 		ma: "ngay_sinh_ngoai_tuoi", ten: "Hồ sơ thiếu ngày sinh hoặc ngoài khoảng tuổi nhận",
 		viSao:   "Ký túc xá chỉ nhận học viên trong khoảng tuổi đã chốt; hồ sơ cũ sai tuổi sẽ chặn bước nhận phòng.",
 		cachSua: "Mở hồ sơ, sửa lại ngày sinh cho đúng giấy tờ. Phòng an ninh và phòng nhân viên không tính.",

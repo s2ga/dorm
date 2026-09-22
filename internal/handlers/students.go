@@ -2084,6 +2084,10 @@ func (h *Handlers) traPhong(ctx context.Context, u *auth.User, id int, in traPho
 	if d == "" {
 		d = timeutil.Today()
 	}
+	// Ngày rời THẬT không thể ở tương lai — đặt lịch trả thì sửa ngày dự kiến ở hồ sơ.
+	if d > timeutil.Today() {
+		return nil, http.StatusBadRequest, "Ngày trả phòng thực tế không thể ở tương lai. Muốn đặt lịch trả thì sửa ngày dự kiến ở hồ sơ."
+	}
 	ciRows, err := h.pool().Query(ctx, "SELECT check_in_date, status, check_out_date FROM students WHERE id=$1 AND deleted_at IS NULL", id)
 	if err != nil {
 		return nil, http.StatusInternalServerError, ""
@@ -2095,9 +2099,8 @@ func (h *Handlers) traPhong(ctx context.Context, u *auth.User, id int, in traPho
 	if ci == nil {
 		return nil, http.StatusNotFound, "Không tìm thấy học viên"
 	}
-	// M-2: chặn check-out LẦN 2 — nhưng chỉ khi đã rời THẬT. Ngày trả còn ở tương lai nghĩa là mới
-	// chốt lịch (đơn đã duyệt, hồ sơ cũ trước bản vá); người thật còn trong phòng thì phải cho ghi
-	// ngày rời thực tế, không bắt đi vòng check-in lại.
+	// M-2: chặn check-out LẦN 2 — nhưng chỉ khi đã rời THẬT. Ngày trả còn ở tương lai là hồ sơ cũ
+	// kẹt từ trước bản vá; người thật còn trong phòng nên vẫn phải cho ghi ngày rời thực tế.
 	if studentsJSString(ci["status"]) == "out" {
 		co := studentsSlice10(studentsJSString(ci["check_out_date"]))
 		if co == "" || co <= timeutil.Today() {
@@ -2272,6 +2275,11 @@ func (h *Handlers) UpdateCheckoutDate(c *gin.Context) {
 	d := studentsSlice10(studentsJSString(b["date"]))
 	if !valid.IsValidYmd(d) {
 		badRequest(c, "Ngày trả phòng không hợp lệ")
+		return
+	}
+	// Ngày rời THẬT không thể ở tương lai — đặt lịch trả thì sửa ngày dự kiến ở hồ sơ.
+	if d > timeutil.Today() {
+		badRequest(c, "Ngày trả phòng thực tế không thể ở tương lai. Muốn đặt lịch trả thì sửa ngày dự kiến ở hồ sơ.")
 		return
 	}
 	if nv := b["notice_date"]; nv != nil {

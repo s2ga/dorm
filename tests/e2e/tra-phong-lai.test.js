@@ -55,13 +55,22 @@ module.exports = {
     let lc = await luotCuoi(s1);
     t.eq('Lượt ở CHƯA đóng (điện vẫn chia tới ngày xác nhận thật)', lc.den, null, JSON.stringify(lc));
 
-    const co1 = await t.api('POST', `/api/students/${s1}/checkout`, T, { date: ngay(1), reason: 'departure' });
-    t.ok('Check-out ngày thực tế (+1) → 200, KHÔNG 409 bắt đi vòng', co1.status === 200,
+    // Ngày rời THẬT phải là hôm nay/quá khứ — chọn ngày tương lai là đánh dấu đã đi khi người còn ở.
+    const coTl = await t.api('POST', `/api/students/${s1}/checkout`, T, { date: ngay(1), reason: 'departure' });
+    t.eq('Check-out với ngày TƯƠNG LAI → 400', coTl.status, 400, `HTTP ${coTl.status} ${coTl.json && coTl.json.error || ''}`);
+    t.ok('Báo lỗi chỉ đúng chỗ đặt lịch', /tương lai/i.test((coTl.json && coTl.json.error) || ''), (coTl.json && coTl.json.error) || '');
+    h = await hoso(s1);
+    t.ok('Bị chặn thì hồ sơ KHÔNG đổi — vẫn đang ở, chưa có ngày rời thật', h.status === 'in' && !h.co, JSON.stringify(h));
+    lc = await luotCuoi(s1);
+    t.eq('Bị chặn thì lượt ở vẫn mở', lc.den, null, JSON.stringify(lc));
+
+    const co1 = await t.api('POST', `/api/students/${s1}/checkout`, T, { date: ngay(0), reason: 'departure' });
+    t.ok('Check-out ngày thực tế (hôm nay) → 200, KHÔNG 409 bắt đi vòng', co1.status === 200,
       `HTTP ${co1.status} ${co1.json && co1.json.error || ''}`);
     h = await hoso(s1);
-    t.eq('Ngày rời thực tế đè lên lịch', (h.co || '').slice(0, 10), ngay(1), h.co);
+    t.eq('Ngày rời thực tế đè lên lịch', (h.co || '').slice(0, 10), ngay(0), h.co);
     lc = await luotCuoi(s1);
-    t.eq('room_stays DỜI theo ngày thực tế (tiền điện chia đúng)', (lc.den || '').slice(0, 10), ngay(1), JSON.stringify(lc));
+    t.eq('room_stays DỜI theo ngày thực tế (tiền điện chia đúng)', (lc.den || '').slice(0, 10), ngay(0), JSON.stringify(lc));
 
     // ── Ca 2: hồ sơ CŨ trước bản vá — status='out' nhưng ngày còn tương lai ──
     const s2 = await dung('B');

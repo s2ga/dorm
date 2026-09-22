@@ -82,6 +82,15 @@ module.exports = {
     const xau = await t.api('PUT', `/api/students/${B}/checkout-date`, T, { date: '31/07/2026' });
     t.eq('Ngày sai khuôn → 400', xau.status, 400, `HTTP ${xau.status}`);
 
+    // ── Dời sang ngày TƯƠNG LAI: chặn. Ngày rời thật chưa xảy ra thì không được ghi ──
+    const mai = new Date(); mai.setDate(mai.getDate() + 1);
+    const ngayMai = `${mai.getFullYear()}-${String(mai.getMonth() + 1).padStart(2, '0')}-${String(mai.getDate()).padStart(2, '0')}`;
+    const tuongLai = await t.api('PUT', `/api/students/${B}/checkout-date`, T, { date: ngayMai });
+    t.eq('Dời ngày trả sang TƯƠNG LAI → 400', tuongLai.status, 400, `HTTP ${tuongLai.status}`);
+    t.ok('Báo lỗi nói rõ vì sao', /tương lai/i.test((tuongLai.json && tuongLai.json.error) || ''),
+      (tuongLai.json && tuongLai.json.error) || '');
+    t.eq('Chặn rồi thì dữ liệu KHÔNG đổi', (await hv(B)).co, '2026-07-10');
+
     // ── ĐÃ CHUYỂN PHÒNG: lùi ngày về trước lần chuyển phải bị CHẶN ───────────────────
     // Không chặn thì lượt ở phòng sau bị xoá, hồ sơ ghi một ngày còn lịch sử ở ghi ngày khác —
     // chênh lệch đó chảy thẳng vào phần chia tiền điện của cả phòng.

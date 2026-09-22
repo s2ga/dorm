@@ -552,7 +552,8 @@ function checkOutForm(id, hoId) {
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn danger" data-act="doCheckOut" data-args='[${id}${bb ? ',' + bb.id : ''}]'>Xác nhận check-out</button></div>`);
   attachDate(el('c_notice'), s.checkout_notice_date ? String(s.checkout_notice_date).slice(0, 10) : today());
-  attachDate(el('c_date'), bb ? String(bb.actual_date).slice(0, 10) : today());
+  // Ngày rời THẬT: lịch không cho bấm sang ngày chưa tới (máy chủ cũng chặn).
+  attachDate(el('c_date'), bb ? String(bb.actual_date).slice(0, 10) : today(), { max: today() });
   if (bb) {
     if (el('c_meter') && bb.meter_reading != null) el('c_meter').value = bb.meter_reading;
     if (bb.note) el('c_note').value = bb.note;
@@ -577,7 +578,7 @@ function suaNgayTraForm(id) {
       <div class="hint">${IC.info}<span>Bỏ trống chỉ số công-tơ nếu không cần chốt lại — phần điện vẫn được chia lại theo ngày mới.</span></div>
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="doSuaNgayTra" data-args='[${id}]'>Lưu ngày mới</button></div>`);
-  attachDate(el('sn_date'), cu);
+  attachDate(el('sn_date'), cu, { max: today() }); // ngày rời thật — không nhận ngày chưa tới
 }
 async function doSuaNgayTra(id) {
   const iso = el('sn_date').dataset.iso;
