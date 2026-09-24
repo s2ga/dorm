@@ -703,7 +703,7 @@ async function studentForm(id) {
     <div class="mb">
       ${nhomForm(IC.user, 'Thông tin cá nhân', `
         <div class="grid2">
-          <div class="field"><label>Họ tên ${SAO}</label><input id="f_name" value="${esc(s.name)}" placeholder="Nguyễn Văn A"></div>
+          <div class="field"><label>Họ tên ${SAO}</label><input id="f_name" value="${esc(s.name)}" placeholder="Nguyễn Văn A" data-change="onTenChuan"></div>
           <div class="field"><label>Mã học viên (MSHV)</label><input id="f_code" value="${esc(s.code || '')}" placeholder="TXTS-S25..."></div>
         </div>
         <div class="grid2">
@@ -1341,7 +1341,7 @@ function appForm() {
     <div class="mb">
       <div class="hint">${IC.info} Đơn tạo ở đây vào danh sách <strong>Đăng ký ở nội trú</strong> ở trạng thái <strong>Chờ duyệt</strong>. Bấm <strong>“Thêm vào phòng”</strong> để duyệt & tạo học viên.</div>
       <div class="grid2">
-        <div class="field"><label>Họ và tên *</label><input id="ap_name" placeholder="Nguyễn Văn A"></div>
+        <div class="field"><label>Họ và tên *</label><input id="ap_name" placeholder="Nguyễn Văn A" data-change="onTenChuan"></div>
         <div class="field"><label>SĐT *</label><input id="ap_phone" placeholder="09..."></div>
       </div>
       <div class="grid2">

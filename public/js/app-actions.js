@@ -281,5 +281,7 @@ function onLgHintGender() { el('lgHint').textContent = 'Pháp nhân: ' + (this.v
 function onLoginBoxToggle() { el('loginBox').style.display = this.checked ? 'block' : 'none'; }
 function onPlateBoxToggle() { el('plateBox').style.display = this.checked ? 'block' : 'none'; }
 function onFloorDisp() { el('f_floor_disp').value = 'Tầng ' + roomFloorOf(this.value); }
+// Ô họ tên tự chuẩn lại khi rời ô (owner chốt 24/09) — máy chủ cũng chuẩn lần nữa lúc lưu.
+function onTenChuan() { this.value = tenChuan(this.value); }
 function onImgRemove() { this.remove(); }
 function onImgFallback() { this.style.display = 'none'; if (this.nextElementSibling) this.nextElementSibling.style.display = 'flex'; }

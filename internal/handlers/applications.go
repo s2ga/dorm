@@ -530,9 +530,11 @@ func (h *Handlers) ApproveApplication(c *gin.Context) {
 		depositDateArg = checkIn
 	}
 	rentalArg := applicationsFirstNonEmpty(applicationsDeref(b.RentalType), applicationsStr(app, "rental_type"), "ghep")
+	// Đơn cũ còn tên IN HOA thì chuẩn lại lúc chép sang hồ sơ (BL-137).
+	tenHV := valid.TenChuan(applicationsStr(app, "name"))
 	studentParams := []interface{}{
 		appCode,                                 // $1  app.code || ''
-		applicationsVal(app, "name"),            // $2
+		tenHV,                                   // $2
 		applicationsVal(app, "gender"),          // $3
 		applicationsVal(app, "phone"),           // $4
 		applicationsVal(app, "birth_date"),      // $5
@@ -623,7 +625,7 @@ func (h *Handlers) ApproveApplication(c *gin.Context) {
 			}
 			if _, e := tx.Exec(ctx,
 				`INSERT INTO users (username, password_hash, role, full_name, student_id, must_change_password) VALUES ($1,$2,'student',$3,$4,true)`,
-				uname, string(hash), applicationsVal(app, "name"), stID); e != nil {
+				uname, string(hash), tenHV, stID); e != nil {
 				return e
 			}
 			accountH = gin.H{"username": uname, "password": pass}

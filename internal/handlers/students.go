@@ -742,7 +742,7 @@ func studentsFindDuplicate(ctx context.Context, q db.Querier, code, idCard strin
 // studentsCoreFields: 16 giá trị $1..$16 (code..contract_status). studentFields(b). students.routes.js:243-250
 // checkIn != nil -> ép check_in_date (POST dùng b.check_in_date || today); nil -> D(b.check_in_date) (PUT).
 func studentsCoreFields(b map[string]interface{}, checkIn interface{}) []interface{} {
-	name := strings.TrimSpace(studentsStrOr(b["name"]))
+	name := valid.TenChuan(studentsStrOr(b["name"])) // owner chốt 24/09: một kiểu chữ duy nhất cho tên
 	gender := "male"
 	if studentsJSString(b["gender"]) == "female" {
 		gender = "female"
@@ -1396,7 +1396,7 @@ func (h *Handlers) CreateStudent(c *gin.Context) {
 	} else if checkOut != "" {
 		checkoutReasonArg = "other"
 	}
-	name := strings.TrimSpace(studentsStrOr(b["name"]))
+	name := valid.TenChuan(studentsStrOr(b["name"]))
 
 	params := studentsCoreFields(b, checkIn) // $1..$16
 	params = append(params,

@@ -402,7 +402,7 @@ func (h *Handlers) PublicApply(c *gin.Context) {
 	if err := h.pool().QueryRow(ctx,
 		`INSERT INTO applications (name, phone, gender, birth_date, code, class_name, rental_type, pref, note, wants_washing, wants_parking, plate, facility_id, desired_check_in)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
-		strings.TrimSpace(b.Name), strings.TrimSpace(b.Phone), b.Gender, birthDate,
+		valid.TenChuan(b.Name), strings.TrimSpace(b.Phone), b.Gender, birthDate,
 		b.Code, b.ClassName, rental, b.Pref, b.Note, b.WantsWashing, b.WantsParking, b.Plate, facID, desiredCheckIn).Scan(&appID); err != nil {
 		serverErr(c)
 		return

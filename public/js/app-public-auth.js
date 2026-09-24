@@ -231,7 +231,7 @@ async function renderPublicRegister() {
   el('pubBody').innerHTML = `
     <form id="applyForm">
       <div class="grid2">
-        <div class="field"><label>Họ tên ${SAO}</label><input id="a_name" required></div>
+        <div class="field"><label>Họ tên ${SAO}</label><input id="a_name" required data-change="onTenChuan"></div>
         <div class="field"><label>Số điện thoại ${SAO}</label><input id="a_phone" type="tel" autocomplete="tel" inputmode="tel" required></div>
       </div>
       ${info.facilities && info.facilities.length ? `<div class="field"><label>Cơ sở đăng ký ${SAO}</label><select id="a_facility">${info.facilities.map(f => `<option value="${f.id}">${esc(f.name)}${f.address ? ' — ' + esc(f.address) : ''}</option>`).join('')}</select></div>` : ''}

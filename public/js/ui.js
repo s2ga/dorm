@@ -13,6 +13,9 @@ const curMonth = () => today().slice(0, 7);
 const prevKy = m => { const d = new Date(m + '-15T00:00:00'); d.setMonth(d.getMonth() - 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
 const addDays = (iso, n) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 function fmtDate(d) { if (!d) return '—'; const p = String(d).slice(0, 10).split('-'); return `${p[2]}/${p[1]}/${p[0]}`; }
+// Tên người: hoa chữ cái đầu mỗi từ, phần còn lại thường, bỏ khoảng trắng thừa (khớp valid.TenChuan).
+const tenChuan = s => String(s == null ? '' : s).trim().split(/\s+/).filter(Boolean)
+  .map(t => t[0].toUpperCase() + t.slice(1).toLowerCase()).join(' ');
 // Tuổi tròn tại mốc (mặc định hôm nay), so theo bộ ba năm/tháng/ngày như máy chủ.
 const soTuoi = (ngaySinh, moc = today()) => {
   const ns = String(ngaySinh || '').slice(0, 10);

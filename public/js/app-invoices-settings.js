@@ -1478,7 +1478,7 @@ function duyetTaiKhoanForm(id, mode) {
           <div class="sub2" id="ap_hvcount" style="margin-top:4px"></div></div>
         <div id="ap_new">
           <div class="grid2">
-            <div class="field"><label>Họ tên *</label><input id="ap_name" value="${esc(u.full_name || '')}" placeholder="Nguyễn Văn A"></div>
+            <div class="field"><label>Họ tên *</label><input id="ap_name" value="${esc(u.full_name || '')}" placeholder="Nguyễn Văn A" data-change="onTenChuan"></div>
             <div class="field"><label>Mã học viên</label><input id="ap_code" placeholder="TXTS-S25..."></div>
           </div>
           <div class="grid2">
