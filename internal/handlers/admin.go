@@ -414,19 +414,19 @@ func (h *Handlers) UnlockUser(c *gin.Context) {
 }
 
 // AdminStudentAccounts: GET /admin/student-accounts — tài khoản ĐĂNG NHẬP của học viên.
-// /admin/users cố tình chỉ trả nhân viên (adminManagedRolesSQL) nên admin không thấy được ai trong
-// số học viên đăng nhập được. Đây là danh sách CHỈ ĐỌC cho tab "Người dùng"; đổi vai/xoá vẫn KHÔNG
-// cho phép từ đây (tránh nâng nhầm học viên lên quyền quản trị) — tạo tài khoản vẫn ở hồ sơ HV.
+// /admin/users cố tình chỉ trả nhân viên (adminManagedRolesSQL) nên không thấy học viên ở đó.
+// Trả CẢ tài khoản đã khoá (cờ locked), đang hoạt động xếp trước.
 func (h *Handlers) AdminStudentAccounts(c *gin.Context) {
 	rows, err := h.pool().Query(c.Request.Context(),
 		`SELECT u.id, u.username, u.full_name, u.email, u.auth_provider, u.must_change_password,
 		        u.student_id, s.name AS student_name, s.code AS student_code, s.gender AS student_gender, s.status AS student_status,
-		        r.name AS room_name, (s.deleted_at IS NOT NULL) AS student_deleted
+		        r.name AS room_name, (s.deleted_at IS NOT NULL) AS student_deleted,
+		        (u.deleted_at IS NOT NULL) AS locked
 		   FROM users u
 		   JOIN students s ON s.id = u.student_id
 		   LEFT JOIN rooms r ON r.id = s.room_id
-		  WHERE u.role = 'student' AND u.deleted_at IS NULL
-		  ORDER BY s.name`)
+		  WHERE u.role = 'student'
+		  ORDER BY (u.deleted_at IS NOT NULL), s.name`)
 	if err != nil {
 		serverErr(c, err)
 		return
@@ -460,6 +460,74 @@ func (h *Handlers) AdminRevokeStudentSession(c *gin.Context) {
 	}
 	if err := h.Auth.RevokeTokens(ctx, id); err != nil {
 		serverErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// AdminLockStudentAccount: POST /admin/student-accounts/:id/lock — khoá tài khoản ĐĂNG NHẬP của học
+// viên (chặn đăng nhập + đá mọi phiên). KHÔNG đụng hồ sơ: tiền phòng, phiếu thu, lượt ở giữ nguyên —
+// khác hẳn "Khoá hồ sơ" ở màn Học viên (hồ sơ khoá là thôi tính tiền).
+func (h *Handlers) AdminLockStudentAccount(c *gin.Context) {
+	id, ok := paramInt(c, "id")
+	if !ok {
+		notFound(c, "Không tìm thấy tài khoản")
+		return
+	}
+	ctx := c.Request.Context()
+	tag, err := h.pool().Exec(ctx,
+		"UPDATE users SET deleted_at=now() WHERE id=$1 AND role='student' AND deleted_at IS NULL", id)
+	if err != nil {
+		serverErr(c, err)
+		return
+	}
+	if tag.RowsAffected() == 0 {
+		notFound(c, "Không tìm thấy tài khoản học viên đang hoạt động để khoá")
+		return
+	}
+	if err := h.Auth.RevokeTokens(ctx, id); err != nil {
+		serverErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// AdminUnlockStudentAccount: POST /admin/student-accounts/:id/unlock — mở khoá lại.
+// Trạng thái khoá đến từ cả nút Khoá lẫn bước xác nhận trả phòng (xacnhan.go).
+// Chỉ mở được khi HỒ SƠ gắn với tài khoản đang mở (chốt 24/09).
+func (h *Handlers) AdminUnlockStudentAccount(c *gin.Context) {
+	id, ok := paramInt(c, "id")
+	if !ok {
+		notFound(c, "Không tìm thấy tài khoản")
+		return
+	}
+	ctx := c.Request.Context()
+	var daKhoa, hoSoMo bool
+	if h.pool().QueryRow(ctx,
+		`SELECT (u.deleted_at IS NOT NULL), (s.id IS NOT NULL AND s.deleted_at IS NULL)
+		   FROM users u LEFT JOIN students s ON s.id = u.student_id
+		  WHERE u.id=$1 AND u.role='student'`, id).Scan(&daKhoa, &hoSoMo) != nil {
+		notFound(c, "Không tìm thấy tài khoản học viên")
+		return
+	}
+	if !daKhoa {
+		badRequest(c, "Tài khoản đang hoạt động — không cần mở khoá")
+		return
+	}
+	if !hoSoMo {
+		badRequest(c, "Hồ sơ học viên đang bị khoá (hoặc tài khoản không gắn hồ sơ nào) — mở khoá hồ sơ ở màn Học viên trước, rồi mới mở khoá tài khoản.")
+		return
+	}
+	tag, err := h.pool().Exec(ctx,
+		`UPDATE users u SET deleted_at=NULL
+		  WHERE u.id=$1 AND u.role='student' AND u.deleted_at IS NOT NULL
+		    AND EXISTS (SELECT 1 FROM students s WHERE s.id = u.student_id AND s.deleted_at IS NULL)`, id)
+	if err != nil {
+		serverErr(c, err)
+		return
+	}
+	if tag.RowsAffected() == 0 {
+		notFound(c, "Không tìm thấy tài khoản học viên đang bị khoá để mở")
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})

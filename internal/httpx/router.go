@@ -172,6 +172,8 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	adm.GET("/pending-count", h.AdminPendingCount)
 	adm.GET("/student-accounts", h.AdminStudentAccounts)
 	adm.POST("/student-accounts/:id/revoke", h.AdminRevokeStudentSession)
+	adm.POST("/student-accounts/:id/lock", h.AdminLockStudentAccount)     // khoá đăng nhập, KHÔNG đụng hồ sơ
+	adm.POST("/student-accounts/:id/unlock", h.AdminUnlockStudentAccount) // mở lại (kể cả bị khoá do trả phòng)
 	adm.GET("/users", h.ListUsers)
 	adm.POST("/users", h.CreateUser)
 	adm.PUT("/users/:id", h.UpdateUser)

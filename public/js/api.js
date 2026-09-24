@@ -238,6 +238,9 @@ const API = {
   // Tài khoản đăng nhập của HỌC VIÊN (tab Người dùng). Đọc + thu hồi phiên + đổi ngược về nhân viên.
   studentAccounts: () => api('/admin/student-accounts'),
   revokeStudentSession: id => api('/admin/student-accounts/' + id + '/revoke', { method: 'POST' }),
+  // Khoá/mở ĐĂNG NHẬP của học viên — không đụng hồ sơ (hồ sơ khoá ở màn Học viên là chuyện khác).
+  lockStudentAccount: id => api('/admin/student-accounts/' + id + '/lock', { method: 'POST' }),
+  unlockStudentAccount: id => api('/admin/student-accounts/' + id + '/unlock', { method: 'POST' }),
   // Đổi NGƯỢC tài khoản học viên -> nhân viên: b = {role, facility_id, keep_student}. Không nhận vai admin.
   userToStaff: (id, b) => api('/admin/users/' + id + '/to-staff', { method: 'POST', body: b }),
   createUser: b => api('/admin/users', { method: 'POST', body: b }),

@@ -1626,12 +1626,16 @@ async function loadStudentAccounts() {
       <td>${u.student_id ? `<div class="flex stu-name" data-act="studentDetail" data-args='[${u.student_id}]' role="button" tabindex="0" title="Xem chi tiết học viên"><div><strong>${esc(u.student_name || u.full_name || '—')}</strong>${u.student_code ? `<div class="muted" style="font-size:11px">${esc(u.student_code)}</div>` : ''}</div><span class="row-chev" aria-hidden="true">${IC.chevronRight}</span></div>` : `${esc(u.student_name || u.full_name || '—')}${u.student_code ? `<div class="muted" style="font-size:11px">${esc(u.student_code)}</div>` : ''}`}</td>
       <td>${esc(u.room_name || '—')}</td>
       <td>${legalEntityCell(u.student_gender)}</td>
-      <td>${dsxoa ? '<span class="badge red" title="Hồ sơ học viên đã xoá nhưng tài khoản vẫn đăng nhập được">Hồ sơ đã xoá</span>'
+      <td>${u.locked ? '<span class="badge red" title="Tài khoản đang KHOÁ — không đăng nhập được. Hồ sơ và tiền phòng không đổi.">Đã khoá</span> ' : ''}${dsxoa ? '<span class="badge red" title="Hồ sơ học viên đã bị khoá — tài khoản này cũng không đăng nhập được">Hồ sơ đã khoá</span>'
         : dangO ? '<span class="badge green">Đang ở</span>' : '<span class="badge gray">Đã trả phòng</span>'}</td>
       <td class="num"><div class="rowbtns" style="justify-content:flex-end">
-        <button class="btn sm" title="Đặt lại mật khẩu" data-act="stuAccPwForm" data-args='[${u.id}]'>${IC.key} MK</button>
+        ${u.locked ? (dsxoa
+        ? `<button class="btn sm" disabled title="Hồ sơ đang khoá — mở khoá hồ sơ ở màn Học viên trước, rồi mới mở được tài khoản">${IC.lock} Mở khoá</button>`
+        : `<button class="btn sm pri" title="Cho đăng nhập lại" data-act="moKhoaStuAcc" data-args='[${u.id}]'>${IC.unlock || IC.key} Mở khoá</button>`)
+      : `<button class="btn sm" title="Đặt lại mật khẩu" data-act="stuAccPwForm" data-args='[${u.id}]'>${IC.key} MK</button>
         <button class="btn sm ghost" title="Đá mọi thiết bị đang đăng nhập (không đổi mật khẩu)" data-act="revokeStuSession" data-args='[${u.id}]'>Thu hồi phiên</button>
-        <button class="btn sm ghost" title="Lỡ chuyển nhầm sang học viên — đổi về tài khoản nhân viên" data-act="doiVeNhanVienForm" data-args='[${u.id}]'>Đổi về nhân viên</button>
+        <button class="btn sm ghost" title="Chặn đăng nhập — hồ sơ và tiền phòng giữ nguyên" data-act="khoaStuAccForm" data-args='[${u.id}]'>${IC.lock} Khoá</button>
+        <button class="btn sm ghost" title="Lỡ chuyển nhầm sang học viên — đổi về tài khoản nhân viên" data-act="doiVeNhanVienForm" data-args='[${u.id}]'>Đổi về nhân viên</button>`}
         ${u.student_id ? `<button class="btn sm" data-act="studentDetail" data-args='[${u.student_id}]'>Hồ sơ</button>` : ''}
       </div></td>
     </tr>`;
@@ -1660,6 +1664,35 @@ async function revokeStuSession(id) {
   if (!confirm(`Thu hồi mọi phiên đăng nhập của "${u.student_name || u.username}"?\n\nHọc viên sẽ bị đăng xuất khỏi mọi thiết bị và phải đăng nhập lại. Mật khẩu KHÔNG đổi.`)) return;
   await guard(() => API.revokeStudentSession(id));
   toast('Đã thu hồi phiên đăng nhập');
+}
+/* ---------- KHOÁ / MỞ KHOÁ đăng nhập của học viên ----------
+   Khoá ở đây CHỈ chặn đăng nhập (users.deleted_at) — hồ sơ, tiền phòng, phiếu thu giữ nguyên.
+   Khác "Khoá hồ sơ" ở màn Học viên: hồ sơ khoá là thôi tính tiền, không đếm lượt ở.
+   Xác nhận trả phòng cũng đặt tài khoản về trạng thái khoá -> nút Mở khoá ở đây là đường quay lại. */
+function khoaStuAccForm(id) {
+  const u = (window._stuAccCache || []).find(x => x.id === id); if (!u) return;
+  openModal(`
+    <div class="mh"><h3>Khoá đăng nhập của học viên</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mb">
+      <p class="muted" style="margin-top:0">Học viên: <strong>${esc(u.student_name || '')}</strong> · Tài khoản: <strong>${esc(u.username)}</strong></p>
+      <div class="bang-tin">${IC.lock} Sau khi khoá: học viên <strong>không đăng nhập được</strong> bằng mật khẩu lẫn Microsoft, mọi thiết bị đang mở bị đá ra ngay.</div>
+      <div class="hint" style="font-size:12px">${IC.info} <strong>Hồ sơ và tiền phòng KHÔNG đổi</strong> — vẫn đang ở, vẫn tính tiền, vẫn lập phiếu thu như thường.
+        Muốn ngừng tính tiền thì đó là <strong>"Khoá hồ sơ"</strong> ở màn Học viên, không phải nút này.
+        Mở lại bất cứ lúc nào ngay tại bảng này.</div>
+    </div>
+    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="khoaStuAcc" data-args='[${id}]'>Khoá đăng nhập</button></div>`);
+}
+async function khoaStuAcc(id) {
+  await guard(() => API.lockStudentAccount(id));
+  closeModal(); toast('Đã khoá đăng nhập'); loadStudentAccounts();
+}
+async function moKhoaStuAcc(id) {
+  const u = (window._stuAccCache || []).find(x => x.id === id); if (!u) return;
+  // Hồ sơ khoá thì mở tài khoản cũng vô nghĩa: đăng nhập vẫn bị chặn vì hồ sơ.
+  if (u.student_deleted) return toast('Hồ sơ đang khoá — mở khoá hồ sơ ở màn Học viên trước', 'err');
+  if (!confirm(`Mở khoá đăng nhập cho "${u.student_name || u.username}"?\n\nHọc viên đăng nhập lại được bằng mật khẩu cũ. Nếu không nhớ mật khẩu thì bấm tiếp "MK" để cấp lại.`)) return;
+  await guard(() => API.unlockStudentAccount(id));
+  toast('Đã mở khoá đăng nhập'); loadStudentAccounts();
 }
 /* ---------- Đổi NGƯỢC: tài khoản học viên -> nhân viên ----------
    Chiều xuôi nằm ở userForm ("Chuyển thành tài khoản học viên"). Thiếu chiều này thì chuyển nhầm một
