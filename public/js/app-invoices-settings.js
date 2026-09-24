@@ -1631,6 +1631,7 @@ async function loadStudentAccounts() {
       <td class="num"><div class="rowbtns" style="justify-content:flex-end">
         <button class="btn sm" title="Đặt lại mật khẩu" data-act="stuAccPwForm" data-args='[${u.id}]'>${IC.key} MK</button>
         <button class="btn sm ghost" title="Đá mọi thiết bị đang đăng nhập (không đổi mật khẩu)" data-act="revokeStuSession" data-args='[${u.id}]'>Thu hồi phiên</button>
+        <button class="btn sm ghost" title="Lỡ chuyển nhầm sang học viên — đổi về tài khoản nhân viên" data-act="doiVeNhanVienForm" data-args='[${u.id}]'>Đổi về nhân viên</button>
         ${u.student_id ? `<button class="btn sm" data-act="studentDetail" data-args='[${u.student_id}]'>Hồ sơ</button>` : ''}
       </div></td>
     </tr>`;
@@ -1659,6 +1660,44 @@ async function revokeStuSession(id) {
   if (!confirm(`Thu hồi mọi phiên đăng nhập của "${u.student_name || u.username}"?\n\nHọc viên sẽ bị đăng xuất khỏi mọi thiết bị và phải đăng nhập lại. Mật khẩu KHÔNG đổi.`)) return;
   await guard(() => API.revokeStudentSession(id));
   toast('Đã thu hồi phiên đăng nhập');
+}
+/* ---------- Đổi NGƯỢC: tài khoản học viên -> nhân viên ----------
+   Chiều xuôi nằm ở userForm ("Chuyển thành tài khoản học viên"). Thiếu chiều này thì chuyển nhầm một
+   cái là hết đường lui: vai 'student' rơi khỏi /admin/users nên dòng biến mất khỏi màn Tài khoản.
+   Hồ sơ đang gắn hỏi tại chỗ: gỡ hẳn, hay giữ thành nhân viên kiêm khách thuê phòng. */
+function doiVeNhanVienForm(id) {
+  const u = (window._stuAccCache || []).find(x => x.id === id); if (!u) return;
+  const dangO = u.student_status === 'in';
+  openModal(`
+    <div class="mh"><h3>Đổi về tài khoản nhân viên</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mb">
+      <div class="bang-tin">${IC.info} Tài khoản <strong>${esc(u.username)}</strong> đang là <strong>học viên</strong>, gắn hồ sơ
+        <strong>${esc(u.student_name || '—')}</strong>${u.student_code ? ` (${esc(u.student_code)})` : ''}${u.room_name ? ` · phòng ${esc(u.room_name)}` : ''}.
+        <br>Đổi vai xong, mọi thiết bị đang đăng nhập bị đá ra ngay.</div>
+      <div class="field"><label>Vai trò mới</label><select id="dv_role">
+        <option value="staff">Nhân viên — thao tác nghiệp vụ</option>
+        <option value="maintenance">An ninh / Bảo trì — bàn giao phòng, bãi xe, sửa chữa</option>
+        <option value="secretary">Thư ký — chỉ xem hồ sơ lưu trữ</option>
+      </select><div class="sub2" style="margin-top:4px">Cần quyền <strong>quản trị</strong> thì đổi tiếp ở màn Tài khoản sau khi tài khoản này hiện lại trong danh sách.</div></div>
+      <div class="field"><label>Cơ sở phụ trách</label><select id="dv_facility">
+        <option value="">Tất cả cơ sở (điều hành)</option>
+        ${(ST.facilities || []).map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join('')}
+      </select></div>
+      <div class="field"><label>Hồ sơ học viên đang gắn</label><select id="dv_keep">
+        <option value="0">Gỡ hẳn — tài khoản thành nhân viên thuần</option>
+        <option value="1">Giữ — nhân viên kiêm khách thuê phòng</option>
+      </select><div class="sub2" style="margin-top:4px">Gỡ hẳn: hồ sơ <strong>vẫn còn nguyên</strong> trong danh sách học viên, chỉ không còn tài khoản đăng nhập — cấp lại được ở màn hồ sơ.
+        Giữ: một tài khoản vào được cả màn quản trị lẫn cổng khách thuê.</div></div>
+      ${dangO ? `<div class="hint" style="font-size:12px">${IC.alert} Hồ sơ này <strong>đang ở</strong>. Nếu người đang ở thật là học viên thì gỡ liên kết sẽ lấy mất lối đăng nhập của họ — cân nhắc chọn "Giữ".</div>` : ''}
+    </div>
+    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="doiVeNhanVien" data-args='[${id}]'>Đổi về nhân viên</button></div>`);
+}
+async function doiVeNhanVien(id) {
+  const body = { role: el('dv_role').value, facility_id: el('dv_facility').value, keep_student: el('dv_keep').value === '1' };
+  await guard(() => API.userToStaff(id, body));
+  closeModal(); toast('Đã đổi về tài khoản nhân viên');
+  await napLai('students');
+  loadStudentAccounts(); loadAdminUsers();
 }
 function resetUserPwForm(id) {
   const u = (window._usrCache || []).find(x => x.id === id);

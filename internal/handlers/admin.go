@@ -941,6 +941,69 @@ func (h *Handlers) AdminUnlinkStudent(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
+// AdminStudentToStaff: POST /api/admin/users/:id/to-staff — trả tài khoản học viên về vai nhân viên.
+// Chiều xuôi (approve-student) từng là cửa một chiều: role='student' nằm ngoài adminManagedRolesSQL
+// nên PUT /users/:id trả 404. KHÔNG nhận vai 'admin' — lên quản trị vẫn phải qua màn Tài khoản.
+func (h *Handlers) AdminStudentToStaff(c *gin.Context) {
+	id, ok := paramInt(c, "id")
+	if !ok {
+		notFound(c, "Không tìm thấy tài khoản")
+		return
+	}
+	var body struct {
+		Role        string          `json:"role"`
+		KeepStudent bool            `json:"keep_student"`
+		FacilityID  json.RawMessage `json:"facility_id"`
+	}
+	_ = c.ShouldBindJSON(&body)
+	role := strings.TrimSpace(body.Role)
+	if role == "" {
+		role = "staff"
+	}
+	if role == "admin" || !adminValidRoles[role] {
+		badRequest(c, `Vai trò không hợp lệ: "`+role+`". Chỉ nhận: nhân viên, an ninh/bảo trì, thư ký. Muốn lên quản trị thì đổi tiếp ở màn Tài khoản.`)
+		return
+	}
+	ctx := c.Request.Context()
+	var curRole string
+	var curSID *int
+	if h.pool().QueryRow(ctx, "SELECT role, student_id FROM users WHERE id=$1 AND deleted_at IS NULL", id).
+		Scan(&curRole, &curSID) != nil {
+		notFound(c, "Không tìm thấy tài khoản")
+		return
+	}
+	if curRole != "student" {
+		badRequest(c, "Chỉ áp dụng cho tài khoản học viên. Tài khoản nhân viên đổi vai ở màn Tài khoản.")
+		return
+	}
+	facVal, ok2, errMsg := h.adminParseFacilityID(ctx, body.FacilityID)
+	if !ok2 {
+		badRequest(c, errMsg)
+		return
+	}
+	var facArg interface{}
+	if facVal != nil {
+		facArg = *facVal
+	}
+	// Giữ hồ sơ = nhân viên kiêm khách thuê phòng (trạng thái AdminLinkStudent vẫn dùng).
+	var sidArg interface{}
+	if body.KeepStudent && curSID != nil {
+		sidArg = *curSID
+	}
+	if _, err := h.pool().Exec(ctx,
+		`UPDATE users SET role=$1, facility_id=$2, student_id=$3, approved=true
+		   WHERE id=$4 AND role='student' AND deleted_at IS NULL`, role, facArg, sidArg, id); err != nil {
+		serverErr(c, err)
+		return
+	}
+	// Vé cũ ghi role='student' -> không thu hồi là họ vẫn thấy cổng học viên tới khi hết hạn.
+	if err := h.Auth.RevokeTokens(ctx, id); err != nil {
+		serverErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "role": role, "student_id": sidArg})
+}
+
 // ResetPassword: POST /api/admin/users/:id/password. admin.routes.js:197-208
 func (h *Handlers) ResetPassword(c *gin.Context) {
 	id, ok := paramInt(c, "id")

@@ -235,9 +235,11 @@ const API = {
   dataHealth: () => api('/admin/data-health'),
   pendingCount: () => api('/admin/pending-count'),
   adminUsers: () => api('/admin/users'),
-  // Tài khoản đăng nhập của HỌC VIÊN (tab Người dùng). Chỉ đọc + thu hồi phiên; đổi vai/xoá không có.
+  // Tài khoản đăng nhập của HỌC VIÊN (tab Người dùng). Đọc + thu hồi phiên + đổi ngược về nhân viên.
   studentAccounts: () => api('/admin/student-accounts'),
   revokeStudentSession: id => api('/admin/student-accounts/' + id + '/revoke', { method: 'POST' }),
+  // Đổi NGƯỢC tài khoản học viên -> nhân viên: b = {role, facility_id, keep_student}. Không nhận vai admin.
+  userToStaff: (id, b) => api('/admin/users/' + id + '/to-staff', { method: 'POST', body: b }),
   createUser: b => api('/admin/users', { method: 'POST', body: b }),
   updateUser: (id, b) => api('/admin/users/' + id, { method: 'PUT', body: b }),
   // Duyệt tài khoản chờ thành HỌC VIÊN: b = {student_id} ghép hồ sơ có sẵn, hoặc {new_student:{...}} tạo mới.
