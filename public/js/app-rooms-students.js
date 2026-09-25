@@ -906,7 +906,10 @@ async function studentDetail(id) {
       <p><strong>Khai giảng:</strong> ${fmtDate(s.class_start_date)} &nbsp;•&nbsp; <strong>Dự kiến xuất cảnh:</strong> ${fmtDate(s.expected_departure)}</p>
       <p><strong>Ngày vào:</strong> ${fmtDate(s.check_in_date)} ${s.check_out_date ? ` &nbsp;•&nbsp; <strong>Ngày trả:</strong> ${fmtDate(s.check_out_date)}` : ''}</p>
       <p><strong>Tài khoản:</strong> ${s.login_username ? `<span class="badge blue">${IC.key} ${esc(s.login_username)}</span>` : '<span class="muted">Chưa có</span>'}
-        <button class="btn sm" style="margin-left:8px" data-act="accountForm" data-args='[${s.id}, ${JSON.stringify(s.code || s.phone || "")}]'>${s.login_username ? 'Đặt lại MK' : 'Tạo tài khoản'}</button></p>
+        ${s.login_locked ? '<span class="badge red">Đã khoá</span>' : ''}
+        ${s.login_locked
+      ? `<button class="btn sm" style="margin-left:8px" disabled title="Tài khoản đang khoá — mở khoá ở Cài đặt › Người dùng › Tài khoản học viên trước, rồi mới đặt lại mật khẩu">Đặt lại MK</button>`
+      : `<button class="btn sm" style="margin-left:8px" data-act="accountForm" data-args='[${s.id}, ${JSON.stringify(s.code || s.phone || "")}]'>${s.login_username ? 'Đặt lại MK' : 'Tạo tài khoản'}</button>`}</p>
 
       <div class="panel" style="margin-top:12px"><div class="hd"><h2 style="font-size:14px">${IC.fileText} Hợp đồng</h2></div><div class="pad">
         <p style="margin:0">Số HĐ: ${s.contract_no

@@ -133,6 +133,7 @@ const studentsListSelect = `
     (s.contract_scan IS NOT NULL) AS has_contract_scan,
     r.name AS room_name, r.floor AS room_floor, r.gender AS room_gender, r.hang AS room_hang,
     u.username AS login_username,
+    (u.deleted_at IS NOT NULL) AS login_locked,
     (SELECT COUNT(*) FROM vehicles v WHERE v.student_id=s.id AND v.deleted_at IS NULL)::int AS vehicle_count,
     (SELECT COUNT(*) FROM violations vi WHERE vi.student_id=s.id AND vi.deleted_at IS NULL)::int AS violation_count,
     cref.student_id  AS contract_ref_id,
@@ -1174,6 +1175,7 @@ func (h *Handlers) GetStudent(c *gin.Context) {
 	rows, err := h.pool().Query(ctx, `
       SELECT s.*, r.name AS room_name, r.floor AS room_floor, r.gender AS room_gender, r.hang AS room_hang,
         u.username AS login_username,
+        (u.deleted_at IS NOT NULL) AS login_locked,
         s.xmin::text AS _v
       FROM students s
       LEFT JOIN rooms r ON r.id = s.room_id
@@ -2938,6 +2940,11 @@ func (h *Handlers) StudentAccount(c *gin.Context) {
 	existing, err := db.RowToMap(exRows)
 	if err != nil {
 		serverErr(c)
+		return
+	}
+	// Tài khoản đang khoá thì đổi mật khẩu là vô nghĩa: đăng nhập vẫn bị chặn (auth.go:118).
+	if existing != nil && existing["deleted_at"] != nil {
+		badRequest(c, "Tài khoản đang bị khoá — mở khoá ở bảng Tài khoản học viên (Cài đặt › Người dùng) trước, rồi mới đặt lại mật khẩu.")
 		return
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), 10)

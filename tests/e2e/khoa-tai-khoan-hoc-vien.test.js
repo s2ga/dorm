@@ -46,6 +46,20 @@ module.exports = {
       t.ok('TC-5 · hồ sơ học viên KHÔNG bị khoá lây', hs.deleted_at === null, JSON.stringify(hs));
       t.eq('TC-6 · … vẫn đang ở (tiền phòng tính như thường)', hs.status, 'in', JSON.stringify(hs));
 
+      // ── Đặt lại mật khẩu trên tài khoản ĐANG KHOÁ: phải TỪ CHỐI ────────────────────
+      // Trước đây đổi mật khẩu thành công và phát mật khẩu mới, nhưng tài khoản vẫn khoá nên
+      // học viên gõ vào vẫn bị chặn — cả người đưa lẫn người nhận đều tưởng gõ sai.
+      const hashTruoc = (await t.db.query('SELECT password_hash FROM users WHERE id=$1', [uid])).rows[0].password_hash;
+      const capMk = await t.api('POST', `/api/students/${sid}/account`, T, {});
+      t.eq('TC-6a · đặt lại mật khẩu khi tài khoản đang khoá → 400', capMk.status, 400,
+        `HTTP ${capMk.status} ${JSON.stringify(capMk.json)}`);
+      t.ok('TC-6b · … lời từ chối chỉ rõ phải mở khoá trước',
+        /khoá/i.test((capMk.json && capMk.json.error) || ''), JSON.stringify(capMk.json));
+      t.ok('TC-6c · … KHÔNG trả mật khẩu mới (không phát mật khẩu dùng không được)',
+        !(capMk.json && capMk.json.password), JSON.stringify(capMk.json));
+      const hashSau = (await t.db.query('SELECT password_hash FROM users WHERE id=$1', [uid])).rows[0].password_hash;
+      t.eq('TC-6d · … và mật khẩu trong CSDL giữ nguyên', hashSau, hashTruoc, 'mật khẩu đã bị đổi dù thao tác bị từ chối');
+
       // ── Vẫn NHÌN THẤY sau khi khoá, kèm cờ locked ───────────────────────────────────
       const ds = await dsTaiKhoan();
       const dong = ds.find(x => x.id === uid);
@@ -108,6 +122,17 @@ module.exports = {
       const vaoSauCung = await t.api('POST', '/api/auth/login', null, { username: P + '_hv', password: pw });
       t.eq('TC-26 · … và học viên đăng nhập lại được', vaoSauCung.status, 200,
         `HTTP ${vaoSauCung.status} — ${vaoSauCung.json && vaoSauCung.json.error}`);
+
+      const capMkSauMo = await t.api('POST', `/api/students/${sid}/account`, T, { password: pw });
+      t.eq('TC-27 · tài khoản đã mở khoá → đặt lại mật khẩu chạy bình thường', capMkSauMo.status, 200,
+        `HTTP ${capMkSauMo.status} ${JSON.stringify(capMkSauMo.json)}`);
+      const vaoSauCapMk = await t.api('POST', '/api/auth/login', null, { username: P + '_hv', password: pw });
+      t.eq('TC-28 · … và đăng nhập được bằng mật khẩu vừa đặt', vaoSauCapMk.status, 200,
+        `HTTP ${vaoSauCapMk.status} — ${vaoSauCapMk.json && vaoSauCapMk.json.error}`);
+      const hvDetail = await t.api('GET', `/api/students/${sid}`, T);
+      t.ok('TC-29 · hồ sơ trả về cờ login_locked để giao diện biết khi nào phải để nút mờ',
+        hvDetail.json && hvDetail.json.login_locked === false,
+        JSON.stringify(hvDetail.json && { u: hvDetail.json.login_username, l: hvDetail.json.login_locked }));
 
       // ── Phân quyền: chỉ quản trị ────────────────────────────────────────────────────
       const nvT = await t.login(P + '_nv', pw);
