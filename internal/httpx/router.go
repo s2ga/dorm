@@ -68,6 +68,9 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 		}
 		c.JSON(http.StatusOK, gin.H{"ok": true, "db": "ok"})
 	})
+	// Bản dựng nào đang chạy (tag + commit, ghi lúc build). Không đăng nhập được thì vẫn phải kiểm
+	// được đang chạy bản nào — cùng lý do để ngỏ như /api/health.
+	api.GET("/version", h.AppVersion)
 
 	ag := api.Group("/auth")
 	ag.POST("/login", authLim, h.Login)

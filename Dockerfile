@@ -8,8 +8,17 @@ RUN go mod download
 COPY . .
 ARG TARGETOS
 ARG TARGETARCH
+
+# Bản dựng nào đang chạy: nhúng thẳng vào binary, /api/version đọc ra. CI truyền vào qua build-arg;
+# build tay không truyền thì trống, lúc đó buildinfo lùi về biến môi trường rồi mới tới "dev".
+ARG VERSION=
+ARG COMMIT=
+ARG BUILT_AT=
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} \
-    go build -trimpath -ldflags="-s -w" -o /out/ktx ./cmd/server
+    go build -trimpath -ldflags="-s -w \
+      -X ktx/internal/buildinfo.Version=${VERSION} \
+      -X ktx/internal/buildinfo.Commit=${COMMIT} \
+      -X ktx/internal/buildinfo.BuiltAt=${BUILT_AT}" -o /out/ktx ./cmd/server
 
 FROM scratch
 

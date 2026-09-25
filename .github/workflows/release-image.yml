@@ -46,6 +46,7 @@ jobs:
             echo "name=$name"
             echo "tag=$tag"
             echo "ref=$name:$tag"
+            echo "built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           } >> "$GITHUB_OUTPUT"
 
       - name: Tag có nằm trên main không (chỉ ghi nhận, không chặn)
@@ -101,6 +102,11 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
+          # Nhúng tag + commit vào binary để /api/version trả đúng bản đang chạy trên UAT.
+          build-args: |
+            VERSION=${{ steps.img.outputs.tag }}
+            COMMIT=${{ github.sha }}
+            BUILT_AT=${{ steps.img.outputs.built_at }}
           # Không có :latest — tag phát hành phải cố định để rollback biết quay về đâu.
           tags: |
             ${{ steps.img.outputs.ref }}

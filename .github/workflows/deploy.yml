@@ -46,15 +46,25 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Image name (lowercase)
+      - name: Image name (lowercase) + thời điểm build
         id: img
-        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+        run: |
+          {
+            echo "name=ghcr.io/${GITHUB_REPOSITORY,,}"
+            echo "built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Build & push image to GHCR
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
+          # Nhúng bản dựng vào binary -> /api/version đọc ra. Ảnh này không gắn tag phát hành nên
+          # VERSION ghi "main-<sha ngắn>": biết ngay là bản theo nhánh, không phải bản vNN.
+          build-args: |
+            VERSION=main-${{ github.sha }}
+            COMMIT=${{ github.sha }}
+            BUILT_AT=${{ steps.img.outputs.built_at }}
           tags: |
             ${{ steps.img.outputs.name }}:latest
             ${{ steps.img.outputs.name }}:${{ github.sha }}
