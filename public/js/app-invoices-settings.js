@@ -1317,7 +1317,7 @@ function gotoUsers() {
   }));
 }
 /* ---------- Quản lý tài khoản nhân viên (chỉ quản trị) ---------- */
-const ROLE_LABEL = { admin: ['Quản trị viên', 'gray'], staff: ['Nhân viên', 'blue'], maintenance: ['An ninh / Bảo trì', 'amber'], secretary: ['Thư ký', 'green'] };
+const ROLE_LABEL = { admin: ['Quản trị viên', 'gray'], staff: ['Nhân viên', 'blue'], maintenance: ['An ninh / Bảo trì', 'amber'], secretary: ['Thư ký', 'green'], teacher: ['Giáo viên ProSkills', 'sage'] };
 async function loadAdminUsers() {
   const box = el('usrRows'); if (!box) return;
   let users = [];
@@ -1463,6 +1463,7 @@ function duyetTaiKhoanForm(id, mode) {
           <option value="staff">Nhân viên — thao tác nghiệp vụ</option>
           <option value="maintenance">An ninh / Bảo trì — bàn giao phòng, bãi xe, sửa chữa</option>
           <option value="secretary">Thư ký — chỉ xem hồ sơ lưu trữ</option>
+          <option value="teacher">Giáo viên ProSkills — chỉ xem trực nhật & vi phạm</option>
           <option value="admin">Quản trị viên — toàn quyền</option>
         </select></div>
         <div class="field"><label>Cơ sở phụ trách</label><select id="ap_facility">
@@ -1550,7 +1551,7 @@ function userForm(id) {
     <div class="mb">
       <div class="field"><label>Tên đăng nhập *</label><input id="u_username" value="${esc(u.username)}" ${id ? 'disabled' : ''} placeholder="vd: nhanvien01"></div>
       <div class="field"><label>Họ tên</label><input id="u_full" value="${esc(u.full_name || '')}" placeholder="Nguyễn Văn A"></div>
-      <div class="field"><label>Vai trò</label><select id="u_role">${roleOpt('staff', 'Nhân viên — thao tác nghiệp vụ')}${roleOpt('maintenance', 'An ninh / Bảo trì — bàn giao phòng, bãi xe, sửa chữa')}${roleOpt('secretary', 'Thư ký — chỉ xem hồ sơ lưu trữ')}${roleOpt('admin', 'Quản trị viên — toàn quyền')}</select></div>
+      <div class="field"><label>Vai trò</label><select id="u_role">${roleOpt('staff', 'Nhân viên — thao tác nghiệp vụ')}${roleOpt('maintenance', 'An ninh / Bảo trì — bàn giao phòng, bãi xe, sửa chữa')}${roleOpt('secretary', 'Thư ký — chỉ xem hồ sơ lưu trữ')}${roleOpt('teacher', 'Giáo viên ProSkills — chỉ xem trực nhật & vi phạm')}${roleOpt('admin', 'Quản trị viên — toàn quyền')}</select></div>
       <div class="field"><label>Cơ sở phụ trách</label><select id="u_facility">
         <option value="">Tất cả cơ sở (điều hành)</option>
         ${(ST.facilities || []).map(f => `<option value="${f.id}" ${u.facility_id === f.id ? 'selected' : ''}>${esc(f.name)}</option>`).join('')}
@@ -1711,6 +1712,7 @@ function doiVeNhanVienForm(id) {
         <option value="staff">Nhân viên — thao tác nghiệp vụ</option>
         <option value="maintenance">An ninh / Bảo trì — bàn giao phòng, bãi xe, sửa chữa</option>
         <option value="secretary">Thư ký — chỉ xem hồ sơ lưu trữ</option>
+        <option value="teacher">Giáo viên ProSkills — chỉ xem trực nhật & vi phạm</option>
       </select><div class="sub2" style="margin-top:4px">Cần quyền <strong>quản trị</strong> thì đổi tiếp ở màn Tài khoản sau khi tài khoản này hiện lại trong danh sách.</div></div>
       <div class="field"><label>Cơ sở phụ trách</label><select id="dv_facility">
         <option value="">Tất cả cơ sở (điều hành)</option>

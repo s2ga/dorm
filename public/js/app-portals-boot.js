@@ -1810,6 +1810,76 @@ async function loadSecretary() {
   const sb = el('tkSearch'); if (sb) attachRowSearch(sb, 'tkCount');
 }
 
+/* ---------- Cổng GIÁO VIÊN ProSkills — chỉ xem trực nhật từng phòng và vi phạm nội quy ---------- */
+function renderTeacher() {
+  _congDangMo = 'teacher';
+  el('app').innerHTML = `
+    <div class="app"><div class="main" style="margin:0 auto;max-width:1180px;width:100%">
+      <div class="top">
+        <div><h1>${IC.calendar} Trực nhật & Vi phạm</h1><div class="sub">Xin chào, ${esc(Auth.user.full_name || Auth.user.username)} — Giáo viên ProSkills${coSoCuaToi(' · ')}</div></div>
+        <div class="toolbar"><button class="btn sm" data-act="loadTeacher">${IC.refresh} Tải lại</button>${laKiemNhiem() ? `<button class="btn sm" data-act="switchPortal" data-args='["tenant"]'>${IC.home} Cổng khách thuê</button>` : ''}${dungMatKhau() ? `<button class="btn sm" data-act="changePwd">${IC.key} Đổi mật khẩu</button>` : ''}<button class="btn sm" data-act="logout">${IC.logOut} Đăng xuất</button></div>
+      </div>
+      <div class="content" id="content"><div class="spinner"></div></div>
+    </div></div>`;
+  startTableResize();
+  loadTeacher();
+}
+async function loadTeacher() {
+  el('content').innerHTML = '<div class="spinner"></div>';
+  let phong = [], vps = [];
+  try { [phong, vps] = await Promise.all([API.roomsChores(), API.violations()]); }
+  catch (e) {
+    el('content').innerHTML = `<div class="bang-tin">${IC.alert} <span>${esc(e.message || 'Lỗi kết nối máy chủ')}</span>
+      <button class="btn sm" data-act="loadTeacher" style="margin-left:8px">${IC.refresh} Thử lại</button></div>`;
+    return;
+  }
+  const ds = Array.isArray(vps) ? vps : (vps.rows || []);
+  // Tuần đầu trong lịch là tuần đang chạy; tuần kế là phiên sau. Phòng chưa có ai ở thì lịch rỗng.
+  const luot = (r, i) => {
+    const w = (r.lich || [])[i];
+    return w && w.name ? `<strong>${esc(w.name)}</strong><div class="sub2">${fmtDate(w.from)} – ${fmtDate(w.to)}</div>` : '<span class="muted">—</span>';
+  };
+  el('content').innerHTML = `
+    <div class="panel"><div class="hd"><h2>${IC.calendar} Trực nhật theo phòng (<span id="gvCount">${phong.length}</span>)</h2>
+      <div class="toolbar"><div class="search"><span class="i">${IC.search}</span>
+        <input id="gvSearch" placeholder="Tìm phòng / tên người trực..."></div></div></div>
+      <div class="table-wrap card-tbl">
+        ${phong.length ? `<table><thead><tr><th>Phòng</th><th class="num">Tầng</th><th class="num">Số người</th>
+          <th>Tuần này trực</th><th>Tuần sau</th></tr></thead><tbody>
+          ${phong.map(r => `<tr data-s="${esc(((r.room_name || '') + ' ' + (r.lich || []).map(w => w.name || '').join(' ')).toLowerCase())}">
+            <td data-label="Phòng"><strong>${esc(r.room_name)}</strong></td>
+            <td class="num" data-label="Tầng">${esc(r.floor ?? '—')}</td>
+            <td class="num" data-label="Số người">${r.so_nguoi}</td>
+            <td data-label="Tuần này trực">${luot(r, 0)}</td>
+            <td data-label="Tuần sau">${luot(r, 1)}</td>
+          </tr>`).join('')}
+          <tr class="no-result" style="display:none"><td colspan="5"><div class="empty">Không tìm thấy phòng phù hợp.</div></td></tr>
+        </tbody></table>` : '<div class="empty">Chưa có phòng nào.</div>'}
+      </div>
+      <div class="pad"><div class="hint">${IC.info}<span>Lịch trực do app tự xoay vòng theo danh sách người đang ở — không ai phải nhập tay.</span></div></div>
+    </div>
+
+    <div class="panel"><div class="hd"><h2>${IC.alert} Vi phạm nội quy (<span id="gvVpCount">${ds.length}</span>)</h2>
+      <div class="toolbar"><div class="search"><span class="i">${IC.search}</span>
+        <input id="gvVpSearch" placeholder="Tìm học viên / phòng / lỗi..."></div></div></div>
+      <div class="table-wrap card-tbl">
+        ${ds.length ? `<table><thead><tr><th>Ngày</th><th>Học viên</th><th>Phòng</th><th>Lỗi</th><th>Mức độ</th><th>Ghi chú</th></tr></thead><tbody>
+          ${ds.map(v => `<tr data-s="${esc(((v.student_name || '') + ' ' + (v.room_name || '') + ' ' + (v.type_name || '') + ' ' + (v.note || '')).toLowerCase())}">
+            <td data-label="Ngày">${v.date ? fmtDate(v.date) : '<span class="muted">—</span>'}</td>
+            <td data-label="Học viên"><strong>${esc(v.student_name || '—')}</strong>${v.student_code ? `<div class="sub2">${esc(v.student_code)}</div>` : ''}</td>
+            <td data-label="Phòng">${esc(v.room_name || '—')}</td>
+            <td data-label="Lỗi">${esc(v.type_name || '—')}${+v.level > 1 ? `<div class="sub2">lần thứ ${+v.level}</div>` : ''}</td>
+            <td data-label="Mức độ">${vioSevBadge(v.severity)}</td>
+            <td data-label="Ghi chú">${esc(v.note || '')}</td>
+          </tr>`).join('')}
+          <tr class="no-result" style="display:none"><td colspan="6"><div class="empty">Không tìm thấy vi phạm phù hợp.</div></td></tr>
+        </tbody></table>` : '<div class="empty">Chưa ghi nhận vi phạm nào.</div>'}
+      </div>
+    </div>`;
+  const s1 = el('gvSearch'); if (s1) attachRowSearch(s1, 'gvCount');
+  const s2 = el('gvVpSearch'); if (s2) attachRowSearch(s2, 'gvVpCount');
+}
+
 /* ================= CHỐNG BẤM 2 LẦN =================
    Bấm "Lưu" phát thứ hai trong lúc phát đầu chưa xong = 2 request = 2 bản ghi trùng.
    Đây CHÍNH LÀ GỐC của việc thu dư 10.907.925đ/tháng đã phải dọn tay ngày 16/07/2026:

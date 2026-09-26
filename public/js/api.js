@@ -102,6 +102,7 @@ const API = {
   deleteFacility: id => api('/facilities/' + id, { method: 'DELETE' }),
 
   rooms: deleted => api('/rooms' + (deleted ? '?deleted=1' : '') + facAmp(!!deleted)),
+  roomsChores: () => api('/rooms/chores'),
   // BL-107: sức chứa tính theo MỘT MỐC NGÀY, không phải hôm nay — dùng cho ô Xếp phòng.
   roomsAtDate: ngay => api('/rooms?date=' + encodeURIComponent(ngay) + facAmp(true)),
   // Ma trận phòng × ngày cho lịch chỗ trống.

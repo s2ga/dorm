@@ -63,7 +63,7 @@ async function ssoHandleReturn() {
 /* ================= ĐIỀU PHỐI CHÍNH ================= */
 // Nhân viên kiêm khách thuê phòng: vai nhân viên + gắn hồ sơ (student_id) -> được chuyển 2 cổng.
 const laKiemNhiem = () => !!(Auth.user && Auth.user.student_id && Auth.user.role !== 'student');
-// Cổng đang mở ('admin'|'student'|'maintenance'|'secretary') — các vòng poll tự tắt theo cờ này,
+// Cổng đang mở ('admin'|'student'|'maintenance'|'secretary'|'teacher') — các vòng poll tự tắt theo cờ này,
 // KHÔNG theo role (người kiêm nhiệm đổi cổng nhưng role không đổi).
 let _congDangMo = null;
 
@@ -91,6 +91,7 @@ async function boot() {
   if (user.role === 'admin' || user.role === 'staff') renderAdmin();
   else if (user.role === 'maintenance') renderMaintenance();
   else if (user.role === 'secretary') renderSecretary();
+  else if (user.role === 'teacher') renderTeacher();
   else renderStudent();
 }
 
