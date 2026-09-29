@@ -126,7 +126,7 @@ module.exports = {
            (SELECT id FROM students WHERE code LIKE '${P}%')`)).rows[0].c, 0);
 
       const gui = await t.api('POST', '/api/maintenance/washing/requests', anA,
-        { student_id: khongGiat, seen_date: hnay, note: 'Máy Toshiba để trong nhà vệ sinh' });
+        { student_id: khongGiat, seen_date: hnay, note: 'HV nói sẽ mang máy lên tuần này' });
       t.eq('Gửi báo cáo hợp lệ → 200', gui.status, 200, `HTTP ${gui.status} ${gui.json && gui.json.error || ''}`);
       const reqID = gui.json && gui.json.id;
       t.ok('Trả về mã báo cáo', !!reqID, JSON.stringify(gui.json));
@@ -145,7 +145,7 @@ module.exports = {
       const bc = ((dsBC.json && dsBC.json.rows) || []).find(x => x.id === reqID) || {};
       t.eq('Báo cáo có tên học viên', bc.student_name, P + '_khongGiat', JSON.stringify(bc));
       t.eq('Báo cáo có phòng', bc.room_name, P + '_rA', JSON.stringify(bc));
-      t.eq('Báo cáo giữ đúng ghi chú của an ninh', bc.note, 'Máy Toshiba để trong nhà vệ sinh');
+      t.eq('Báo cáo giữ đúng ghi chú của an ninh', bc.note, 'HV nói sẽ mang máy lên tuần này');
       t.eq('Báo cáo ghi ai đã báo', bc.requested_by, P + '_anninhA');
 
       t.eq('Từ chối mà không nêu lý do → 400',
@@ -179,8 +179,11 @@ module.exports = {
         .find(x => x.id === sapTra) || {};
       t.eq('An ninh thấy báo cáo bị từ chối', sauTC.de_nghi_status, 'rejected', JSON.stringify(sauTC));
       t.eq('An ninh đọc được lý do từ chối', sauTC.de_nghi_decision_note, 'Máy của phòng bên cạnh');
-      t.eq('Bị từ chối rồi vẫn báo lại được (không kẹt vĩnh viễn)',
-        (await t.api('POST', '/api/maintenance/washing/requests', anA, { student_id: sapTra, seen_date: hnay })).status, 200);
+      // Form của an ninh KHÔNG có ô ngày — gửi thiếu seen_date phải tự lấy hôm nay, không được 400.
+      const guiTrong = await t.api('POST', '/api/maintenance/washing/requests', anA, { student_id: sapTra });
+      t.eq('Bị từ chối rồi vẫn báo lại được, không cần gửi ngày', guiTrong.status, 200, `HTTP ${guiTrong.status}`);
+      t.eq('Thiếu ngày thì máy chủ tự điền hôm nay',
+        (await t.db.query('SELECT seen_date::text d FROM washing_requests WHERE id=$1', [guiTrong.json.id])).rows[0].d, hnay);
 
       /* ===== 6. VAI KHÁC ===== */
       const cam = async (ten, uname, method, path, body, mong = 403) => {

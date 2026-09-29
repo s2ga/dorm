@@ -14,7 +14,7 @@ import (
 	"ktx/internal/valid"
 )
 
-// An ninh thấy máy giặt trong phòng mà người đó chưa đăng ký -> GỬI BÁO CÁO, không ghi thẳng vào hồ sơ.
+// An ninh báo "có người muốn đăng ký máy giặt" -> GỬI BÁO CÁO, không ghi thẳng vào hồ sơ.
 // Quản trị viên duyệt thì mới vào danh sách máy giặt (cùng luật với đề nghị sửa biển số, BL-120).
 
 const (
@@ -36,7 +36,7 @@ func washingFromMoiSQL(co string) string {
 }
 
 // MaintWashingRequest: POST /api/maintenance/washing/requests (maintenance,admin)
-// An ninh báo "phòng này có máy giặt nhưng chưa đăng ký".
+// An ninh báo có người muốn đăng ký máy giặt. seen_date = ngày báo, bỏ trống thì lấy hôm nay.
 func (h *Handlers) MaintWashingRequest(c *gin.Context) {
 	u := auth.CurrentUser(c)
 	var b struct {
@@ -46,7 +46,7 @@ func (h *Handlers) MaintWashingRequest(c *gin.Context) {
 	}
 	_ = c.ShouldBindJSON(&b)
 	if b.StudentID <= 0 {
-		badRequest(c, "Chọn học viên trước khi gửi báo cáo")
+		badRequest(c, "Chưa chọn học viên")
 		return
 	}
 	ngay := strings.TrimSpace(b.SeenDate)
@@ -58,7 +58,7 @@ func (h *Handlers) MaintWashingRequest(c *gin.Context) {
 		return
 	}
 	if ngay > timeutil.Today() {
-		badRequest(c, "Ngày thấy máy giặt không thể ở tương lai")
+		badRequest(c, "Ngày gửi đề nghị không thể ở tương lai")
 		return
 	}
 	ctx := c.Request.Context()
@@ -86,18 +86,18 @@ func (h *Handlers) MaintWashingRequest(c *gin.Context) {
 		return
 	}
 	if !dangO {
-		badRequest(c, ten+" không còn ở ký túc xá — không gửi báo cáo máy giặt cho người đã đi.")
+		badRequest(c, ten+" không còn ở ký túc xá, không đăng ký máy giặt được.")
 		return
 	}
 	if giat {
-		badRequest(c, ten+" đã có trong danh sách máy giặt rồi.")
+		badRequest(c, ten+" đã có trong danh sách máy giặt.")
 		return
 	}
 	var cuID int
 	if h.pool().QueryRow(ctx, "SELECT id FROM washing_requests WHERE student_id=$1 AND status='pending'", b.StudentID).
 		Scan(&cuID) == nil {
 		conflict(c, gin.H{
-			"error":   "Đã có báo cáo đang chờ quản trị viên xử lý cho " + ten + ". Chờ xử lý xong rồi gửi lại.",
+			"error":   ten + " đã có đề nghị đang chờ duyệt. Chờ quản trị viên xử lý xong rồi gửi lại.",
 			"request": gin.H{"id": cuID},
 		})
 		return
@@ -160,7 +160,7 @@ func (h *Handlers) washingRequestQuyetDinh(c *gin.Context, duyet bool) {
 	u := auth.CurrentUser(c)
 	id, ok := paramInt(c, "id")
 	if !ok {
-		notFound(c, "Không tìm thấy báo cáo")
+		notFound(c, "Không tìm thấy đề nghị")
 		return
 	}
 	var b struct {
@@ -186,7 +186,7 @@ func (h *Handlers) washingRequestQuyetDinh(c *gin.Context, duyet bool) {
 		Scan(&hvID, &status, &by, &ngayThay, &facID, &hvTen)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			notFound(c, "Không tìm thấy báo cáo")
+			notFound(c, "Không tìm thấy đề nghị")
 			return
 		}
 		serverErr(c, err)
@@ -197,7 +197,7 @@ func (h *Handlers) washingRequestQuyetDinh(c *gin.Context, duyet bool) {
 		return
 	}
 	if status != washReqChoDuyet {
-		conflict(c, gin.H{"error": "Báo cáo này đã được xử lý rồi (" + status + ")."})
+		conflict(c, gin.H{"error": "Đề nghị này đã được xử lý rồi (" + status + ")."})
 		return
 	}
 
@@ -209,14 +209,14 @@ func (h *Handlers) washingRequestQuyetDinh(c *gin.Context, duyet bool) {
 			return
 		}
 		maintGhiVet(ctx, h, u, "TỪ-CHỐI-MÁY-GIẶT", c.Request.URL.Path,
-			"Từ chối báo cáo máy giặt của "+hvTen+" (HV #"+itoa(hvID)+") · an ninh thấy ngày "+ngayThay+
-				" · báo bởi "+by+" · lý do: "+note)
+			"Từ chối đề nghị đăng ký máy giặt cho "+hvTen+" (HV #"+itoa(hvID)+") · gửi ngày "+ngayThay+
+				" · người gửi "+by+" · lý do: "+note)
 		c.JSON(http.StatusOK, gin.H{"ok": true, "id": id, "status": washReqTuChoi})
 		return
 	}
 
-	// Duyệt = vào danh sách máy giặt. Ngày đăng ký là HÔM NAY (ngày vào danh sách), ngày an ninh thấy
-	// máy vẫn nằm ở báo cáo. Phí máy giặt tính theo kỳ của phiếu, KHÔNG cắt theo ngày đăng ký.
+	// Duyệt = vào danh sách máy giặt. Ngày đăng ký là HÔM NAY, ngày an ninh gửi vẫn nằm ở đề nghị.
+	// Phí máy giặt tính theo kỳ của phiếu, KHÔNG cắt theo ngày đăng ký.
 	err = h.DB.WithTx(ctx, func(tx pgx.Tx) error {
 		if _, e := tx.Exec(ctx,
 			`UPDATE students SET uses_washing=true, washing_from=COALESCE(washing_from, CURRENT_DATE)
@@ -233,7 +233,7 @@ func (h *Handlers) washingRequestQuyetDinh(c *gin.Context, duyet bool) {
 		return
 	}
 	maintGhiVet(ctx, h, u, "DUYỆT-MÁY-GIẶT", c.Request.URL.Path,
-		"Duyệt báo cáo máy giặt: thêm "+hvTen+" (HV #"+itoa(hvID)+") vào danh sách máy giặt · an ninh thấy ngày "+
-			ngayThay+" · báo bởi "+by)
+		"Duyệt đề nghị: thêm "+hvTen+" (HV #"+itoa(hvID)+") vào danh sách máy giặt · gửi ngày "+
+			ngayThay+" · người gửi "+by)
 	c.JSON(http.StatusOK, gin.H{"ok": true, "id": id, "status": washReqDaDuyet, "student_id": hvID})
 }
