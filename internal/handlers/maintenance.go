@@ -261,6 +261,30 @@ func (h *Handlers) MaintTaskStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, row)
 }
 
+// MaintWashing: GET /api/maintenance/washing (maintenance,admin) — ai ĐANG dùng máy giặt, theo phòng.
+// An ninh chỉ ĐỌC: tên, mã, phòng, tầng. Không trả CCCD/SĐT/tiền (BL-78) và không có đường ghi.
+// "Đang ở" lấy từ roomsDangO — cùng một định nghĩa với màn phòng, tránh lệch số (BL-119).
+func (h *Handlers) MaintWashing(c *gin.Context) {
+	u := auth.CurrentUser(c)
+	params := []interface{}{}
+	fac := maintFacClause(u, c, &params, "COALESCE(s.facility_id, r.facility_id)")
+	rows, err := h.pool().Query(c.Request.Context(), `
+		SELECT s.id, s.name, s.code, s.room_id, r.name AS room_name, r.floor
+		  FROM students s LEFT JOIN rooms r ON r.id = s.room_id
+		 WHERE s.deleted_at IS NULL AND s.uses_washing AND `+roomsDangO("CURRENT_DATE")+fac+`
+		 ORDER BY r.floor NULLS LAST, r.name NULLS LAST, s.name`, params...)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	list, err := db.RowsToMaps(rows)
+	if err != nil {
+		serverErr(c)
+		return
+	}
+	c.JSON(http.StatusOK, list)
+}
+
 // maintInStatus: TASK_STATUS.includes(status). maintenance.routes.js:152
 func maintInStatus(s string) bool {
 	for _, v := range maintTaskStatus {

@@ -497,7 +497,7 @@ function startMaintPolling() {
     if (!Auth.user || _congDangMo !== 'maintenance') { clearInterval(_maintTimer); _maintTimer = null; return; }
     if (document.hidden) return;
     if (el('overlay') && el('overlay').classList.contains('show')) return;  // đang mở form -> đừng đụng
-    if (maintTab === 'xe') return;    // bãi xe có ô tìm + camera đang dùng -> đừng vẽ lại dưới tay người ta
+    if (maintTab === 'xe' || maintTab === 'giat') return; // hai thẻ này có ô tìm -> đừng vẽ lại dưới tay người ta
     loadMaintenance();
   }, 60000);
 }
@@ -511,6 +511,7 @@ const MAINT_TABS = [
   ['tra', 'doorOpen', 'Trả phòng'],
   ['sua', 'wrench', 'Sửa chữa'],
   ['xe', 'bike', 'Xe'],
+  ['giat', 'washer', 'Máy giặt'],
 ];
 function maintGo(tab) {
   if (tab !== maintTab) maintChiChuaXong = false;
@@ -535,7 +536,40 @@ async function loadMaintenance() {
   if (maintTab === 'ca') return loadCaTruc();
   if (maintTab === 'xe') return loadParkingCheck();
   if (maintTab === 'sua') return loadMaintViec();
+  if (maintTab === 'giat') return loadMaintGiat();
   return loadHandovers();
+}
+// Thẻ Máy giặt: an ninh chỉ ĐỌC — biết phòng nào đã đăng ký để đối chiếu máy thấy trong phòng.
+// Đăng ký / ngưng vẫn là việc của quản trị ở màn Dịch vụ, ở đây không có nút nào ghi.
+async function loadMaintGiat() {
+  const body = el('maintBody'); if (!body) return;
+  let ds = [];
+  try { ds = await API.maintWashing(); }
+  catch (e) {
+    body.innerHTML = `<div class="bang-tin">${IC.alert} <span>${esc(e.message || 'Không tải được danh sách máy giặt')}</span>
+      <button class="btn sm" data-act="loadMaintenance" style="margin-left:8px">${IC.refresh} Thử lại</button></div>`;
+    return;
+  }
+  const soPhong = new Set(ds.filter(s => s.room_id).map(s => s.room_id)).size;
+  body.innerHTML = `
+    <div class="bang-tin">${IC.info} <span><strong>${ds.length}</strong> học viên đang đăng ký máy giặt, ở <strong>${soPhong}</strong> phòng.
+      Thấy máy giặt trong phòng không có tên ở đây thì báo quản trị.</span></div>
+    <div class="panel" style="margin-top:10px"><div class="hd"><h2>${IC.washer} Đang dùng máy giặt (<span id="mgCount">${ds.length}</span>)</h2>
+      <div class="toolbar"><div class="search"><span class="i">${IC.search}</span>
+        <input id="mgSearch" placeholder="Tìm phòng / tên học viên / mã..."></div></div></div>
+      <div class="table-wrap card-tbl">
+        ${ds.length ? `<table><thead><tr><th>Phòng</th><th class="num">Tầng</th><th>Học viên</th><th>Mã HV</th></tr></thead><tbody>
+          ${ds.map(s => `<tr data-s="${esc(((s.room_name || '') + ' ' + (s.name || '') + ' ' + (s.code || '')).toLowerCase())}">
+            <td data-label="Phòng"><strong>${esc(s.room_name || '—')}</strong></td>
+            <td class="num" data-label="Tầng">${esc(s.floor ?? '—')}</td>
+            <td data-label="Học viên">${esc(s.name || '—')}</td>
+            <td data-label="Mã HV" class="muted">${esc(s.code || '—')}</td>
+          </tr>`).join('')}
+          <tr class="no-result" style="display:none"><td colspan="4"><div class="empty">Không tìm thấy học viên phù hợp.</div></td></tr>
+        </tbody></table>` : '<div class="empty">Chưa có học viên nào đăng ký máy giặt.</div>'}
+      </div>
+    </div>`;
+  const s = el('mgSearch'); if (s) attachRowSearch(s, 'mgCount');
 }
 // Thẻ Ca trực: việc của HÔM NAY gom một chỗ — mở app ra là thấy, không phải chọn tab rồi dò cả tháng.
 async function loadCaTruc() {

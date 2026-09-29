@@ -298,6 +298,7 @@ const API = {
   maintenanceTasks: () => api('/maintenance/tasks'),
   maintenanceSummary: () => api('/maintenance/summary'),
   maintenanceTaskStatus: (id, status, note) => api('/maintenance/tasks/' + id + '/status', { method: 'POST', body: { status, note } }),
+  maintWashing: () => api('/maintenance/washing'),
   handovers: month => api('/maintenance/handovers' + (month ? '?month=' + month : '')),
   handoverSummary: () => api('/maintenance/handovers/summary'),
   maintSuaBienSo: (id, plate, note) => api('/maintenance/vehicles/' + id + '/plate', { method: 'PUT', body: { plate, note } }), // BL-120: gửi đề nghị, QTV duyệt
