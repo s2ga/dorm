@@ -299,6 +299,10 @@ const API = {
   maintenanceSummary: () => api('/maintenance/summary'),
   maintenanceTaskStatus: (id, status, note) => api('/maintenance/tasks/' + id + '/status', { method: 'POST', body: { status, note } }),
   maintWashing: () => api('/maintenance/washing'),
+  maintBaoMayGiat: (student_id, seen_date, note) => api('/maintenance/washing/requests', { method: 'POST', body: { student_id, seen_date, note } }),
+  washingRequests: status => api('/washing-requests?status=' + encodeURIComponent(status || 'pending') + facAmp(true)),
+  washingRequestApprove: (id, note) => api('/washing-requests/' + id + '/approve', { method: 'POST', body: { note } }),
+  washingRequestReject: (id, note) => api('/washing-requests/' + id + '/reject', { method: 'POST', body: { note } }),
   handovers: month => api('/maintenance/handovers' + (month ? '?month=' + month : '')),
   handoverSummary: () => api('/maintenance/handovers/summary'),
   maintSuaBienSo: (id, plate, note) => api('/maintenance/vehicles/' + id + '/plate', { method: 'PUT', body: { plate, note } }), // BL-120: gửi đề nghị, QTV duyệt

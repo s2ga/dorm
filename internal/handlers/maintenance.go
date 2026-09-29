@@ -261,28 +261,46 @@ func (h *Handlers) MaintTaskStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, row)
 }
 
-// MaintWashing: GET /api/maintenance/washing (maintenance,admin) — ai ĐANG dùng máy giặt, theo phòng.
-// An ninh chỉ ĐỌC: tên, mã, phòng, tầng. Không trả CCCD/SĐT/tiền (BL-78) và không có đường ghi.
-// "Đang ở" lấy từ roomsDangO — cùng một định nghĩa với màn phòng, tránh lệch số (BL-119).
+// MaintWashing: GET /api/maintenance/washing (maintenance,admin) — hai nhóm `dang_dung` (kèm ngày đăng ký)
+// và `chua_dang_ky`, mỗi dòng mang báo cáo gần nhất. Chỉ ĐỌC: tên, mã, phòng, tầng (BL-78).
+// "Đang ở" lấy từ roomsDangO — cùng định nghĩa với màn phòng (BL-119).
 func (h *Handlers) MaintWashing(c *gin.Context) {
 	u := auth.CurrentUser(c)
-	params := []interface{}{}
-	fac := maintFacClause(u, c, &params, "COALESCE(s.facility_id, r.facility_id)")
-	rows, err := h.pool().Query(c.Request.Context(), `
-		SELECT s.id, s.name, s.code, s.room_id, r.name AS room_name, r.floor
-		  FROM students s LEFT JOIN rooms r ON r.id = s.room_id
-		 WHERE s.deleted_at IS NULL AND s.uses_washing AND `+roomsDangO("CURRENT_DATE")+fac+`
-		 ORDER BY r.floor NULLS LAST, r.name NULLS LAST, s.name`, params...)
+	nhom := func(giat bool) ([]map[string]interface{}, error) {
+		params := []interface{}{}
+		fac := maintFacClause(u, c, &params, "COALESCE(s.facility_id, r.facility_id)")
+		dau := "NOT s.uses_washing"
+		if giat {
+			dau = "s.uses_washing"
+		}
+		rows, err := h.pool().Query(c.Request.Context(), `
+			SELECT s.id, s.name, s.code, s.room_id, r.name AS room_name, r.floor, s.washing_from,
+			       q.id AS de_nghi_id, q.status AS de_nghi_status, q.seen_date AS de_nghi_seen_date,
+			       q.note AS de_nghi_note, q.decision_note AS de_nghi_decision_note
+			  FROM students s
+			  LEFT JOIN rooms r ON r.id = s.room_id
+			  LEFT JOIN LATERAL (
+			      SELECT w.id, w.status, w.seen_date, w.note, w.decision_note
+			        FROM washing_requests w WHERE w.student_id = s.id
+			       ORDER BY w.requested_at DESC LIMIT 1) q ON true
+			 WHERE s.deleted_at IS NULL AND `+dau+` AND `+roomsDangO("CURRENT_DATE")+fac+`
+			 ORDER BY r.floor NULLS LAST, r.name NULLS LAST, s.name`, params...)
+		if err != nil {
+			return nil, err
+		}
+		return db.RowsToMaps(rows)
+	}
+	dangDung, err := nhom(true)
 	if err != nil {
-		serverErr(c)
+		serverErr(c, err)
 		return
 	}
-	list, err := db.RowsToMaps(rows)
+	chua, err := nhom(false)
 	if err != nil {
-		serverErr(c)
+		serverErr(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, list)
+	c.JSON(http.StatusOK, gin.H{"dang_dung": dangDung, "chua_dang_ky": chua})
 }
 
 // maintInStatus: TASK_STATUS.includes(status). maintenance.routes.js:152

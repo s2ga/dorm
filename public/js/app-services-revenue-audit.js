@@ -133,9 +133,30 @@ async function viewServices() {
       </tbody></table>` : `<div class="empty">Chưa có HV đang ở gửi xe. Bấm <strong>Thêm xe</strong>.</div>`}</div></div>`;
     const vs = el('vs'); if (vs) { vs.addEventListener('input', () => { vehSearch = vs.value; syncFilterUrl(); }); attachRowSearch(vs, 'vehCount'); }
   } else {
-    el('svcBody').innerHTML = `<div class="panel"><div class="hd"><h2>${IC.washer} Máy giặt</h2><button class="btn sm pri" data-act="addWashingForm">${IC.plus} Thêm HV dùng máy giặt</button></div>
-      <div class="table-wrap">${washUsers.length ? `<table><thead><tr><th>Học viên</th><th>Phòng</th><th>Mã pháp nhân</th><th></th></tr></thead><tbody>
-        ${washUsers.map(s => `<tr><td><a href="#" data-act="studentDetail" data-args='[${s.id}]'><strong>${esc(s.name)}</strong></a>${s.code ? `<div class="muted" style="font-size:11px">${esc(s.code)}</div>` : ''}</td><td>${s.room_id ? `<a href="#" data-act="roomDetail" data-args='[${s.room_id}]'>${esc(s.room_name || '—')}</a>` : esc(s.room_name || '—')}</td><td>${legalEntityCell(s.gender)}</td><td class="num"><button class="btn sm ghost" data-act="toggleWashing" data-args='[${s.id}, false]'>${IC.trash} Ngưng</button></td></tr>`).join('')}
+    // BL-120 cùng luật: an ninh báo "phòng có máy giặt chưa đăng ký", duyệt ở đây mới vào danh sách.
+    let baoCao = [], loiBC = '';
+    try { baoCao = (await API.washingRequests('pending')).rows || []; }
+    catch (e) { loiBC = (e && e.message) || 'Không tải được báo cáo của an ninh'; }
+    el('svcBody').innerHTML = `
+      ${loiBC ? `<div class="bang-tin" style="border-color:var(--red)">${IC.alert} <span>Phần báo cáo máy giặt của an ninh chưa tải được: ${esc(loiBC)}</span></div>`
+        : baoCao.length ? `<div class="panel"><div class="hd"><h2>${IC.bell} An ninh báo có máy giặt chưa đăng ký (${baoCao.length})</h2></div>
+          <div class="table-wrap"><table><thead><tr><th>Học viên</th><th>Phòng</th><th>An ninh thấy ngày</th><th>Ghi chú</th><th>Báo bởi</th><th></th></tr></thead><tbody>
+            ${baoCao.map(q => `<tr>
+              <td data-label="Học viên"><a href="#" data-act="studentDetail" data-args='[${q.student_id}]'><strong>${esc(q.student_name)}</strong></a>${q.student_code ? `<div class="muted" style="font-size:11px">${esc(q.student_code)}</div>` : ''}</td>
+              <td data-label="Phòng">${esc(q.room_name || '—')}</td>
+              <td data-label="Thấy ngày">${fmtDate(q.seen_date)}</td>
+              <td data-label="Ghi chú" class="muted">${esc(q.note || '—')}</td>
+              <td data-label="Báo bởi" class="muted" style="font-size:12px">${esc(q.requested_by || '—')}<div>${fmtDate(String(q.requested_at).slice(0, 10))}</div></td>
+              <td class="num"><div class="rowbtns" style="justify-content:flex-end;gap:4px">
+                <button class="btn sm green" data-act="washReqDuyet" data-args='[${q.id}]'>${IC.check} Duyệt</button>
+                <button class="btn sm danger" data-act="washReqTuChoiForm" data-args='[${q.id}]'>Từ chối</button>
+              </div></td></tr>`).join('')}
+          </tbody></table></div>
+          <div class="pad"><div class="hint">${IC.info}<span>Duyệt = thêm vào danh sách máy giặt, ngày đăng ký tính từ hôm nay. Phí máy giặt vẫn tính theo kỳ của phiếu báo, không cắt theo ngày đăng ký.</span></div></div>
+        </div>` : ''}
+      <div class="panel"><div class="hd"><h2>${IC.washer} Máy giặt</h2><button class="btn sm pri" data-act="addWashingForm">${IC.plus} Thêm HV dùng máy giặt</button></div>
+      <div class="table-wrap">${washUsers.length ? `<table><thead><tr><th>Học viên</th><th>Phòng</th><th>Ngày đăng ký</th><th>Mã pháp nhân</th><th></th></tr></thead><tbody>
+        ${washUsers.map(s => `<tr><td><a href="#" data-act="studentDetail" data-args='[${s.id}]'><strong>${esc(s.name)}</strong></a>${s.code ? `<div class="muted" style="font-size:11px">${esc(s.code)}</div>` : ''}</td><td>${s.room_id ? `<a href="#" data-act="roomDetail" data-args='[${s.room_id}]'>${esc(s.room_name || '—')}</a>` : esc(s.room_name || '—')}</td><td>${s.washing_from ? fmtDate(s.washing_from) : '<span class="muted">chưa rõ</span>'}</td><td>${legalEntityCell(s.gender)}</td><td class="num"><button class="btn sm ghost" data-act="toggleWashing" data-args='[${s.id}, false]'>${IC.trash} Ngưng</button></td></tr>`).join('')}
       </tbody></table>` : '<div class="empty">Chưa có HV đăng ký máy giặt. Bấm "Thêm HV dùng máy giặt".</div>'}</div></div>`;
   }
   syncFilterUrl(); // BL-17: tab dịch vụ (washing/parking) + tìm xe lên URL
@@ -273,6 +294,26 @@ async function toggleWashing(id, on) {
   await guard(() => API.setWashing(id, on));
   await napLai('students'); await luuXongVeLai(veLaiNen);
   toast(on ? 'Đã thêm HV dùng máy giặt' : 'Đã ngưng máy giặt');
+}
+async function washReqDuyet(id) {
+  if (!confirm('Duyệt báo cáo này? Học viên sẽ vào danh sách máy giặt và bị tính phí máy giặt từ kỳ phiếu kế tiếp.')) return;
+  await guard(() => API.washingRequestApprove(id, ''));
+  await napLai('students');
+  toast('Đã duyệt — đã thêm vào danh sách máy giặt'); viewServices();
+}
+function washReqTuChoiForm(id) {
+  openModal(`
+    <div class="mh"><h3>${IC.undo} Từ chối báo cáo máy giặt</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mb"><div class="field" style="margin:0"><label>Lý do (an ninh sẽ thấy trên dòng học viên) *</label>
+      <textarea id="wq_tc_note" rows="3" placeholder="VD: Máy của phòng bên cạnh mang sang phơi, không phải của HV này"></textarea></div></div>
+    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn danger" data-act="washReqTuChoiLuu" data-args='[${id}]'>Từ chối</button></div>`);
+  setTimeout(() => el('wq_tc_note') && el('wq_tc_note').focus(), 50);
+}
+async function washReqTuChoiLuu(id) {
+  const note = el('wq_tc_note').value.trim();
+  if (!note) return toast('Nhập lý do từ chối', 'err');
+  await guard(() => API.washingRequestReject(id, note));
+  closeModal(); toast('Đã từ chối báo cáo'); viewServices();
 }
 
 /* ---------- BÁO CÁO DOANH THU ---------- */

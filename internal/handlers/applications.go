@@ -600,8 +600,8 @@ func (h *Handlers) ApproveApplication(c *gin.Context) {
 		rows, e := tx.Query(ctx,
 			`INSERT INTO students (code, name, gender, phone, birth_date, class_name, room_id, planned_check_in, status, note,
 			   rental_type, residency_status, contract_no, contract_date, contract_status, uses_washing, deposit_amount, deposit_status, deposit_date,
-			   cccd_front, cccd_back, facility_id)
-			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'in',$9,$10,'unregistered',$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING *`,
+			   cccd_front, cccd_back, facility_id, washing_from)
+			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'in',$9,$10,'unregistered',$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,`+washingFromMoiSQL("$14")+`) RETURNING *`,
 			studentParams...)
 		if e != nil {
 			return e

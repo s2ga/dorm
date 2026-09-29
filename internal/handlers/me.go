@@ -292,7 +292,8 @@ func (h *Handlers) MeWashing(c *gin.Context) {
 	var b meWashingBody
 	_ = c.ShouldBindJSON(&b)
 	on := b.On == nil || *b.On // mặc định = đăng ký (true); chỉ false khi gửi rõ on=false
-	if _, err := h.pool().Exec(ctx, "UPDATE students SET uses_washing=$1 WHERE id=$2 AND deleted_at IS NULL", on, sid); err != nil {
+	if _, err := h.pool().Exec(ctx,
+		"UPDATE students SET uses_washing=$1, washing_from="+washingFromSQL("$1")+" WHERE id=$2 AND deleted_at IS NULL", on, sid); err != nil {
 		serverErr(c)
 		return
 	}

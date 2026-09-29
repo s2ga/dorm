@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS students (
 );
 ALTER TABLE students ADD COLUMN IF NOT EXISTS gender TEXT DEFAULT 'male';
 ALTER TABLE students ADD COLUMN IF NOT EXISTS uses_washing BOOLEAN DEFAULT false;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS washing_from DATE;  -- ngày vào danh sách máy giặt (chỉ để hiển thị, KHÔNG dùng tính tiền)
 ALTER TABLE students ADD COLUMN IF NOT EXISTS uses_parking BOOLEAN DEFAULT false;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS deposit_amount NUMERIC(12,0) DEFAULT 0;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS deposit_status TEXT DEFAULT 'none';
@@ -591,6 +592,26 @@ CREATE TABLE IF NOT EXISTS vehicle_plate_requests (
 -- Một xe chỉ có MỘT đề nghị đang chờ.
 CREATE UNIQUE INDEX IF NOT EXISTS uq_plate_request_pending ON vehicle_plate_requests (vehicle_id) WHERE status = 'pending';
 CREATE INDEX IF NOT EXISTS idx_plate_requests_status ON vehicle_plate_requests (status, requested_at DESC);
+
+-- Báo cáo "phòng có máy giặt chưa đăng ký" từ cổng an ninh: KHÔNG ghi thẳng vào students.uses_washing,
+-- quản trị viên duyệt mới vào danh sách máy giặt (cùng luật với đề nghị sửa biển số).
+CREATE TABLE IF NOT EXISTS washing_requests (
+  id            SERIAL PRIMARY KEY,
+  student_id    INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  facility_id   INTEGER REFERENCES facilities(id) ON DELETE SET NULL,
+  room_id       INTEGER REFERENCES rooms(id) ON DELETE SET NULL,
+  seen_date     DATE NOT NULL,
+  note          TEXT NOT NULL DEFAULT '',
+  status        TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
+  requested_by  TEXT NOT NULL DEFAULT '',
+  requested_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  decided_by    TEXT,
+  decided_at    TIMESTAMPTZ,
+  decision_note TEXT NOT NULL DEFAULT ''
+);
+-- Một học viên chỉ có MỘT báo cáo đang chờ.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_washing_request_pending ON washing_requests (student_id) WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_washing_requests_status ON washing_requests (status, requested_at DESC);
 
 -- ===== BL-121: biên bản bàn giao phòng =====
 -- An ninh LẬP biên bản (nhận hoặc trả phòng) với số điện, hư hao, vệ sinh, chìa khoá, biển số, ghi chú.

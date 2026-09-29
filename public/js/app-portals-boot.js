@@ -539,37 +539,93 @@ async function loadMaintenance() {
   if (maintTab === 'giat') return loadMaintGiat();
   return loadHandovers();
 }
-// Thẻ Máy giặt: an ninh chỉ ĐỌC — biết phòng nào đã đăng ký để đối chiếu máy thấy trong phòng.
-// Đăng ký / ngưng vẫn là việc của quản trị ở màn Dịch vụ, ở đây không có nút nào ghi.
+// Thẻ Máy giặt: an ninh KHÔNG ghi thẳng vào hồ sơ. Thấy máy trong phòng người chưa đăng ký thì
+// gửi báo cáo, quản trị duyệt mới vào danh sách (cùng luật với đề nghị sửa biển số, BL-120).
+let _mgDS = { dang_dung: [], chua_dang_ky: [] };
 async function loadMaintGiat() {
   const body = el('maintBody'); if (!body) return;
-  let ds = [];
-  try { ds = await API.maintWashing(); }
+  try { _mgDS = await API.maintWashing(); }
   catch (e) {
     body.innerHTML = `<div class="bang-tin">${IC.alert} <span>${esc(e.message || 'Không tải được danh sách máy giặt')}</span>
       <button class="btn sm" data-act="loadMaintenance" style="margin-left:8px">${IC.refresh} Thử lại</button></div>`;
     return;
   }
+  const ds = _mgDS.dang_dung || [], chua = _mgDS.chua_dang_ky || [];
   const soPhong = new Set(ds.filter(s => s.room_id).map(s => s.room_id)).size;
+  const cho = chua.filter(s => s.de_nghi_status === 'pending');
+  const oPhong = s => `<td data-label="Phòng"><strong>${esc(s.room_name || '—')}</strong></td>
+    <td class="num" data-label="Tầng">${esc(s.floor ?? '—')}</td>`;
+  // Báo cáo đã xử lý xong thì dòng đó về lại trạng thái báo được; chỉ "chờ duyệt" mới chặn gửi lại.
+  const tinhTrang = s => s.de_nghi_status === 'pending'
+    ? `<span class="badge amber">Chờ quản trị duyệt</span><div class="sub2">báo ngày ${fmtDate(s.de_nghi_seen_date)}</div>`
+    : s.de_nghi_status === 'rejected'
+      ? `<span class="badge red">Bị từ chối</span><div class="sub2">${esc(s.de_nghi_decision_note || '')}</div>`
+      : '<span class="muted">—</span>';
   body.innerHTML = `
     <div class="bang-tin">${IC.info} <span><strong>${ds.length}</strong> học viên đang đăng ký máy giặt, ở <strong>${soPhong}</strong> phòng.
-      Thấy máy giặt trong phòng không có tên ở đây thì báo quản trị.</span></div>
+      Thấy máy giặt trong phòng của người KHÔNG có tên ở bảng trên thì bấm <strong>Báo có máy giặt</strong> ở bảng dưới.</span></div>
+    ${cho.length ? `<div class="bang-tin" style="border-color:var(--amber-ink);color:var(--amber-ink)">${IC.bell}
+      <span><strong>${cho.length}</strong> báo cáo đang chờ quản trị viên duyệt.</span></div>` : ''}
+
     <div class="panel" style="margin-top:10px"><div class="hd"><h2>${IC.washer} Đang dùng máy giặt (<span id="mgCount">${ds.length}</span>)</h2>
       <div class="toolbar"><div class="search"><span class="i">${IC.search}</span>
         <input id="mgSearch" placeholder="Tìm phòng / tên học viên / mã..."></div></div></div>
       <div class="table-wrap card-tbl">
-        ${ds.length ? `<table><thead><tr><th>Phòng</th><th class="num">Tầng</th><th>Học viên</th><th>Mã HV</th></tr></thead><tbody>
+        ${ds.length ? `<table><thead><tr><th>Phòng</th><th class="num">Tầng</th><th>Học viên</th><th>Mã HV</th><th>Ngày đăng ký</th></tr></thead><tbody>
           ${ds.map(s => `<tr data-s="${esc(((s.room_name || '') + ' ' + (s.name || '') + ' ' + (s.code || '')).toLowerCase())}">
-            <td data-label="Phòng"><strong>${esc(s.room_name || '—')}</strong></td>
-            <td class="num" data-label="Tầng">${esc(s.floor ?? '—')}</td>
+            ${oPhong(s)}
             <td data-label="Học viên">${esc(s.name || '—')}</td>
             <td data-label="Mã HV" class="muted">${esc(s.code || '—')}</td>
+            <td data-label="Ngày đăng ký">${s.washing_from ? fmtDate(s.washing_from) : '<span class="muted">chưa rõ</span>'}</td>
           </tr>`).join('')}
-          <tr class="no-result" style="display:none"><td colspan="4"><div class="empty">Không tìm thấy học viên phù hợp.</div></td></tr>
+          <tr class="no-result" style="display:none"><td colspan="5"><div class="empty">Không tìm thấy học viên phù hợp.</div></td></tr>
         </tbody></table>` : '<div class="empty">Chưa có học viên nào đăng ký máy giặt.</div>'}
       </div>
+    </div>
+
+    <div class="panel"><div class="hd"><h2>${IC.users} Chưa đăng ký máy giặt (<span id="mgcCount">${chua.length}</span>)</h2>
+      <div class="toolbar"><div class="search"><span class="i">${IC.search}</span>
+        <input id="mgcSearch" placeholder="Tìm phòng / tên học viên / mã..."></div></div></div>
+      <div class="table-wrap card-tbl">
+        ${chua.length ? `<table><thead><tr><th>Phòng</th><th class="num">Tầng</th><th>Học viên</th><th>Mã HV</th><th>Tình trạng báo cáo</th><th></th></tr></thead><tbody>
+          ${chua.map(s => `<tr data-s="${esc(((s.room_name || '') + ' ' + (s.name || '') + ' ' + (s.code || '')).toLowerCase())}">
+            ${oPhong(s)}
+            <td data-label="Học viên">${esc(s.name || '—')}</td>
+            <td data-label="Mã HV" class="muted">${esc(s.code || '—')}</td>
+            <td data-label="Tình trạng">${tinhTrang(s)}</td>
+            <td class="num">${s.de_nghi_status === 'pending' ? ''
+              : `<button class="btn sm" data-act="mgBaoForm" data-args='[${s.id}]'>${IC.bell} Báo có máy giặt</button>`}</td>
+          </tr>`).join('')}
+          <tr class="no-result" style="display:none"><td colspan="6"><div class="empty">Không tìm thấy học viên phù hợp.</div></td></tr>
+        </tbody></table>` : '<div class="empty">Mọi người đang ở đều đã đăng ký máy giặt.</div>'}
+      </div>
     </div>`;
-  const s = el('mgSearch'); if (s) attachRowSearch(s, 'mgCount');
+  const s1 = el('mgSearch'); if (s1) attachRowSearch(s1, 'mgCount');
+  const s2 = el('mgcSearch'); if (s2) attachRowSearch(s2, 'mgcCount');
+}
+function mgBaoForm(id) {
+  const s = (_mgDS.chua_dang_ky || []).find(x => x.id === id);
+  if (!s) return;
+  openModal(`
+    <div class="mh"><h3>${IC.washer} Báo có máy giặt chưa đăng ký</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mb">
+      <div class="field"><label>Học viên</label>
+        <input value="${esc(s.name)}${s.room_name ? ' — phòng ' + esc(s.room_name) : ''}" disabled></div>
+      <div class="field"><label>Ngày thấy máy giặt trong phòng</label>
+        <input type="date" id="mg_date" max="${today()}" value="${today()}"></div>
+      <div class="field"><label>Ghi chú cho quản trị (loại máy, đặt ở đâu...)</label>
+        <textarea id="mg_note" rows="3"></textarea></div>
+      <div class="hint" style="font-size:12px">${IC.info} Quản trị viên duyệt thì ${esc(s.name)} mới vào danh sách máy giặt — an ninh không tự thêm được.</div>
+    </div>
+    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button>
+      <button class="btn pri" data-act="mgBaoGui" data-args='[${id}]'>${IC.bell} Gửi báo cáo</button></div>`);
+}
+async function mgBaoGui(id) {
+  const ngay = el('mg_date') ? el('mg_date').value : today();
+  const note = el('mg_note') ? el('mg_note').value.trim() : '';
+  if (!ngay) return toast('Chọn ngày thấy máy giặt', 'err');
+  await guard(() => API.maintBaoMayGiat(id, ngay, note));
+  closeModal(); toast('Đã gửi báo cáo cho quản trị viên'); loadMaintGiat();
 }
 // Thẻ Ca trực: việc của HÔM NAY gom một chỗ — mở app ra là thấy, không phải chọn tab rồi dò cả tháng.
 async function loadCaTruc() {

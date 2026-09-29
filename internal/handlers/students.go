@@ -121,7 +121,7 @@ func (h *Handlers) studentsValidateCccd(c *gin.Context, sent, cur map[string]int
 const studentsListSelect = `
   SELECT s.id, s.code, s.name, s.gender, s.phone, s.room_id, s.check_in_date, s.check_out_date,
     s.planned_check_in, s.planned_check_out, s.checkin_confirmed_at, s.checkout_confirmed_at,
-    s.status, s.uses_washing, s.deposit_amount, s.deposit_status, s.deposit_date, s.deposit_refund_date,
+    s.status, s.uses_washing, s.washing_from, s.deposit_amount, s.deposit_status, s.deposit_date, s.deposit_refund_date,
     s.checkout_notice_date, s.checkout_reason, s.class_name, s.email, s.rental_type, s.residency_status,
     s.contract_no, s.contract_date, s.contract_status,
     s.class_start_date, s.expected_departure, s.room_fee_discount_pct, s.facility_id, s.lock_reason,
@@ -1435,8 +1435,8 @@ func (h *Handlers) CreateStudent(c *gin.Context) {
            status, check_out_date, deposit_amount, deposit_status, deposit_date, cccd_front, cccd_back, checkout_reason,
            class_start_date, expected_departure, parent_phone, room_fee_discount_pct, facility_id,
            water_discount_pct, electric_discount_pct, service_discount_pct, washing_discount_pct, parking_discount_pct,
-           email)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36) RETURNING *`,
+           email, washing_from)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,`+washingFromMoiSQL("$11")+`) RETURNING *`,
 			params...)
 		if e != nil {
 			return e
@@ -1680,7 +1680,7 @@ func (h *Handlers) UpdateStudent(c *gin.Context) {
 	cols := `code=$1, name=$2, gender=$3, phone=$4, id_card=$5, birth_date=$6, class_name=$7, room_id=$8,
       check_in_date=CASE WHEN check_in_date IS NULL THEN NULL ELSE $9::date END,
       planned_check_in=CASE WHEN check_in_date IS NULL THEN $9::date ELSE planned_check_in END,
-      note=$10, uses_washing=$11, rental_type=$12, residency_status=$13,
+      note=$10, uses_washing=$11, washing_from=` + washingFromSQL("$11") + `, rental_type=$12, residency_status=$13,
       contract_no=$14, contract_date=$15, contract_status=$16,
       class_start_date=$17, expected_departure=$18, parent_phone=$19, room_fee_discount_pct=$20,
       water_discount_pct=$21, electric_discount_pct=$22, service_discount_pct=$23,
@@ -1879,7 +1879,8 @@ func (h *Handlers) StudentWashing(c *gin.Context) {
 	}
 	_, b := studentsReadBody(c)
 	on := studentsJSTruthy(b["on"])
-	rows, err := h.pool().Query(c.Request.Context(), "UPDATE students SET uses_washing=$1 WHERE id=$2 AND deleted_at IS NULL RETURNING id", on, id)
+	rows, err := h.pool().Query(c.Request.Context(),
+		"UPDATE students SET uses_washing=$1, washing_from="+washingFromSQL("$1")+" WHERE id=$2 AND deleted_at IS NULL RETURNING id", on, id)
 	if err != nil {
 		serverErr(c)
 		return

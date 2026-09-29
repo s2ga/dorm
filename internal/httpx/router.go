@@ -127,6 +127,12 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	veh.POST("/parking-reports/:id/vehicle", h.AdminParkingReportAssign)
 	veh.GET("/parking-alerts", h.AdminParkingAlerts)
 
+	// Báo cáo máy giặt của an ninh: quản trị duyệt mới vào danh sách máy giặt.
+	wq := api.Group("/washing-requests", a.RequireAuth(), a.RequireRole("admin", "staff"))
+	wq.GET("", h.ListWashingRequests)
+	wq.POST("/:id/approve", h.ApproveWashingRequest)
+	wq.POST("/:id/reject", h.RejectWashingRequest)
+
 	// Cổng học viên (me) — mở theo liên kết hồ sơ (student_id), không theo vai:
 	// tài khoản nhân viên kiêm khách thuê phòng cũng vào được.
 	me := api.Group("/me", a.RequireAuth(), a.RequireStudentLink())
@@ -226,7 +232,8 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	mnt.GET("/assets", h.MaintAssets)                    // danh mục tài sản chỉ đọc — tick hư hao trong biên bản
 	mnt.POST("/reports", h.MaintReportCreate)            // lập biên bản nhận / trả phòng
 	mnt.PUT("/vehicles/:id/plate", h.MaintDeNghiSuaBien) // BL-120: gửi ĐỀ NGHỊ, quản trị viên duyệt mới đổi
-	mnt.GET("/washing", h.MaintWashing) // ai đang dùng máy giặt — an ninh chỉ đọc
+	mnt.GET("/washing", h.MaintWashing)                  // danh sách máy giặt — an ninh chỉ đọc
+	mnt.POST("/washing/requests", h.MaintWashingRequest) // báo "phòng có máy giặt chưa đăng ký"
 	mnt.GET("/tasks", h.MaintTasks)
 	mnt.GET("/summary", h.MaintSummary)
 	mnt.POST("/tasks/:id/status", h.MaintTaskStatus)
