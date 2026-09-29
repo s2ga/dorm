@@ -31,18 +31,8 @@ async function viewHoSo() {
   const dem = k => ds.filter(boLoc[k]).length;
   const pill = (k, nhan, n, mau) => `<button class="btn sm ${hsLoc === k ? 'pri' : ''}" data-act="hsGo" data-args='["${k}"]'
     aria-pressed="${hsLoc === k}">${nhan} <span class="badge ${hsLoc === k ? '' : (mau || 'gray')}">${n}</span></button>`;
-  // Ba ô trên cùng là ba BỘ LỌC: bấm vào con số nào thì bảng dưới ra đúng nhóm đó, ô đang áp được tô viền.
-  const o = (k, ic, nhan, n, mau) => `<div class="stat clickable${hsLoc === k ? ' dang-loc' : ''}" data-act="hsGo" data-args='["${k}"]'
-    role="button" tabindex="0" title="Bấm để xem danh sách ${nhan.toLowerCase()}"><div class="l">${ic} ${nhan}</div>
-    <div class="v sm"${mau ? ` style="color:${mau}"` : ''}>${n}</div></div>`;
-
   el('topActions').innerHTML = '';
   el('content').innerHTML = `
-    <div class="cards">
-      ${o('all', IC.users, 'Tổng hồ sơ', ds.length)}
-      ${o('du', IC.fileText, 'Đủ giấy tờ', dem('du'), 'var(--green)')}
-      ${o('thieu', IC.alert, 'Còn thiếu', dem('thieu'), dem('thieu') ? 'var(--red)' : 'var(--green)')}
-    </div>
     <div class="panel"><div class="hd"><h2>${IC.fileText} Hồ sơ lưu trữ — hợp đồng & CCCD (<span id="hsCount">${list.length}</span>)</h2>
       <div class="toolbar"><div class="search"><span class="i">${IC.search}</span>
         <input id="hsSearch" placeholder="Tìm tên HV / mã / số phòng..."></div></div></div>
