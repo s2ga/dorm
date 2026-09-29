@@ -191,7 +191,7 @@ func (h *Handlers) MeAssets(c *gin.Context) {
 	c.JSON(http.StatusOK, list)
 }
 
-// MeChores: GET /api/me/chores — lịch trực nhật 4 tuần tới, xoay vòng theo tuần. server/routes/me.routes.js:80-92
+// MeChores: GET /api/me/chores — lịch trực nhật 14 ngày tới, xoay vòng theo NGÀY.
 func (h *Handlers) MeChores(c *gin.Context) {
 	sid, ok := meStudentID(c)
 	if !ok {
@@ -225,10 +225,10 @@ func (h *Handlers) MeChores(c *gin.Context) {
 		members = append(members, chores.Member{ID: meIntOf(m["id"]), Name: name, CheckInDate: ci, CheckOutDate: co})
 	}
 	today := timeutil.Today()
-	sched := chores.Schedule(members, today, 4)
+	sched := chores.Schedule(members, today, 14)
 	out := make([]gin.H, 0, len(sched))
 	for _, w := range sched {
-		out = append(out, gin.H{"from": w.From, "to": w.To, "student_id": w.StudentID, "name": w.Name, "is_me": w.StudentID == sid})
+		out = append(out, gin.H{"date": w.Date, "student_id": w.StudentID, "name": w.Name, "is_me": w.StudentID == sid})
 	}
 	c.JSON(http.StatusOK, out)
 }

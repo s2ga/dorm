@@ -16,8 +16,10 @@ module.exports = {
     t.ok('TC-2 · có đủ 4 khoá: version, commit, built_at, nguon',
       ['version', 'commit', 'built_at', 'nguon'].every(k => k in v), JSON.stringify(v));
     t.ok('TC-3 · version là chuỗi không rỗng', typeof v.version === 'string' && v.version.length > 0, JSON.stringify(v.version));
+    // Bản dựng không truyền tham số thì commit là chữ "khong-ro" — giữ nguyên, không cắt cho khó hiểu.
     t.ok('TC-4 · commit_short là 7 ký tự đầu của commit',
-      typeof v.commit === 'string' && v.commit_short === (v.commit.length > 7 ? v.commit.slice(0, 7) : v.commit),
+      typeof v.commit === 'string' &&
+      v.commit_short === (v.commit.length > 7 && v.commit !== 'khong-ro' ? v.commit.slice(0, 7) : v.commit),
       `commit=${v.commit} short=${v.commit_short}`);
     t.ok('TC-5 · nguon nói rõ lấy từ đâu (ldflags | env | khong-ro)',
       ['ldflags', 'env', 'khong-ro'].includes(v.nguon), JSON.stringify(v.nguon));

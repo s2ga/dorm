@@ -52,8 +52,9 @@ module.exports = {
       t.eq('Đếm đúng số người đang ở trong phòng', p && p.so_nguoi, 2, JSON.stringify(p));
       t.ok('Có lịch trực xoay vòng (app tự tính, không ai nhập)', !!p && Array.isArray(p.lich) && p.lich.length > 0,
         JSON.stringify(p && p.lich));
-      t.ok('Mỗi tuần trực nêu rõ ai trực và từ ngày nào tới ngày nào',
-        !!p && !!p.lich[0] && !!p.lich[0].name && !!p.lich[0].from && !!p.lich[0].to, JSON.stringify(p && p.lich[0]));
+      // Lịch xoay theo NGÀY (owner chốt 29/09): mỗi dòng là một ngày, không còn khoảng from–to.
+      t.ok('Mỗi lượt trực nêu rõ ai trực và NGÀY nào',
+        !!p && !!p.lich[0] && !!p.lich[0].name && !!p.lich[0].date && !p.lich[0].from, JSON.stringify(p && p.lich[0]));
       t.ok('Người trực phải là người ĐANG Ở phòng đó', !!p && [hvA, hvB].includes(p.lich[0].student_id),
         JSON.stringify(p && p.lich[0]));
 

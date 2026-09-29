@@ -70,9 +70,9 @@ func (h *Handlers) RoomsChores(c *gin.Context) {
 	for _, r := range rooms {
 		rid := intFromDB(r["id"])
 		mem := theoPhong[rid]
-		lich := make([]gin.H, 0, 4)
-		for _, w := range chores.Schedule(mem, today, 4) {
-			lich = append(lich, gin.H{"from": w.From, "to": w.To, "student_id": w.StudentID, "name": w.Name})
+		lich := make([]gin.H, 0, 7)
+		for _, w := range chores.Schedule(mem, today, 7) {
+			lich = append(lich, gin.H{"date": w.Date, "student_id": w.StudentID, "name": w.Name})
 		}
 		out = append(out, gin.H{
 			"room_id": rid, "room_name": r["name"], "floor": r["floor"], "gender": r["gender"],

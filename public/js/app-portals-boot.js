@@ -299,27 +299,29 @@ function leaderNote(profile, mates) {
   return `<div class="bang-tin" style="margin:14px 0 0">${IC.info}<span>Phòng chưa có phòng trưởng. Ban quản lý sẽ cử một bạn trong phòng.</span></div>`;
 }
 
-/* Lịch trực nhật — xoay vòng theo tuần, app tự tính (không ai phải nhập).
-   Tô đậm tuần HIỆN TẠI và đánh dấu rõ khi đến lượt chính mình — đó là thứ duy nhất
+/* Lịch trực nhật — xoay vòng theo NGÀY, app tự tính (không ai phải nhập).
+   Tô đậm ngày HÔM NAY và đánh dấu rõ khi đến lượt chính mình — đó là thứ duy nhất
    người ta mở trang này để xem. */
 function myChoresPanel(chores, profile) {
   if (!profile.room_name) return '';
   const DOW = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
   const dm = s => { const d = new Date(s); return `${DOW[d.getDay()]} ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`; };
+  const motMinh = new Set(chores.map(w => w.student_id)).size === 1 && chores.length > 1;
   return `<div class="panel" id="pnTrucNhat"><div class="hd"><h2>${IC.calendar} Lịch trực nhật</h2></div><div class="pad">
     ${!chores.length ? '<p class="muted" style="margin:0">Chưa xếp được lịch — phòng chưa có ai ở.</p>' : `
     <div class="chore-list">${chores.map((w, i) => `
       <div class="chore-row${i === 0 ? ' now' : ''}${w.is_me ? ' mine' : ''}">
-        <div class="chore-when">${i === 0 ? '<span class="badge amber">Tuần này</span>' : `<span class="muted">${i === 1 ? 'Tuần sau' : 'Tuần thứ ' + (i + 1)}</span>`}</div>
-        <div class="chore-date">${dm(w.from)} – ${dm(w.to)}</div>
+        <div class="chore-when">${i === 0 ? '<span class="badge amber">Hôm nay</span>' : `<span class="muted">${i === 1 ? 'Ngày mai' : dm(w.date).slice(0, 2)}</span>`}</div>
+        <div class="chore-date">${dm(w.date)}</div>
         <div class="chore-who">${w.is_me
-          // "Đến lượt bạn" chỉ được nói khi ĐÚNG LÀ tuần này. Tuần sau cũng ghi vậy là sai sự thật,
-          // người ta đi trực nhầm tuần rồi tuần của mình lại bỏ trống.
+          // "Đến lượt bạn" chỉ được nói khi ĐÚNG LÀ hôm nay. Ngày mai cũng ghi vậy là sai sự thật,
+          // người ta đi trực nhầm ngày rồi ngày của mình lại bỏ trống.
           ? `<strong>${esc(w.name)}</strong> <span class="badge ${i === 0 ? 'green' : 'gray'}">${i === 0 ? 'Đến lượt bạn' : 'Lượt của bạn'}</span>`
           : esc(w.name)}</div>
       </div>`).join('')}</div>
-    <div class="hint" style="margin:16px 0 0">${IC.info}<span>Lịch xoay vòng theo <strong>tuần</strong> (thứ Hai → Chủ nhật)
-      giữa các bạn đang ở phòng, app tự xếp. Bạn nào trả phòng thì tự bỏ khỏi lịch.</span></div>`}
+    <div class="hint" style="margin:16px 0 0">${IC.info}<span>Lịch xoay vòng theo <strong>ngày</strong> giữa các bạn đang ở phòng,
+      app tự xếp — lần lượt từng người, không ai phải trực hai ngày liền. Bạn nào trả phòng thì tự bỏ khỏi lịch,
+      bạn nào mới vào thì chen vào vòng.${motMinh ? ' <strong>Phòng đang chỉ còn một bạn ở nên phải trực mỗi ngày.</strong>' : ''}</span></div>`}
   </div></div>`;
 }
 
@@ -388,7 +390,7 @@ const HV_NOTIF = {
   violation:         n => [IC.alert, `Ghi nhận nhắc nhở: ${esc(n.txt)}`, 'pnViPham'],
   leader:            () => [IC.star, 'Bạn được cử làm phòng trưởng', 'pnPhong'],
   rules:             () => [IC.clipboard, 'Nội quy ký túc xá vừa được cập nhật', 'pnNoiQuy'],
-  chore:             () => [IC.calendar, 'Tuần này đến lượt bạn trực nhật', 'pnTrucNhat'],
+  chore:             () => [IC.calendar, 'Hôm nay đến lượt bạn trực nhật', 'pnTrucNhat'],
 };
 let _hvNotif = [], _hvNotifTimer = null;
 
@@ -552,28 +554,21 @@ async function loadMaintGiat() {
   }
   const ds = _mgDS.dang_dung || [], chua = _mgDS.chua_dang_ky || [];
   const soPhong = new Set(ds.filter(s => s.room_id).map(s => s.room_id)).size;
-  const cho = chua.filter(s => s.de_nghi_status === 'pending');
-  const oPhong = s => `<td data-label="Phòng"><strong>${esc(s.room_name || '—')}</strong></td>
-    <td class="num" data-label="Tầng">${esc(s.floor ?? '—')}</td>`;
-  // Báo cáo đã xử lý xong thì dòng đó về lại trạng thái báo được; chỉ "chờ duyệt" mới chặn gửi lại.
-  const tinhTrang = s => s.de_nghi_status === 'pending'
-    ? `<span class="badge amber">Chờ quản trị duyệt</span><div class="sub2">báo ngày ${fmtDate(s.de_nghi_seen_date)}</div>`
-    : s.de_nghi_status === 'rejected'
-      ? `<span class="badge red">Bị từ chối</span><div class="sub2">${esc(s.de_nghi_decision_note || '')}</div>`
-      : '<span class="muted">—</span>';
+  const daGui = chua.filter(s => s.de_nghi_status === 'pending' || s.de_nghi_status === 'rejected');
+  const cho = daGui.filter(s => s.de_nghi_status === 'pending');
   body.innerHTML = `
-    <div class="bang-tin">${IC.info} <span><strong>${ds.length}</strong> học viên đang đăng ký máy giặt, ở <strong>${soPhong}</strong> phòng.
-      Thấy máy giặt trong phòng của người KHÔNG có tên ở bảng trên thì bấm <strong>Báo có máy giặt</strong> ở bảng dưới.</span></div>
-    ${cho.length ? `<div class="bang-tin" style="border-color:var(--amber-ink);color:var(--amber-ink)">${IC.bell}
-      <span><strong>${cho.length}</strong> báo cáo đang chờ quản trị viên duyệt.</span></div>` : ''}
+    <div class="bang-tin">${IC.info} <span><strong>${ds.length}</strong> học viên đăng ký máy giặt tại <strong>${soPhong}</strong> phòng.
+      Đề nghị đăng ký mới do quản trị viên duyệt.</span></div>
 
     <div class="panel" style="margin-top:10px"><div class="hd"><h2>${IC.washer} Đang dùng máy giặt (<span id="mgCount">${ds.length}</span>)</h2>
       <div class="toolbar"><div class="search"><span class="i">${IC.search}</span>
-        <input id="mgSearch" placeholder="Tìm phòng / tên học viên / mã..."></div></div></div>
+        <input id="mgSearch" placeholder="Tìm phòng / tên học viên / mã..."></div>
+        <button class="btn sm pri" data-act="mgBaoForm">${IC.plus} Đề nghị đăng ký</button></div></div>
       <div class="table-wrap card-tbl">
         ${ds.length ? `<table><thead><tr><th>Phòng</th><th class="num">Tầng</th><th>Học viên</th><th>Mã HV</th><th>Ngày đăng ký</th></tr></thead><tbody>
           ${ds.map(s => `<tr data-s="${esc(((s.room_name || '') + ' ' + (s.name || '') + ' ' + (s.code || '')).toLowerCase())}">
-            ${oPhong(s)}
+            <td data-label="Phòng"><strong>${esc(s.room_name || '—')}</strong></td>
+            <td class="num" data-label="Tầng">${esc(s.floor ?? '—')}</td>
             <td data-label="Học viên">${esc(s.name || '—')}</td>
             <td data-label="Mã HV" class="muted">${esc(s.code || '—')}</td>
             <td data-label="Ngày đăng ký">${s.washing_from ? fmtDate(s.washing_from) : '<span class="muted">chưa rõ</span>'}</td>
@@ -583,49 +578,44 @@ async function loadMaintGiat() {
       </div>
     </div>
 
-    <div class="panel"><div class="hd"><h2>${IC.users} Chưa đăng ký máy giặt (<span id="mgcCount">${chua.length}</span>)</h2>
-      <div class="toolbar"><div class="search"><span class="i">${IC.search}</span>
-        <input id="mgcSearch" placeholder="Tìm phòng / tên học viên / mã..."></div></div></div>
+    ${daGui.length ? `<div class="panel"><div class="hd"><h2>${IC.bell} Đề nghị đã gửi (${cho.length} chờ duyệt)</h2></div>
       <div class="table-wrap card-tbl">
-        ${chua.length ? `<table><thead><tr><th>Phòng</th><th class="num">Tầng</th><th>Học viên</th><th>Mã HV</th><th>Tình trạng báo cáo</th><th></th></tr></thead><tbody>
-          ${chua.map(s => `<tr data-s="${esc(((s.room_name || '') + ' ' + (s.name || '') + ' ' + (s.code || '')).toLowerCase())}">
-            ${oPhong(s)}
-            <td data-label="Học viên">${esc(s.name || '—')}</td>
-            <td data-label="Mã HV" class="muted">${esc(s.code || '—')}</td>
-            <td data-label="Tình trạng">${tinhTrang(s)}</td>
-            <td class="num">${s.de_nghi_status === 'pending' ? ''
-              : `<button class="btn sm" data-act="mgBaoForm" data-args='[${s.id}]'>${IC.bell} Báo có máy giặt</button>`}</td>
+        <table><thead><tr><th>Học viên</th><th>Phòng</th><th>Ngày gửi</th><th>Kết quả</th></tr></thead><tbody>
+          ${daGui.map(s => `<tr>
+            <td data-label="Học viên"><strong>${esc(s.name || '—')}</strong></td>
+            <td data-label="Phòng">${esc(s.room_name || '—')}</td>
+            <td data-label="Ngày gửi">${fmtDate(s.de_nghi_seen_date)}</td>
+            <td data-label="Kết quả">${s.de_nghi_status === 'pending'
+              ? '<span class="badge amber">Chờ duyệt</span>'
+              : `<span class="badge red">Từ chối</span>${s.de_nghi_decision_note ? `<div class="sub2">${esc(s.de_nghi_decision_note)}</div>` : ''}`}</td>
           </tr>`).join('')}
-          <tr class="no-result" style="display:none"><td colspan="6"><div class="empty">Không tìm thấy học viên phù hợp.</div></td></tr>
-        </tbody></table>` : '<div class="empty">Mọi người đang ở đều đã đăng ký máy giặt.</div>'}
-      </div>
-    </div>`;
+        </tbody></table>
+      </div></div>` : ''}`;
   const s1 = el('mgSearch'); if (s1) attachRowSearch(s1, 'mgCount');
-  const s2 = el('mgcSearch'); if (s2) attachRowSearch(s2, 'mgcCount');
 }
-function mgBaoForm(id) {
-  const s = (_mgDS.chua_dang_ky || []).find(x => x.id === id);
-  if (!s) return;
+// Chỉ liệt kê người ĐANG Ở mà chưa đăng ký; người đang chờ duyệt bỏ ra để khỏi gửi trùng (máy chủ trả 409).
+function mgBaoForm() {
+  const chon = (_mgDS.chua_dang_ky || []).filter(s => s.de_nghi_status !== 'pending')
+    .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'vi'));
+  if (!chon.length) return toast('Học viên đang ở đều đã đăng ký hoặc đang chờ duyệt', 'err');
+  const opts = chon.map(s => `<option value="${s.id}">${esc(s.name)}${s.code ? ' (' + esc(s.code) + ')' : ''}${s.room_name ? ' — phòng ' + esc(s.room_name) : ''}</option>`).join('');
   openModal(`
-    <div class="mh"><h3>${IC.washer} Báo có máy giặt chưa đăng ký</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mh"><h3>${IC.washer} Đề nghị đăng ký máy giặt</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <div class="field"><label>Học viên</label>
-        <input value="${esc(s.name)}${s.room_name ? ' — phòng ' + esc(s.room_name) : ''}" disabled></div>
-      <div class="field"><label>Ngày thấy máy giặt trong phòng</label>
-        <input type="date" id="mg_date" max="${today()}" value="${today()}"></div>
-      <div class="field"><label>Ghi chú cho quản trị (loại máy, đặt ở đâu...)</label>
-        <textarea id="mg_note" rows="3"></textarea></div>
-      <div class="hint" style="font-size:12px">${IC.info} Quản trị viên duyệt thì ${esc(s.name)} mới vào danh sách máy giặt — an ninh không tự thêm được.</div>
+      <div class="field"><label>Học viên</label><select id="mg_stu">${opts}</select></div>
+      <div class="field"><label>Ghi chú gửi quản trị viên</label>
+        <textarea id="mg_note" rows="3" placeholder="Không bắt buộc"></textarea></div>
+      <div class="hint" style="font-size:12px">${IC.info} Học viên vào danh sách máy giặt và bắt đầu tính phí sau khi quản trị viên duyệt.</div>
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button>
-      <button class="btn pri" data-act="mgBaoGui" data-args='[${id}]'>${IC.bell} Gửi báo cáo</button></div>`);
+      <button class="btn pri" data-act="mgBaoGui">Gửi đề nghị</button></div>`);
 }
-async function mgBaoGui(id) {
-  const ngay = el('mg_date') ? el('mg_date').value : today();
+async function mgBaoGui() {
+  const id = +(el('mg_stu') || {}).value;
+  if (!id) return toast('Chưa chọn học viên', 'err');
   const note = el('mg_note') ? el('mg_note').value.trim() : '';
-  if (!ngay) return toast('Chọn ngày thấy máy giặt', 'err');
-  await guard(() => API.maintBaoMayGiat(id, ngay, note));
-  closeModal(); toast('Đã gửi báo cáo cho quản trị viên'); loadMaintGiat();
+  await guard(() => API.maintBaoMayGiat(id, today(), note));
+  closeModal(); toast('Đã gửi đề nghị'); loadMaintGiat();
 }
 // Thẻ Ca trực: việc của HÔM NAY gom một chỗ — mở app ra là thấy, không phải chọn tab rồi dò cả tháng.
 async function loadCaTruc() {
@@ -1924,10 +1914,10 @@ async function loadTeacher() {
     return;
   }
   const ds = Array.isArray(vps) ? vps : (vps.rows || []);
-  // Tuần đầu trong lịch là tuần đang chạy; tuần kế là phiên sau. Phòng chưa có ai ở thì lịch rỗng.
+  // Phần tử đầu trong lịch là HÔM NAY, kế tiếp là ngày mai. Phòng chưa có ai ở thì lịch rỗng.
   const luot = (r, i) => {
     const w = (r.lich || [])[i];
-    return w && w.name ? `<strong>${esc(w.name)}</strong><div class="sub2">${fmtDate(w.from)} – ${fmtDate(w.to)}</div>` : '<span class="muted">—</span>';
+    return w && w.name ? `<strong>${esc(w.name)}</strong><div class="sub2">${fmtDate(w.date)}</div>` : '<span class="muted">—</span>';
   };
   el('content').innerHTML = `
     <div class="panel"><div class="hd"><h2>${IC.calendar} Trực nhật theo phòng (<span id="gvCount">${phong.length}</span>)</h2>
@@ -1935,13 +1925,13 @@ async function loadTeacher() {
         <input id="gvSearch" placeholder="Tìm phòng / tên người trực..."></div></div></div>
       <div class="table-wrap card-tbl">
         ${phong.length ? `<table><thead><tr><th>Phòng</th><th class="num">Tầng</th><th class="num">Số người</th>
-          <th>Tuần này trực</th><th>Tuần sau</th></tr></thead><tbody>
+          <th>Hôm nay trực</th><th>Ngày mai</th></tr></thead><tbody>
           ${phong.map(r => `<tr data-s="${esc(((r.room_name || '') + ' ' + (r.lich || []).map(w => w.name || '').join(' ')).toLowerCase())}">
             <td data-label="Phòng"><strong>${esc(r.room_name)}</strong></td>
             <td class="num" data-label="Tầng">${esc(r.floor ?? '—')}</td>
             <td class="num" data-label="Số người">${r.so_nguoi}</td>
-            <td data-label="Tuần này trực">${luot(r, 0)}</td>
-            <td data-label="Tuần sau">${luot(r, 1)}</td>
+            <td data-label="Hôm nay trực">${luot(r, 0)}</td>
+            <td data-label="Ngày mai">${luot(r, 1)}</td>
           </tr>`).join('')}
           <tr class="no-result" style="display:none"><td colspan="5"><div class="empty">Không tìm thấy phòng phù hợp.</div></td></tr>
         </tbody></table>` : '<div class="empty">Chưa có phòng nào.</div>'}

@@ -1,40 +1,17 @@
-// Package chores — lịch trực nhật xoay vòng theo tuần, tính thẳng không cần bảng.
-// Port từ server/chores.js. Tuần bắt đầu THỨ HAI; mốc 05/01/1970 là một thứ Hai.
+// Package chores — lịch trực nhật xoay vòng theo NGÀY, tính thẳng không cần bảng.
 package chores
 
 import (
-	"math"
 	"sort"
-	"time"
 
 	"ktx/internal/billing"
 )
 
-const epochMonday = "1970-01-05"
+// NeoGoc: ngày bắt đầu xoay vòng. Đổi mốc là đổi thứ tự lịch của mọi phòng.
+const NeoGoc = "2026-01-01"
 
-// MondayOf: thứ Hai của tuần chứa ngày ymd. server/chores.js:18-24
-func MondayOf(ymd string) string {
-	s := ymd
-	if len(s) > 10 {
-		s = s[:10]
-	}
-	t, err := time.ParseInLocation("2006-01-02", s, time.UTC)
-	if err != nil {
-		return s
-	}
-	dow := (int(t.Weekday()) + 6) % 7 // 0 = thứ Hai ... 6 = Chủ nhật
-	return t.AddDate(0, 0, -dow).Format("2006-01-02")
-}
-
-// weeksSinceEpoch: số tuần trọn giữa 2 thứ Hai. server/chores.js:26
-func weeksSinceEpoch(monday string) int {
-	tm, err1 := time.ParseInLocation("2006-01-02", monday, time.UTC)
-	te, err2 := time.ParseInLocation("2006-01-02", epochMonday, time.UTC)
-	if err1 != nil || err2 != nil {
-		return 0
-	}
-	return int(math.Round(tm.Sub(te).Hours() / (7 * 24)))
-}
+// tranMoPhong: chặn trên số ngày phải đi qua khi dựng lại chuỗi.
+const tranMoPhong = 4000
 
 type Member struct {
 	ID           int
@@ -43,48 +20,74 @@ type Member struct {
 	CheckOutDate string
 }
 
+// Slot: MỘT NGÀY trực.
 type Slot struct {
-	From      string `json:"from"`
-	To        string `json:"to"`
+	Date      string `json:"date"`
 	StudentID int    `json:"student_id"`
 	Name      string `json:"name"`
 }
 
-// Schedule: lịch trực nhật của một phòng. server/chores.js:34-52
-func Schedule(members []Member, today string, weeks int) []Slot {
-	if weeks <= 0 {
-		weeks = 4
+// truocHon: thứ tự cố định của phòng — theo NGÀY VÀO Ở rồi tới id (đừng bao giờ sắp theo tên).
+func truocHon(a, b Member) bool {
+	if a.CheckInDate != b.CheckInDate {
+		return a.CheckInDate < b.CheckInDate
+	}
+	return a.ID < b.ID
+}
+
+// keTiep: người kế sau `truoc` trong nhóm đang có mặt, hết thì vòng lại đầu.
+// `truoc` có thể đã rời phòng — vẫn tra được chỗ đứng nên chuỗi không đứt.
+func keTiep(comat []Member, truoc *Member) Member {
+	if truoc != nil {
+		for _, m := range comat {
+			if truocHon(*truoc, m) {
+				return m
+			}
+		}
+	}
+	return comat[0]
+}
+
+// Schedule: lịch trực từ ngày `from`, `days` ngày liên tiếp. Đi tuần tự từ NeoGoc nên ngày X hỏi
+// hôm nay hay hỏi tuần sau đều ra cùng một người; phòng từ 2 người trở lên thì không ai trực 2
+// ngày liên tiếp (còn đúng 1 người thì bạn đó trực mỗi ngày, không còn ai để xoay).
+func Schedule(members []Member, from string, days int) []Slot {
+	if days <= 0 {
+		days = 14
 	}
 	order := make([]Member, len(members))
 	copy(order, members)
-	// theo NGÀY VÀO Ở rồi tới id (đừng bao giờ sắp theo tên)
-	sort.SliceStable(order, func(i, j int) bool {
-		if order[i].CheckInDate != order[j].CheckInDate {
-			return order[i].CheckInDate < order[j].CheckInDate
-		}
-		return order[i].ID < order[j].ID
-	})
+	sort.SliceStable(order, func(i, j int) bool { return truocHon(order[i], order[j]) })
 	if len(order) == 0 {
 		return []Slot{}
 	}
 
-	out := []Slot{}
-	m0 := MondayOf(today)
-	for i := 0; i < weeks; i++ {
-		from := billing.AddDays(m0, i*7)
-		to := billing.AddDays(from, 6)
-		here := make([]Member, 0, len(order))
-		for _, s := range order {
-			if billing.DaysStayedInRange(s.CheckInDate, s.CheckOutDate, from, to) > 0 {
-				here = append(here, s)
+	batDau := NeoGoc
+	if from < batDau {
+		batDau = from
+	}
+	het := billing.AddDays(from, days-1)
+
+	out := make([]Slot, 0, days)
+	var truoc *Member
+	comat := make([]Member, 0, len(order))
+	for ngay, i := batDau, 0; ngay <= het && i < tranMoPhong; ngay, i = billing.AddDays(ngay, 1), i+1 {
+		comat = comat[:0]
+		for _, m := range order {
+			if billing.DaysStayedInRange(m.CheckInDate, m.CheckOutDate, ngay, ngay) > 0 {
+				comat = append(comat, m)
 			}
 		}
-		if len(here) == 0 {
+		// Phòng trống hôm đó: giữ nguyên người trực gần nhất để chuỗi không đứt.
+		if len(comat) == 0 {
 			continue
 		}
-		n := len(here)
-		idx := ((weeksSinceEpoch(from) % n) + n) % n
-		out = append(out, Slot{From: from, To: to, StudentID: here[idx].ID, Name: here[idx].Name})
+		nguoi := keTiep(comat, truoc)
+		giu := nguoi
+		truoc = &giu
+		if ngay >= from {
+			out = append(out, Slot{Date: ngay, StudentID: nguoi.ID, Name: nguoi.Name})
+		}
 	}
 	return out
 }

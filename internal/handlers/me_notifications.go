@@ -56,8 +56,8 @@ SELECT ts, kind, ref, txt, amount FROM ev
  WHERE ts IS NOT NULL AND ts > now() - make_interval(days => $2)
  ORDER BY ts DESC LIMIT $3`
 
-// meChoreEvent: "tuần này đến lượt trực nhật" — việc duy nhất không có mốc trong CSDL vì lịch do app
-// tự xoay. Mốc = thứ Hai đầu tuần, nên mỗi tuần đến lượt là một thông báo mới.
+// meChoreEvent: "hôm nay đến lượt trực nhật" — việc duy nhất không có mốc trong CSDL vì lịch do app
+// tự xoay. Mốc = chính ngày trực, nên mỗi lần đến lượt là một thông báo mới.
 func (h *Handlers) meChoreEvent(c *gin.Context, sid int) map[string]interface{} {
 	ctx := c.Request.Context()
 	var roomID *int
@@ -86,13 +86,13 @@ func (h *Handlers) meChoreEvent(c *gin.Context, sid int) map[string]interface{} 
 	if len(sched) == 0 || sched[0].StudentID != sid {
 		return nil
 	}
-	thuHai, err := time.ParseInLocation("2006-01-02", sched[0].From, timeutil.Loc)
+	ngay, err := time.ParseInLocation("2006-01-02", sched[0].Date, timeutil.Loc)
 	if err != nil {
 		return nil
 	}
 	return map[string]interface{}{
-		"ts": thuHai.Format(time.RFC3339), "kind": "chore", "ref": 0,
-		"txt": sched[0].To, "amount": nil,
+		"ts": ngay.Format(time.RFC3339), "kind": "chore", "ref": 0,
+		"txt": sched[0].Date, "amount": nil,
 	}
 }
 
