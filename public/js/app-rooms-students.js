@@ -278,7 +278,6 @@ function roomDetail(id) {
 
       ${dsSapVao.length ? `<div class="panel"><div class="hd"><h2 style="font-size:14px">${IC.calendar} Sắp vào (${dsSapVao.length})</h2></div>
         ${bang(dsSapVao)}
-        ${c.dem && dsSapVao.length !== c.datCho ? `<div class="pad"><p class="muted" style="margin:0;font-size:12px">Máy chủ đếm ${c.datCho}, danh sách hiện ${dsSapVao.length} — dữ liệu vừa đổi, tải lại trang.</p></div>` : ''}
       </div>` : ''}
 
       ${/* Ai ĐÃ RỜI không còn trong ST.students theo phòng nữa -> phải đọc room_stays, không lọc
@@ -302,7 +301,14 @@ async function napLichSuPhong(id) {
   let stays = null;
   try { stays = ((await API.roomStays(id)) || {}).stays || []; } catch {}
   const o = el('roomStays');
-  if (o) o.innerHTML = lichSuPhongHTML(stays);
+  if (o) o.innerHTML = lichSuPhongHTML(stays, id);
+}
+// Tương tự cho lịch sử ở của một học viên (nút Thử lại trong Chi tiết học viên).
+async function napLichSuO(id) {
+  let stays = null;
+  try { stays = ((await API.stays(id)) || {}).stays || []; } catch {}
+  const o = el('lsoBox');
+  if (o) o.innerHTML = lichSuOHTML(stays, id);
 }
 
 /* ---- Phòng trưởng ----
@@ -966,7 +972,7 @@ async function studentDetail(id) {
           <td class="num"><span class="row-chev" aria-hidden="true">${IC.chevronRight}</span></td></tr>`).join('')}
       </tbody></table></div>` : '<p class="muted">Chưa có phiếu báo.</p>'}
       <h4 style="margin:18px 0 8px">${IC.history} Lịch sử ở & chuyển phòng</h4>
-      ${lichSuOHTML(stays)}
+      <div id="lsoBox">${lichSuOHTML(stays, s.id)}</div>
     </div>
     <div class="mf">
       <button class="btn" data-act="studentForm" data-args='[${s.id}]'>${IC.pencil} Sửa</button>
@@ -1044,8 +1050,9 @@ const lsoKetThuc = t => !t.to_date
     ? `<div class="sub2"><span class="badge blue">chuyển phòng</span>${t.phong_ke ? ' → ' + esc(t.phong_ke) : ''}</div>`
     : '');
 
-function lichSuOHTML(stays) {
-  if (stays == null) return `<div class="bang-tin">${IC.alert} Không đọc được lịch sử ở — tải lại trang rồi thử lại.</div>`;
+function lichSuOHTML(stays, id) {
+  if (stays == null) return `<div class="bang-tin">${IC.alert} <span>Không đọc được lịch sử ở.
+    <button class="btn sm" style="margin-left:6px" data-act="napLichSuO" data-args='[${id}]'>${IC.refresh} Thử lại</button></span></div>`;
   if (!stays.length) return '<p class="muted">Chưa có.</p>';
   return `<div class="table-wrap"><table><thead><tr><th>Phòng</th><th>Vào</th><th>Rời</th></tr></thead><tbody>
     ${stays.map(t => `<tr>
@@ -1057,8 +1064,9 @@ function lichSuOHTML(stays) {
 }
 
 // Lịch sử ra/vào của MỘT PHÒNG — nghịch đảo của lichSuOHTML (theo phòng thay vì theo người).
-function lichSuPhongHTML(stays) {
-  if (stays == null) return `<div class="bang-tin">${IC.alert} Không đọc được lịch sử ra/vào — tải lại trang rồi thử lại.</div>`;
+function lichSuPhongHTML(stays, id) {
+  if (stays == null) return `<div class="bang-tin">${IC.alert} <span>Không đọc được lịch sử ra/vào.
+    <button class="btn sm" style="margin-left:6px" data-act="napLichSuPhong" data-args='[${id}]'>${IC.refresh} Thử lại</button></span></div>`;
   if (!stays.length) return '<p class="muted">Chưa có ai từng ở phòng này.</p>';
   return `<div class="table-wrap"><table><thead><tr><th>Học viên</th><th>Vào</th><th>Rời</th></tr></thead><tbody>
     ${stays.map(t => `<tr>

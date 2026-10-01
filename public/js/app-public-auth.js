@@ -140,7 +140,7 @@ async function renderPublicRegister() {
     el('app').innerHTML = `<div class="login-wrap"><div class="login-card" style="text-align:center">
       <div style="color:var(--red-ink,#b91c1c);display:flex;justify-content:center;margin-bottom:8px">${IC.alert}</div>
       <h1 style="font-family:var(--serif);margin:6px 0;font-size:22px">Không tải được thông tin</h1>
-      <p class="muted" style="margin:0 0 16px">Máy chủ có thể đang bận hoặc mất mạng. Vui lòng tải lại trang.</p>
+      <p class="muted" style="margin:0 0 16px">Chưa kết nối được máy chủ. Kiểm tra mạng rồi bấm Tải lại.</p>
       <button class="btn pri" data-act="reloadPage">${IC.refresh} Tải lại</button></div></div>`;
     return;
   }

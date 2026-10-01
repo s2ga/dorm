@@ -426,6 +426,8 @@ select[size] option{padding:8px 9px;border-radius:8px}
 .toast.show{display:flex;animation:pop .2s ease}
 .toast.ok{background:#33654a;border-color:#3f7758}
 .toast.err{background:#8f3b30;border-color:#a1483c}
+.toast-x{margin-left:4px;padding:0 4px;border:0;background:transparent;color:inherit;font-size:20px;line-height:1;opacity:.75;cursor:pointer}
+.toast-x:hover,.toast-x:focus-visible{opacity:1}
 
 /* ---------- Khác ---------- */
 .muted{color:var(--muted)}

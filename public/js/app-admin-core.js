@@ -96,7 +96,7 @@ function renderBootError(e) {
         <div style="color:var(--red-ink,#b91c1c);display:flex;justify-content:center;margin-bottom:8px">${IC.alert}</div>
         <h2 style="margin:0 0 6px">Không tải được dữ liệu</h2>
         <p class="muted" style="margin:0 0 4px">${esc((e && e.message) || 'Lỗi kết nối máy chủ')}</p>
-        <p class="muted" style="font-size:13px;margin:0 0 16px">Máy chủ có thể đang khởi động lại (gói miễn phí ngủ đông) hoặc mất mạng. Chưa tải được dữ liệu nền nên chưa mở màn nào — bấm Thử lại.</p>
+        <p class="muted" style="font-size:13px;margin:0 0 16px">Chưa kết nối được máy chủ. Kiểm tra mạng rồi bấm Thử lại.</p>
         <button class="btn pri" data-act="bootRetry">${IC.refresh} Thử lại</button>
       </div>
     </div>`;
@@ -207,8 +207,8 @@ function notifItems() {
   const items = [];
   // Nhận và trả là HAI dòng: gộp một dòng thì con số dẫn tới MỘT màn, màn đó không chứa đủ ngần ấy.
   const nVao = nguoiCanXuLyPhong('checkin').tong, nRa = nguoiCanXuLyPhong('checkout').tong;
-  if (nVao) items.push({ n: nVao, ic: IC.key, tx: `${nVao} người cần xác nhận NHẬN phòng`, act: actAttr('nhanPhongGo') });
-  if (nRa) items.push({ n: nRa, ic: IC.logOut, tx: `${nRa} người cần xác nhận TRẢ phòng`, act: actAttr('traPhongGo') });
+  if (nVao) items.push({ n: nVao, ic: IC.key, tx: `${nVao} người cần xác nhận nhận phòng`, act: actAttr('nhanPhongGo') });
+  if (nRa) items.push({ n: nRa, ic: IC.logOut, tx: `${nRa} người cần xác nhận trả phòng`, act: actAttr('traPhongGo') });
   // BL-19: dataset phụ tải hỏng -> cảnh báo trên chuông + nút Thử lại, thay vì để badge/số về 0 giả im lặng.
   if (ST.cacheErrors && ST.cacheErrors.length) items.push({ n: ST.cacheErrors.length, ic: IC.alert, tx: `Chưa tải được: ${ST.cacheErrors.join(', ')} — số liệu có thể chưa đầy đủ. Bấm để thử lại`, act: actAttr('retryCache') });
   const pApps = ST.applications.filter(a => a.status === 'pending').length;
@@ -220,7 +220,7 @@ function notifItems() {
   if (pend) items.push({ n: pend, ic: IC.shield, tx: `${pend} tài khoản Microsoft chờ duyệt`, act: actAttr('gotoUsers') });
   if (pApps) items.push({ n: pApps, ic: IC.filePen, tx: `${pApps} đơn đăng ký chờ duyệt`, act: actAttr('nhanPhongGo', 'don') });
   if (pDmg) items.push({ n: pDmg, ic: IC.wrench, tx: `${pDmg} báo hư hỏng chưa xử lý`, act: actAttr('baoTriGo') });
-  if (pCout) items.push({ n: pCout, ic: IC.filePen, tx: `${pCout} đơn xin trả phòng chờ đồng ý`, act: actAttr('traPhongGo', 'don') });
+  if (pCout) items.push({ n: pCout, ic: IC.filePen, tx: `${pCout} đơn trả phòng chờ duyệt`, act: actAttr('traPhongGo', 'don') });
   if (needMail) items.push({ n: needMail, ic: IC.alert, tx: `${needMail} học viên vi phạm cần báo nhà trường`, act: actAttr('viPhamGo', 'canbao') });
   if (refund) items.push({ n: refund, ic: IC.handCoins, tx: `${refund} khoản cọc chờ hoàn (đã trả phòng)`, act: actAttr('quyCoc') });
   // BL-120 bãi xe: đề nghị sửa biển, báo cáo an ninh, xe vắng lâu, chưa chốt; bản chốt hôm nay chỉ để đọc (n=0).
@@ -233,7 +233,7 @@ function notifItems() {
     if (vl) items.push({ n: vl, ic: IC.bike, tx: `${vl} xe vắng liên tiếp từ ${pk.alert_days} ngày: ${esc(pk.vang_lau.slice(0, 3).map(x => x.plate).join(', '))}${vl > 3 ? '…' : ''}`, act: den });
     if (pk.chua_chot) items.push({ n: 1, ic: IC.alert, tx: `Quá ${esc(pk.alert_time)} mà an ninh chưa chốt bãi xe hôm nay`, act: den });
     (pk.dailies || []).forEach(x => items.push({ n: 0, ic: IC.checkCircle, act: den,
-      tx: `Bãi xe hôm nay${x.facility_name ? ' (' + esc(x.facility_name) + ')' : ''}: ${x.co_mat} có · ${x.vang} vắng · ${x.so_bao_cao} báo cáo — ${esc(x.closed_by)} đã chốt${x.mail_sent_at ? ', mail đã gửi' : x.mail_error ? ', mail chưa gửi được' : ''}` }));
+      tx: `Bãi xe hôm nay${x.facility_name ? ' (' + esc(x.facility_name) + ')' : ''}: ${x.co_mat} có · ${x.vang} vắng · ${x.so_bao_cao} báo cáo — ${esc(x.closed_by)} đã chốt${x.mail_sent_at ? ', email đã gửi' : x.mail_error ? ', email chưa gửi được' : ''}` }));
   }
   return items;
 }
@@ -572,6 +572,7 @@ function adminGo(view, opts) {
   const tieuDe = AdminTitles[view] || [view, ''];
   el('pgTitle').textContent = tieuDe[0];
   el('pgSub').textContent = tieuDe[1];
+  document.title = `${tieuDe[0]} · Nội trú Esuhai`;   // tab trình duyệt / lịch sử Back hiện đúng màn
   el('topActions').innerHTML = '';
   // BL-17: trên đường "URL-là-nguồn" (nạp đầu {replace} / Back-Forward {fromPop}), nạp bộ lọc từ query
   // vào RAM TRƯỚC khi vẽ, để deep-link/F5 hiện đúng bộ lọc. Điều hướng thường: RAM là nguồn -> ghi ra URL.

@@ -77,13 +77,17 @@ function initials(name) { const p = (name || '?').trim().split(/\s+/); return ((
 // dùng mật khẩu nên vẫn thấy; tài khoản 'both' (có cả hai) cũng thấy vì mật khẩu vẫn còn hiệu lực.
 const dungMatKhau = () => !!Auth.user && Auth.user.auth_provider !== 'sso';
 
+// Thời gian hiện theo độ dài câu (đủ để đọc): tối thiểu 3 giây, lỗi 5 giây, tối đa 10 giây; có nút × để tắt sớm.
 function toast(msg, type = 'ok') {
   const t = el('toast');
   t.className = 'toast show ' + type;
-  t.innerHTML = (type === 'err' ? IC.alert+' ' : IC.checkCircle+' ') + esc(msg);
+  t.setAttribute('role', type === 'err' ? 'alert' : 'status');
+  t.innerHTML = `${type === 'err' ? IC.alert : IC.checkCircle} <span>${esc(msg)}</span>`
+    + '<button type="button" class="toast-x" aria-label="Đóng thông báo" data-act="tatToast">×</button>';
   clearTimeout(t._t);
-  t._t = setTimeout(() => (t.className = 'toast'), 2800);
+  t._t = setTimeout(tatToast, Math.min(10000, Math.max(type === 'err' ? 5000 : 3000, String(msg || '').length * 65)));
 }
+function tatToast() { const t = el('toast'); clearTimeout(t._t); t.className = 'toast'; }
 // BL-30: sao chép văn bản vào clipboard (credential HV, SĐT, số HĐ...). navigator.clipboard chạy ở HTTPS/localhost;
 // execCommand là dự phòng cho ngữ cảnh không an toàn.
 function copyToClipboard(text) {

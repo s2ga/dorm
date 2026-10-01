@@ -467,8 +467,9 @@ function chotGiuaKyHTML(month, reads, rooms) {
   if (rooms) cgkDungMocTruoc(reads, rooms);
   if (reads && reads.loi) {
     return `<h4 style="margin:18px 0 6px">Chốt giữa kỳ — chỉ số hôm học viên rời phòng</h4>
-      <div class="bang-tin">${IC.alert} <strong>Không đọc được danh sách chốt giữa kỳ</strong> (${esc(reads.loi)}).
-      Đừng tin là kỳ này không có ai rời phòng — hãy tải lại trang rồi mở lại màn này.</div>`;
+      <div class="bang-tin">${IC.alert} <span><strong>Không đọc được danh sách chốt giữa kỳ</strong> (${esc(reads.loi)}).
+      Chưa biết kỳ này có ai rời phòng hay không.
+      <button class="btn sm" style="margin-left:6px" data-act="renderElectricForm" data-args='["${month}"]'>${IC.refresh} Thử lại</button></span></div>`;
   }
   const thieu = (reads && reads.missing) || [], daCo = (reads && reads.reads) || [];
   // id khoá theo chỉ số dòng, không theo phòng+ngày (hai HV có thể rời cùng phòng cùng ngày).

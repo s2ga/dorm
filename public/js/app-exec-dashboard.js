@@ -161,10 +161,10 @@ async function billOverdueModal() {
     <div class="mb">
       <div class="hint">${IC.info} Đúng dân số đợt lập phiếu: đã bỏ thành viên phòng thuê nguyên căn (nằm trong
         phiếu người ký HĐ), tính cả người sắp vào theo lịch và người rời kỳ trước còn thiếu phiếu.</div>
-      ${tong ? `<h4 class="asset-h" style="margin:16px 0 0">Kỳ này (${M}) — ${kyNay.length}</h4>
+      ${tong ? `<h4 class="asset-h" style="margin:16px 0 0">Kỳ này (${monthLabel(M)}) — ${kyNay.length}</h4>
         ${kyNay.length ? bang(kyNay) : `<div class="empty" style="margin-top:8px">${IC.checkCircle} Kỳ này không sót ai.</div>`}
-        ${kyTruoc.length ? `<h4 class="asset-h" style="margin:18px 0 0;color:var(--red-ink)">${IC.alert} Rời kỳ trước (${Mt}) mà chưa có phiếu — ${kyTruoc.length}</h4>
-          <p class="muted" style="margin:4px 0 0;font-size:13px">Họ đã đi, đợt lập phiếu hằng tháng không còn quét tới. Vào màn Tiền phòng kỳ ${Mt} để lập nốt.</p>
+        ${kyTruoc.length ? `<h4 class="asset-h" style="margin:18px 0 0;color:var(--red-ink)">${IC.alert} Rời kỳ trước (${monthLabel(Mt)}) mà chưa có phiếu — ${kyTruoc.length}</h4>
+          <p class="muted" style="margin:4px 0 0;font-size:13px">Họ đã đi, đợt lập phiếu hằng tháng không còn quét tới. Vào màn Tiền phòng, chọn kỳ ${monthLabel(Mt)} để lập nốt.</p>
           ${bang(kyTruoc)}` : ''}`
     : `<div class="empty" style="margin-top:10px">${IC.checkCircle} Không sót ai — mọi người cần thu đều đã có phiếu.</div>`}
     </div>
@@ -363,7 +363,9 @@ async function tamTruChuyenXuLy() {
     try { await napLai('students'); } catch (e) { /* trạng thái đã ghi ở máy chủ; số đếm Tổng quan sẽ đúng ở lần nạp sau */ }
   }
   if (loi.length) {
-    toast(`Chưa chuyển được ${loi.length} hồ sơ: ${loi.join(', ')}`, 'err');
+    toast(`Chưa chuyển được ${loi.length} hồ sơ`, 'err');
+    el('content').insertAdjacentHTML('afterbegin', `<div class="bang-tin rc-noprint" style="border-color:var(--red-ink)">${IC.alert}
+      <span><strong>Chưa chuyển được ${loi.length} hồ sơ:</strong><ul style="margin:6px 0 0 18px">${loi.map(x => `<li>${esc(x)}</li>`).join('')}</ul></span></div>`);
     el('topActions').innerHTML = `<button class="btn pri" data-act="tamTruChuyenXuLy">${IC.refresh} Thử lại (${loi.length})</button> <button class="btn" data-act="doPrint">${IC.printer} In lại</button>`;
   } else {
     toast(`Đã chuyển ${xong} hồ sơ sang Đang xử lý`);
