@@ -2111,7 +2111,7 @@ func (h *Handlers) traPhong(ctx context.Context, u *auth.User, id int, in traPho
 			if co != "" {
 				coStr = " ngày " + co
 			}
-			return nil, http.StatusConflict, "Học viên đã trả phòng" + coStr + ". Rời sớm/muộn hơn ngày đã ghi thì mở hồ sơ bấm \"Sửa ngày trả\" — không cần nhận phòng lại."
+			return nil, http.StatusConflict, "Học viên đã trả phòng" + coStr + ". Rời sớm/muộn hơn ngày đã ghi thì mở hồ sơ bấm \"Sửa ngày trả\"."
 		}
 	}
 	badDate, err := checkout.BadCheckoutDate(ctx, h.pool(), id, d, studentsJSString(ci["check_in_date"]))

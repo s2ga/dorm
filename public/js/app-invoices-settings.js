@@ -407,7 +407,7 @@ async function renderElectricForm(month) {
     <div class="mh"><h3>${IC.zap} Chỉ số điện theo tháng</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="field"><label>Kỳ (tháng)</label><input id="e_month"></div>
-      <div class="hint">Nhập số đầu (lần đầu để test) và số cuối ĐỌC CUỐI KỲ. Tháng sau số đầu tự nối tiếp. Tiền điện kỳ này lên <strong>phiếu kỳ sau</strong> (tiền phòng thu trước, điện thu sau khi có số).</div>
+      <div class="hint">Nhập số cuối đọc vào cuối kỳ. Số đầu chỉ cần nhập lần đầu, tháng sau tự nối tiếp. Tiền điện kỳ này lên <strong>phiếu kỳ sau</strong> (tiền phòng thu trước, điện thu sau khi có số).</div>
       ${electricTable(rooms, lichSu)}
       <div id="chot_giua_ky">${chotGiuaKyHTML(month, reads, rooms)}</div>
     </div>
@@ -932,8 +932,8 @@ async function phieuBao(inv) {
         <tr class="rc-total"><td colspan="4">TỔNG CỘNG PHẢI NỘP</td><td class="n">${moneyN(inv.total)}</td></tr>
       </tbody></table>
       <div class="rc-note">
-        ${IC.creditCard} Thanh toán qua <strong>mã QR</strong> do quản lý gửi trên Zalo. Hạn đóng: <strong>ngày ${set.due_day_from || 1}–${set.due_day_to || 5}</strong> hàng tháng.<br>
-        ${IC.pin} Nếu có sai sót, vui lòng báo lại trước ngày 05. Xin cảm ơn!
+        ${IC.creditCard} Thanh toán qua <strong>mã QR</strong> do Ban Quản lý gửi trên Zalo. Hạn nộp: <strong>ngày ${set.due_day_from || 1}–${set.due_day_to || 5}</strong> hàng tháng.<br>
+        ${IC.pin} Nếu có sai sót, vui lòng báo lại trước ngày ${set.due_day_to || 5}. Xin cảm ơn!
       </div>
     </div></div></div>
     <div class="mf rc-noprint">
@@ -1097,7 +1097,7 @@ function viewSettings() {
     <div class="panel"><div class="hd"><h2>${IC.alert} Ngưỡng nhắc / nghiệp vụ</h2></div><div class="pad">
       <div class="hint">${IC.info} Các mốc nhắc việc & quy tắc — chỉnh ở đây, không cần sửa code. Lưu chung nút "Lưu cài đặt" ở trên.</div>
       <div class="grid2">
-        <div class="field"><label>Nhắc khi ở quá <span class="opt">(ngày) chưa ký HĐ / chưa tạm trú / chưa lập phiếu</span></label><input id="set_overdue_remind_days" type="number" min="1" value="${esc(s.overdue_remind_days ?? 7)}"></div>
+        <div class="field"><label>Nhắc khi ở quá <span class="opt">(ngày) chưa ký hợp đồng / chưa tạm trú / chưa lập phiếu</span></label><input id="set_overdue_remind_days" type="number" min="1" value="${esc(s.overdue_remind_days ?? 7)}"></div>
         <div class="field"><label>Ngưỡng thuê ghép ngắn hạn <span class="opt">(ở dưới N ngày = ngắn hạn, chỉ ký phiếu)</span></label><input id="set_shortterm_max_days" type="number" min="1" value="${esc(s.shortterm_max_days ?? 60)}"></div>
       </div>
       <div class="grid2">
@@ -1903,7 +1903,7 @@ async function loadDataHealth() {
     ${d.guards.length ? `<div class="bang-tin" style="margin:0 0 16px;border-color:var(--red);background:var(--red-bg)">${IC.alert}<span>
       <strong>${d.guards.length} ràng buộc bảo vệ đang TẮT</strong> vì dữ liệu bên dưới còn vi phạm:
       ${d.guards.map(g => `<code>${esc(g.ten)}</code>`).join(' · ')}.
-      Sửa xong các mục bên dưới thì ràng buộc <strong>tự bật lại</strong> — không cần báo em.</span></div>` : ''}
+      Sửa xong các mục bên dưới thì ràng buộc <strong>tự bật lại</strong>.</span></div>` : ''}
     ${loi.map(c => `
       <div style="margin-bottom:18px">
         <h4 class="asset-h" style="color:var(--red-ink)">${IC.alert} ${esc(c.ten)} — ${c.so_luong} chỗ</h4>

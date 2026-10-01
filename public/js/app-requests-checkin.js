@@ -558,15 +558,16 @@ function checkOutForm(id, hoId) {
     <div class="mb">
       ${hoBanner(bb)}
       <div class="grid2">
-        <div class="field"><label>Ngày báo trả phòng</label><input id="c_notice"></div>
-        <div class="field"><label>Ngày rời thực tế</label><input id="c_date"></div>
+        <div class="field"><label>Ngày báo trả phòng ${SAO}</label><input id="c_notice"></div>
+        <div class="field"><label>Ngày rời thực tế ${SAO}</label><input id="c_date"></div>
       </div>
       <div class="field"><label>Lý do trả phòng</label><select id="c_reason">
         ${CHECKOUT_REASONS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}
       </select></div>
       <div class="field"><label>Ghi chú</label><input id="c_note" placeholder="VD: hết hạn ở, chuyển đi..."></div>
       ${s.room_id ? meterField('c_meter', s.room_name, 'rời phòng', bb && bb.meter_reading != null ? 'an ninh đã ghi ở biên bản, sửa nếu đọc lại khác' : '') : ''}
-      <div class="hint">${IC.info} App sẽ tự xét điều kiện hoàn cọc dựa trên ngày báo và lý do.</div>
+      <div class="hint">${IC.info} Ngày báo trả phòng quyết định điều kiện hoàn cọc (báo trước tối thiểu ${+(ST.settings || {}).deposit_notice_min_days || 30} ngày).
+        Ô này để sẵn hôm nay nếu hồ sơ chưa ghi ngày báo — giữ hôm nay nghĩa là báo gấp, có thể không đủ điều kiện hoàn cọc.</div>
     </div>
     <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn danger" data-act="doCheckOut" data-args='[${id}${bb ? ',' + bb.id : ''}]'>Xác nhận trả phòng</button></div>`);
   attachDate(el('c_notice'), s.checkout_notice_date ? String(s.checkout_notice_date).slice(0, 10) : today());

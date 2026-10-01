@@ -11,6 +11,27 @@ function _b64url(buf) { return btoa(String.fromCharCode.apply(null, new Uint8Arr
 function _randStr(n) { const a = new Uint8Array(n); crypto.getRandomValues(a); return _b64url(a); }
 async function _sha256url(s) { return _b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s))); }
 
+// Lỗi Microsoft (tiếng Anh, mã AADSTS…) -> câu tiếng Việt kèm cách xử lý; mã gốc giữ trong ngoặc để tra cứu.
+const LOI_MS = {
+  access_denied: 'Bạn đã huỷ đăng nhập Microsoft.',
+  AADSTS50020: 'Tài khoản Microsoft này không thuộc tổ chức được phép đăng nhập — dùng email công ty, hoặc tài khoản do Ban Quản lý cấp.',
+  AADSTS90072: 'Tài khoản Microsoft này không thuộc tổ chức được phép đăng nhập — dùng email công ty, hoặc tài khoản do Ban Quản lý cấp.',
+  AADSTS50105: 'Tài khoản chưa được cấp quyền vào ứng dụng này trên Microsoft — liên hệ Ban Quản lý.',
+  AADSTS65001: 'Tổ chức chưa chấp thuận ứng dụng này trên Microsoft — liên hệ Ban Quản lý.',
+  AADSTS700016: 'Cấu hình đăng nhập Microsoft chưa đúng — báo Ban Quản lý.',
+  AADSTS50011: 'Cấu hình đăng nhập Microsoft chưa đúng — báo Ban Quản lý.',
+  AADSTS9002326: 'Cấu hình đăng nhập Microsoft chưa đúng — báo Ban Quản lý.',
+  AADSTS54005: 'Phiên đăng nhập Microsoft đã hết hạn — vui lòng thử lại.',
+  AADSTS70008: 'Phiên đăng nhập Microsoft đã hết hạn — vui lòng thử lại.',
+};
+function loiMicrosoft(ma, moTa) {
+  const aad = (`${ma || ''} ${moTa || ''}`.match(/AADSTS\d+/) || [])[0];
+  const cau = LOI_MS[aad] || LOI_MS[ma];
+  if (cau) return aad ? `${cau} (mã lỗi: ${aad})` : cau;
+  return 'Microsoft từ chối đăng nhập — vui lòng thử lại hoặc đăng nhập bằng tên và mật khẩu.'
+    + (aad || ma ? ` (mã lỗi: ${aad || ma})` : '');
+}
+
 // Bấm "Đăng nhập bằng Microsoft": máy chủ dựng yêu cầu uỷ quyền rồi 302 sang Microsoft.
 async function ssoLogin() {
   let cfg;
@@ -26,7 +47,7 @@ async function ssoHandleReturn() {
   const qp = new URLSearchParams(location.search);
   if (!qp.get('code') || !qp.get('state')) {
     // Microsoft từ chối ngay từ màn đăng nhập (người dùng bấm Huỷ, admin chưa cấp quyền...)
-    if (qp.get('error')) { location.href = '/?sso_error=' + encodeURIComponent(qp.get('error_description') || qp.get('error')); return true; }
+    if (qp.get('error')) { location.href = '/?sso_error=' + encodeURIComponent(loiMicrosoft(qp.get('error'), qp.get('error_description'))); return true; }
     return false;
   }
   history.replaceState(null, '', location.pathname); // dọn ?code khỏi thanh địa chỉ
@@ -51,7 +72,7 @@ async function ssoHandleReturn() {
       return true;
     }
     const tok = await r.json().catch(() => ({}));
-    if (!r.ok || !tok.id_token) { fail('Microsoft từ chối: ' + String(tok.error_description || tok.error || 'không đổi được mã đăng nhập').split('\n')[0]); return true; }
+    if (!r.ok || !tok.id_token) { fail(loiMicrosoft(tok.error, tok.error_description)); return true; }
     await API.ssoVerify(tok.id_token);   // server xác minh id_token (JWKS) + cấp cookie phiên
     Auth.user = null; boot();            // đã có cookie -> boot vẽ app / màn chờ duyệt
   } catch (e) {
@@ -377,6 +398,7 @@ async function renderLogin() {
             <div class="field"><label>Tài khoản</label><input id="lg_user" autocomplete="username" placeholder="Tên đăng nhập"></div>
             <div class="field"><label>Mật khẩu</label><input id="lg_pass" type="password" autocomplete="current-password" placeholder="Mật khẩu"></div>
             <button class="btn pri lg auth-btn" type="submit">Đăng nhập →</button>
+            <p class="muted" style="font-size:13px;margin:10px 0 0;text-align:center">Quên mật khẩu? Liên hệ Ban Quản lý để được cấp lại.</p>
           </form>
           <div class="auth-or"><span>Học viên mới?</span></div>
           <a class="auth-card" href="/dang-ky">
@@ -393,7 +415,8 @@ async function renderLogin() {
   if (qp.get('sso_pending')) {
     el('lgNotice').innerHTML = `<div class="auth-note">Tài khoản Microsoft của bạn đã được ghi nhận nhưng <strong>chưa được Ban Quản lý duyệt</strong>. Vui lòng liên hệ Ban Quản lý.</div>`;
   } else if (qp.get('sso_error')) {
-    el('lgNotice').innerHTML = `<div class="auth-note err"><span class="err-inline">${esc(qp.get('sso_error'))}</span></div>`;
+    const loi = qp.get('sso_error');
+    el('lgNotice').innerHTML = `<div class="auth-note err"><span class="err-inline">${esc(/AADSTS\d+/.test(loi) ? loiMicrosoft('', loi) : loi)}</span></div>`;
   }
   if (location.search) history.replaceState(null, '', location.pathname); // dọn URL cho sạch
 
