@@ -1,4 +1,4 @@
-// === tu-ngu.js — chữ dùng chung toàn app: tên vai, trạng thái đơn, tên các khoản tiền. Classic script, nạp ngay sau
+// === tu-ngu.js — chữ dùng chung toàn app: tên vai, trạng thái đơn, tên các khoản tiền, câu danh sách rỗng. Classic script, nạp ngay sau
 // icons.js (GEN_NHAN ở app-invoices-settings.js dựng từ KHOAN_TIEN lúc nạp). Đổi thuật ngữ thì sửa ở đây; các từ đã
 // bỏ (hoá đơn, Check-in, khách thuê, QTV…) do tests/unit/thuat-ngu.test.js canh.
 
@@ -22,3 +22,9 @@ const KHOAN_TIEN = {
 };
 const tenKhoan = k => (KHOAN_TIEN[k] || [k])[0];
 const tenKhoanNgan = k => (KHOAN_TIEN[k] || [k, k])[1];
+
+// Danh sách rỗng — hai mẫu. Chưa có dữ liệu: "Chưa có …". Có dữ liệu mà lọc/tìm không ra: "Không có … khớp bộ lọc."
+// kèm nút xoá lọc. Danh sách việc cần làm rỗng thì nêu thẳng điều kiện ("Không có đơn đăng ký chờ duyệt.").
+const trongChuaCo = dt => `Chưa có ${dt}.`;
+const trongKhongKhop = dt => `Không có ${dt} khớp bộ lọc.`;
+const NHAN_XOA_LOC = 'Xóa bộ lọc';

@@ -70,10 +70,10 @@ async function viewExec() {
       ${kpi(IC.planeTakeoff, 'ic-gray', dep, 'Đã xuất cảnh (năm ' + year + ')', '', actAttr('xuatCanhGo', year))}
     </div>
     <div class="panel"><div class="hd"><h2>${IC.trendingUp} Tiền đã lập phiếu theo tháng — ${year}</h2><span class="muted" style="font-size:12px">Cộng từ phiếu báo đã lập, không gồm cọc giữ hộ (thu thật do Bravo quản lý)</span></div>
-    <div class="pad">${chartRows.some(r => r.total) ? svgBars(chartRows) : '<div class="empty">Chưa có phiếu báo năm này.</div>'}</div></div>
+    <div class="pad">${chartRows.some(r => r.total) ? svgBars(chartRows) : `<div class="empty">${trongChuaCo('phiếu báo nào trong năm này')}</div>`}</div></div>
     <div class="grid2" style="align-items:start">
       <div class="panel" style="margin:0"><div class="hd"><h2>${IC.pie} Cơ cấu doanh thu dự báo</h2></div><div class="pad" style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
-        ${svcs.length ? svgDonut(svcs.map(s => ({ label: s[0], value: s[1], color: s[2] }))) : '<div class="empty">Chưa có dữ liệu.</div>'}
+        ${svcs.length ? svgDonut(svcs.map(s => ({ label: s[0], value: s[1], color: s[2] }))) : `<div class="empty">${trongChuaCo('phiếu báo nào trong năm này')}</div>`}
         <div style="flex:1;min-width:170px">${svcs.map(s => `<div class="flex" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)"><span class="flex" style="gap:8px"><span style="width:11px;height:11px;border-radius:3px;background:${s[2]};display:inline-block"></span>${s[0]}</span><strong>${Math.round(s[1] / svcTotal * 100)}%</strong></div>`).join('')}</div>
       </div></div>
       <div class="panel" style="margin:0"><div class="hd"><h2>${IC.users} Cơ cấu học viên đang ở</h2></div><div class="pad">
@@ -162,11 +162,11 @@ async function billOverdueModal() {
       <div class="hint">${IC.info} Đúng dân số đợt lập phiếu: đã bỏ thành viên phòng thuê nguyên căn (nằm trong
         phiếu người ký HĐ), tính cả người sắp vào theo lịch và người rời kỳ trước còn thiếu phiếu.</div>
       ${tong ? `<h4 class="asset-h" style="margin:16px 0 0">Kỳ này (${monthLabel(M)}) — ${kyNay.length}</h4>
-        ${kyNay.length ? bang(kyNay) : `<div class="empty" style="margin-top:8px">${IC.checkCircle} Kỳ này không sót ai.</div>`}
+        ${kyNay.length ? bang(kyNay) : `<div class="empty" style="margin-top:8px">${IC.checkCircle} Không có học viên thiếu phiếu báo kỳ này.</div>`}
         ${kyTruoc.length ? `<h4 class="asset-h" style="margin:18px 0 0;color:var(--red-ink)">${IC.alert} Rời kỳ trước (${monthLabel(Mt)}) mà chưa có phiếu — ${kyTruoc.length}</h4>
           <p class="muted" style="margin:4px 0 0;font-size:13px">Họ đã đi, đợt lập phiếu hằng tháng không còn quét tới. Vào màn Tiền phòng, chọn kỳ ${monthLabel(Mt)} để lập nốt.</p>
           ${bang(kyTruoc)}` : ''}`
-    : `<div class="empty" style="margin-top:10px">${IC.checkCircle} Không sót ai — mọi người cần thu đều đã có phiếu.</div>`}
+    : `<div class="empty" style="margin-top:10px">${IC.checkCircle} Không có học viên thiếu phiếu báo.</div>`}
     </div>
     <div class="mf">${tong ? `<button class="btn pri" data-act="adminGo" data-args='["invoices"]'>${IC.receipt} Sang màn Tiền phòng để lập</button>` : ''}
       <button class="btn" data-act="modalBack">Đóng</button></div>`);
@@ -505,7 +505,7 @@ async function viewDashboard() {
       <div class="table-wrap">${logsTable(logs.filter(l => String(l.date).slice(0, 10) <= today()).slice(0, 6))}</div></div>`;
 }
 function logsTable(logs) {
-  if (!logs.length) return `<div class="empty">Chưa có hoạt động nào.</div>`;
+  if (!logs.length) return `<div class="empty">${trongChuaCo('hoạt động nào')}</div>`;
   return `<table><thead><tr><th>Ngày</th><th>Học viên</th><th>Hoạt động</th><th>Phòng</th><th>Nguồn</th><th>Ghi chú</th></tr></thead><tbody>
     ${logs.map(l => `<tr><td>${fmtDate(l.date)}${String(l.date).slice(0, 10) > today() ? ' <span class="badge blue" style="font-size:10px">sắp tới</span>' : ''}</td><td><a href="#" data-act="studentDetail" data-args='[${l.student_id}]'>${esc(l.student_name)}</a></td>
       <td>${l.type === 'in' ? '<span class="badge green">Nhận phòng</span>' : '<span class="badge red">Trả phòng</span>'}</td>

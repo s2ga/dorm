@@ -468,13 +468,27 @@ function enablePaging(input, pagerId, pageSize) {
   applyRowFilters(table);
 }
 
+// Nút xoá lọc dùng chung (thanh "Đang lọc", câu danh sách rỗng, hàng .no-result); attrs = data-act của màn.
+const nutXoaLoc = attrs => `<button type="button" class="btn sm ghost" ${attrs}>✕ ${NHAN_XOA_LOC}</button>`;
+// Hàng báo rỗng của bảng có ô tìm/phễu cột — applyRowFilters hiện nó khi mọi hàng bị ẩn.
+const hangKhongKhop = (dt, soCot) => `<tr class="no-result" style="display:none"><td colspan="${soCot}"><div class="empty">${trongKhongKhop(dt)} ${nutXoaLoc('data-act="xoaLocBang"')}</div></td></tr>`;
+// Bỏ ô tìm, mọi phễu cột rồi tới bộ lọc riêng của màn (st.xoaLoc — có thể vẽ lại cả màn từ biến trạng thái,
+// nên ô tìm phải xoá trước để listener của màn kịp đặt lại biến đó).
+function xoaLocBang() {
+  const table = this.closest('table'), st = table && table._flt; if (!st) return;
+  st.cols.clear(); st.page = 0; st.q = '';
+  if (st.oTim && st.oTim.value) { st.oTim.value = ''; st.oTim.dispatchEvent(new Event('input', { bubbles: true })); }
+  if (st.xoaLoc) st.xoaLoc(); else applyRowFilters(table);
+}
+
 // Tìm kiếm tức thì (ô search) — nay đi qua applyRowFilters để HỢP với lọc cột.
 function attachRowSearch(input, countId, opts) {
   if (!input) return;
   const panel = input.closest('.panel') || document;
   const table = panel.querySelector('table'); if (!table) return;
-  const st = _tableState(table); st.countId = countId;
+  const st = _tableState(table); st.countId = countId; st.oTim = input;
   if (opts && opts.numWord) st.numWord = true; else delete st.numWord;   // BL-56: query thuần số -> khớp nguyên token
+  if (opts && opts.xoaLoc) st.xoaLoc = opts.xoaLoc;                      // bộ lọc riêng của màn, cho nút "Xóa bộ lọc"
   const run = () => { st.q = input.value.trim().toLowerCase(); st.page = 0; applyRowFilters(table); }; // BL-12: đổi tìm kiếm -> về trang 1
   input.addEventListener('input', run);
   if (input.value) run(); else applyRowFilters(table);

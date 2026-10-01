@@ -24,12 +24,12 @@ async function viewRooms() {
     ${roomFilter === 'trong' && !del ? `<div class="pill-row" style="align-items:center">
       <span class="muted" style="font-size:13px">Đang lọc:</span>
       <span class="badge gray" style="font-size:13px">${IC.bed} Còn giường trống — ${TL.thucCon} giường ở ${TL.soPhongThucCon} phòng${TL.datCho ? ` · đã trừ ${TL.datCho} chỗ đặt trước` : ''}</span>
-      <button class="btn sm ghost" data-act="roomGo" data-args='["all"]' title="Bỏ lọc, xem tất cả phòng">✕ Bỏ lọc</button>
+      ${nutXoaLoc(`data-act="roomGo" data-args='["all"]' title="Xem tất cả phòng"`)}
     </div>` : ''}
     ${roomFilter === 'vuot' && !del ? `<div class="pill-row" style="align-items:center">
       <span class="muted" style="font-size:13px">Đang lọc:</span>
       <span class="badge amber" style="font-size:13px">${IC.alert} Đang quá tải — ${TL.vuot} người ở ${TL.soPhongVuot} phòng</span>
-      <button class="btn sm ghost" data-act="roomGo" data-args='["all"]' title="Bỏ lọc, xem tất cả phòng">✕ Bỏ lọc</button>
+      ${nutXoaLoc(`data-act="roomGo" data-args='["all"]' title="Xem tất cả phòng"`)}
     </div>` : ''}
     <div class="panel"><div class="hd">
       <h2>${del ? 'Phòng đã xóa' : 'Danh sách phòng'} (<span id="roomCount">${list.length}</span>)</h2>
@@ -70,10 +70,12 @@ async function viewRooms() {
                 // Nút xoá còn lại chỉ hiện trên máy tính (.row-del ẩn ở ≤620px); điện thoại dùng cử chỉ.
                 : `<button class="btn sm ghost row-del" title="Xoá phòng" data-act="delRoom" data-args='[${r.id}]'>${IC.trash}</button>`}
         </div></td></tr>`; }).join('')}
-      <tr class="no-result" style="display:none"><td colspan="7"><div class="empty">Không tìm thấy phòng phù hợp.</div></td></tr>
-      </tbody></table>` : `<div class="empty">${del ? 'Không có phòng đã xóa.' : `Chưa có phòng nào. Bấm <strong>${IC.plus} Thêm phòng</strong>.`}</div>`}
+      ${hangKhongKhop('phòng', 7)}
+      </tbody></table>` : `<div class="empty">${del ? 'Không có phòng đã xóa.'
+    : tatCa.length ? `${trongKhongKhop('phòng')} ${nutXoaLoc(`data-act="roomGo" data-args='["all"]'`)}`
+      : `${trongChuaCo('phòng nào')} Bấm <strong>${IC.plus} Thêm phòng</strong>.`}</div>`}
     </div></div>`;
-  const rs = el('rs'); if (rs) { rs.addEventListener('input', () => { roomSearch = rs.value; syncFilterUrl(); }); attachRowSearch(rs, 'roomCount'); }
+  const rs = el('rs'); if (rs) { rs.addEventListener('input', () => { roomSearch = rs.value; syncFilterUrl(); }); attachRowSearch(rs, 'roomCount', { xoaLoc: roomFilter !== 'all' && !del ? () => roomGo('all') : null }); }
   syncFilterUrl();
 }
 
@@ -503,7 +505,7 @@ function viewStudents() {
     ${stuFilter !== 'all' ? `<div class="pill-row" style="align-items:center">
       <span class="muted" style="font-size:13px">Đang lọc:</span>
       <span class="badge gray" style="font-size:13px">${esc(STU_FILTER_LABELS[stuFilter] || stuFilter)}${stuFilter === 'departure' && stuNam ? ' — năm ' + esc(stuNam) : ''}</span>
-      <button class="btn sm ghost" data-act="stuGo" data-args='["all"]' title="Bỏ lọc, xem tất cả học viên">✕ Bỏ lọc</button>
+      ${nutXoaLoc(`data-act="stuGo" data-args='["all"]' title="Xem tất cả học viên"`)}
     </div>` : ''}
     <div class="panel"><div class="hd"><h2>Học viên (<span id="stuCount">${list.length}</span>)</h2>
       <div class="search"><span class="i">${IC.search}</span><input id="ss" placeholder="Tìm tên, mã, lớp, SĐT, số phòng..." value="${esc(stuSearch)}"></div>
@@ -531,10 +533,10 @@ function viewStudents() {
         <td class="num"><div class="rowbtns" style="justify-content:flex-end">
           ${isOccupying(s) ? `<button class="btn sm danger" data-act="checkOutForm" data-args='[${s.id}]'>Trả phòng</button>` : `<button class="btn sm" title="Nhận lại học viên đã trả phòng" data-act="checkInForm" data-args='[${s.id}]'>Nhận phòng</button>`}
         </div></td></tr>`; }).join('')}
-      <tr class="no-result" style="display:none"><td colspan="${nCols}"><div class="empty">Không tìm thấy học viên phù hợp.</div></td></tr>
-      </tbody></table>` : `<div class="empty">Không có học viên phù hợp.</div>`}
+      ${hangKhongKhop('học viên', nCols)}
+      </tbody></table>` : `<div class="empty">${ST.students.length ? `${trongKhongKhop('học viên')} ${nutXoaLoc(`data-act="stuGo" data-args='["all"]'`)}` : trongChuaCo('học viên nào')}</div>`}
     </div><div id="stuPager" class="pager"></div></div>`;
-  const ss = el('ss'); if (ss) { ss.addEventListener('input', () => { stuSearch = ss.value; syncFilterUrl(); }); attachRowSearch(ss, 'stuCount', { numWord: true }); }  // BL-56: gõ số phòng ra đúng phòng
+  const ss = el('ss'); if (ss) { ss.addEventListener('input', () => { stuSearch = ss.value; syncFilterUrl(); }); attachRowSearch(ss, 'stuCount', { numWord: true, xoaLoc: stuFilter !== 'all' ? () => stuGo('all') : null }); }  // BL-56: gõ số phòng ra đúng phòng
   if (list.length) enablePaging(ss, 'stuPager', STU_PAGE_SIZE); // BL-12: phân trang danh sách học viên
   document.querySelectorAll('#content th.sortable').forEach(th => {
     th.onclick = e => {
@@ -927,7 +929,7 @@ async function studentDetail(id) {
             ${[['front', 'Mặt trước', s.cccd_front], ['back', 'Mặt sau', s.cccd_back]].map(([mat, nhan, anh]) => `
               <div><div class="muted" style="font-size:12px;margin-bottom:4px">${nhan}</div>
                 ${anh ? `<a href="${anh}" target="_blank" rel="noopener" title="Bấm để xem cỡ đầy đủ"><img src="${anh}" style="max-width:100%;max-height:180px;border-radius:8px;border:1px solid var(--line)"></a>`
-    : '<p class="muted" style="margin:0 0 6px;font-size:12px">Chưa có.</p>'}</div>`).join('')}
+    : `<p class="muted" style="margin:0 0 6px;font-size:12px">${trongChuaCo('ảnh')}</p>`}</div>`).join('')}
           </div>
           <div class="hint">${IC.info}<span>Đây là màn XEM. Nộp hoặc thay giấy tờ thì bấm
             <button class="btn sm" data-act="studentForm" data-args='[${s.id}]'>${IC.pencil} Sửa hồ sơ</button></span></div>
@@ -1053,7 +1055,7 @@ const lsoKetThuc = t => !t.to_date
 function lichSuOHTML(stays, id) {
   if (stays == null) return `<div class="bang-tin">${IC.alert} <span>Không đọc được lịch sử ở.
     <button class="btn sm" style="margin-left:6px" data-act="napLichSuO" data-args='[${id}]'>${IC.refresh} Thử lại</button></span></div>`;
-  if (!stays.length) return '<p class="muted">Chưa có.</p>';
+  if (!stays.length) return `<p class="muted">${trongChuaCo('lịch sử ở phòng')}</p>`;
   return `<div class="table-wrap"><table><thead><tr><th>Phòng</th><th>Vào</th><th>Rời</th></tr></thead><tbody>
     ${stays.map(t => `<tr>
       <td>${t.room_id ? `<span class="hd-ref" data-act="roomDetail" data-args='[${t.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng">${esc(t.room_name || '—')}</span>` : esc(t.room_name || '—')}</td>
@@ -1477,7 +1479,7 @@ function quyCoc() {
       ${pending.length ? `<div class="bang-tin" style="background:var(--red-bg);border-color:#fca5a5;color:#b91c1c">${IC.handCoins} <strong>${pending.length} học viên đã trả phòng</strong> đang chờ hoàn cọc — hãy xử lý sớm.</div>
         <div class="table-wrap" style="margin-bottom:18px"><table><thead><tr><th>Học viên</th><th>Mã pháp nhân</th><th class="num">Cọc (đ)</th><th>Ngày đóng</th><th>Trạng thái</th><th></th></tr></thead><tbody>${pending.map(rowFor).join('')}</tbody></table></div>` : `<div class="hint">${IC.checkCircle} Không có khoản cọc nào chờ hoàn.</div>`}
       <h4 style="margin:6px 0 8px">Đang giữ cọc (${staying.length})</h4>
-      ${staying.length ? `<div class="table-wrap"><table><thead><tr><th>Học viên</th><th>Mã pháp nhân</th><th class="num">Cọc (đ)</th><th>Ngày đóng</th><th>Trạng thái</th><th></th></tr></thead><tbody>${staying.map(rowFor).join('')}</tbody></table></div>` : '<p class="muted">Chưa có.</p>'}
+      ${staying.length ? `<div class="table-wrap"><table><thead><tr><th>Học viên</th><th>Mã pháp nhân</th><th class="num">Cọc (đ)</th><th>Ngày đóng</th><th>Trạng thái</th><th></th></tr></thead><tbody>${staying.map(rowFor).join('')}</tbody></table></div>` : '<p class="muted">Không có học viên đang giữ cọc.</p>'}
     </div>
     <div class="mf"><button class="btn" data-act="modalBack">Đóng</button></div>`, true);
 }

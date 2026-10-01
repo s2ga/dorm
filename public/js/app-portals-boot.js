@@ -125,14 +125,14 @@ async function loadStudentPortal() {
           <td class="num" data-label="Giảm">${giam ? `<span class="badge green">−${moneyN(giam)}</span>` : '—'}</td>
           <td class="num" data-label="Tổng"><strong>${moneyN(i.total)}</strong></td></tr>`;
         }).join('')}
-      </tbody></table>` : '<div class="empty">Chưa có phiếu báo.</div>'}
+      </tbody></table>` : `<div class="empty">${trongChuaCo('phiếu báo nào')}</div>`}
       <div class="pad muted" style="font-size:12.5px">${IC.info} Bấm vào từng kỳ để xem chi tiết khoản thu. &nbsp;·&nbsp; ${IC.creditCard} Đóng tiền qua mã QR Ban Quản lý gửi trên Zalo theo hạn hằng tháng.</div>
     </div></div>
 
     <div class="panel" id="pnHoTro"><div class="hd"><h2>${IC.handCoins} Hỗ trợ học viên</h2><button class="btn sm pri" data-act="damageForm">${IC.plus} Gửi yêu cầu hỗ trợ</button></div><div class="table-wrap">
       ${damage.length ? `<table><thead><tr><th>Ngày</th><th>Loại</th><th>Nội dung</th><th>Trạng thái</th></tr></thead><tbody>
         ${damage.map(d => `<tr><td>${fmtDate(String(d.created_at).slice(0, 10))}</td><td data-label="Loại">${supCatBadge(d.category)}</td><td data-label="Nội dung"><strong>${esc(d.title)}</strong>${d.description ? `<div class="muted" style="font-size:12px">${esc(d.description)}</div>` : ''}</td><td data-label="Trạng thái">${d.status === 'done' ? '<span class="badge green">Đã xử lý</span>' : d.status === 'blocked' ? '<span class="badge red">Chưa xử lý được — liên hệ quản lý</span>' : d.status === 'processing' ? '<span class="badge blue">Đang xử lý</span>' : '<span class="badge amber">Mới</span>'}</td></tr>`).join('')}
-      </tbody></table>` : '<div class="empty">Chưa có yêu cầu nào.</div>'}
+      </tbody></table>` : `<div class="empty">${trongChuaCo('yêu cầu nào')}</div>`}
     </div></div>
 
     <div class="panel" id="pnTraPhong"><div class="hd"><h2>${IC.logOut} Đơn trả phòng</h2>${!pendingCout && profile.status === 'in' && !notMovedIn ? '<button class="btn sm danger" data-act="checkoutReqForm">Xin trả phòng</button>' : ''}</div><div class="pad">
@@ -151,7 +151,7 @@ async function loadStudentPortal() {
           <td data-label="Hoạt động">${l.type === 'in' ? '<span class="badge green">Nhận phòng</span>' : '<span class="badge red">Trả phòng</span>'}</td>
           <td data-label="Nguồn">${l.source === 'self' ? '<span class="badge blue">Bạn tự thao tác</span>' : '<span class="badge gray">Quản lý</span>'}</td>
           <td class="muted" data-label="Ghi chú">${esc(ghiChuRaVao(l.note))}</td></tr>`).join('')}
-      </tbody></table>` : '<div class="empty">Chưa có lịch sử ra / vào.</div>'}
+      </tbody></table>` : `<div class="empty">${trongChuaCo('lịch sử ra / vào')}</div>`}
     </div></div>`;
 
 }
@@ -312,7 +312,7 @@ function myChoresPanel(chores, profile) {
   const dm = s => { const d = new Date(s); return `${DOW[d.getDay()]} ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`; };
   const motMinh = new Set(chores.map(w => w.student_id)).size === 1 && chores.length > 1;
   return `<div class="panel" id="pnTrucNhat"><div class="hd"><h2>${IC.calendar} Lịch trực nhật</h2></div><div class="pad">
-    ${!chores.length ? '<p class="muted" style="margin:0">Chưa xếp được lịch — phòng chưa có ai ở.</p>' : `
+    ${!chores.length ? `<p class="muted" style="margin:0">${trongChuaCo('lịch trực nhật')}</p>` : `
     <div class="chore-list">${chores.map((w, i) => `
       <div class="chore-row${i === 0 ? ' now' : ''}${w.is_me ? ' mine' : ''}">
         <div class="chore-when">${i === 0 ? '<span class="badge amber">Hôm nay</span>' : `<span class="muted">${i === 1 ? 'Ngày mai' : dm(w.date).slice(0, 2)}</span>`}</div>
@@ -442,7 +442,7 @@ function hvNotifVe() {
   };
   const ds = _hvNotif.map(dong).join('');
   p.innerHTML = `<div class="notif-hd" id="hvNotifHd">${IC.bell} Thông báo</div>${ds ||
-    `<div class="notif-empty">${IC.checkCircle} Chưa có thông báo nào</div>`}`;
+    `<div class="notif-empty">${IC.checkCircle} ${trongChuaCo('thông báo nào')}</div>`}`;
 }
 async function toggleHvNotif(e) {
   if (e) e.stopPropagation();
@@ -578,8 +578,8 @@ async function loadMaintGiat() {
             <td data-label="Mã HV" class="muted">${esc(s.code || '—')}</td>
             <td data-label="Ngày đăng ký">${s.washing_from ? fmtDate(s.washing_from) : '<span class="muted">chưa rõ</span>'}</td>
           </tr>`).join('')}
-          <tr class="no-result" style="display:none"><td colspan="5"><div class="empty">Không tìm thấy học viên phù hợp.</div></td></tr>
-        </tbody></table>` : '<div class="empty">Chưa có học viên nào đăng ký máy giặt.</div>'}
+          ${hangKhongKhop('học viên', 5)}
+        </tbody></table>` : `<div class="empty">${trongChuaCo('học viên nào đăng ký máy giặt')}</div>`}
       </div>
     </div>
 
@@ -647,7 +647,7 @@ async function loadCaTruc() {
         <td data-label="Học viên"><strong>${esc(x.name)}</strong></td><td data-label="Phòng">${esc(x.room_name || '—')}</td>
         <td data-label="Ngày">${fmtDate(x.date)}${quaNgay(x) > 0 ? ` <span class="badge red">quá ${quaNgay(x)} ngày</span>` : ''}</td>
         <td class="num">${hoNut(x, laNhan)}</td></tr>`).join('')}</tbody></table></div>`
-    : '<div class="empty">Không có ai.</div>';
+    : `<div class="empty">Không có học viên cần ${laNhan ? 'nhận' : 'trả'} phòng.</div>`;
   const o = (ico, nhan, gia, tab, mau) => `<div class="stat" role="button" tabindex="0" data-act="maintGo" data-args='["${tab}"]' style="cursor:pointer">
       <div class="l">${ico} ${nhan}</div><div class="v sm" style="color:${mau}">${gia}</div></div>`;
   body.innerHTML = `
@@ -770,7 +770,7 @@ async function loadHandovers(month) {
       <div class="table-wrap card-tbl" style="padding:0 16px 16px">
         ${hien.length ? `<table><thead><tr><th>Học viên</th><th>Phòng</th>${laNhan ? '<th>Biển số xe</th>' : ''}<th>${cotNgay}</th><th></th></tr></thead><tbody>
           ${hien.map(laNhan ? inRow : outRow).join('')}</tbody></table>`
-    : `<div class="empty">${maintChiChuaXong ? 'Không còn ai chưa xác nhận.' : `Không có ai ${laNhan ? 'nhận' : 'trả'} phòng tháng này.`}</div>`}
+    : `<div class="empty">Không có học viên ${maintChiChuaXong ? 'cần lập biên bản ' : ''}${laNhan ? 'nhận' : 'trả'} phòng trong tháng này.</div>`}
       </div>
     </div>`;
   attachMonth(el('ho_month'), hoMonth, { max: thangToiDa });
@@ -997,7 +997,7 @@ async function loadParkingCheck() {
       <div class="table-wrap card-tbl">${ds.length
         ? `<table><thead><tr><th>Biển số</th><th>Chủ xe</th><th></th></tr></thead><tbody>
             ${ds.map(hang).join('')}
-            <tr class="no-result" style="display:none"><td colspan="3"><div class="empty">Không tìm thấy xe phù hợp.</div></td></tr>
+            ${hangKhongKhop('xe', 3)}
           </tbody></table>`
         : `<div class="empty">${pkTab === 'da_tra' ? 'Không có xe nào đã trả hoặc hết hiệu lực.' : 'Ngày này không có xe nào đang đăng ký gửi.'}</div>`}</div>
     </div>
@@ -1015,7 +1015,7 @@ async function loadParkingCheck() {
                 ${x.status === 'new' ? `<button class="btn sm ghost" title="Xoá báo cáo gửi nhầm" data-act="pkXoaBaoCao" data-args='[${x.id}]' data-mota="${esc(`biển ${x.plate || '—'}${x.student_name ? ' — ' + x.student_name : ''}`)}">${IC.trash}</button>` : ''}
               </div></td></tr>`).join('')}
           </tbody></table>`
-        : '<div class="empty">Chưa gửi báo cáo nào trong ngày.</div>'}</div>
+        : `<div class="empty">${trongChuaCo('báo cáo nào trong ngày')}</div>`}</div>
     </div>`;
   attachDate(el('pk_ngay'), d.date, { max: d.hom_nay });
   el('pk_ngay').addEventListener('change', () => { pkNgay = el('pk_ngay').dataset.iso; loadParkingCheck(); });
@@ -1888,8 +1888,8 @@ async function loadSecretary() {
             <td class="num" data-label="CCCD trước">${hsCo(s.has_cccd_front, 'CCCD mặt trước', `/api/students/${s.id}/cccd/front`)}</td>
             <td class="num" data-label="CCCD sau">${hsCo(s.has_cccd_back, 'CCCD mặt sau', `/api/students/${s.id}/cccd/back`)}</td>
           </tr>`).join('')}
-          <tr class="no-result" style="display:none"><td colspan="9"><div class="empty">Không tìm thấy hồ sơ phù hợp.</div></td></tr>
-        </tbody></table>` : '<div class="empty">Chưa có hồ sơ nào.</div>'}
+          ${hangKhongKhop('hồ sơ', 9)}
+        </tbody></table>` : `<div class="empty">${trongChuaCo('hồ sơ nào')}</div>`}
       </div>
       <div class="pad"><div class="hint">${IC.info}<span>Bấm <strong>Xem</strong> ở ba cột cuối để mở tệp (ảnh hoặc PDF) trong tab mới.</span></div></div>
     </div>`;
@@ -1939,8 +1939,8 @@ async function loadTeacher() {
             <td data-label="Hôm nay trực">${luot(r, 0)}</td>
             <td data-label="Ngày mai">${luot(r, 1)}</td>
           </tr>`).join('')}
-          <tr class="no-result" style="display:none"><td colspan="5"><div class="empty">Không tìm thấy phòng phù hợp.</div></td></tr>
-        </tbody></table>` : '<div class="empty">Chưa có phòng nào.</div>'}
+          ${hangKhongKhop('phòng', 5)}
+        </tbody></table>` : `<div class="empty">${trongChuaCo('phòng nào')}</div>`}
       </div>
       <div class="pad"><div class="hint">${IC.info}<span>Lịch trực do app tự xoay vòng theo danh sách người đang ở — không ai phải nhập tay.</span></div></div>
     </div>
@@ -1958,8 +1958,8 @@ async function loadTeacher() {
             <td data-label="Mức độ">${vioSevBadge(v.severity)}</td>
             <td data-label="Ghi chú">${esc(v.note || '')}</td>
           </tr>`).join('')}
-          <tr class="no-result" style="display:none"><td colspan="6"><div class="empty">Không tìm thấy vi phạm phù hợp.</div></td></tr>
-        </tbody></table>` : '<div class="empty">Chưa ghi nhận vi phạm nào.</div>'}
+          ${hangKhongKhop('vi phạm', 6)}
+        </tbody></table>` : `<div class="empty">${trongChuaCo('vi phạm nào')}</div>`}
       </div>
     </div>`;
   const s1 = el('gvSearch'); if (s1) attachRowSearch(s1, 'gvCount');

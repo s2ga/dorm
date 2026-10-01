@@ -29,10 +29,9 @@ async function viewRequests() {
     note = `${IC.info} Mọi học viên đều vào qua đơn đăng ký rồi duyệt. Học viên tự đăng ký tại trang công khai, hoặc tạo đơn hộ tại đây.`;
     const pill = (f, tx, n) => `<button class="btn sm ${regFilter === f ? 'pri' : ''}" data-act="regGo" data-args='["${f}"]'>${tx} (${n})</button>`;
     const pills = `<div class="pill-row" style="padding:12px 14px 0">${['pending', 'approved', 'rejected'].map(k => pill(k, nhanTTDon(k)[0], counts[k])).join('')}${pill('all', 'Tất cả', apps.length)}</div>`;
-    const emptyTx = !apps.length ? 'Chưa có đơn đăng ký nào.'
-      : regFilter === 'pending' ? 'Không có đơn nào đang chờ duyệt.'
-        : regFilter === 'approved' ? 'Chưa có đơn nào đã duyệt.'
-          : regFilter === 'rejected' ? 'Chưa có đơn nào bị từ chối.' : 'Không có đơn phù hợp.';
+    const emptyTx = !apps.length ? trongChuaCo('đơn đăng ký nào')
+      : regFilter === 'pending' ? 'Không có đơn đăng ký chờ duyệt.'
+        : `${trongKhongKhop('đơn đăng ký')} ${nutXoaLoc(`data-act="regGo" data-args='["all"]'`)}`;
     // BL-117: đã duyệt + tới ngày dự kiến mà chưa ai xác nhận đã vào -> BQL xác nhận (Check-in ghi ngày
     // thật) hoặc bấm "Không đến" (khoá hồ sơ, nhả chỗ). Tới lúc đó họ KHÔNG được tính là đang ở.
     banner = canXuLyPhongPanel('checkin');
@@ -58,8 +57,9 @@ async function viewRequests() {
     const shownC = coutFilter === 'all' ? couts : couts.filter(c => c.status === coutFilter);
     const pillC = (f, tx, n) => `<button class="btn sm ${coutFilter === f ? 'pri' : ''}" data-act="coutGo" data-args='["${f}"]'>${tx} (${n})</button>`;
     const pillsC = `<div class="pill-row" style="padding:12px 14px 0">${['pending', 'done', 'rejected'].map(k => pillC(k, nhanTTDon(k)[0], cc[k])).join('')}${pillC('all', 'Tất cả', couts.length)}</div>`;
-    const emptyC = !couts.length ? 'Chưa có đơn trả phòng.'
-      : coutFilter === 'pending' ? 'Không có đơn nào chờ duyệt.' : 'Không có đơn phù hợp.';
+    const emptyC = !couts.length ? trongChuaCo('đơn trả phòng nào')
+      : coutFilter === 'pending' ? 'Không có đơn trả phòng chờ duyệt.'
+        : `${trongKhongKhop('đơn trả phòng')} ${nutXoaLoc(`data-act="coutGo" data-args='["all"]'`)}`;
     hd = `${IC.logOut} Đơn trả phòng (${shownC.length})`;
     banner = canXuLyPhongPanel('checkout');
     body = pillsC + (shownC.length ? `<div class="table-wrap"><table><thead><tr><th>Ngày gửi</th><th>Học viên</th><th>Phòng</th><th>Ngày trả</th><th>Lý do</th><th>Trạng thái</th><th></th></tr></thead><tbody>
@@ -96,7 +96,9 @@ async function viewRequests() {
           ${!d.assigned_at && d.status !== 'done' ? `<button class="btn sm pri" data-act="assignMaint" data-args='[${d.id}]'>${IC.wrench} Duyệt & chuyển bảo trì</button>` : ''}
           <button class="btn sm ghost" title="Ghi chú" data-act="noteForm" data-args='["damage", ${d.id}]'>${IC.filePen}</button>
         </div></td></tr>`).join('')}
-    </tbody></table></div>` : `<div class="empty">${dsAll.length ? 'Không có việc nào khớp bộ lọc.' : 'Chưa có báo hư hỏng cơ sở vật chất nào.'}</div>`);
+    </tbody></table></div>` : `<div class="empty">${!dsAll.length ? trongChuaCo('báo hư hỏng nào')
+      : dmgFilter === 'open' ? 'Không có báo hư hỏng chưa xử lý.'
+        : `${trongKhongKhop('báo hư hỏng')} ${nutXoaLoc(`data-act="dmgGo" data-args='["all"]'`)}`}</div>`);
     hd = `${IC.wrench} Báo hư hỏng (${ds.length})`;
     note = `${IC.info} Duyệt & chuyển bộ phận bảo trì xử lý.`;
     body = tbl;
@@ -130,7 +132,7 @@ async function viewRequests() {
       <button class="btn sm pri" data-act="violationForm">${IC.plus} Ghi nhận vi phạm</button>`;
     banner = (vstats && vstats.needMail) ? `<div class="bang-tin" style="background:var(--red-bg);border-color:#e3b8ad;color:var(--red-ink)">${IC.alert} <strong>${vstats.needMail} học viên</strong> vi phạm ≥ ${threshold} lần cần báo nhà trường. Cấu hình SMTP trong <a href="#" data-act="adminGo" data-args='["settings"]'>Cài đặt</a> để gửi email tự động, hoặc bấm <strong>Gửi mail</strong> ở từng dòng.</div>` : '';
     body = pillsV + (dsVio.length ? `<div class="table-wrap"><table><thead><tr><th>Ngày</th><th>Học viên</th><th>Loại vi phạm</th><th>Mức độ</th><th class="num">Lần</th><th>Nhà trường</th><th></th></tr></thead><tbody>${vioRows}</tbody></table></div>`
-      : `<div class="empty">${!vios.length ? 'Chưa ghi nhận vi phạm nào. Bấm <strong>Ghi nhận vi phạm</strong> hoặc mở chi tiết học viên.' : 'Không còn học viên nào cần báo nhà trường.'}</div>`);
+      : `<div class="empty">${!vios.length ? `${trongChuaCo('vi phạm nào')} Bấm <strong>Ghi nhận vi phạm</strong> hoặc mở chi tiết học viên.` : 'Không có học viên vi phạm cần báo nhà trường.'}</div>`);
   } else {
     // Hộp thư góp ý: học viên báo vi phạm / cần hỗ trợ khác (category violation, other).
     // Badge trên menu đếm việc CHƯA XONG nên màn mặc định cũng mở đúng nhóm đó (giống Báo hư hỏng).
@@ -151,7 +153,9 @@ async function viewRequests() {
           ${d.status !== 'done' ? `<button class="btn sm green" data-act="setDamage" data-args='[${d.id},"done"]'>${IC.check} Xong</button>` : `<button class="btn sm" data-act="setDamage" data-args='[${d.id},"new"]'>Mở lại</button>`}
           <button class="btn sm ghost" title="Ghi chú" data-act="noteForm" data-args='["damage", ${d.id}]'>${IC.filePen}</button>
         </div></td></tr>`).join('')}
-    </tbody></table></div>` : `<div class="empty">${fbAll.length ? 'Không có mục nào khớp bộ lọc.' : 'Chưa có góp ý / yêu cầu hỗ trợ nào.'}</div>`);
+    </tbody></table></div>` : `<div class="empty">${!fbAll.length ? trongChuaCo('góp ý / yêu cầu hỗ trợ nào')
+      : fbFilter === 'open' ? 'Không có góp ý / yêu cầu hỗ trợ chưa xử lý.'
+        : `${trongKhongKhop('góp ý / yêu cầu hỗ trợ')} ${nutXoaLoc(`data-act="fbGo" data-args='["all"]'`)}`}</div>`);
     hd = `${IC.inbox} Góp ý / yêu cầu hỗ trợ (${fb.length})`;
     body = tbl;
   }

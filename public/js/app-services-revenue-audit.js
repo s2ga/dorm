@@ -59,12 +59,13 @@ async function viewHoSo() {
             <td class="num" data-label="CCCD trước">${hsCo(s.has_cccd_front, 'CCCD mặt trước', `/api/students/${s.id}/cccd/front`)}</td>
             <td class="num" data-label="CCCD sau">${hsCo(s.has_cccd_back, 'CCCD mặt sau', `/api/students/${s.id}/cccd/back`)}</td>
           </tr>`).join('')}
-        </tbody></table>` : `<div class="empty">Không có hồ sơ nào khớp bộ lọc này.</div>`}
+          ${hangKhongKhop('hồ sơ', 8)}
+        </tbody></table>` : `<div class="empty">${ds.length ? `${trongKhongKhop('hồ sơ')} ${nutXoaLoc(`data-act="hsGo" data-args='["all"]'`)}` : trongChuaCo('hồ sơ nào')}</div>`}
       </div>
       <div class="pad"><div class="hint">${IC.info}<span>Bấm <strong>Xem</strong> ở ba cột cuối để mở thẳng tệp
         (ảnh hoặc PDF) trong tab mới. Bấm tên học viên để mở hồ sơ — nộp giấy tờ còn thiếu tại đó.</span></div></div>
     </div>`;
-  const sb = el('hsSearch'); if (sb) attachRowSearch(sb, 'hsCount');
+  const sb = el('hsSearch'); if (sb) attachRowSearch(sb, 'hsCount', { xoaLoc: hsLoc !== 'all' ? () => hsGo('all') : null });
 }
 
 async function viewServices() {
@@ -119,8 +120,8 @@ async function viewServices() {
             <button class="btn sm ghost" title="Xoá hẳn (nhập nhầm)" data-act="delVehicle" data-args='[${v.id}, ${v.student_id}]'>${IC.trash}</button>
           </div></td>
         </tr>`).join('')}
-        <tr class="no-result" style="display:none"><td colspan="7"><div class="empty">Không tìm thấy xe phù hợp.</div></td></tr>
-      </tbody></table>` : `<div class="empty">Chưa có HV đang ở gửi xe. Bấm <strong>Thêm xe</strong>.</div>`}</div></div>`;
+        ${hangKhongKhop('xe', 7)}
+      </tbody></table>` : `<div class="empty">${trongChuaCo('xe nào đang gửi')} Bấm <strong>Thêm xe</strong>.</div>`}</div></div>`;
     const vs = el('vs'); if (vs) { vs.addEventListener('input', () => { vehSearch = vs.value; syncFilterUrl(); }); attachRowSearch(vs, 'vehCount'); }
   } else {
     // BL-120 cùng luật: an ninh báo "phòng có máy giặt chưa đăng ký", duyệt ở đây mới vào danh sách.
@@ -201,7 +202,7 @@ function pkAdminPanels(deNghi, baoCao, cb) {
           ${x.status === 'new' ? `<button class="btn sm" data-act="pkBcTrangThai" data-args='[${x.id},"seen"]'>Đã xem</button>` : ''}
           ${x.status !== 'done' ? `<button class="btn sm green" data-act="pkBcTrangThai" data-args='[${x.id},"done"]'>${IC.check} Đã xử lý</button>` : ''}
         </div></td></tr>`).join('')}
-    </tbody></table>` : `<div class="empty">${pkAdminLoc === 'new' ? 'Không có báo cáo nào chưa xem.' : 'Không có báo cáo nào trong 30 ngày.'}</div>`}</div></div>`;
+    </tbody></table>` : `<div class="empty">${pkAdminLoc === 'new' ? 'Không có báo cáo nào chưa xem.' : 'Không có báo cáo nào trong 30 ngày gần đây.'}</div>`}</div></div>`;
   return oNgay + oDeNghi + oBaoCao;
 }
 async function pkDuyetBien(id) {
@@ -379,7 +380,7 @@ async function viewRevenue() {
           ${cot.map(([k]) => `<td class="num"><strong>${moneyN(sum(k))}</strong></td>`).join('')}
           <td class="num"><strong>${moneyN(grand)}</strong></td>
           <td class="num rev-coc"><strong>${coc ? moneyN(coc) : '—'}</strong></td></tr>
-        </tbody></table>` : '<div class="empty">Chưa có phiếu báo trong năm này.</div>'}
+        </tbody></table>` : `<div class="empty">${trongChuaCo('phiếu báo nào trong năm này')}</div>`}
       </div>
       <div class="pad"><div class="hint">${IC.info}<span>Đây là tiền <strong>đã ghi trên phiếu báo</strong>, chưa trừ phần chưa thu — không phải tiền đã về két.
         Cột <strong>Doanh thu</strong> = các khoản bên trái <strong>đã trừ khoản giảm</strong> (phòng trưởng, giảm %) nên nhỏ hơn tổng cộng ngang;
@@ -478,6 +479,7 @@ function fmtDT(v) {
 }
 let auditLimit = 200;
 let auditFilter = { user: '', from: '', to: '', offset: 0 };
+function xoaLocNhatKy() { auditFilter = { user: '', from: '', to: '', offset: 0 }; viewAudit(); }
 async function viewAudit() {
   el('topActions').innerHTML = `<button class="btn" data-act="viewAudit">${IC.refresh} Tải lại</button>`;
   el('content').innerHTML = '<div class="spinner"></div>';
@@ -510,14 +512,14 @@ async function viewAudit() {
         <label class="muted" style="font-size:12px;display:flex;align-items:center;gap:4px">Từ <input id="auFrom" style="padding:5px;width:118px"></label>
         <label class="muted" style="font-size:12px;display:flex;align-items:center;gap:4px">Đến <input id="auTo" style="padding:5px;width:118px"></label>
         <button class="btn sm" id="auApply">${IC.search} Lọc</button>
-        ${dangLoc ? `<button class="btn sm ghost" id="auClear">Bỏ lọc</button>` : ''}
+        ${dangLoc ? nutXoaLoc('data-act="xoaLocNhatKy"') : ''}
         <select id="auLimit" style="padding:6px 8px;font-size:13px">
           ${[100, 200, 500].map(n => `<option value="${n}" ${n === auditLimit ? 'selected' : ''}>${n} dòng/trang</option>`).join('')}
         </select>
       </div></div>
       <div class="table-wrap">
         ${rows.length ? `<table><thead><tr><th>Thời gian</th><th>Người dùng</th><th>Thao tác</th><th>Chi tiết</th></tr></thead>
-          <tbody>${body}</tbody></table>` : `<div class="empty">${dangLoc ? 'Không có bản ghi nào khớp bộ lọc.' : 'Chưa có nhật ký thao tác nào.'}</div>`}
+          <tbody>${body}</tbody></table>` : `<div class="empty">${dangLoc ? `${trongKhongKhop('bản ghi')} ${nutXoaLoc('data-act="xoaLocNhatKy"')}` : trongChuaCo('nhật ký thao tác nào')}</div>`}
       </div>
       <div class="pad flex" style="justify-content:space-between;align-items:center">
         <span class="muted" style="font-size:12px">${rows.length ? `Đang xem ${tuTrang.toLocaleString('vi-VN')}–${denTrang.toLocaleString('vi-VN')} / ${total.toLocaleString('vi-VN')} bản ghi` : ''}</span>
@@ -533,7 +535,6 @@ async function viewAudit() {
   const apply = () => { auditFilter = { user: el('auUser').value.trim(), from: el('auFrom').dataset.iso || '', to: el('auTo').dataset.iso || '', offset: 0 }; viewAudit(); };
   el('auApply').onclick = apply;
   el('auUser').addEventListener('keydown', e => { if (e.key === 'Enter') apply(); });
-  if (el('auClear')) el('auClear').onclick = () => { auditFilter = { user: '', from: '', to: '', offset: 0 }; viewAudit(); };
   el('auLimit').onchange = e => { auditLimit = +e.target.value; auditFilter.offset = 0; viewAudit(); };
   el('auPrev').onclick = () => { auditFilter.offset = Math.max(0, offset - auditLimit); viewAudit(); };
   el('auNext').onclick = () => { auditFilter.offset = offset + auditLimit; viewAudit(); };

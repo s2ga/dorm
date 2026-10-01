@@ -60,7 +60,7 @@ const ok = (t, d, x = '') => { if (d) console.log('  [OK] ' + t); else { fail++;
     }
   } else {
     ok('Không sót ai → modal nói rõ chứ không để bảng trống',
-      /Không sót ai/.test(await page.locator('#modal .mb').textContent() || ''));
+      /Không có học viên thiếu phiếu báo/.test(await page.locator('#modal .mb').textContent() || ''));
   }
 
   ok('Không có lỗi JS', loi.length === 0, loi.slice(0, 2).join(' | '));

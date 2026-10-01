@@ -108,7 +108,7 @@ async function viewInvoices() {
           : `Đã ẩn <strong>${soAn}</strong> phiếu 0 đồng của thành viên phòng thuê nguyên phòng — tiền gộp vào phiếu người ký hợp đồng.`}
         <button class="btn sm ghost" data-act="toggleThanhVienNP">${invHienThanhVienNP ? 'Ẩn đi' : 'Hiện ra'}</button></div>` : ''}
       <div class="table-wrap card-tbl">
-      ${all.length === 0 ? `<div class="empty">Chưa có phiếu báo nào cho kỳ này.<br><br><button class="btn pri" data-act="generateForm">${IC.receipt} Lập phiếu báo</button></div>` :
+      ${all.length === 0 ? `<div class="empty">${trongChuaCo('phiếu báo nào cho kỳ này')}<br><br><button class="btn pri" data-act="generateForm">${IC.receipt} Lập phiếu báo</button></div>` :
       list.length ? `<table><thead><tr><th>Học viên</th><th>Phòng</th><th>Mã pháp nhân</th><th class="num">Ngày ở</th>${['room_charge', 'electric_charge', 'water_charge', 'service_charge', 'washing_charge', 'parking_charge', ...(coCoc ? ['deposit_charge'] : [])].map(k => `<th class="num" title="${tenKhoan(k)}">${tenKhoanNgan(k)}</th>`).join('')}<th class="num">Giảm</th><th class="num">Tổng</th><th></th></tr></thead><tbody>
         ${list.map(i => `<tr class="${laNguyenPhong(i) && +i.total ? 'inv-np' : ''}" data-id="${i.id}" data-thu="${i.status === 'paid' ? 'paid' : 'unpaid'}" data-s="${esc(((i.student_name || '') + ' ' + (i.student_code || '') + ' ' + (i.room_name || '') + ' ' + invLegalEntity(i)).toLowerCase())}">
           <td><div class="flex stu-name" data-act="studentDetail" data-args='[${i.student_id}]' role="button" tabindex="0" title="Xem chi tiết học viên">
@@ -138,7 +138,7 @@ async function viewInvoices() {
             <button class="btn sm ghost" data-act="invoiceForm" data-args='[${i.id}]'>${IC.pencil}</button>
             <button class="btn sm ghost" data-act="delInvoice" data-args='[${i.id}]'>${IC.trash}</button>`}
           </div></td></tr>`).join('')}
-        <tr class="no-result" style="display:none"><td colspan="${coCoc ? 14 : 13}"><div class="empty">Không tìm thấy phiếu báo phù hợp.</div></td></tr>
+        ${hangKhongKhop('phiếu báo', coCoc ? 14 : 13)}
       </tbody><tfoot><tr class="tot-row">
         <td><strong>TỔNG</strong></td>
         <td data-label="Phòng" class="muted" data-tot="count">${list.length} phiếu</td>
@@ -154,7 +154,7 @@ async function viewInvoices() {
         <td class="num" data-label="Giảm"><strong data-tot="discount">${sumK(list, 'leader_discount') + sumK(list, 'room_discount') + sumK(list, 'fee_discount') ? '−' + moneyN(sumK(list, 'leader_discount') + sumK(list, 'room_discount') + sumK(list, 'fee_discount')) : '—'}</strong></td>
         <td class="num" data-label="Tổng"><strong data-tot="total">${moneyN(sumK(list, 'total'))}</strong></td>
         <td class="num"></td>
-      </tr></tfoot></table>` : `<div class="empty">Không có phiếu báo nào để hiện trong kỳ này.</div>`}
+      </tr></tfoot></table>` : `<div class="empty">${trongKhongKhop('phiếu báo')} ${nutXoaLoc('data-act="toggleThanhVienNP"')}</div>`}
     </div></div>
     ${roomFeePanel}
     ${elecPanel}`;
@@ -167,6 +167,7 @@ async function viewInvoices() {
   if (invTbl && invTbl._flt) {
     invTbl._invRows = list;
     invTbl._flt.rowPass = tr => invFilter === 'all' || tr.dataset.thu === invFilter;
+    invTbl._flt.xoaLoc = () => invLoc('all');
     invTbl._flt.onRows = _invTotalsRecompute;
     if (fltCu) { invTbl._flt.cols = fltCu.cols; invTbl._flt.page = fltCu.page; }
     applyRowFilters(invTbl);
@@ -329,7 +330,7 @@ function sparkline(series) {
 }
 // Bảng nhập chỉ số điện (số đầu + số cuối đều sửa được)
 function electricTable(rooms, lichSu) {
-  if (!rooms.length) return `<div class="empty">Chưa có phòng nào để nhập chỉ số điện cho kỳ này.</div>`;
+  if (!rooms.length) return `<div class="empty">${trongChuaCo('phòng nào để nhập chỉ số điện cho kỳ này')}</div>`;
   const don = +ST.settings.electric_unit || 0;
   // series kết thúc ở kỳ đang xem -> phần tử áp chót là kỳ trước.
   const ls = new Map(((lichSu && lichSu.rooms) || []).map(x => [x.room_id, x.series || []]));
@@ -1342,7 +1343,7 @@ function veLaiBangCaiDat(id, hang) { const o = el(id); if (o) o.innerHTML = hang
 function hangCoSo() {
   return ST.facilities.map(f => `<tr><td><strong>${esc(f.name)}</strong></td><td class="muted">${esc(f.address || '')}</td><td class="num">${f.room_count}</td>
     <td class="num"><div class="rowbtns" style="justify-content:flex-end"><button class="btn sm" data-act="facilityForm" data-args='[${f.id}]'>Sửa</button><button class="btn sm danger" data-act="delFacility" data-args='[${f.id}]'>Xóa</button></div></td></tr>`).join('')
-    || '<tr><td colspan="4" class="muted">Chưa có cơ sở nào.</td></tr>';
+    || `<tr><td colspan="4" class="muted">${trongChuaCo('cơ sở nào')}</td></tr>`;
 }
 function hangTaiSan() {
   return ST.assets.map(a => `<tr>
@@ -1350,14 +1351,14 @@ function hangTaiSan() {
     <td>${a.category === 'person' ? '<span class="badge blue">Theo người</span>' : '<span class="badge gray">Cố định</span>'}</td>
     <td>${esc(a.unit)}</td><td class="num">${a.quantity}</td><td class="num">${a.fee ? moneyN(a.fee) : '<span class="muted">—</span>'}</td>
     <td class="num"><div class="rowbtns" style="justify-content:flex-end"><button class="btn sm" data-act="assetForm" data-args='[${a.id}]'>Sửa</button><button class="btn sm ghost" data-act="delAsset" data-args='[${a.id}]' title="Xóa tài sản">${IC.trash}</button></div></td>
-  </tr>`).join('') || '<tr><td colspan="6" class="muted">Chưa có tài sản nào.</td></tr>';
+  </tr>`).join('') || `<tr><td colspan="6" class="muted">${trongChuaCo('tài sản nào')}</td></tr>`;
 }
 function hangLoaiVP() {
   return (ST.vtypes || []).map(t => `<tr>
     <td><strong>${esc(t.name)}</strong>${t.active === false ? ' <span class="badge gray">Ẩn</span>' : ''}</td>
     <td>${vioSevBadge(t.severity)}</td>
     <td class="num"><div class="rowbtns" style="justify-content:flex-end"><button class="btn sm" data-act="vtypeForm" data-args='[${t.id}]'>Sửa</button><button class="btn sm ghost" data-act="delVtype" data-args='[${t.id}]' title="Xóa loại vi phạm">${IC.trash}</button></div></td>
-  </tr>`).join('') || '<tr><td colspan="3" class="muted">Chưa có loại vi phạm nào.</td></tr>';
+  </tr>`).join('') || `<tr><td colspan="3" class="muted">${trongChuaCo('loại vi phạm nào')}</td></tr>`;
 }
 // Ảnh trang giới thiệu: tải/xoá xong chỉ nạp lại đúng ô ảnh đó.
 function veLaiAnhGioiThieu(key) {
@@ -1443,7 +1444,7 @@ function veBangChoDuyet(ds) {
   const box = el('pendRows'); if (!box) return;
   const dem = el('pendCount'); if (dem) dem.textContent = ds.length;
   if (!ds.length) {
-    box.innerHTML = `<tr><td colspan="4" class="muted" style="padding:14px">${IC.check} Không có ai đang chờ — mọi tài khoản đều đã được duyệt.</td></tr>`;
+    box.innerHTML = `<tr><td colspan="4" class="muted" style="padding:14px">${IC.check} Không có tài khoản chờ duyệt.</td></tr>`;
     return;
   }
   box.innerHTML = ds.map(u => `<tr style="background:var(--bg2)">
@@ -1509,7 +1510,7 @@ function apFilterHV() {
   box.innerHTML =
     (gy.length ? nhan(`${IC.bulb} Có thể là những hồ sơ này`) + gy.map(g => apDongHV(g.s, g.vi)).join('') + nhan('Tất cả hồ sơ') : '') +
     (conLai.length ? conLai.map(s => apDongHV(s)).join('')
-      : `<div class="muted" style="padding:10px">Không hồ sơ nào khớp.${el('ap_new') ? ' Để trống thì app tạo hồ sơ mới bằng thông tin bên dưới.' : ''}</div>`);
+      : `<div class="muted" style="padding:10px">${q ? trongKhongKhop('hồ sơ') : trongChuaCo('hồ sơ nào')}${el('ap_new') ? ' Để trống thì app tạo hồ sơ mới bằng thông tin bên dưới.' : ''}</div>`);
   dem.textContent = q ? `${ds.length}/${_apHV.length} hồ sơ khớp` : `${_apHV.length} hồ sơ`;
   apToggle();
 }
@@ -1725,7 +1726,8 @@ async function loadStudentAccounts() {
         ${u.student_id ? `<button class="btn sm" data-act="studentDetail" data-args='[${u.student_id}]'>Hồ sơ</button>` : ''}
       </div></td>
     </tr>`;
-  }).join('') || '<tr><td colspan="6" class="muted">Chưa có học viên nào có tài khoản đăng nhập.</td></tr>';
+  }).join('') + (list.length ? hangKhongKhop('tài khoản học viên', 6)
+    : `<tr><td colspan="6" class="muted">${trongChuaCo('học viên nào có tài khoản đăng nhập')}</td></tr>`);
   const sb = el('stuAccSearch'); if (sb) attachRowSearch(sb, 'stuAccCount');
 }
 function stuAccPwForm(id) {
@@ -1913,7 +1915,7 @@ async function loadDataHealth() {
           ${c.rows.map(r => `<tr><td><strong>${esc(r.khoa || '—')}</strong></td><td>${esc(r.chi_tiet || '')}</td></tr>`).join('')}
         </tbody></table></div>
       </div>`).join('')}
-    ${!loi.length ? `<div class="bang-tin" style="margin:0">${IC.checkCircle}<span>Không tìm thấy dữ liệu vi phạm nào ở các mục đang kiểm.</span></div>` : ''}`;
+    ${!loi.length ? `<div class="bang-tin" style="margin:0">${IC.checkCircle}<span>Không có dữ liệu sai ở các mục đang kiểm.</span></div>` : ''}`;
 }
 
 // viewSettings() là hàm đồng bộ, không đợi API được -> vẽ khung trước, hỏi trạng thái file sau.
