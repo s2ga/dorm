@@ -96,11 +96,11 @@ const ok = (name, cond, extra = '') => {
   if (await page.evaluate(() => ST.students.some(s => !s.uses_washing && isOccupying(s)))) {
     await page.evaluate(() => addWashingForm());
     await cho(page, () => !!document.getElementById('wash_stu'));
-    trong(await oChon(page, 'wash_stu'), 'Thêm HV dùng máy giặt');
+    trong(await oChon(page, 'wash_stu'), 'Thêm học viên dùng máy giặt');
     await page.click('#modal [data-act="washAdd"]');
     ok('… bấm Thêm khi chưa chọn → lỗi tại ô, không gửi gì', /Chọn học viên/.test(await loiO(page, 'wash_stu')) && !daGhi.length, daGhi.join(', '));
     await dongModal(page);
-  } else ok('Thêm HV dùng máy giặt (BỎ QUA: ai đang ở cũng đã dùng)', true);
+  } else ok('Thêm học viên dùng máy giặt (BỎ QUA: ai đang ở cũng đã dùng)', true);
 
   // Ghi nhận vi phạm
   await page.evaluate(() => violationForm());

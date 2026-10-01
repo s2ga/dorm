@@ -15,7 +15,7 @@ function sparkBars(series) {
 function deltaTag(cur, prev) {
   const d = cur - prev;
   if (!prev && !cur) return '<span class="muted">—</span>';
-  if (d === 0) return '<span class="muted">= tháng trước</span>';
+  if (d === 0) return '<span class="muted">= kỳ trước</span>';
   const up = d > 0;
   return `<span style="color:${up ? 'var(--red-ink)' : 'var(--green-ink)'};font-weight:600">${up ? '▲' : '▼'} ${Math.abs(d)} kWh</span>`;
 }
@@ -39,13 +39,15 @@ async function viewInvoices() {
   const all = await guard(() => API.invoices(invMonth));
   _invAll = all;
   let ehist = { months: [], rooms: [] };
-  try { ehist = await API.electricHistory(invMonth, 6); } catch {}
+  const loiPhu = [];
+  try { ehist = await API.electricHistory(invMonth, 6); } catch { loiPhu.push('lịch sử điện theo phòng'); }
   // Kỳ trước — để tính xu hướng cơ cấu doanh thu (▲▼ so kỳ trước)
   let prevAll = [];
   const prevInvMonth = (() => { let [yy, mm] = invMonth.split('-').map(Number); mm--; if (mm === 0) { mm = 12; yy--; } return `${yy}-${String(mm).padStart(2, '0')}`; })();
-  try { prevAll = await API.invoices(prevInvMonth); } catch {}
-  const elecPanel = ehist.rooms.length ? `<div class="panel"><div class="hd"><h2>${IC.zap} Tiêu thụ điện theo phòng — so với tháng trước</h2><span class="muted" style="font-size:12px">${ehist.months.length} tháng gần nhất · cột cam = tháng này</span></div>
-    <div class="table-wrap"><table><thead><tr><th>Phòng</th><th>Xu hướng</th><th class="num">Tháng này</th><th>Chênh lệch</th></tr></thead><tbody>
+  let coKyTruoc = true;
+  try { prevAll = await API.invoices(prevInvMonth); } catch { coKyTruoc = false; loiPhu.push('phiếu kỳ trước để so sánh'); }
+  const elecPanel = ehist.rooms.length ? `<div class="panel"><div class="hd"><h2>${IC.zap} Tiêu thụ điện theo phòng — so với kỳ trước</h2><span class="muted" style="font-size:12px">${ehist.months.length} tháng gần nhất · cột đậm là kỳ này</span></div>
+    <div class="table-wrap"><table><thead><tr><th>Phòng</th><th>Xu hướng</th><th class="num">Kỳ này</th><th>Chênh lệch</th></tr></thead><tbody>
       ${ehist.rooms.map(r => { const cur = r.series[r.series.length - 1].kwh; const prev = r.series.length > 1 ? r.series[r.series.length - 2].kwh : 0; return `<tr>
         <td><div class="flex stu-name" data-act="roomDetail" data-args='[${r.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng — ai đang ở"><div><strong>${esc(r.room_name)}</strong></div><span class="row-chev" aria-hidden="true">${IC.chevronRight}</span></div></td>
         <td>${sparkBars(r.series)}</td>
@@ -78,9 +80,9 @@ async function viewInvoices() {
   const rfRows = Object.entries(rfCur).map(([rid, v]) => ({ name: v.name, cur: v.amt, prev: rfPrev[rid] || 0 }))
     .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'vi', { numeric: true }));
   const moneyDelta = (cur, prev) => { const d = cur - prev; if (d === 0) return `<span class="muted">—</span>`; return `<span class="muted" style="font-weight:600">${d > 0 ? '▲' : '▼'} ${moneyN(Math.abs(d))}</span>`; };
-  const roomFeePanel = rfRows.length ? `<div class="panel"><div class="hd"><h2>${IC.home} Tiền phòng theo phòng — so ${monthLabel(prevInvMonth)}</h2><span class="muted" style="font-size:12px">Đơn vị: đồng</span></div>
-    <div class="table-wrap card-tbl"><table><thead><tr><th>Phòng</th><th class="num">Tháng này</th><th>Chênh lệch</th></tr></thead><tbody>
-      ${rfRows.map(r => `<tr><td data-label="Phòng"><strong>${esc(r.name || '—')}</strong></td><td class="num" data-label="Tháng này">${moneyN(r.cur)}</td><td data-label="Chênh lệch">${moneyDelta(r.cur, r.prev)}</td></tr>`).join('')}
+  const roomFeePanel = rfRows.length && coKyTruoc ? `<div class="panel"><div class="hd"><h2>${IC.home} Tiền phòng theo phòng — so ${monthLabel(prevInvMonth)}</h2><span class="muted" style="font-size:12px">Đơn vị: đồng</span></div>
+    <div class="table-wrap card-tbl"><table><thead><tr><th>Phòng</th><th class="num">Kỳ này</th><th>Chênh lệch</th></tr></thead><tbody>
+      ${rfRows.map(r => `<tr><td data-label="Phòng"><strong>${esc(r.name || '—')}</strong></td><td class="num" data-label="Kỳ này">${moneyN(r.cur)}</td><td data-label="Chênh lệch">${moneyDelta(r.cur, r.prev)}</td></tr>`).join('')}
     </tbody></table></div></div>` : '';
 
   el('content').innerHTML = `
@@ -92,7 +94,7 @@ async function viewInvoices() {
     <div class="panel"><div class="hd"><h2>Phiếu báo tiền phòng ${monthLabel(invMonth)} (<span id="invCount">${list.length}</span>)</h2>
       <span class="muted" style="font-size:12px">Đơn vị: đồng</span>
       <div class="toolbar">
-        <div class="search"><span class="i">${IC.search}</span><input id="invs" placeholder="Tìm tên HV / số phòng..." value="${esc(invSearch)}"></div>
+        <div class="search"><span class="i">${IC.search}</span><input id="invs" placeholder="Tìm tên HV / số phòng…" value="${esc(invSearch)}"></div>
         ${Auth.user && Auth.user.role === 'admin' && all.some(i => i.status !== 'paid') ? `<button class="btn sm" data-act="thuCaKyForm" title="Tiền đã thu đủ, chỉ cập nhật trên app">${IC.checkCircle} Đã thu cả kỳ</button>` : ''}
         ${all.length ? `<button class="btn sm" data-act="exportCSV">${IC.download} Xuất Excel (CSV)</button>` : ''}</div></div>
       ${/* invFilter đã có sẵn logic lọc nhưng CHƯA TỪNG có nút bấm — chỉ vào được bằng ?loc= trên URL. */''}
@@ -135,8 +137,8 @@ async function viewInvoices() {
             <button class="btn sm pri" data-act="phieuBao" data-args='[${i.id}]'>${IC.fileText} Phiếu báo</button>
             ${i.status === 'paid' ? `<span class="muted" title="Phiếu đã thu thì chốt — mở khoá về Chưa thu mới sửa được">${IC.lock}</span>` : `
             <button class="btn sm ghost" title="Tính lại theo số ngày ở hiện tại" data-act="recalcInv" data-args='[${i.id}]'>${IC.refresh}</button>
-            <button class="btn sm ghost" data-act="invoiceForm" data-args='[${i.id}]'>${IC.pencil}</button>
-            <button class="btn sm ghost" data-act="delInvoice" data-args='[${i.id}]'>${IC.trash}</button>`}
+            <button class="btn sm ghost" title="Sửa phiếu" data-act="invoiceForm" data-args='[${i.id}]'>${IC.pencil}</button>
+            <button class="btn sm ghost" title="Xóa phiếu" data-act="delInvoice" data-args='[${i.id}]'>${IC.trash}</button>`}
           </div></td></tr>`).join('')}
         ${hangKhongKhop('phiếu báo', coCoc ? 14 : 13)}
       </tbody><tfoot><tr class="tot-row">
@@ -157,7 +159,9 @@ async function viewInvoices() {
       </tr></tfoot></table>` : `<div class="empty">${trongKhongKhop('phiếu báo')} ${nutXoaLoc('data-act="toggleThanhVienNP"')}</div>`}
     </div></div>
     ${roomFeePanel}
-    ${elecPanel}`;
+    ${elecPanel}
+    ${loiPhu.length ? `<p class="muted" style="font-size:12.5px">${IC.alert} Không tải được ${loiPhu.join(' và ')}.
+      <button class="btn sm" data-act="viewInvoices" style="margin-left:6px">${IC.refresh} Thử lại</button></p>` : ''}`;
   const im = el('im'); if (im) { attachMonth(im, invMonth); im.onchange = () => { invMonth = im.dataset.ym; viewInvoices(); }; }
   const iv = el('invs'); if (iv) { iv.addEventListener('input', () => { invSearch = iv.value; syncFilterUrl(); }); attachRowSearch(iv, 'invCount'); }
   // Dòng TỔNG phải cộng theo ĐÚNG danh sách đang lọc (tìm kiếm + phễu cột), không phải cả kỳ.
@@ -235,7 +239,7 @@ function oneInvoiceForm() {
     <div class="mb">
       <div class="hint">${IC.info} Dùng khi có học viên mới vào giữa tháng. Hệ thống <strong>tự tính</strong> theo phòng, số ngày ở và chỉ số điện đã lưu — không ảnh hưởng phiếu báo của người khác (phiếu đã thu được giữ nguyên).</div>
       <div class="field"><label>Học viên ${SAO}</label>
-        <div class="search"><span class="i">${IC.search}</span><input id="oi_q" placeholder="Tìm tên, mã HV hoặc số phòng..." autocomplete="off" data-input="locHVHoaDon"></div>
+        <div class="search"><span class="i">${IC.search}</span><input id="oi_q" placeholder="Tìm tên, mã HV hoặc số phòng…" autocomplete="off" data-input="locHVHoaDon"></div>
         <select id="oi_stu" size="7" style="margin-top:8px"></select>
         <div class="muted" id="oi_dem" style="font-size:12px;margin-top:6px"></div>
       </div>
@@ -675,7 +679,7 @@ async function genChot() {
   modalThay(`
     <div class="mh"><h3>${IC.checkCircle} Đã lập phiếu báo ${monthLabel(month)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">${genTomTat(r, month, false)}</div>
-    <div class="mf"><button class="btn pri" data-act="closeModal">Xong</button></div>`);
+    <div class="mf"><button class="btn" data-act="closeModal">Đóng</button></div>`);
 }
 // Danh sách tên sau mỗi dòng tổng kết. Tình trạng (đang ở / sắp vào / đã trả) lấy từ hồ sơ đang nạp.
 const GEN_DS = {
@@ -1037,7 +1041,7 @@ function viewSettings() {
   if (SET_TAB_ALIAS[settingsTab]) settingsTab = SET_TAB_ALIAS[settingsTab];
   if (!SET_TABS.some(t => t[0] === settingsTab)) settingsTab = 'gia';
   const setNav = `<div class="pill-row set-nav">${SET_TABS.map(([id, label, ic]) =>
-    `<button class="btn sm ${settingsTab === id ? 'pri' : ''}" data-tab="${id}" data-act="settingsGo" data-args='["${id}"]'>${ic} ${label}</button>`).join('')}</div>`;
+    `<button class="btn sm ${settingsTab === id ? 'pri' : ''}" data-tab="${id}" data-act="settingsGo" data-args='["${id}"]' aria-pressed="${settingsTab === id}">${ic} ${label}</button>`).join('')}</div>`;
   const grpOpen = id => `<div class="set-group" data-setgroup="${id}"${settingsTab === id ? '' : ' hidden'}>`;
   // SSO: trạng thái THẬT do máy chủ tính (sso_effective) — vì Tenant/Client có thể đến từ ENV AZURE_*,
   // giao diện không nhìn thấy. Máy chủ cũ chưa trả cờ thì mới tự suy từ giá trị trong CSDL.
@@ -1097,23 +1101,26 @@ function viewSettings() {
     <div class="panel"><div class="hd"><h2>${IC.alert} Ngưỡng nhắc / nghiệp vụ</h2></div><div class="pad">
       <div class="hint">${IC.info} Các mốc nhắc việc & quy tắc — chỉnh ở đây, không cần sửa code.</div>
       <div class="grid2">
-        <div class="field"><label>Nhắc khi ở quá <span class="opt">(ngày) chưa ký hợp đồng / chưa tạm trú / chưa lập phiếu</span></label><input id="set_overdue_remind_days" type="number" min="1" value="${esc(s.overdue_remind_days ?? 7)}"></div>
-        <div class="field"><label>Ngưỡng thuê ghép ngắn hạn <span class="opt">(ở dưới N ngày = ngắn hạn, chỉ ký phiếu)</span></label><input id="set_shortterm_max_days" type="number" min="1" value="${esc(s.shortterm_max_days ?? 60)}"></div>
+        <div class="field"><label>Nhắc việc sau <span class="opt">(ngày)</span></label><input id="set_overdue_remind_days" type="number" min="1" value="${esc(s.overdue_remind_days ?? 7)}">
+          <div class="sub2" style="margin-top:4px">Ở quá số ngày này mà chưa ký hợp đồng, chưa tạm trú hoặc chưa lập phiếu thì nhắc.</div></div>
+        <div class="field"><label>Ngưỡng thuê ghép ngắn hạn <span class="opt">(ngày)</span></label><input id="set_shortterm_max_days" type="number" min="1" value="${esc(s.shortterm_max_days ?? 60)}">
+          <div class="sub2" style="margin-top:4px">Ở dưới số ngày này là ngắn hạn, chỉ ký phiếu.</div></div>
       </div>
       <div class="grid2">
         <div class="field"><label>Hoàn cọc: báo trước tối thiểu <span class="opt">(ngày)</span></label><input id="set_deposit_notice_min_days" type="number" min="0" value="${esc(s.deposit_notice_min_days ?? 30)}"></div>
-        <div class="field"><label>Hệ số phí tháng lẻ mức "nửa" <span class="opt">(0–1, vd 0.5)</span></label><input id="set_partial_half_factor" type="number" min="0" max="1" step="0.05" value="${esc(s.partial_half_factor ?? 0.5)}"></div>
+        <div class="field"><label>Hệ số phí tháng lẻ mức "nửa" <span class="opt">(từ 0 đến 1, VD: 0.5)</span></label><input id="set_partial_half_factor" type="number" min="0" max="1" step="0.05" value="${esc(s.partial_half_factor ?? 0.5)}"></div>
       </div>
       <div class="grid2">
         <div class="field"><label>HV tự xin trả phòng: xa nhất <span class="opt">(ngày tới)</span></label><input id="set_checkout_max_future_days" type="number" min="1" value="${esc(s.checkout_max_future_days ?? 365)}"></div>
         <div class="field"><label>Trần dung lượng tệp</label>
-          <div class="ro-in">${TEP_TOI_DA_MB}MB mỗi tệp <span class="muted">— áp cho scan hợp đồng, ảnh CCCD, tài liệu</span></div></div>
+          <div class="ro-in">${TEP_TOI_DA_MB}MB mỗi tệp <span class="muted">— áp cho bản chụp hợp đồng, ảnh CCCD, tài liệu</span></div></div>
       </div>
       <div class="grid2">
         <div class="field"><label>Báo "xe bỏ gửi" khi vắng liên tiếp <span class="opt">(ngày, dùng cho báo cáo bãi xe)</span></label><input id="set_parking_absent_alert_days" type="number" min="1" value="${esc(s.parking_absent_alert_days ?? 7)}"></div>
         <div class="field"><label>Nhắc nếu an ninh chưa chốt bãi xe sau <span class="opt">(giờ HH:MM)</span></label><input id="set_parking_close_alert_time" inputmode="numeric" maxlength="5" value="${esc(s.parking_close_alert_time || '23:00')}" placeholder="23:00"></div>
       </div>
-      <div class="field"><label>Email nhận báo cáo bãi xe mỗi ngày <span class="opt">(nhiều địa chỉ cách nhau dấu phẩy · để trống = mọi tài khoản quản trị có email)</span></label><input id="set_parking_report_email" inputmode="email" value="${esc(s.parking_report_email || '')}" placeholder="quanly@esuhai.com, truongbp@esuhai.com"></div>
+      <div class="field"><label>Email nhận báo cáo bãi xe mỗi ngày</label><input id="set_parking_report_email" inputmode="email" value="${esc(s.parking_report_email || '')}" placeholder="quanly@esuhai.com, truongbp@esuhai.com">
+        <div class="sub2" style="margin-top:4px">Nhiều địa chỉ thì cách nhau dấu phẩy; để trống thì gửi cho mọi quản trị viên có email.</div></div>
       <p class="muted" style="font-size:12px;margin:2px 0 0">${IC.info} Trần giường theo hạng gộp chung ở mục <strong>Đơn giá & quy tắc</strong> (bảng "Cấu hình theo hạng phòng").</p>
     </div></div>
 
@@ -1209,7 +1216,7 @@ function viewSettings() {
     ${grpOpen('email')}
     <div class="panel"><div class="hd"><h2>${IC.inbox} Nhà trường & Email (SMTP)</h2></div><div class="pad">
       <div class="grid2">
-        <div class="field"><label>Tên nhà trường</label><input id="set_school_name" value="${esc(s.school_name || '')}" placeholder="VD: Trường Nhật ngữ ..."></div>
+        <div class="field"><label>Tên nhà trường</label><input id="set_school_name" value="${esc(s.school_name || '')}" placeholder="VD: Trường Nhật ngữ …"></div>
         <div class="field"><label>Email nhà trường <span class="opt">(nhận thông báo vi phạm)</span></label><input id="set_school_email" type="email" inputmode="email" value="${esc(s.school_email || '')}" placeholder="daotao@truong.edu.vn"></div>
       </div>
       <div class="field"><label>Gửi email khi vi phạm đủ <span class="opt">(số lần)</span></label><input id="set_violation_mail_threshold" type="number" min="1" value="${esc(s.violation_mail_threshold || 3)}" style="max-width:120px"></div>
@@ -1252,8 +1259,8 @@ function viewSettings() {
           <input id="set_sso_allowed_domains" value="${esc(s.sso_allowed_domains || '')}" placeholder="esuhai.com, esuhai.vn"></div>
       </div>
       <div class="grid2">
-        <div class="field"><label>Tenant ID (Directory ID)</label><input id="set_sso_tenant_id" value="${esc(s.sso_tenant_id || '')}" placeholder="vd 72f988bf-86f1-41af-91ab-..."></div>
-        <div class="field"><label>Client ID (Application ID)</label><input id="set_sso_client_id" value="${esc(s.sso_client_id || '')}" placeholder="vd 11111111-2222-3333-..."></div>
+        <div class="field"><label>Tenant ID (Directory ID)</label><input id="set_sso_tenant_id" value="${esc(s.sso_tenant_id || '')}" placeholder="VD: 72f988bf-86f1-41af-91ab-…"></div>
+        <div class="field"><label>Client ID (Application ID)</label><input id="set_sso_client_id" value="${esc(s.sso_client_id || '')}" placeholder="VD: 11111111-2222-3333-…"></div>
       </div>
       <div class="field"><label>Client Secret <span class="opt">(tuỳ chọn)</span> ${s.sso_client_secret_set ? '<span class="badge green" style="font-size:10px">Đã lưu</span>' : ''}</label>
         <input id="set_sso_client_secret" type="password" value="" placeholder="${s.sso_client_secret_set ? '•••••• (để trống nếu giữ nguyên)' : 'Để trống nếu app bật public client flows'}"></div>
@@ -1284,7 +1291,7 @@ function viewSettings() {
     </div>
 
     <div class="panel" id="stuAccPanel"><div class="hd"><h2>${IC.users} Tài khoản học viên (<span id="stuAccCount">…</span>)</h2>
-      <div class="search"><span class="i">${IC.search}</span><input id="stuAccSearch" placeholder="Tìm tên, mã HV, tên đăng nhập, phòng..."></div>
+      <div class="search"><span class="i">${IC.search}</span><input id="stuAccSearch" placeholder="Tìm tên, mã HV, tên đăng nhập, phòng…"></div>
     </div>
       <div class="table-wrap"><table><thead><tr><th>Tên đăng nhập</th><th>Học viên</th><th>Phòng</th><th>Mã pháp nhân</th><th>Trạng thái</th><th></th></tr></thead>
         <tbody id="stuAccRows"><tr><td colspan="6"><div class="spinner"></div></td></tr></tbody></table></div>
@@ -1362,12 +1369,16 @@ function veLaiAnhGioiThieu(key) {
 function settingsGo(t) {
   settingsTab = t;
   document.querySelectorAll('#content .set-group').forEach(g => { g.hidden = g.dataset.setgroup !== t; });
-  document.querySelectorAll('#content .set-nav button').forEach(b => b.classList.toggle('pri', b.dataset.tab === t));
+  document.querySelectorAll('#content .set-nav button').forEach(b => {
+    b.classList.toggle('pri', b.dataset.tab === t);
+    b.setAttribute('aria-pressed', b.dataset.tab === t);
+  });
   window.scrollTo({ top: 0 });
   syncFilterUrl(); // KHÔNG vẽ lại viewSettings -> phải tự đồng bộ URL ở đây
 }
 // Bấm thông báo "N tài khoản Microsoft chờ duyệt" -> vào Cài đặt và CUỘN THẲNG tới bảng Chờ duyệt —
 // đó mới là việc đang gọi; bảng nhân viên bên dưới chỉ để tra cứu.
+function gotoLoaiViPham() { settingsTab = 'vipham'; adminGo('settings'); }
 function gotoUsers() {
   settingsTab = 'nguoidung'; // mục Người dùng nay là nhóm riêng
   adminGo('settings');
@@ -1516,10 +1527,10 @@ function duyetTaiKhoanForm(id, mode) {
   _apHV = hv;
   _apGY = apGoiY(u, hv);
   openModal(`
-    <div class="mh"><h3>${chuyen ? 'Chuyển thành tài khoản học viên' : 'Duyệt tài khoản'}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mh"><h3>${chuyen ? 'Chuyển sang học viên' : 'Duyệt tài khoản'}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       ${chuyen ? `<div class="bang-tin">${IC.info} Tài khoản <strong>${esc(u.username)}</strong> đang là <strong>nhân viên</strong>.
-        Chuyển thành học viên = <strong>ghép hồ sơ</strong> bên dưới; vai nhân viên bị gỡ, phiên đăng nhập cũ bị thu hồi ngay.
+        Chuyển sang học viên là <strong>ghép hồ sơ</strong> bên dưới; vai nhân viên bị gỡ, phiên đăng nhập cũ bị thu hồi ngay.
         <br><strong>${esc(u.full_name || '—')}</strong> · ${esc(u.email || u.username)}</div>`
     : `<div class="bang-tin">${IC.info} Tài khoản này do <strong>đăng nhập Microsoft</strong> tự tạo — app chưa biết là ai.
         <br><strong>${esc(u.full_name || '—')}</strong> · ${esc(u.email || u.username)}</div>`}
@@ -1542,18 +1553,18 @@ function duyetTaiKhoanForm(id, mode) {
       </div>
       <div id="ap_student" hidden>
         <div class="field"><label>Hồ sơ học viên <span class="opt">(gõ để tìm theo mã, họ tên hoặc SĐT — bấm một dòng để chọn)</span></label>
-          <input id="ap_hvq" data-input="apFilterHV" placeholder="Gõ vài chữ: TXCC-S2509… hoặc Phương Thuỷ" autocomplete="off">
+          <input id="ap_hvq" data-input="apFilterHV" placeholder="Gõ vài chữ: TXCC-S2509… hoặc Nguyễn Văn A" autocomplete="off">
           <input type="hidden" id="ap_hvid" value="">
           <div id="ap_hvbox" style="max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:10px;margin-top:6px"></div>
           <div class="sub2" id="ap_hvcount" style="margin-top:4px"></div></div>
         <div id="ap_new">
           <div class="grid2">
             <div class="field"><label>Họ tên ${SAO}</label><input id="ap_name" value="${esc(u.full_name || '')}" placeholder="Nguyễn Văn A" data-change="onTenChuan"></div>
-            <div class="field"><label>Mã học viên</label><input id="ap_code" placeholder="TXTS-S25..."></div>
+            <div class="field"><label>Mã học viên</label><input id="ap_code" placeholder="TXTS-S25…"></div>
           </div>
           <div class="grid2">
             <div class="field"><label>Giới tính ${SAO}</label><select id="ap_gender"><option value="">— Chọn giới tính —</option><option value="male">Nam</option><option value="female">Nữ</option></select></div>
-            <div class="field"><label>Số điện thoại</label><input id="ap_phone" type="tel" inputmode="tel" placeholder="09..."></div>
+            <div class="field"><label>Số điện thoại</label><input id="ap_phone" type="tel" inputmode="tel" placeholder="09…"></div>
           </div>
           <div class="field"><label>Lớp</label><input id="ap_class" placeholder="Esu684"></div>
           <div class="hint" style="font-size:12px">${IC.info} Hồ sơ mới để <strong>trống phòng và ngày vào</strong> — duyệt tài khoản không phải là nhận phòng. Xếp phòng ở màn Học viên sau, lúc đó mới phát sinh tiền.</div>
@@ -1561,7 +1572,7 @@ function duyetTaiKhoanForm(id, mode) {
         <div class="hint" style="font-size:12px">${IC.lock} Email <strong>${esc(u.email || '—')}</strong> sẽ được ghi vào hồ sơ (nếu hồ sơ chưa có), lần sau học viên đăng nhập Microsoft là vào thẳng, khỏi qua đây.</div>
       </div>
     </div>
-    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="saveApprove" data-args='[${id}]'>${chuyen ? 'Chuyển thành học viên' : 'Duyệt'}</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="saveApprove" data-args='[${id}]'>${chuyen ? 'Chuyển sang học viên' : 'Duyệt'}</button></div>`);
   apFilterHV(); // vẽ danh sách hồ sơ lần đầu (gợi ý lên trước) — modal vừa dựng xong nên el() có DOM
 }
 function apToggle() {
@@ -1616,24 +1627,24 @@ function userForm(id) {
   openModal(`
     <div class="mh"><h3>${id ? 'Sửa tài khoản' : 'Thêm nhân viên'}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <div class="field"><label>Tên đăng nhập ${SAO}</label><input id="u_username" value="${esc(u.username)}" ${id ? 'disabled' : ''} placeholder="vd: nhanvien01"></div>
+      <div class="field"><label>Tên đăng nhập ${SAO}</label><input id="u_username" value="${esc(u.username)}" ${id ? 'disabled' : ''} placeholder="VD: nhanvien01"></div>
       <div class="field"><label>Họ tên</label><input id="u_full" value="${esc(u.full_name || '')}" placeholder="Nguyễn Văn A"></div>
       <div class="field"><label>Vai trò</label><select id="u_role">${roleOpt('staff', 'Nhân viên — thao tác nghiệp vụ')}${roleOpt('maintenance', 'An ninh / Bảo trì — bàn giao phòng, bãi xe, sửa chữa')}${roleOpt('secretary', 'Thư ký — chỉ xem hồ sơ lưu trữ')}${roleOpt('teacher', 'Giáo viên ProSkills — chỉ xem trực nhật & vi phạm')}${roleOpt('admin', 'Quản trị viên — toàn quyền')}</select></div>
       <div class="field"><label>Cơ sở phụ trách</label><select id="u_facility">
         <option value="">Tất cả cơ sở (điều hành)</option>
         ${(ST.facilities || []).map(f => `<option value="${f.id}" ${u.facility_id === f.id ? 'selected' : ''}>${esc(f.name)}</option>`).join('')}
-      </select><div class="sub2" style="margin-top:4px">Để "Tất cả cơ sở" = điều hành, thấy &amp; quản lý mọi cơ sở. Chọn một cơ sở = chỉ thấy dữ liệu cơ sở đó.</div></div>
+      </select><div class="sub2" style="margin-top:4px">"Tất cả cơ sở" dành cho điều hành, thấy và quản lý mọi cơ sở; chọn một cơ sở thì chỉ thấy dữ liệu cơ sở đó.</div></div>
       ${id ? '' : `<div class="field"><label>Mật khẩu ${SAO}</label><input id="u_pass" type="text" placeholder="Tối thiểu 6 ký tự"></div>`}
       ${id === Auth.user.id ? `<div class="bang-tin">${IC.info} Bạn không thể tự hạ quyền chính mình.</div>` : ''}
       ${id && u.role !== 'admin' && id !== Auth.user.id ? `<div class="field" style="border-top:1px solid var(--line);padding-top:12px;margin-top:4px"><label>Lỡ tạo nhầm vai?</label>
         <div class="sub2" style="margin-bottom:6px">Người này thật ra là <strong>học viên</strong>: bấm nút dưới để ghép hồ sơ học viên — vai nhân viên bị gỡ, không cần tạo lại tài khoản.</div>
-        <button type="button" class="btn sm" data-act="duyetTaiKhoanForm" data-args='[${id},"hocvien"]'>${IC.graduation || IC.user} Chuyển thành tài khoản học viên</button></div>` : ''}
+        <button type="button" class="btn sm" data-act="duyetTaiKhoanForm" data-args='[${id},"hocvien"]'>${IC.graduation || IC.user} Chuyển sang học viên</button></div>` : ''}
       ${id ? `<div class="field" style="border-top:1px solid var(--line);padding-top:12px;margin-top:4px"><label>Nhân viên ở KTX — gắn hồ sơ học viên</label>
         ${u.student_id ? `<div class="bang-tin">${IC.home} Đang gắn hồ sơ: <strong>${esc(u.student_name || '—')}</strong>${u.student_code ? ` (${esc(u.student_code)})` : ''}${u.student_room ? ` · phòng ${esc(u.student_room)}` : ''}
           ${u.student_deleted ? `<div style="font-size:12px;margin-top:4px">${IC.alert} Hồ sơ đã bị khoá — nên gỡ liên kết.</div>` : ''}
           <div style="margin-top:8px"><button type="button" class="btn sm ghost" data-act="unlinkTenant" data-args='[${id}]'>Gỡ liên kết</button></div></div>`
       : `<div class="sub2" style="margin-bottom:6px">Nhân viên thuê phòng trong KTX: gắn hồ sơ để chuyển được sang cổng học viên, vai trò giữ nguyên. Chỉ chọn được hồ sơ chưa có tài khoản đăng nhập.</div>
-        <input id="ap_hvq" data-input="apFilterHV" placeholder="Gõ vài chữ: mã HV, họ tên hoặc SĐT — bấm một dòng để chọn" autocomplete="off">
+        <input id="ap_hvq" data-input="apFilterHV" aria-label="Tìm hồ sơ học viên" placeholder="Gõ vài chữ: mã HV, họ tên hoặc SĐT — bấm một dòng để chọn" autocomplete="off">
         <input type="hidden" id="ap_hvid" value="">
         <div id="ap_hvbox" style="max-height:180px;overflow:auto;border:1px solid var(--line);border-radius:10px;margin-top:6px"></div>
         <div class="sub2" id="ap_hvcount" style="margin-top:4px"></div>
@@ -1702,9 +1713,7 @@ async function loadStudentAccounts() {
       <td>${u.locked ? '<span class="badge red" title="Tài khoản đang khoá — không đăng nhập được. Hồ sơ và tiền phòng không đổi.">Đã khoá</span> ' : ''}${dsxoa ? '<span class="badge red" title="Hồ sơ học viên đã bị khoá — tài khoản này cũng không đăng nhập được">Hồ sơ đã khoá</span>'
         : dangO ? '<span class="badge green">Đang ở</span>' : '<span class="badge gray">Đã trả phòng</span>'}</td>
       <td class="num"><div class="rowbtns" style="justify-content:flex-end">
-        ${u.locked ? (dsxoa
-        ? `<button class="btn sm" disabled title="Hồ sơ đang khoá — mở khoá hồ sơ ở màn Học viên trước, rồi mới mở được tài khoản">${IC.lock} Mở khoá</button>`
-        : `<button class="btn sm pri" title="Cho đăng nhập lại" data-act="moKhoaStuAcc" data-args='[${u.id}]'>${IC.unlock || IC.key} Mở khoá</button>`)
+        ${u.locked ? `<button class="btn sm green" title="${dsxoa ? 'Hồ sơ đang khoá — mở khoá hồ sơ trước' : 'Cho đăng nhập lại'}" data-act="moKhoaStuAcc" data-args='[${u.id}]'>${IC.unlock || IC.key} Mở khoá</button>`
       : `<button class="btn sm" title="Đặt lại mật khẩu" data-act="stuAccPwForm" data-args='[${u.id}]'>${IC.key} Mật khẩu</button>
         <button class="btn sm ghost" title="Đá mọi thiết bị đang đăng nhập (không đổi mật khẩu)" data-act="revokeStuSession" data-args='[${u.id}]'>Thu hồi phiên</button>
         <button class="btn sm ghost" title="Chặn đăng nhập — hồ sơ và tiền phòng giữ nguyên" data-act="khoaStuAccForm" data-args='[${u.id}]'>${IC.lock} Khoá</button>
@@ -1769,7 +1778,7 @@ async function moKhoaStuAcc(id) {
   toast('Đã mở khoá đăng nhập'); loadStudentAccounts();
 }
 /* ---------- Đổi NGƯỢC: tài khoản học viên -> nhân viên ----------
-   Chiều xuôi nằm ở userForm ("Chuyển thành tài khoản học viên"). Thiếu chiều này thì chuyển nhầm một
+   Chiều xuôi nằm ở userForm ("Chuyển sang học viên"). Thiếu chiều này thì chuyển nhầm một
    cái là hết đường lui: vai 'student' rơi khỏi /admin/users nên dòng biến mất khỏi màn Tài khoản.
    Hồ sơ đang gắn hỏi tại chỗ: gỡ hẳn, hay giữ thành nhân viên ở KTX (vào được cổng học viên). */
 function doiVeNhanVienForm(id) {
@@ -1875,11 +1884,11 @@ async function removeRulesDoc() {
 function dataHealthBlock() {
   return `<div class="panel"><div class="hd"><h2>${IC.shield} Tình trạng dữ liệu</h2>
     <button class="btn sm" data-act="loadDataHealth">${IC.refresh} Kiểm tra lại</button></div>
-    <div class="pad" id="dataHealth"><span class="muted">Đang kiểm tra...</span></div></div>`;
+    <div class="pad" id="dataHealth"><span class="muted">Đang kiểm tra…</span></div></div>`;
 }
 async function loadDataHealth() {
   const box = el('dataHealth'); if (!box) return;
-  box.innerHTML = '<span class="muted">Đang kiểm tra...</span>';
+  box.innerHTML = '<span class="muted">Đang kiểm tra…</span>';
   let d;
   try { d = await API.dataHealth(); }
   catch (e) {
@@ -1913,7 +1922,7 @@ async function loadDataHealth() {
 function rulesDocBlock() {
   return `<div class="panel"><div class="hd"><h2>${IC.clipboard} Nội quy ký túc xá</h2></div><div class="pad">
     <div class="flex" style="justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center">
-      <div id="rulesDocStatus" class="muted">Đang kiểm tra...</div>
+      <div id="rulesDocStatus" class="muted">Đang kiểm tra…</div>
       <div class="rowbtns" id="rulesDocBtns">
         <label class="btn sm pri" style="cursor:pointer;margin:0">${IC.plus} Tải file PDF
           <input type="file" accept="application/pdf" style="display:none" data-change="onRulesDoc"></label>
@@ -1935,7 +1944,7 @@ async function refreshRulesDocStatus() {
   st.innerHTML = up ? `${IC.checkCircle} Đã tải lên${m.updated_at ? ` <span class="muted">— cập nhật ${fmtDate(String(m.updated_at).slice(0, 10))}</span>` : ''} — học viên xem được ở trang <strong>Phòng của tôi</strong>.`
     : 'Chưa có file. Học viên sẽ không thấy mục Nội quy.';
   st.className = up ? '' : 'muted';
-  bt.innerHTML = `${up ? `<a class="btn sm" href="/api/public/doc/noi-quy" target="_blank" rel="noopener">Mở tab mới</a>
+  bt.innerHTML = `${up ? `<a class="btn sm" href="/api/public/doc/noi-quy" target="_blank" rel="noopener">Mở tệp</a>
       <button class="btn sm ghost" title="Xóa file nội quy" data-act="removeRulesDoc">${IC.trash}</button>` : ''}
     <label class="btn sm pri" style="cursor:pointer;margin:0">${IC.plus} ${up ? 'Thay file' : 'Tải file PDF'}
       <input type="file" accept="application/pdf" style="display:none" data-change="onRulesDoc"></label>`;
@@ -2036,7 +2045,7 @@ async function testSmtpConnection() {
     smtp_pass: el('set_smtp_pass').value, // để trống -> server dùng mật khẩu đã lưu
   };
   if (btn) { btn.disabled = true; }
-  if (out) { out.className = 'muted'; out.style.fontSize = '12.5px'; out.textContent = 'Đang kiểm tra...'; out.title = ''; }
+  if (out) { out.className = 'muted'; out.style.fontSize = '12.5px'; out.style.whiteSpace = 'pre-line'; out.textContent = 'Đang kiểm tra…'; out.title = ''; }
   try {
     const r = await API.testSmtp(body);
     if (out) {
@@ -2055,7 +2064,7 @@ function assetForm(id) {
       <div class="field"><label>Tên tài sản ${SAO}</label><input id="as_name" value="${esc(a.name)}" placeholder="VD: Remote máy lạnh"></div>
       <div class="grid2">
         <div class="field"><label>Loại</label><select id="as_cat"><option value="person" ${a.category === 'person' ? 'selected' : ''}>Theo người</option><option value="fixed" ${a.category === 'fixed' ? 'selected' : ''}>Cố định trong phòng</option></select></div>
-        <div class="field"><label>Đơn vị tính</label><input id="as_unit" value="${esc(a.unit)}" placeholder="Cái / Lần..."></div>
+        <div class="field"><label>Đơn vị tính</label><input id="as_unit" value="${esc(a.unit)}" placeholder="Cái / Lần…"></div>
       </div>
       <div class="grid2">
         <div class="field"><label>Số lượng</label><input id="as_qty" type="number" min="0" value="${esc(a.quantity)}"></div>

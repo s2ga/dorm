@@ -34,7 +34,7 @@ function gonNote(goc) {
     h.dataset.gon = '1';
     h.tabIndex = 0;                                  // chạm/tab được -> điện thoại và bàn phím vẫn mở được
     h.setAttribute('role', 'button');
-    h.setAttribute('aria-label', 'Ghi chú — rê chuột, chạm hoặc tab tới để xem');
+    h.setAttribute('aria-label', 'Ghi chú — rê chuột, chạm hoặc di chuyển tới bằng bàn phím để xem');
     const boc = document.createElement('span');
     boc.className = 'hint-noi-dung';
     [...h.childNodes].forEach(n => boc.appendChild(n));
@@ -82,7 +82,7 @@ function toast(msg, type = 'ok') {
   const t = el('toast');
   t.className = 'toast show ' + type;
   t.setAttribute('role', type === 'err' ? 'alert' : 'status');
-  t.innerHTML = `${type === 'err' ? IC.alert : IC.checkCircle} <span>${esc(msg)}</span>`
+  t.innerHTML = `${type === 'err' ? IC.alert : type === 'info' ? IC.info : IC.checkCircle} <span>${esc(msg)}</span>`
     + '<button type="button" class="toast-x" aria-label="Đóng thông báo" data-act="tatToast">×</button>';
   clearTimeout(t._t);
   t._t = setTimeout(tatToast, Math.min(10000, Math.max(type === 'err' ? 5000 : 3000, String(msg || '').length * 65)));
@@ -143,7 +143,7 @@ function copyToClipboard(text) {
 function _copyFallback(text, ok) {
   const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
   document.body.appendChild(ta); ta.select();
-  try { document.execCommand('copy'); ok(); } catch { toast('Không sao chép được — chọn và Ctrl+C thủ công', 'err'); }
+  try { document.execCommand('copy'); ok(); } catch { toast('Không sao chép được — chọn chữ rồi chép tay', 'err'); }
   document.body.removeChild(ta);
 }
 
@@ -469,7 +469,7 @@ function enablePaging(input, pagerId, pageSize) {
 }
 
 // Nút xoá lọc dùng chung (thanh "Đang lọc", câu danh sách rỗng, hàng .no-result); attrs = data-act của màn.
-const nutXoaLoc = attrs => `<button type="button" class="btn sm ghost" ${attrs}>✕ ${NHAN_XOA_LOC}</button>`;
+const nutXoaLoc = attrs => `<button type="button" class="btn sm ghost" ${attrs}>${IC.x} ${NHAN_XOA_LOC}</button>`;
 // Hàng báo rỗng của bảng có ô tìm/phễu cột — applyRowFilters hiện nó khi mọi hàng bị ẩn.
 const hangKhongKhop = (dt, soCot) => `<tr class="no-result" style="display:none"><td colspan="${soCot}"><div class="empty">${trongKhongKhop(dt)} ${nutXoaLoc('data-act="xoaLocBang"')}</div></td></tr>`;
 // Bỏ ô tìm, mọi phễu cột rồi tới bộ lọc riêng của màn (st.xoaLoc — có thể vẽ lại cả màn từ biến trạng thái,
@@ -524,8 +524,8 @@ function openColFilter(table, idx, anchor) {
       vals.map(v => `<label><input type="checkbox" class="cpv" value="${esc(v)}" ${(!sel || sel.has(v)) ? 'checked' : ''}><span>${esc(v || '(trống)')}</span><span class="cp-n">${dist.get(v)}</span></label>`).join('') +
       `</div><div class="cp-ft"><button class="btn sm ghost" id="cpClear">Xoá lọc</button><button class="btn sm pri" id="cpApply">Áp dụng</button></div>`;
   } else {
-    html += `<div class="cp-tx"><input id="cpText" placeholder="Chứa chữ..." value="${cur && cur.type === 'text' ? esc(cur.text) : ''}"></div>` +
-      `<div class="cp-ft"><button class="btn sm ghost" id="cpClear">Xoá lọc</button><button class="btn sm pri" id="cpApply">Lọc</button></div>`;
+    html += `<div class="cp-tx"><input id="cpText" placeholder="Chứa chữ…" value="${cur && cur.type === 'text' ? esc(cur.text) : ''}"></div>` +
+      `<div class="cp-ft"><button class="btn sm ghost" id="cpClear">Xoá lọc</button><button class="btn sm pri" id="cpApply">Áp dụng</button></div>`;
   }
   pop.innerHTML = html; document.body.appendChild(pop);
   const r = anchor.getBoundingClientRect();
@@ -609,7 +609,8 @@ function tepHopLe(input, f, nhan, loai) {
   }
   if (f.type && !nhanLoai.includes(f.type)) {
     const ten = nhanLoai.map(x => ({ 'application/pdf': 'PDF', 'image/png': 'PNG', 'image/jpeg': 'JPG' }[x] || x)).join(' · ');
-    return _tepLoi(input, `${nhan}: chỉ nhận ${ten}. Tệp bạn chọn là "${f.type}" — ảnh iPhone (HEIC) phải đổi sang JPG trước.`);
+    const duoi = (/\.([a-z0-9]{1,6})$/i.exec(f.name || '') || [])[1];
+    return _tepLoi(input, `${nhan}: chỉ nhận ${ten}. Tệp bạn chọn là ${duoi ? 'tệp ' + duoi.toUpperCase() : 'loại khác'} — ảnh iPhone (HEIC) phải đổi sang JPG trước.`);
   }
   return true;
 }
@@ -649,19 +650,18 @@ let _anhSua = null;
 async function anhSuaMo(nguon, tieuDe, xong) {
   let bm;
   try { bm = await anhNap(nguon); }
-  catch (e) { toast('Không mở được ảnh: ' + (e.message || 'lỗi kết nối'), 'err'); return; }
+  catch (e) { toast('Không mở được ảnh — thử lại hoặc chọn ảnh khác', 'err'); return; }
   _anhSua = { bm, goc: 0, box: { x: 0, y: 0, w: 1, h: 1 }, xong };
   openModal(`
     <div class="mh"><h3>${IC.crop} ${esc(tieuDe || 'Cắt & xoay ảnh')}</h3><button class="x" aria-label="Đóng" data-act="anhSuaDong">×</button></div>
     <div class="mb">
-      <div class="hint">${IC.info}<span>Kéo trong ảnh để khoanh vùng, kéo 4 góc để co giãn, kéo giữa khung để dời.
-        Xoay bao nhiêu lần cũng được — bấm <strong>Xong</strong> mới áp dụng.</span></div>
+      <div class="muted" style="font-size:12.5px;line-height:1.5">${IC.info} Kéo trong ảnh để khoanh vùng, kéo góc để co giãn, kéo giữa khung để dời; bấm <strong>Xong</strong> mới áp dụng.</div>
       <div style="text-align:center;margin-top:10px"><div id="anhKhung" class="anh-khung"><canvas id="anhNen"></canvas>
         <div id="anhVung" class="anh-vung">${Object.keys(ANH_MOC).map(g => `<div class="anh-moc" data-goc="${g}"></div>`).join('')}</div></div></div>
       <div class="flex" style="gap:8px;justify-content:center;margin-top:12px;flex-wrap:wrap">
         <button class="btn sm" type="button" data-act="anhSuaXoay" data-args='[-1]'>${IC.rotateLeft} Xoay trái</button>
         <button class="btn sm" type="button" data-act="anhSuaXoay" data-args='[1]'>${IC.rotateRight} Xoay phải</button>
-        <button class="btn sm" type="button" data-act="anhSuaChonHet">${IC.undo} Chọn lại cả ảnh</button>
+        <button class="btn sm" type="button" data-act="anhSuaChonHet">${IC.undo} Chọn cả ảnh</button>
       </div>
     </div>
     <div class="mf"><button class="btn" data-act="anhSuaDong">Huỷ</button>
@@ -813,7 +813,7 @@ function enhanceColSort(root) {
     for (const th of head.cells) {
       if (!_cellText(th)) continue;
       th.classList.add('sortable');
-      th.title = th.title || 'Nhấp để sắp xếp theo cột này';
+      th.title = th.title || 'Bấm để sắp xếp theo cột này';
       if (!th.querySelector('.sort-ar')) {
         const a = document.createElement('span'); a.className = 'sort-ar'; th.appendChild(a);
       }

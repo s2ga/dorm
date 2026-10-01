@@ -27,7 +27,7 @@ async function viewRequests() {
     hd = `${IC.filePen} Đơn đăng ký (${shown.length})`;   // số trong tiêu đề = số dòng đang hiện, khớp ô Tổng quan
     actions = `<button class="btn sm pri" data-act="appForm">${IC.plus} Tạo đơn đăng ký</button>`;
     note = `${IC.info} Mọi học viên đều vào qua đơn đăng ký rồi duyệt. Học viên tự đăng ký tại trang công khai, hoặc tạo đơn hộ tại đây.`;
-    const pill = (f, tx, n) => `<button class="btn sm ${regFilter === f ? 'pri' : ''}" data-act="regGo" data-args='["${f}"]'>${tx} (${n})</button>`;
+    const pill = (f, tx, n) => `<button class="btn sm ${regFilter === f ? 'pri' : ''}" data-act="regGo" data-args='["${f}"]' aria-pressed="${regFilter === f}">${tx} (${n})</button>`;
     const pills = `<div class="pill-row" style="padding:12px 14px 0">${['pending', 'approved', 'rejected'].map(k => pill(k, nhanTTDon(k)[0], counts[k])).join('')}${pill('all', 'Tất cả', apps.length)}</div>`;
     const emptyTx = !apps.length ? trongChuaCo('đơn đăng ký nào')
       : regFilter === 'pending' ? 'Không có đơn đăng ký chờ duyệt.'
@@ -47,7 +47,7 @@ async function viewRequests() {
         <td class="num"><div class="rowbtns" style="justify-content:flex-end">
           ${a.status === 'pending' ? `<button class="btn sm green" data-act="approveForm" data-args='[${a.id}]'>${IC.check} Duyệt</button><button class="btn sm" data-act="rejectApp" data-args='[${a.id}]'>Từ chối</button>` : ''}
           <button class="btn sm ghost" title="Ghi chú" data-act="noteForm" data-args='["app", ${a.id}]'>${IC.filePen}</button>
-          <button class="btn sm ghost" data-act="delApp" data-args='[${a.id}]'>${IC.trash}</button>
+          <button class="btn sm ghost" title="Xóa đơn" data-act="delApp" data-args='[${a.id}]'>${IC.trash}</button>
         </div></td></tr>`).join('')}
     </tbody></table></div>` : `<div class="empty">${emptyTx}</div>`);
   } else if (view === 'checkout') {
@@ -55,7 +55,7 @@ async function viewRequests() {
     const cc = { pending: 0, done: 0, rejected: 0 };
     couts.forEach(c => { cc[c.status] = (cc[c.status] || 0) + 1; });
     const shownC = coutFilter === 'all' ? couts : couts.filter(c => c.status === coutFilter);
-    const pillC = (f, tx, n) => `<button class="btn sm ${coutFilter === f ? 'pri' : ''}" data-act="coutGo" data-args='["${f}"]'>${tx} (${n})</button>`;
+    const pillC = (f, tx, n) => `<button class="btn sm ${coutFilter === f ? 'pri' : ''}" data-act="coutGo" data-args='["${f}"]' aria-pressed="${coutFilter === f}">${tx} (${n})</button>`;
     const pillsC = `<div class="pill-row" style="padding:12px 14px 0">${['pending', 'done', 'rejected'].map(k => pillC(k, nhanTTDon(k)[0], cc[k])).join('')}${pillC('all', 'Tất cả', couts.length)}</div>`;
     const emptyC = !couts.length ? trongChuaCo('đơn trả phòng nào')
       : coutFilter === 'pending' ? 'Không có đơn trả phòng chờ duyệt.'
@@ -81,7 +81,7 @@ async function viewRequests() {
     // Mặc định chỉ việc CHƯA XONG (cùng con số với ô "Bảo trì" ở Tổng quan); pill xem đã xử lý / tất cả.
     const dsAll = damage.filter(d => (d.category || 'damage') === 'damage');
     const ds = dmgFilter === 'all' ? dsAll : dmgFilter === 'done' ? dsAll.filter(d => d.status === 'done') : dsAll.filter(d => d.status !== 'done');
-    const pillD = (f, tx, n) => `<button class="btn sm ${dmgFilter === f ? 'pri' : ''}" data-act="dmgGo" data-args='["${f}"]'>${tx} (${n})</button>`;
+    const pillD = (f, tx, n) => `<button class="btn sm ${dmgFilter === f ? 'pri' : ''}" data-act="dmgGo" data-args='["${f}"]' aria-pressed="${dmgFilter === f}">${tx} (${n})</button>`;
     const pillsD = `<div class="pill-row" style="padding:12px 14px 0">${pillD('open', 'Chưa xong', dsAll.filter(d => d.status !== 'done').length)}${pillD('done', 'Đã xử lý', dsAll.filter(d => d.status === 'done').length)}${pillD('all', 'Tất cả', dsAll.length)}</div>`;
     const tbl = pillsD + (ds.length ? `<div class="table-wrap card-tbl"><table><thead><tr><th>Ngày</th><th>Học viên</th><th>Phòng</th><th>Nội dung</th><th>Trạng thái</th><th></th></tr></thead><tbody>
       ${ds.map(d => `<tr>
@@ -100,7 +100,7 @@ async function viewRequests() {
       : dmgFilter === 'open' ? 'Không có báo hư hỏng chưa xử lý.'
         : `${trongKhongKhop('báo hư hỏng')} ${nutXoaLoc(`data-act="dmgGo" data-args='["all"]'`)}`}</div>`);
     hd = `${IC.wrench} Báo hư hỏng (${ds.length})`;
-    note = `${IC.info} Duyệt & chuyển bộ phận bảo trì xử lý.`;
+    note = `${IC.info} Duyệt và chuyển bộ phận bảo trì xử lý.`;
     body = tbl;
   } else if (view === 'violations') {
     // Chuông/Tổng quan đếm SỐ HỌC VIÊN cần báo nhà trường (đủ ngưỡng, chưa báo lần nào) — bấm vào
@@ -113,7 +113,7 @@ async function viewRequests() {
     const pillV = (f, tx, n) => `<button class="btn sm ${vioFilter === f ? 'pri' : ''}" data-act="vioGo" data-args='["${f}"]'
       aria-pressed="${vioFilter === f}">${tx} <span class="badge ${vioFilter === f ? '' : 'gray'}">${n}</span></button>`;
     const pillsV = `<div class="pill-row" style="padding:12px 14px 0">
-      ${pillV('canbao', `${IC.alert} Cần báo nhà trường`, soHVCanBao + ' HV')}${pillV('all', 'Tất cả', vios.length + ' lượt')}</div>`;
+      ${pillV('canbao', `${IC.alert} Cần báo nhà trường`, soHVCanBao + ' học viên')}${pillV('all', 'Tất cả', vios.length + ' lượt')}</div>`;
     const vioRows = dsVio.map(v => `<tr>
       <td data-label="Ngày">${fmtDate(v.date)}</td>
       <td><a href="#" data-act="studentDetail" data-args='[${v.student_id}]'><strong>${esc(v.student_name)}</strong></a>${v.student_code ? `<div class="muted" style="font-size:11px">${esc(v.student_code)}</div>` : ''}${v.room_name ? `<div class="muted" style="font-size:11px">${(studentById(v.student_id) || {}).room_id ? `<a href="#" data-act="roomDetail" data-args='[${(studentById(v.student_id) || {}).room_id}]' title="Xem chi tiết phòng">${esc(v.room_name)}</a>` : esc(v.room_name)}</div>` : ''}</td>
@@ -138,7 +138,7 @@ async function viewRequests() {
     // Badge trên menu đếm việc CHƯA XONG nên màn mặc định cũng mở đúng nhóm đó (giống Báo hư hỏng).
     const fbAll = damage.filter(d => ['violation', 'other'].includes(d.category));
     const fb = fbFilter === 'all' ? fbAll : fbFilter === 'done' ? fbAll.filter(d => d.status === 'done') : fbAll.filter(d => d.status !== 'done');
-    const pillF = (f, tx, n) => `<button class="btn sm ${fbFilter === f ? 'pri' : ''}" data-act="fbGo" data-args='["${f}"]'>${tx} (${n})</button>`;
+    const pillF = (f, tx, n) => `<button class="btn sm ${fbFilter === f ? 'pri' : ''}" data-act="fbGo" data-args='["${f}"]' aria-pressed="${fbFilter === f}">${tx} (${n})</button>`;
     const pillsF = `<div class="pill-row" style="padding:12px 14px 0">${pillF('open', 'Chưa xong', fbAll.filter(d => d.status !== 'done').length)}${pillF('done', 'Đã xử lý', fbAll.filter(d => d.status === 'done').length)}${pillF('all', 'Tất cả', fbAll.length)}</div>`;
     const tbl = pillsF + (fb.length ? `<div class="table-wrap card-tbl"><table><thead><tr><th>Ngày</th><th>Loại</th><th>Học viên</th><th>Phòng</th><th>Nội dung</th><th>Trạng thái</th><th></th></tr></thead><tbody>
       ${fb.map(d => `<tr>
@@ -190,12 +190,12 @@ function choXacNhanVaoHTML() {
       <span class="muted" style="font-size:12.5px">Đã tới ngày dự kiến mà chưa ai xác nhận — chưa tính là đang ở, chưa lập phiếu.</span>
     </div>
     <div class="table-wrap" style="margin-top:8px"><table>
-      <thead><tr><th>Học viên</th><th>Phòng</th><th>Dự kiến vào</th><th class="num">Quá</th><th></th></tr></thead>
+      <thead><tr><th>Học viên</th><th>Phòng</th><th>Dự kiến vào</th><th class="num">Quá hạn</th><th></th></tr></thead>
       <tbody>${ds.map(s => `<tr>
         <td><a href="#" data-act="studentDetail" data-args='[${s.id}]'><strong>${esc(s.name)}</strong></a>${s.code ? `<div class="sub2">${esc(s.code)}</div>` : ''}</td>
         <td data-label="Phòng">${esc(s.room_name || '—')}</td>
         <td data-label="Dự kiến vào">${fmtDate(s.planned_check_in)}</td>
-        <td class="num" data-label="Quá">${_quaNgay(s.planned_check_in)} ngày</td>
+        <td class="num" data-label="Quá hạn">${_quaNgay(s.planned_check_in)} ngày</td>
         <td class="num"><div class="rowbtns" style="justify-content:flex-end">
           <button class="btn sm green" data-act="checkInForm" data-args='[${s.id}]'>${IC.key} Xác nhận đã vào</button>
           <button class="btn sm ghost" title="Không đến ở: khoá hồ sơ, nhả chỗ" data-act="khongDenForm" data-args='[${s.id}]'>Không đến</button>
@@ -210,12 +210,12 @@ function choXacNhanRaHTML() {
       <span class="muted" style="font-size:12.5px">Đã tới ngày dự kiến trả mà chưa ai xác nhận — vẫn đang ở, vẫn tính tiền tới ngày xác nhận.</span>
     </div>
     <div class="table-wrap" style="margin-top:8px"><table>
-      <thead><tr><th>Học viên</th><th>Phòng</th><th>Dự kiến trả</th><th class="num">Quá</th><th></th></tr></thead>
+      <thead><tr><th>Học viên</th><th>Phòng</th><th>Dự kiến trả</th><th class="num">Quá hạn</th><th></th></tr></thead>
       <tbody>${ds.map(s => `<tr>
         <td><a href="#" data-act="studentDetail" data-args='[${s.id}]'><strong>${esc(s.name)}</strong></a>${s.code ? `<div class="sub2">${esc(s.code)}</div>` : ''}</td>
         <td data-label="Phòng">${esc(s.room_name || '—')}</td>
         <td data-label="Dự kiến trả">${fmtDate(s.planned_check_out)}</td>
-        <td class="num" data-label="Quá">${_quaNgay(s.planned_check_out)} ngày</td>
+        <td class="num" data-label="Quá hạn">${_quaNgay(s.planned_check_out)} ngày</td>
         <td class="num"><div class="rowbtns" style="justify-content:flex-end">
           <button class="btn sm danger" data-act="checkOutForm" data-args='[${s.id}]'>${IC.logOut} Xác nhận đã trả</button>
         </div></td></tr>`).join('')}</tbody></table></div></div>`;
@@ -248,7 +248,7 @@ function noteForm(type, id) {
       : (ST.damage.find(d => d.id === id) || {}).admin_note) || '';
   openModal(`
     <div class="mh"><h3>${IC.filePen} Ghi chú xử lý</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
-    <div class="mb"><div class="field"><label>Ghi chú nội bộ <span class="opt">(chỉ quản lý thấy)</span></label><textarea id="nf_note" rows="4" placeholder="VD: đã gọi điện, hẹn xử lý...">${esc(cur || '')}</textarea></div></div>
+    <div class="mb"><div class="field"><label>Ghi chú nội bộ <span class="opt">(chỉ quản lý thấy)</span></label><textarea id="nf_note" rows="4" placeholder="VD: đã gọi điện, hẹn xử lý…">${esc(cur || '')}</textarea></div></div>
     <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="saveNote" data-args='["${type}", ${id}]'>Lưu ghi chú</button></div>`);
   setTimeout(() => el('nf_note').focus(), 50);
 }
@@ -296,10 +296,13 @@ function violationForm(studentId) {
     <div class="mb">
       <div class="field"><label>Học viên ${SAO}</label><select id="vf_stu" ${studentId ? 'disabled' : ''}>${studentId ? '' : '<option value="">— Chọn học viên —</option>'}${sOpts}</select></div>
       <div class="grid2">
-        <div class="field"><label>Loại vi phạm ${SAO}</label><select id="vf_type">${tOpts ? '<option value="">— Chọn loại vi phạm —</option>' + tOpts : '<option value="">(Chưa có loại — thêm trong Cài đặt)</option>'}</select></div>
+        <div class="field"><label>Loại vi phạm ${SAO}</label><select id="vf_type">${tOpts ? '<option value="">— Chọn loại vi phạm —</option>' + tOpts : '<option value="">(Chưa có loại vi phạm)</option>'}</select>
+          ${tOpts ? '' : Auth.user.role === 'admin'
+    ? '<div class="sub2" style="margin-top:4px"><a href="#" data-close data-act="gotoLoaiViPham">Thêm loại vi phạm trong Cài đặt</a></div>'
+    : '<div class="sub2" style="margin-top:4px">Nhờ quản trị viên thêm loại vi phạm trong Cài đặt.</div>'}</div>
         <div class="field"><label>Ngày</label><input id="vf_date"></div>
       </div>
-      <div class="field"><label>Ghi chú / diễn giải</label><textarea id="vf_note" rows="2" placeholder="Mô tả cụ thể sự việc..."></textarea></div>
+      <div class="field"><label>Ghi chú / diễn giải</label><textarea id="vf_note" rows="2" placeholder="Mô tả cụ thể sự việc…"></textarea></div>
       <div class="hint">${IC.info} Khi học viên vi phạm đủ <strong>${thr} lần</strong>, hệ thống sẽ gửi email cho nhà trường (nếu đã cấu hình SMTP trong Cài đặt).</div>
     </div>
     <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="saveViolation" data-args='[${studentId || 0}]'>Lưu vi phạm</button></div>`);
@@ -327,7 +330,10 @@ async function notifySchool(studentId) {
   const r = await guard(() => API.notifyViolation(studentId));
   await refreshCache();
   if (r.mail && r.mail.sent) toast('Đã gửi email cho nhà trường');
-  else toast('Chưa gửi được email: ' + ((r.mail && r.mail.reason) || 'lỗi'), 'err');
+  else {
+    const lyDo = (r.mail && r.mail.reason) || 'Kiểm tra cấu hình email ở Cài đặt';
+    toast('Chưa gửi được email — ' + lyDo.charAt(0).toLowerCase() + lyDo.slice(1), 'err');
+  }
   if (el('overlay').classList.contains('show')) studentDetail(studentId); else veLaiNen();
 }
 async function violationStatsModal() {
@@ -363,13 +369,13 @@ function approveForm(id) {
       <p class="muted">${esc(a.phone)} · ${genderLabel(a.gender)} · ${RENTAL_LABEL[a.rental_type] || 'Thuê ghép'}${a.pref ? ' · Nguyện vọng: ' + esc(a.pref) : ''}</p>
       ${a.wants_washing || a.wants_parking || a.plate ? `<div class="bang-tin">Dịch vụ đăng ký: ${a.wants_washing ? `${IC.washer} Máy giặt ` : ''}${a.wants_parking || a.plate ? `${IC.bike} Gửi xe${a.plate ? ' (' + esc(a.plate) + ')' : ''}` : ''} — sẽ tự thêm khi duyệt.</div>` : ''}
       <div class="grid2">
-        <div class="field"><label>Xếp phòng</label><select id="ap_room">${roomOptions('', a.gender)}</select></div>
+        <div class="field"><label>Xếp phòng <span class="opt">(để trống nếu xếp sau)</span></label><select id="ap_room">${roomOptions('', a.gender)}</select></div>
         <div class="field"><label>Ngày dự kiến nhận phòng${a.desired_check_in ? ' <span class="opt">(học viên muốn ' + fmtDate(a.desired_check_in) + ')</span>' : ''}</label><input id="ap_date"></div>
       </div>
       <div class="hint">${IC.info} Duyệt đơn chỉ là <strong>xếp chỗ ở</strong>. <strong>Hợp đồng</strong> nhập ở màn hồ sơ học viên khi ký thật; <strong>tiền cọc</strong> tự đánh dấu đã đóng khi phiếu báo kỳ nhận phòng được đánh dấu đã thu.</div>
       <label class="check" style="margin-top:8px"><input type="checkbox" id="ap_login" checked data-change="onApLoginToggle"> ${IC.key} Tạo tài khoản đăng nhập cho học viên</label>
       <div id="apLogin" style="background:var(--bg2);padding:12px;border-radius:10px;margin-top:8px">
-        <div class="field" style="margin:0"><label>Tên đăng nhập <span class="opt">(trống = SĐT)</span></label><input id="ap_user" value="${esc(a.phone || '')}"></div>
+        <div class="field" style="margin:0"><label>Tên đăng nhập <span class="opt">(để trống sẽ dùng SĐT)</span></label><input id="ap_user" value="${esc(a.phone || '')}"></div>
         <div class="hint" style="margin-top:8px">${IC.key} Mật khẩu do máy tự tạo và chỉ hiện <strong>một lần</strong> sau khi lưu — đưa tận tay học viên, lần đầu đăng nhập học viên phải đổi.</div>
       </div>
     </div>
@@ -385,8 +391,7 @@ async function doApprove(id) {
   // Không gửi login_password: máy chủ tự sinh rồi trả về một lần (credentialModal).
   if (el('ap_login').checked) { body.create_login = true; body.login_username = el('ap_user').value.trim(); }
   const r = await guard(() => withDuplicateGuide(() => withOverloadConfirm(ok => API.approveApplication(id, { ...body, confirm_overload: ok }))));
-  if (r === null) return; // đã có hồ sơ / người dùng huỷ — modal kia đã chỉ đường
-  if (r === null) return; // hủy ở hộp xác nhận quá tải
+  if (r === null) return; // đã có hồ sơ (modal kia đã chỉ đường) hoặc hủy ở hộp xác nhận quá tải
   await refreshCache(); await luuXongVeLai(veLaiNen);
   if (r.account) credentialModal(r.account.username, r.account.password, 'Đã duyệt đơn và tạo tài khoản.');
   else toast('Đã duyệt đơn — đã tạo hồ sơ học viên');
@@ -438,7 +443,7 @@ function confirmCout(id) {
   openModal(`
     <div class="mh"><h3>${IC.doorOpen} Duyệt đơn trả phòng — ${esc(cr.student_name || (s && s.name) || '')}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <div class="field"><label>Ngày dự kiến trả${hasRoom ? ` <span class="opt">· phòng ${esc(roomName)}</span>` : ''}</label><input id="cc_date"></div>
+      <div class="field"><label>Ngày dự kiến trả${hasRoom ? ` <span class="muted">· phòng ${esc(roomName)}</span>` : ''}</label><input id="cc_date"></div>
       <div class="hint">${IC.info}<span>Đây mới là <strong>lịch</strong>. Tới ngày, học viên bàn giao xong thì bấm <strong>Xác nhận đã trả</strong> (hoặc xác nhận biên bản an ninh gửi) để ghi ngày rời thật, chốt công-tơ và tính tiền. Học viên vẫn "đang ở" cho tới lúc đó.</span></div>
     </div>
     <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn green" data-act="doConfirmCout" data-args='[${id}]'>Duyệt</button></div>`);
@@ -567,7 +572,7 @@ function checkOutForm(id, hoId) {
       <div class="field"><label>Lý do trả phòng</label><select id="c_reason">
         ${CHECKOUT_REASONS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}
       </select></div>
-      <div class="field"><label>Ghi chú</label><input id="c_note" placeholder="VD: hết hạn ở, chuyển đi..."></div>
+      <div class="field"><label>Ghi chú</label><input id="c_note" placeholder="VD: hết hạn ở, chuyển đi…"></div>
       ${s.room_id ? meterField('c_meter', s.room_name, 'rời phòng', bb && bb.meter_reading != null ? 'an ninh đã ghi ở biên bản, sửa nếu đọc lại khác' : '') : ''}
       <div class="hint">${IC.info} Ngày báo trả phòng quyết định điều kiện hoàn cọc (báo trước tối thiểu ${+(ST.settings || {}).deposit_notice_min_days || 30} ngày).
         Ô này để sẵn hôm nay nếu hồ sơ chưa ghi ngày báo — giữ hôm nay nghĩa là báo gấp, có thể không đủ điều kiện hoàn cọc.</div>
@@ -587,7 +592,7 @@ function suaNgayTraForm(id) {
   const s = studentById(id);
   const cu = (s.check_out_date || '').slice(0, 10);
   openModal(`
-    <div class="mh"><h3>${IC.calendar} Sửa ngày trả phòng: ${esc(s.name)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mh"><h3>${IC.calendar} Sửa ngày trả phòng — ${esc(s.name)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="bang-tin">${IC.info} Đang ghi nhận trả phòng ngày <strong>${esc(fmtDate(cu))}</strong>.
         Đổi ngày sẽ tính lại phiếu của <strong>cả tháng cũ lẫn tháng mới</strong>, và tính lại phần điện của người cùng phòng.</div>
@@ -630,7 +635,7 @@ async function doCheckOut(id, hoId) {
 }
 function depositSettlePrompt(id, refund) {
   openModal(`
-    <div class="mh"><h3>${IC.lock} Xử lý tiền cọc</h3><button class="x" data-act="reloadView">×</button></div>
+    <div class="mh"><h3>${IC.lock} Xử lý tiền cọc</h3><button class="x" aria-label="Đóng" data-act="reloadView">×</button></div>
     <div class="mb">
       <div class="bang-tin" style="background:${refund.eligible ? 'var(--green-bg)' : 'var(--red-bg)'};border-color:${refund.eligible ? 'var(--green)' : 'var(--red)'};color:${refund.eligible ? 'var(--green-ink)' : 'var(--red-ink)'}">
         ${refund.eligible ? IC.checkCircle+' Đủ điều kiện hoàn cọc' : IC.alert+' Chưa đủ điều kiện hoàn cọc'} — ${esc(refund.reason)}
@@ -638,9 +643,9 @@ function depositSettlePrompt(id, refund) {
       <p>Bạn muốn xử lý tiền cọc thế nào?</p>
     </div>
     <div class="mf">
-      <button class="btn" data-act="reloadView">Để sau</button>
       <button class="btn danger" data-act="settleDepositAndClose" data-args='[${id},"forfeit"]'>Không hoàn (giữ cọc)</button>
-      <button class="btn green" data-act="refundForm" data-args='[${id}]'>Hoàn cọc (nhập STK)</button>
+      <button class="btn" data-act="reloadView">Để sau</button>
+      <button class="btn green" data-act="refundForm" data-args='[${id}]'>Hoàn cọc</button>
     </div>`);
 }
 async function settleDepositAndClose(id, action) {
@@ -654,9 +659,9 @@ async function viewCheckin() {
   let logs = await API.logs(logFilter === 'all' ? null : logFilter); // BL-21: lỗi -> reject -> adminGo bắt -> renderViewError
   el('content').innerHTML = `
     <div class="pill-row">
-      <button class="btn sm ${logFilter === 'all' ? 'pri' : ''}" data-act="logGo" data-args='["all"]'>Tất cả</button>
-      <button class="btn sm ${logFilter === 'in' ? 'pri' : ''}" data-act="logGo" data-args='["in"]'><span class="dot-svg dot-green">${IC.dot}</span> Nhận phòng</button>
-      <button class="btn sm ${logFilter === 'out' ? 'pri' : ''}" data-act="logGo" data-args='["out"]'><span class="dot-svg" style="color:var(--red)">${IC.dot}</span> Trả phòng</button>
+      <button class="btn sm ${logFilter === 'all' ? 'pri' : ''}" data-act="logGo" data-args='["all"]' aria-pressed="${logFilter === 'all'}">Tất cả</button>
+      <button class="btn sm ${logFilter === 'in' ? 'pri' : ''}" data-act="logGo" data-args='["in"]' aria-pressed="${logFilter === 'in'}"><span class="dot-svg dot-green">${IC.dot}</span> Nhận phòng</button>
+      <button class="btn sm ${logFilter === 'out' ? 'pri' : ''}" data-act="logGo" data-args='["out"]' aria-pressed="${logFilter === 'out'}"><span class="dot-svg" style="color:var(--red)">${IC.dot}</span> Trả phòng</button>
     </div>
     <div class="panel"><div class="hd"><h2>Lịch sử ra / vào (${logs.length})</h2></div><div class="table-wrap">${logsTable(logs)}</div></div>`;
   syncFilterUrl(); // BL-17: bộ lọc ra/vào (loai) lên URL
@@ -665,7 +670,7 @@ function quickPick(type) {
   // Check-out nhanh: chỉ người ĐANG THỰC SỰ Ở (isOccupying — tính theo ngày). Trước đây dùng cột tĩnh
   // status==='in' nên HV "sắp vào" (status='in' nhưng chưa tới ngày nhận phòng) lọt vào pool check-out.
   const pool = type === 'in' ? ST.students.filter(s => s.status !== 'in') : ST.students.filter(isOccupying);
-  if (!pool.length) return toast(type === 'in' ? 'Không có học viên nào đang ở ngoài' : 'Không có học viên nào đang ở', 'err');
+  if (!pool.length) return toast(type === 'in' ? 'Không có học viên nào đang ở ngoài' : 'Không có học viên nào đang ở', 'info');
   openModal(`
     <div class="mh"><h3>${type === 'in' ? IC.check+' Chọn học viên nhận phòng' : IC.undo+' Chọn học viên trả phòng'}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb"><div class="field"><label>Học viên ${SAO}</label>

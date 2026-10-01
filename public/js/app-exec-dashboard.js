@@ -173,7 +173,7 @@ async function napChuaLapPhieu() {
     : `<div class="empty" style="margin-top:10px">${IC.checkCircle} Không có học viên thiếu phiếu báo.</div>`}
     </div>
     <div class="mf"><button class="btn" data-act="modalBack">Đóng</button>
-      ${tong ? `<button class="btn pri" data-act="adminGo" data-args='["invoices"]'>${IC.receipt} Sang màn Tiền phòng để lập</button>` : ''}</div>`);
+      ${tong ? `<button class="btn pri" data-act="adminGo" data-args='["invoices"]'>${IC.receipt} Lập phiếu</button>` : ''}</div>`);
 }
 
 function residencyModal() {

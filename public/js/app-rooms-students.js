@@ -34,7 +34,7 @@ async function viewRooms() {
     <div class="panel"><div class="hd">
       <h2>${del ? 'Phòng đã xóa' : 'Danh sách phòng'} (<span id="roomCount">${list.length}</span>)</h2>
       <div class="toolbar">
-        <div class="search"><span class="i">${IC.search}</span><input id="rs" placeholder="Tìm phòng, tầng, giới tính..." value="${esc(roomSearch)}"></div>
+        <div class="search"><span class="i">${IC.search}</span><input id="rs" placeholder="Tìm phòng, tầng, giới tính…" value="${esc(roomSearch)}"></div>
       </div>
     </div>
       ${/* Gợi ý phải NGẮN: nó nằm chắn giữa ô tìm kiếm và phòng đầu tiên, dài dòng là đẩy danh sách
@@ -87,8 +87,8 @@ let lichThangGoc = '';    // 'YYYY-MM' tháng đang xem ('' = tháng hiện tạ
 let lichGT = '';          // '' | 'male' | 'female'
 const LCT_SAP_HET = 2;    // còn ≤ ngần này giường thì ô lịch đổi màu "sắp hết" (chỉ là mức hiển thị)
 const segTabPhong = () => !LICH_CHO_TRONG_HIEN ? '' : `<div class="seg-thu tab">
-  <button class="seg ${roomTab === 'ds' ? 'on' : ''}" data-act="roomTabGo" data-args='["ds"]'>Danh sách</button>
-  <button class="seg ${roomTab === 'lich' ? 'on' : ''}" data-act="roomTabGo" data-args='["lich"]'>${IC.calendar} Lịch chỗ trống</button>
+  <button class="seg ${roomTab === 'ds' ? 'on' : ''}" data-act="roomTabGo" data-args='["ds"]' aria-pressed="${roomTab === 'ds'}">Danh sách</button>
+  <button class="seg ${roomTab === 'lich' ? 'on' : ''}" data-act="roomTabGo" data-args='["lich"]' aria-pressed="${roomTab === 'lich'}">${IC.calendar} Lịch chỗ trống</button>
 </div>`;
 function roomTabGo(t) { roomTab = LICH_CHO_TRONG_HIEN && t === 'lich' ? 'lich' : 'ds'; viewRooms(); }
 function lichThang(huong) {
@@ -274,17 +274,17 @@ function roomDetail(id) {
         <span><strong>Đang vượt sức chứa</strong> (${c.dangO} người / ${cap} giường). Nghiệp vụ CHO PHÉP việc này —
         thường là xếp người vào chờ bạn cũ xuất cảnh — nên đây chỉ là nhắc để bạn biết, không phải lỗi.</span></div>` : ''}
 
-      <div class="panel" style="margin-top:12px"><div class="hd"><h2 style="font-size:14px">${IC.users} Người đang ở (${dsDangO.length})</h2></div>
+      <div class="panel" style="margin-top:12px"><div class="hd"><h2 class="muc-h">${IC.users} Người đang ở (${dsDangO.length})</h2></div>
         ${dsDangO.length ? bang(dsDangO) : '<div class="pad"><p class="muted" style="margin:0">Phòng đang trống — chưa có ai ở.</p></div>'}
       </div>
 
-      ${dsSapVao.length ? `<div class="panel"><div class="hd"><h2 style="font-size:14px">${IC.calendar} Sắp vào (${dsSapVao.length})</h2></div>
+      ${dsSapVao.length ? `<div class="panel"><div class="hd"><h2 class="muc-h">${IC.calendar} Sắp vào (${dsSapVao.length})</h2></div>
         ${bang(dsSapVao)}
       </div>` : ''}
 
       ${/* Ai ĐÃ RỜI không còn trong ST.students theo phòng nữa -> phải đọc room_stays, không lọc
             được từ dữ liệu sẵn có. Nạp sau khi mở modal cho khung hiện ngay. */''}
-      <h4 style="margin:18px 0 8px">${IC.history} Lịch sử ra/vào phòng</h4>
+      <h4 class="muc-h">${IC.history} Lịch sử ra/vào phòng</h4>
       <div id="roomStays"><div class="spinner"></div></div>
     </div>
     <div class="mf">
@@ -330,7 +330,7 @@ async function leaderForm(roomId) {
   const l = await moModalCho(false, () => API.roomLeader(roomId).catch(() => null));
   if (l && l.current && l.current.from_date) tuNgay = String(l.current.from_date).slice(0, 10);
   modalThay(`
-    <div class="mh"><h3>${IC.star} Phòng trưởng: ${esc(r.name || '')}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mh"><h3>${IC.star} Phòng trưởng — ${esc(r.name || '')}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       ${!inRoom.length ? '<p class="muted">Phòng này chưa có ai ở — chưa cử phòng trưởng được.</p>' : `
       <div class="field"><label>Chọn phòng trưởng ${SAO}</label><select id="l_stu">
@@ -338,7 +338,7 @@ async function leaderForm(roomId) {
         ${inRoom.map(s => `<option value="${s.id}" ${cur && cur.id === s.id ? 'selected' : ''}>${esc(s.name)}${cur && cur.id === s.id ? ' — đang làm' : ''}</option>`).join('')}
       </select></div>
       <div class="field"><label>Nhận nhiệm vụ từ ngày</label><input id="l_date"></div>
-      <div class="field"><label>Ghi chú</label><input id="l_note" placeholder="VD: cử thay bạn A xuất cảnh..."></div>
+      <div class="field"><label>Ghi chú</label><input id="l_note" placeholder="VD: cử thay bạn A xuất cảnh…"></div>
       <div class="hint">${IC.info}<span>Phòng trưởng được <strong>miễn tiền nước và phí dịch vụ</strong>, tính theo <strong>số ngày làm</strong>:
         đổi người giữa tháng thì mỗi bạn được giảm theo phần của mình, không ai được trọn cả tháng.
         Người đang làm sẽ tự kết thúc nhiệm kỳ vào hôm trước ngày này.
@@ -347,7 +347,7 @@ async function leaderForm(roomId) {
     <div class="mf">
       ${cur ? `<button class="btn danger" data-act="unsetLeader" data-args='[${roomId}]'>Miễn nhiệm ${esc(cur.name)}</button>` : ''}
       <button class="btn" data-act="modalBack">Hủy</button>
-      ${inRoom.length ? `<button class="btn pri" data-act="doSetLeader" data-args='[${roomId}]'>${cur ? 'Lưu' : 'Cử làm phòng trưởng'}</button>` : ''}
+      ${inRoom.length ? `<button class="btn pri" data-act="doSetLeader" data-args='[${roomId}]'>${cur ? 'Lưu' : 'Cử'}</button>` : ''}
     </div>`);
   attachDate(el('l_date'), tuNgay);
 }
@@ -509,15 +509,15 @@ function viewStudents() {
       ${nutXoaLoc(`data-act="stuGo" data-args='["all"]' title="Xem tất cả học viên"`)}
     </div>` : ''}
     <div class="panel"><div class="hd"><h2>Học viên (<span id="stuCount">${list.length}</span>)</h2>
-      <div class="search"><span class="i">${IC.search}</span><input id="ss" placeholder="Tìm tên, mã, lớp, SĐT, số phòng..." value="${esc(stuSearch)}"></div>
+      <div class="search"><span class="i">${IC.search}</span><input id="ss" placeholder="Tìm tên, mã, lớp, SĐT, số phòng…" value="${esc(stuSearch)}"></div>
     </div><div class="table-wrap card-tbl">
       ${/* Thứ tự cột: Trạng thái đứng ngay sau Phòng. Hai ô này đều ngắn nên ở chế độ THẺ (điện thoại)
             chúng nằm chung một dòng (.ct-gon) thay vì mỗi thứ một dòng — thẻ thấp đi, xem được nhiều
             người hơn trong một màn. Trên máy tính thì đây cũng là thứ tự dễ đọc hơn: ở phòng nào và
             đang ở hay đã trả là hai câu hỏi đi liền nhau. */''}
-      ${list.length ? `<table><thead><tr>${sTh('name', 'Học viên')}${sTh('room', 'Phòng', '', 'data-filt="list"')}${sTh('status', 'Trạng thái')}${sTh('checkin', 'Ngày vào')}<th>Mã pháp nhân</th>${sTh('contract', 'Hợp đồng')}${sTh('deposit', 'Cọc')}${hasXC ? '<th>Dự kiến XC</th>' : ''}<th></th></tr></thead><tbody>
+      ${list.length ? `<table><thead><tr>${sTh('name', 'Học viên')}${sTh('room', 'Phòng', '', 'data-filt="list"')}${sTh('status', 'Trạng thái')}${sTh('checkin', 'Ngày vào')}<th>Mã pháp nhân</th>${sTh('contract', 'Hợp đồng')}${sTh('deposit', 'Cọc')}${hasXC ? '<th>Dự kiến xuất cảnh</th>' : ''}<th></th></tr></thead><tbody>
       ${list.map(s => {
-        const flags = `${isOccupying(s) && s.residency_status !== 'registered' ? `<span title="Chưa đăng ký tạm trú"> ${IC.flag}</span>` : ''}${contractRequired(s) && !s.has_contract_scan && !(thueNguyenPhong(s) && !s.contract_no) ? `<span title="Chưa có bản scan hợp đồng" style="color:var(--amber-ink)"> ${IC.fileText}</span>` : ''}${s.uses_washing ? `<span title="Máy giặt"> ${IC.washer}</span>` : ''}${s.vehicle_count ? `<span title="Xe gửi"> ${IC.bike}${s.vehicle_count}</span>` : ''}${s.violation_count ? `<span title="Vi phạm ${s.violation_count} lần" style="color:${s.violation_count >= vthr ? 'var(--red-ink)' : 'var(--amber-ink)'}"> ${IC.alert}${s.violation_count}</span>` : ''}`;
+        const flags = `${isOccupying(s) && s.residency_status !== 'registered' ? `<span title="Chưa đăng ký tạm trú"> ${IC.flag}</span>` : ''}${contractRequired(s) && !s.has_contract_scan && !(thueNguyenPhong(s) && !s.contract_no) ? `<span title="Chưa có bản chụp hợp đồng" style="color:var(--amber-ink)"> ${IC.fileText}</span>` : ''}${s.uses_washing ? `<span title="Máy giặt"> ${IC.washer}</span>` : ''}${s.vehicle_count ? `<span title="Xe gửi"> ${IC.bike}${s.vehicle_count}</span>` : ''}${s.violation_count ? `<span title="Vi phạm ${s.violation_count} lần" style="color:${s.violation_count >= vthr ? 'var(--red-ink)' : 'var(--amber-ink)'}"> ${IC.alert}${s.violation_count}</span>` : ''}`;
         const ds = esc((s.name + ' ' + (s.code || '') + ' ' + (s.phone || '') + ' ' + (s.class_name || '') + ' ' + (s.room_name || '') + ' ' + legalEntityCell(s.gender)).toLowerCase());
         return `<tr data-s="${ds}">
         <td><div class="flex stu-name" data-act="studentDetail" data-args='[${s.id}]' role="button" tabindex="0" title="Xem chi tiết học viên"><span class="avatar">${esc(initials(s.name))}</span><div>
@@ -529,8 +529,8 @@ function viewStudents() {
         <td class="ct-gon" data-label="Ngày vào" style="white-space:nowrap">${s.check_in_date ? fmtDate(s.check_in_date) : s.planned_check_in ? `${fmtDate(s.planned_check_in)}<div class="sub2">dự kiến, chưa xác nhận</div>` : '<span class="muted">—</span>'}${s.check_out_date ? `<div class="sub2">trả ${fmtDate(s.check_out_date)}</div>` : s.planned_check_out ? `<div class="sub2">dự kiến trả ${fmtDate(s.planned_check_out)}</div>` : ''}</td>
         <td class="ct-gon" data-label="Mã pháp nhân">${legalEntityCell(s.gender)}</td>
         <td data-label="Hợp đồng"><span class="badge ${CONTRACT_BADGE[s.contract_status] || 'gray'}">${CONTRACT_LABEL[s.contract_status] || '—'}</span>${s.contract_no ? `<div class="sub2">${esc(s.contract_no)}</div>` : hdThamChieu(s)}</td>
-        <td data-label="Cọc">${depositBadge(s)}${s.deposit_status === 'none' && isOccupying(s) ? ` <button class="btn sm ghost" style="white-space:nowrap" title="Ghi nhận đóng cọc" data-act="depositForm" data-args='[${s.id}]'>＋ Thu cọc</button>` : ''}</td>
-        ${hasXC ? `<td class="muted" data-label="Dự kiến XC" style="font-size:12px;white-space:nowrap">${xcOf(s) ? fmtDate(xcOf(s)) : '—'}</td>` : ''}
+        <td data-label="Cọc">${depositBadge(s)}${s.deposit_status === 'none' && isOccupying(s) ? ` <button class="btn sm ghost" style="white-space:nowrap" title="Ghi nhận đóng cọc" data-act="depositForm" data-args='[${s.id}]'>${IC.plus} Thu cọc</button>` : ''}</td>
+        ${hasXC ? `<td class="muted" data-label="Dự kiến xuất cảnh" style="font-size:12px;white-space:nowrap">${xcOf(s) ? fmtDate(xcOf(s)) : '—'}</td>` : ''}
         <td class="num"><div class="rowbtns" style="justify-content:flex-end">
           ${isOccupying(s) ? `<button class="btn sm danger" data-act="checkOutForm" data-args='[${s.id}]'>Trả phòng</button>` : `<button class="btn sm" title="Nhận lại học viên đã trả phòng" data-act="checkInForm" data-args='[${s.id}]'>Nhận phòng</button>`}
         </div></td></tr>`; }).join('')}
@@ -716,7 +716,7 @@ async function studentForm(id) {
       ${nhomForm(IC.user, 'Thông tin cá nhân', `
         <div class="grid2">
           <div class="field"><label>Họ tên ${SAO}</label><input id="f_name" value="${esc(s.name)}" placeholder="Nguyễn Văn A" data-change="onTenChuan"></div>
-          <div class="field"><label>Mã học viên (MSHV)</label><input id="f_code" value="${esc(s.code || '')}" placeholder="TXTS-S25..."></div>
+          <div class="field"><label>Mã học viên</label><input id="f_code" value="${esc(s.code || '')}" placeholder="TXTS-S25…"></div>
         </div>
         <div class="grid2">
           <div class="field"><label>Ngày sinh</label><input id="f_birth"></div>
@@ -760,17 +760,18 @@ async function studentForm(id) {
         ${/* Ngày trả đã tới/đã qua thì KHOÁ — phiếu tháng đó đã phát, công-tơ đã chốt. Hiện dạng ô chỉ
               đọc chứ không phải input readonly: input trông y hệt ô nhập được, bấm không ra lịch. */''}
         <div class="grid2" style="margin:0">
-          <div class="field" style="margin:0"><label>${s.check_in_date ? 'Ngày vào (đã xác nhận)' : 'Ngày dự kiến vào <span class="opt">(chưa xác nhận — bấm Nhận phòng khi học viên tới)</span>'}</label><input id="f_in"></div>
+          <div class="field" style="margin:0"><label>${s.check_in_date ? 'Ngày vào (đã xác nhận)' : 'Ngày dự kiến vào'}</label><input id="f_in">
+            ${s.check_in_date ? '' : '<div class="sub2" style="margin-top:4px">Chưa xác nhận — bấm Nhận phòng khi học viên tới.</div>'}</div>
           <div class="field" style="margin:0"><label>Ngày trả phòng ${daRoi ? '' : '<span class="opt">(báo trước)</span>'}</label>
             ${daRoi
     ? `<div class="ro-in">${esc(fmtDate(s.check_out_date))}
              <span class="muted">— đã xác nhận trả phòng. Sửa bằng nút <strong>Sửa ngày trả</strong> trong hồ sơ.</span></div>`
-    : '<input id="f_out">'}</div>
+    : '<input id="f_out"><div class="sub2" style="margin-top:4px">Chọn từ ngày mai; trả trong hôm nay thì dùng nút Trả phòng.</div>'}</div>
         </div>`)}
 
       ${nhomForm(IC.fileText, 'Thông tin hợp đồng', `
         <div class="grid2">
-          <div class="field"><label>Số HĐ <span class="opt">(nhập tay · ⚡ gợi ý số kế tiếp)</span></label>
+          <div class="field"><label>Số HĐ <span class="opt">(nhập tay, hoặc bấm ${IC.zap} để lấy số kế tiếp)</span></label>
             <div class="flex" style="gap:6px"><input id="f_cno" value="${esc(s.contract_no || '')}" placeholder="38/2026/HĐKTX-E2" style="flex:1">
             <button type="button" class="btn sm" data-act="suggestContractNo" data-args='[${id}]' title="Điền số kế tiếp của dãy theo năm + pháp nhân">${IC.zap}</button></div></div>
           <div class="field"><label>Pháp nhân</label>
@@ -787,11 +788,11 @@ async function studentForm(id) {
             Thuê <strong>dưới ${shortTermMaxDays()} ngày</strong> hoặc <strong>nhân viên công tác</strong> → ký <strong>phiếu đăng ký & bàn giao</strong>.
             Phòng an ninh không cần ký gì.</span></div></div>
         ${/* Tệp scan lưu NGAY khi chọn, khác mọi ô còn lại vốn chờ nút Lưu. */''}
-        <div class="field" style="margin:0"><label>File đính kèm <span class="opt">(bản scan HĐ — ảnh hoặc PDF)</span></label>
+        <div class="field" style="margin:0"><label>File đính kèm <span class="opt">(bản chụp HĐ — ảnh hoặc PDF)</span></label>
           <div id="f_scan">${khoiScanHD(s)}</div>
         </div>`)}
 
-      <div class="hint">${IC.info}<span>Giảm giá theo % nay chỉnh ở màn <strong>Tiền phòng</strong> — bấm ✎ trên phiếu của học viên. Tiền nằm ở đâu thì sửa ở đó.</span></div>
+      <div class="hint">${IC.info}<span>Giảm giá theo % chỉnh ở màn <strong>Tiền phòng</strong>: bấm nút sửa ${IC.pencil} trên phiếu của học viên.</span></div>
     </div>
     <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="saveStudent" data-args='[${id}]'>Lưu</button></div>`);
   if (s.cccd_front) { cccdDatGoc('front', s.cccd_front); cccdVeAnh('front', s.cccd_front); }
@@ -888,7 +889,7 @@ async function studentDetail(id) {
     <div class="mh"><h3>${esc(s.name)} <span class="badge ${s.gender === 'female' ? 'sage' : 'blue'}">${genderLabel(s.gender)}</span> ${statusBadge(s)}${s.deleted_at ? ` <span class="badge red">${IC.lock} Đã khoá — ${esc(s.lock_reason || LY_DO_KHOA_TRONG)}</span>` : ''}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       ${s.deleted_at ? `<div class="bang-tin" style="margin-top:0;border-color:var(--red-ink)">${IC.lock} <span>Hồ sơ này <strong>đang bị khoá</strong> từ ${fmtDate(String(s.deleted_at).slice(0, 10))} — bị ẩn khỏi danh sách và tài khoản không đăng nhập được. Dữ liệu vẫn còn nguyên.
-        <div class="rowbtns" style="margin-top:10px"><button class="btn sm green" data-act="restoreStudentAndReload" data-args='[${s.id}]'>${IC.undo} Mở khoá hồ sơ này</button></div></span></div>` : ''}
+        <div class="rowbtns" style="margin-top:10px"><button class="btn sm green" data-act="restoreStudentAndReload" data-args='[${s.id}]'>${IC.undo} Mở khoá</button></div></span></div>` : ''}
       <div class="cards" style="margin-bottom:16px">
         <div class="stat"><div class="l">Phòng</div><div class="v sm">${s.room_id ? `<span class="hd-ref" data-act="roomDetail" data-args='[${s.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng — ai đang ở">${esc(s.room_name || '—')}</span>` : esc(s.room_name || '—')}${s.room_hang ? ` <span class="badge gray">${s.room_hang}</span>` : ''}</div></div>
         <div class="stat"><div class="l">Hình thức</div><div class="v sm">${rentalLabelOf(s)}</div></div>
@@ -904,7 +905,7 @@ async function studentDetail(id) {
       ? `<button class="btn sm" style="margin-left:8px" disabled title="Tài khoản đang khoá — mở khoá ở Cài đặt › Người dùng › Tài khoản học viên trước, rồi mới đặt lại mật khẩu">Đặt lại mật khẩu</button>`
       : `<button class="btn sm" style="margin-left:8px" data-act="accountForm" data-args='[${s.id}, ${JSON.stringify(s.code || s.phone || "")}]'>${s.login_username ? 'Đặt lại mật khẩu' : 'Tạo tài khoản'}</button>`}</p>
 
-      <div class="panel" style="margin-top:12px"><div class="hd"><h2 style="font-size:14px">${IC.fileText} Hợp đồng</h2></div><div class="pad">
+      <div class="panel" style="margin-top:12px"><div class="hd"><h2 class="muc-h">${IC.fileText} Hợp đồng</h2></div><div class="pad">
         <p style="margin:0">Số HĐ: ${s.contract_no
           ? `<strong>${esc(s.contract_no)}</strong>`
           : `<span class="muted">chưa ký</span> <span class="badge blue" id="hd_dukien" title="Số kế tiếp của dãy nếu cấp lúc này — số chính thức cấp khi bấm Xác nhận nhận phòng.">…</span>`
@@ -913,10 +914,10 @@ async function studentDetail(id) {
         ${contractPending(s) ? `<div class="bang-tin" style="margin:10px 0 0;background:var(--amber-bg);border-color:var(--amber-ink);color:var(--amber-ink)">${IC.alert} <strong>Chưa ký HĐ:</strong> thuê trên ${shortTermMaxDays()} ngày — cần ký <strong>hợp đồng thuê phòng</strong>.</div>`
           : handoverPending(s) ? `<div class="bang-tin" style="margin:10px 0 0">${IC.info} Cần <strong>ký phiếu đăng ký & bàn giao phòng</strong> (thuê ngắn hạn hoặc nhân viên công tác) — đặt tình trạng HĐ = "Đã ký phiếu bàn giao".</div>` : ''}
         <div style="margin-top:10px">
-          <div class="muted" style="font-size:12px;margin-bottom:4px">Bản scan hợp đồng <span class="opt">(ảnh hoặc PDF)</span>:</div>
+          <div class="muted" style="font-size:12px;margin-bottom:4px">Bản chụp hợp đồng <span class="opt">(ảnh hoặc PDF)</span>:</div>
           ${s.contract_scan
             ? (s.contract_scan_ext === 'pdf'
-              ? `<a class="btn sm" href="${s.contract_scan}" target="_blank" rel="noopener">${IC.fileText} Mở bản scan (PDF)</a>`
+              ? `<a class="btn sm" href="${s.contract_scan}" target="_blank" rel="noopener">${IC.fileText} Mở bản chụp (PDF)</a>`
               : `<a href="${s.contract_scan}" target="_blank" rel="noopener" title="Bấm để xem cỡ đầy đủ"><img src="${s.contract_scan}" style="max-width:100%;max-height:220px;border-radius:8px;border:1px solid var(--line)"></a>`)
             : `<p class="muted" style="margin:0 0 6px;font-size:12px">Chưa đính kèm.</p>`}
         </div>
@@ -939,7 +940,7 @@ async function studentDetail(id) {
       </div></div>
 
       ${/* Xem thôi — thêm/sửa/xoá xe ở màn Dịch vụ → Gửi xe, giống máy giặt. Một nơi quản, một nơi xem. */''}
-      <div class="panel"><div class="hd"><h2 style="font-size:14px">${IC.bike} Xe (${vehicles.length})</h2>
+      <div class="panel"><div class="hd"><h2 class="muc-h">${IC.bike} Xe (${vehicles.length})</h2>
         <button class="btn sm" title="Sang màn Dịch vụ để thêm/sửa xe" data-act="adminGo" data-args='["vehicles"]'>${IC.transfer} Quản lý ở Dịch vụ</button></div><div class="pad">
         ${vehicles.length ? vehicles.map(v => `<div style="padding:6px 0;border-bottom:1px solid var(--line)">
           <strong>${esc(v.plate || '—')}</strong> <span class="muted">${esc(v.vehicle_type || '')}</span>${v.sticker ? ` · mã dán: ${esc(v.sticker)}` : ''}${v.to_date && String(v.to_date).slice(0, 10) < today() ? ' <span class="badge gray">đã ngừng gửi</span>' : ''}
@@ -947,7 +948,7 @@ async function studentDetail(id) {
         </div>`).join('') : '<p class="muted" style="margin:0">Chưa có xe.</p>'}
       </div></div>
 
-      <div class="panel"><div class="hd"><h2 style="font-size:14px">${IC.lock} Tiền cọc</h2></div><div class="pad">
+      <div class="panel"><div class="hd"><h2 class="muc-h">${IC.lock} Tiền cọc</h2></div><div class="pad">
         <p style="margin:0 0 10px">Trạng thái: ${depositBadge(s)} ${s.deposit_amount ? `· <strong>${money(s.deposit_amount)}</strong>` : ''} ${s.deposit_date ? `· đóng ${fmtDate(s.deposit_date)}` : ''} ${s.deposit_refund_date ? `· xử lý ${fmtDate(s.deposit_refund_date)}` : ''}</p>
         ${+s.deposit_deduction ? `<p style="margin:0 0 10px;color:var(--red)">Khấu trừ hư hao: <strong>${money(s.deposit_deduction)}</strong>${s.deposit_deduction_note ? ` (${esc(s.deposit_deduction_note)})` : ''} · Hoàn thực tế: <strong>${money((+s.deposit_amount || 0) - (+s.deposit_deduction || 0))}</strong></p>` : ''}
         ${s.deposit_account ? `<p style="margin:0 0 10px" class="muted">Hoàn về: ${esc(s.deposit_account)} — ${esc(s.deposit_bank)}</p>` : ''}
@@ -958,9 +959,9 @@ async function studentDetail(id) {
         </div>
       </div></div>
 
-      <div class="panel"><div class="hd"><h2 style="font-size:14px">${IC.alert} Vi phạm / Nhắc nhở (${vios.length})</h2>
+      <div class="panel"><div class="hd"><h2 class="muc-h">${IC.alert} Vi phạm / Nhắc nhở (${vios.length})</h2>
         <div class="rowbtns">
-          ${vios.length >= vthr && !vios.some(v => v.notified_school) ? `<button class="btn sm" data-act="notifySchool" data-args='[${s.id}]'>${IC.inbox} Gửi email nhà trường</button>` : ''}
+          ${vios.length >= vthr && !vios.some(v => v.notified_school) ? `<button class="btn sm" data-act="notifySchool" data-args='[${s.id}]'>${IC.inbox} Báo nhà trường</button>` : ''}
           <button class="btn sm pri" data-act="violationForm" data-args='[${s.id}]'>${IC.plus} Ghi nhận</button>
         </div></div><div class="pad">
         ${vios.length >= vthr ? `<div class="bang-tin" style="background:var(--red-bg);border-color:#e3b8ad;color:var(--red-ink)">${IC.alert} Học viên đã vi phạm <strong>${vios.length} lần</strong> (≥ ${vthr})${vios.some(v => v.notified_school) ? ' — đã gửi email nhà trường' : ' — cần thông báo nhà trường'}.</div>` : ''}
@@ -969,13 +970,13 @@ async function studentDetail(id) {
         </tbody></table></div>` : '<p class="muted" style="margin:0">Chưa có vi phạm.</p>'}
       </div></div>
 
-      <h4 style="margin:18px 0 8px">${IC.receipt} Phiếu báo tiền phòng</h4>
+      <h4 class="muc-h">${IC.receipt} Phiếu báo tiền phòng</h4>
       ${invs.length ? `<div class="table-wrap"><table><thead><tr><th>Kỳ</th><th class="num">Tổng tiền phiếu (đ)</th><th></th></tr></thead><tbody>
         ${invs.map(i => `<tr style="cursor:pointer" data-act="phieuBaoHV" data-args='[${i.id}]' role="button" tabindex="0" title="Xem phiếu báo kỳ ${monthLabel(i.month)}">
           <td>${monthLabel(i.month)}</td><td class="num"><strong>${moneyN(i.total)}</strong></td>
           <td class="num"><span class="row-chev" aria-hidden="true">${IC.chevronRight}</span></td></tr>`).join('')}
       </tbody></table></div>` : '<p class="muted">Chưa có phiếu báo.</p>'}
-      <h4 style="margin:18px 0 8px">${IC.history} Lịch sử ở & chuyển phòng</h4>
+      <h4 class="muc-h">${IC.history} Lịch sử ở & chuyển phòng</h4>
       <div id="lsoBox">${lichSuOHTML(stays, s.id)}</div>
     </div>
     <div class="mf">
@@ -994,10 +995,10 @@ async function studentDetail(id) {
 function khoiScanHD(s) {
   return `${s.contract_scan
     ? (s.contract_scan_ext === 'pdf'
-      ? `<a class="btn sm" href="${s.contract_scan}" target="_blank" rel="noopener">${IC.fileText} Mở bản scan (PDF)</a>`
+      ? `<a class="btn sm" href="${s.contract_scan}" target="_blank" rel="noopener">${IC.fileText} Mở bản chụp (PDF)</a>`
       : `<a href="${s.contract_scan}" target="_blank" rel="noopener" title="Bấm để xem cỡ đầy đủ"><img src="${s.contract_scan}" style="max-width:100%;max-height:200px;border-radius:8px;border:1px solid var(--line)"></a>`)
     : '<p class="muted" style="margin:0 0 6px;font-size:12px">Chưa đính kèm.</p>'}
-    ${s.contract_scan ? ` <button type="button" class="btn sm ghost" data-act="goScanHD" data-args='[${s.id}]' title="Gỡ bản scan đang có">${IC.trash} Gỡ</button>` : ''}
+    ${s.contract_scan ? ` <button type="button" class="btn sm ghost" data-act="goScanHD" data-args='[${s.id}]' title="Gỡ bản chụp đang có">${IC.trash} Gỡ</button>` : ''}
     <div style="margin-top:6px"><input type="file" accept="application/pdf,image/png,image/jpeg" id="hd_scan_form" data-change="tepScanHD" data-args='[${s.id}]'></div>
     <div class="hint">${IC.info}<span>Chọn tệp là lưu ngay, không cần bấm Lưu. Nhận PDF · PNG · JPG, tối đa ${TEP_TOI_DA_MB}MB.</span></div>`;
 }
@@ -1014,21 +1015,21 @@ async function veLaiScanHD(id) {
 // đẩy lên bucket riêng tư. Không giữ ảnh trong hồ sơ dạng data URL.
 function tepScanHD(id) {
   const f = this.files && this.files[0]; if (!f) return;
-  if (!tepHopLe(this, f, 'Bản scan hợp đồng')) return;
+  if (!tepHopLe(this, f, 'Bản chụp hợp đồng')) return;
   const trongForm = !!el('f_scan');
   const r = new FileReader();
   r.onload = async () => {
     await guard(() => API.uploadContractScan(id, r.result));
-    toast('Đã đính kèm bản scan hợp đồng');
+    toast('Đã đính kèm bản chụp hợp đồng');
     if (!trongForm) return studentDetail(id);
     await veLaiScanHD(id);
   };
   r.readAsDataURL(f);
 }
 async function goScanHD(id) {
-  if (!(await xacNhan('Gỡ bản scan hợp đồng?\n\nTệp bị xoá khỏi kho, không khôi phục được.', { dongY: 'Gỡ bản scan', nguyHiem: true }))) return;
+  if (!(await xacNhan('Gỡ bản chụp hợp đồng?\n\nTệp bị xoá khỏi kho, không khôi phục được.', { dongY: 'Gỡ bản chụp', nguyHiem: true }))) return;
   await guard(() => API.deleteContractScan(id));
-  toast('Đã gỡ bản scan');
+  toast('Đã gỡ bản chụp');
   if (el('f_scan')) return veLaiScanHD(id);
   studentDetail(id);
 }
@@ -1112,7 +1113,7 @@ function vehicleForm(vid, studentId) {
   const chonHV = !vid && !sid;   // thêm từ màn Dịch vụ: chưa biết xe của ai
   const dsHV = chonHV ? ST.students.filter(isOccupying).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'vi')) : [];
   openModal(`
-    <div class="mh"><h3>${vid ? 'Sửa xe' : 'Thêm xe'}${s.name ? ': ' + esc(s.name) : ''}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mh"><h3>${vid ? 'Sửa xe' : 'Thêm xe'}${s.name ? ' — ' + esc(s.name) : ''}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       ${chonHV ? `<div class="field"><label>Chủ xe ${SAO}</label><select id="v_stu" data-change="onVehicleStudent">
         <option value="">— Chọn học viên đang ở —</option>
@@ -1120,7 +1121,7 @@ function vehicleForm(vid, studentId) {
       </select></div>` : ''}
       <div class="grid2">
         <div class="field"><label>Biển số</label><input id="v_plate" value="${esc(v.plate || '')}" placeholder="63-B4 508.58" autocapitalize="characters"></div>
-        <div class="field"><label>Loại xe</label><input id="v_type" value="${esc(v.vehicle_type || '')}" placeholder="Xe số / Xe ga..."></div>
+        <div class="field"><label>Loại xe</label><input id="v_type" value="${esc(v.vehicle_type || '')}" placeholder="Xe số / Xe ga…"></div>
       </div>
       <div class="grid2">
         <div class="field"><label>Mã dán xe</label><input id="v_sticker" value="${esc(v.sticker || '')}" placeholder="201.1"></div>
@@ -1199,14 +1200,14 @@ function transferForm(id) {
   quenPhongMoc();
   const chuaXep = !s.room_id; // BL-87: HV chưa có phòng -> "Xếp phòng" (lần đầu), không phải "Chuyển phòng"
   openModal(`
-    <div class="mh"><h3>${IC.transfer} ${chuaXep ? 'Xếp phòng' : 'Chuyển phòng'}: ${esc(s.name)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mh"><h3>${IC.transfer} ${chuaXep ? 'Xếp phòng' : 'Chuyển phòng'} — ${esc(s.name)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       ${chuaXep ? '' : `<p class="muted">Phòng hiện tại: <span class="hd-ref" data-act="roomDetail" data-args='[${s.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng — ai đang ở"><strong>${esc(s.room_name || '—')}</strong></span></p>`}
       <div class="grid2">
         <div class="field"><label>${chuaXep ? 'Xếp vào phòng' : 'Phòng mới'} ${SAO}</label><select id="t_room">${roomOptions('', s.gender)}</select></div>
         <div class="field"><label>Ngày ${chuaXep ? 'xếp' : 'chuyển'}</label><input id="t_date"></div>
       </div>
-      <div class="field"><label>Ghi chú</label><input id="t_note" placeholder="${chuaXep ? 'Ghi chú (tuỳ chọn)...' : 'Lý do chuyển...'}"></div>
+      <div class="field"><label>Ghi chú <span class="opt">(không bắt buộc)</span></label><input id="t_note" placeholder="${chuaXep ? '' : 'Lý do chuyển…'}"></div>
       ${s.room_id ? meterField('t_meter', s.room_name, 'chuyển đi') : ''}
     </div>
     <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="doTransfer" data-args='[${id}]'>${chuaXep ? 'Xếp phòng' : 'Chuyển'}</button></div>`);
@@ -1237,7 +1238,7 @@ async function refundForm(id) {
   const person = ST.assets.filter(a => a.category === 'person');
   const fixed = ST.assets.filter(a => a.category === 'fixed');
   modalThay(`
-    <div class="mh"><h3>${IC.handCoins} Hoàn cọc: ${esc(s.name || '')}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mh"><h3>${IC.handCoins} Hoàn cọc — ${esc(s.name || '')}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="hint">Tick số lượng tài sản <strong>hư hao / mất / không vệ sinh</strong> để khấu trừ vào cọc. Có thể sửa đơn giá bồi hoàn.</div>
       <div class="table-wrap" style="max-height:280px;overflow:auto"><table><thead><tr><th>Tài sản</th><th class="num">SL hư/mất</th><th class="num">Đơn giá (đ)</th><th class="num">Thành tiền (đ)</th></tr></thead><tbody>
@@ -1251,7 +1252,7 @@ async function refundForm(id) {
       </div>
       <div class="grid2">
         <div class="field"><label>Số tài khoản</label><input id="r_acc" inputmode="numeric" value="${esc(s.deposit_account || '')}"></div>
-        <div class="field"><label>Ngân hàng</label><input id="r_bank" value="${esc(s.deposit_bank || '')}" placeholder="VIETCOMBANK - ..."></div>
+        <div class="field"><label>Ngân hàng</label><input id="r_bank" value="${esc(s.deposit_bank || '')}" placeholder="VIETCOMBANK - …"></div>
       </div>
       <div class="field"><label>Ngày hoàn</label><input id="r_date"></div>
     </div>
@@ -1361,26 +1362,26 @@ function appForm() {
       <div class="hint">${IC.info} Đơn tạo ở đây vào danh sách <strong>Đơn đăng ký</strong> ở trạng thái <strong>Chờ duyệt</strong>. Bấm <strong>Duyệt</strong> để xếp phòng và tạo hồ sơ học viên.</div>
       <div class="grid2">
         <div class="field"><label>Họ và tên ${SAO}</label><input id="ap_name" placeholder="Nguyễn Văn A" data-change="onTenChuan"></div>
-        <div class="field"><label>SĐT ${SAO}</label><input id="ap_phone" type="tel" inputmode="tel" placeholder="09..."></div>
+        <div class="field"><label>SĐT ${SAO}</label><input id="ap_phone" type="tel" inputmode="tel" placeholder="09…"></div>
       </div>
       <div class="grid2">
         <div class="field"><label>Giới tính ${SAO}</label><select id="ap_gender"><option value="">— Chọn giới tính —</option><option value="female">Nữ</option><option value="male">Nam</option></select></div>
         <div class="field"><label>Ngày sinh</label><input id="ap_birth" readonly></div>
       </div>
       <div class="grid2">
-        <div class="field"><label>Mã học viên (MSHV)</label><input id="ap_code" placeholder="TXTS-..."></div>
-        <div class="field"><label>Lớp</label><input id="ap_class" placeholder="Esu..."></div>
+        <div class="field"><label>Mã học viên</label><input id="ap_code" placeholder="TXTS-…"></div>
+        <div class="field"><label>Lớp</label><input id="ap_class" placeholder="Esu…"></div>
       </div>
       <div class="grid2">
         <div class="field"><label>Cơ sở${nhieuCS ? ' ' + SAO : ''}</label><select id="ap_fac">${facOpts}</select></div>
         <div class="field"><label>Ngày muốn nhận phòng ${SAO}</label><input id="ap_movein" readonly></div>
       </div>
-      <div class="field"><label>Nguyện vọng phòng</label><input id="ap_pref" placeholder="VD: tầng thấp, gần thang máy..."></div>
+      <div class="field"><label>Nguyện vọng phòng</label><input id="ap_pref" placeholder="VD: tầng thấp, gần thang máy…"></div>
       <div class="grid2">
         <label class="check" style="align-self:center"><input type="checkbox" id="ap_wash"> Đăng ký máy giặt</label>
         <label class="check" style="align-self:center"><input type="checkbox" id="ap_park"> Gửi xe</label>
       </div>
-      <div class="field"><label>Biển số xe (nếu gửi xe)</label><input id="ap_plate" placeholder="59-..." autocapitalize="characters"></div>
+      <div class="field"><label>Biển số xe (nếu gửi xe)</label><input id="ap_plate" placeholder="59-…" autocapitalize="characters"></div>
       <div class="field"><label>Ghi chú</label><textarea id="ap_note" rows="2"></textarea></div>
     </div>
     <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="saveApp">Tạo đơn</button></div>`);
@@ -1391,6 +1392,7 @@ async function saveApp() {
   const name = el('ap_name').value.trim(), phone = el('ap_phone').value.trim();
   if (!name) return loiTaiO('ap_name', 'Nhập họ tên');
   if (!phone) return loiTaiO('ap_phone', 'Nhập số điện thoại');
+  if (!soDienThoaiHopLe(phone)) return loiTaiO('ap_phone', CAU_SDT_SAI);
   if (!el('ap_gender').value) return loiTaiO('ap_gender', 'Chọn giới tính');
   if (el('ap_fac').options.length && !el('ap_fac').value) return loiTaiO('ap_fac', 'Chọn cơ sở');
   const ngayVao = el('ap_movein').dataset.iso || '';
@@ -1412,11 +1414,12 @@ function accountForm(id, code) {
   openModal(`
     <div class="mh"><h3>Tài khoản đăng nhập học viên</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <div class="field"><label>Tên đăng nhập <span class="opt">${code ? 'gợi ý sẵn — sửa được' : 'hồ sơ chưa có mã HV lẫn SĐT, phải tự đặt'}</span></label>
-        <input id="a_user" value="${esc(code || '')}" placeholder="vd mã học viên hoặc số điện thoại"></div>
+      <div class="field"><label>Tên đăng nhập</label>
+        <input id="a_user" value="${esc(code || '')}" placeholder="VD: mã học viên hoặc số điện thoại" autocapitalize="off" spellcheck="false">
+        <div class="sub2" style="margin-top:4px">${code ? 'Đã điền sẵn gợi ý, sửa được.' : 'Hồ sơ chưa có mã học viên và SĐT — cần tự đặt.'}</div></div>
       <div class="hint">${IC.key} Máy tự tạo mật khẩu và hiện <strong>một lần</strong> sau khi lưu — đưa tận tay học viên, lần đầu đăng nhập học viên phải đổi.</div>
     </div>
-    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="saveAccount" data-args='[${id}]'>Tạo / cấp lại mật khẩu</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="saveAccount" data-args='[${id}]'>Cấp mật khẩu</button></div>`);
   setTimeout(() => el('a_user').focus(), 50);
 }
 async function saveAccount(id) {
@@ -1484,7 +1487,7 @@ function quyCoc() {
         <div class="kpi"><span class="ic ic-gray">${IC.users}</span><div><div class="v">${held.length}</div><div class="l">Học viên đang giữ cọc</div></div></div>
         <div class="kpi"><span class="ic ic-red">${IC.handCoins}</span><div><div class="v">${pending.length}</div><div class="l">Cần hoàn cọc ${pendAmt ? '(' + money(pendAmt) + ')' : ''}</div></div></div>
       </div>
-      ${pending.length ? `<div class="bang-tin" style="background:var(--red-bg);border-color:#fca5a5;color:#b91c1c">${IC.handCoins} <strong>${pending.length} học viên đã trả phòng</strong> đang chờ hoàn cọc — hãy xử lý sớm.</div>
+      ${pending.length ? `<div class="bang-tin" style="background:var(--red-bg);border-color:#fca5a5;color:#b91c1c">${IC.handCoins} <strong>${pending.length} học viên đã trả phòng</strong> đang chờ hoàn cọc.</div>
         <div class="table-wrap" style="margin-bottom:18px"><table><thead><tr><th>Học viên</th><th>Mã pháp nhân</th><th class="num">Cọc (đ)</th><th>Ngày đóng</th><th>Trạng thái</th><th></th></tr></thead><tbody>${pending.map(rowFor).join('')}</tbody></table></div>` : `<div class="hint">${IC.checkCircle} Không có khoản cọc nào chờ hoàn.</div>`}
       <h4 style="margin:6px 0 8px">Đang giữ cọc (${staying.length})</h4>
       ${staying.length ? `<div class="table-wrap"><table><thead><tr><th>Học viên</th><th>Mã pháp nhân</th><th class="num">Cọc (đ)</th><th>Ngày đóng</th><th>Trạng thái</th><th></th></tr></thead><tbody>${staying.map(rowFor).join('')}</tbody></table></div>` : '<p class="muted">Không có học viên đang giữ cọc.</p>'}

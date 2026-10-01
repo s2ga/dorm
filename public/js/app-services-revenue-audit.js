@@ -33,20 +33,20 @@ async function viewHoSo() {
     aria-pressed="${hsLoc === k}">${nhan} <span class="badge ${hsLoc === k ? '' : (mau || 'gray')}">${n}</span></button>`;
   el('topActions').innerHTML = '';
   el('content').innerHTML = `
-    <div class="panel"><div class="hd"><h2>${IC.fileText} Hồ sơ lưu trữ — hợp đồng & CCCD (<span id="hsCount">${list.length}</span>)</h2>
+    <div class="panel"><div class="hd"><h2>${IC.fileText} Hồ sơ lưu trữ — hợp đồng và CCCD (<span id="hsCount">${list.length}</span>)</h2>
       <div class="toolbar"><div class="search"><span class="i">${IC.search}</span>
-        <input id="hsSearch" placeholder="Tìm tên HV / mã / số phòng..."></div></div></div>
+        <input id="hsSearch" placeholder="Tìm tên HV / mã / số phòng…"></div></div></div>
       <div class="pill-row" style="padding:12px 16px 0;margin:0">
         ${pill('all', 'Tất cả', ds.length)}
         ${pill('du', `${IC.check} Đủ giấy tờ`, dem('du'), 'green')}
         ${pill('thieu', `${IC.alert} Còn thiếu gì đó`, dem('thieu'), 'red')}
         ${pill('thieu_hd', 'Chưa có số HĐ', dem('thieu_hd'), 'amber')}
-        ${pill('thieu_scan', 'Chưa scan HĐ', dem('thieu_scan'), 'amber')}
+        ${pill('thieu_scan', 'Chưa chụp HĐ', dem('thieu_scan'), 'amber')}
         ${pill('thieu_cccd', 'Thiếu CCCD', dem('thieu_cccd'), 'amber')}
       </div>
       <div class="table-wrap card-tbl">
         ${list.length ? `<table><thead><tr><th>Học viên</th><th>Phòng</th><th>Số HĐ</th><th>Ngày ký</th><th>Tình trạng</th>
-          <th class="num">Scan HĐ</th><th class="num">CCCD trước</th><th class="num">CCCD sau</th></tr></thead><tbody>
+          <th class="num">Bản chụp HĐ</th><th class="num">CCCD trước</th><th class="num">CCCD sau</th></tr></thead><tbody>
           ${list.map(s => `<tr data-s="${esc(((s.name || '') + ' ' + (s.code || '') + ' ' + (s.room_name || '') + ' ' + (s.contract_no || '')).toLowerCase())}">
             <td><div class="flex stu-name" data-act="studentDetail" data-args='[${s.id}]' role="button" tabindex="0" title="Mở hồ sơ để xem/nộp giấy tờ">
               <div><strong>${esc(s.name)}</strong>${s.code ? `<div class="sub2">${esc(s.code)}</div>` : ''}</div>
@@ -55,7 +55,7 @@ async function viewHoSo() {
             <td data-label="Số HĐ">${coHD(s) ? `<strong>${esc(s.contract_no)}</strong>` : '<span class="badge amber">chưa có</span>'}</td>
             <td data-label="Ngày ký">${s.contract_date ? fmtDate(s.contract_date) : '<span class="muted">—</span>'}</td>
             <td data-label="Tình trạng"><span class="badge ${CONTRACT_BADGE[s.contract_status] || 'gray'}">${CONTRACT_LABEL[s.contract_status] || '—'}</span></td>
-            <td class="num" data-label="Scan HĐ">${hsCo(s.has_contract_scan, 'Bản scan hợp đồng', `/api/students/${s.id}/contract-scan`)}</td>
+            <td class="num" data-label="Bản chụp HĐ">${hsCo(s.has_contract_scan, 'Bản chụp hợp đồng', `/api/students/${s.id}/contract-scan`)}</td>
             <td class="num" data-label="CCCD trước">${hsCo(s.has_cccd_front, 'CCCD mặt trước', `/api/students/${s.id}/cccd/front`)}</td>
             <td class="num" data-label="CCCD sau">${hsCo(s.has_cccd_back, 'CCCD mặt sau', `/api/students/${s.id}/cccd/back`)}</td>
           </tr>`).join('')}
@@ -63,7 +63,7 @@ async function viewHoSo() {
         </tbody></table>` : `<div class="empty">${ds.length ? `${trongKhongKhop('hồ sơ')} ${nutXoaLoc(`data-act="hsGo" data-args='["all"]'`)}` : trongChuaCo('hồ sơ nào')}</div>`}
       </div>
       <div class="pad"><div class="hint">${IC.info}<span>Bấm <strong>Xem</strong> ở ba cột cuối để mở thẳng tệp
-        (ảnh hoặc PDF) trong tab mới. Bấm tên học viên để mở hồ sơ — nộp giấy tờ còn thiếu tại đó.</span></div></div>
+        (ảnh hoặc PDF) trong cửa sổ mới. Bấm tên học viên để mở hồ sơ — nộp giấy tờ còn thiếu tại đó.</span></div></div>
     </div>`;
   const sb = el('hsSearch'); if (sb) attachRowSearch(sb, 'hsCount', { xoaLoc: hsLoc !== 'all' ? () => hsGo('all') : null });
 }
@@ -81,7 +81,7 @@ async function viewServices() {
   const totalVeh = veh.length;
   el('topActions').innerHTML = '';
   const svcCard = (ico, cls, headline, sub) => `<div class="kpi"><span class="ic ${cls}">${ico}</span><div><div class="v">${headline}</div><div class="l">${sub}</div></div></div>`;
-  const pill = (k, ico, label) => `<button class="btn sm ${svcTab === k ? 'pri' : ''}" data-act="svcGo" data-args='["${k}"]'>${ico} ${label}</button>`;   // BL-69: bỏ (N) — số đã có ở thẻ KPI
+  const pill = (k, ico, label) => `<button class="btn sm ${svcTab === k ? 'pri' : ''}" data-act="svcGo" data-args='["${k}"]' aria-pressed="${svcTab === k}">${ico} ${label}</button>`;   // BL-69: bỏ (N) — số đã có ở thẻ KPI
   el('content').innerHTML = `
     <div class="kpis">
       ${svcCard(IC.washer, 'ic-blue', `${washUsers.length}<span class="muted" style="font-size:14px;font-weight:600"> HV</span>`, `Máy giặt · ${money(washUsers.length * washFee)}/tháng · đơn giá ${money(washFee)}`)}
@@ -108,12 +108,12 @@ async function viewServices() {
     el('svcBody').innerHTML = `${loiPk ? `<div class="bang-tin" style="border-color:var(--red)">${IC.alert} <span>Phần bãi xe (đề nghị sửa biển, báo cáo an ninh) chưa tải được: ${esc(loiPk)}</span>
       <button class="btn sm" data-act="viewServices" style="margin-left:8px">${IC.refresh} Thử lại</button></div>` : pkAdminPanels(deNghi, baoCao, cb)}
       <div class="panel"><div class="hd"><h2>${IC.bike} Gửi xe — HV đang ở (<span id="vehCount">${totalVeh}</span> xe)</h2>
-      <div class="search"><span class="i">${IC.search}</span><input id="vs" placeholder="Tìm biển số, loại, chủ xe, phòng..." value="${esc(vehSearch)}"></div>
+      <div class="search"><span class="i">${IC.search}</span><input id="vs" placeholder="Tìm biển số, loại, chủ xe, phòng…" value="${esc(vehSearch)}"></div>
       <button class="btn sm" data-act="pkBaoCaoForm">${IC.history} Lịch sử gửi xe</button>
       <button class="btn sm pri" data-act="vehicleForm" data-args='[0, 0]'>${IC.plus} Thêm xe</button></div>
       <div class="table-wrap card-tbl">${totalVeh ? `<table><thead><tr><th>Biển số</th><th>Loại xe</th><th>Mã dán</th><th>Chủ xe</th><th>Phòng</th><th>Hiệu lực</th><th></th></tr></thead><tbody>
         ${veh.map(v => `<tr data-s="${esc((v.plate + ' ' + (v.vehicle_type || '') + ' ' + (v.student_name || '') + ' ' + (v.room_name || '') + ' ' + (v.prev_room_name || '') + ' ' + (v.sticker || '')).toLowerCase())}">
-          <td><strong>${esc(v.plate || '—')}</strong>${v.req_status === 'pending' ? `<div><span class="badge amber" style="font-size:10px" title="An ninh đề nghị sửa biển — duyệt ở bảng phía trên">chờ duyệt: ${esc(v.req_plate)}</span></div>` : ''}</td><td data-label="Loại xe">${esc(v.vehicle_type || '—')}</td><td data-label="Mã dán">${esc(v.sticker || '—')}</td>
+          <td><strong>${esc(v.plate || '—')}</strong>${v.req_status === 'pending' ? `<div><span class="badge amber" style="font-size:10px" title="An ninh đề nghị sửa biển — duyệt ở bảng phía trên">Chờ duyệt: ${esc(v.req_plate)}</span></div>` : ''}</td><td data-label="Loại xe">${esc(v.vehicle_type || '—')}</td><td data-label="Mã dán">${esc(v.sticker || '—')}</td>
           <td data-label="Chủ xe"><a href="#" data-act="studentDetail" data-args='[${v.student_id}]'>${esc(v.student_name)}</a></td><td data-label="Phòng">${phongXe(v)}</td>
           <td data-label="Hiệu lực" class="muted" style="font-size:12px;white-space:nowrap">${fmtDate(v.from_date)} → ${v.to_date ? fmtDate(v.to_date) : 'còn gửi'}</td>
           <td class="num"><div class="rowbtns" style="justify-content:flex-end">
@@ -146,10 +146,10 @@ async function viewServices() {
           </tbody></table></div>
           <div class="pad"><div class="hint">${IC.info}<span>Duyệt = thêm vào danh sách máy giặt, ngày đăng ký tính từ hôm nay. Phí máy giặt vẫn tính theo kỳ của phiếu báo, không cắt theo ngày đăng ký.</span></div></div>
         </div>` : ''}
-      <div class="panel"><div class="hd"><h2>${IC.washer} Máy giặt</h2><button class="btn sm pri" data-act="addWashingForm">${IC.plus} Thêm HV dùng máy giặt</button></div>
+      <div class="panel"><div class="hd"><h2>${IC.washer} Máy giặt</h2><button class="btn sm pri" data-act="addWashingForm">${IC.plus} Thêm học viên</button></div>
       <div class="table-wrap card-tbl">${washUsers.length ? `<table><thead><tr><th>Học viên</th><th>Phòng</th><th>Ngày đăng ký</th><th>Mã pháp nhân</th><th></th></tr></thead><tbody>
-        ${washUsers.map(s => `<tr><td><a href="#" data-act="studentDetail" data-args='[${s.id}]'><strong>${esc(s.name)}</strong></a>${s.code ? `<div class="muted" style="font-size:11px">${esc(s.code)}</div>` : ''}</td><td data-label="Phòng">${s.room_id ? `<a href="#" data-act="roomDetail" data-args='[${s.room_id}]'>${esc(s.room_name || '—')}</a>` : esc(s.room_name || '—')}</td><td data-label="Ngày đăng ký">${s.washing_from ? fmtDate(s.washing_from) : '<span class="muted">chưa rõ</span>'}</td><td data-label="Mã pháp nhân">${legalEntityCell(s.gender)}</td><td class="num"><button class="btn sm ghost" data-act="toggleWashing" data-args='[${s.id}, false]'>${IC.trash} Ngưng</button></td></tr>`).join('')}
-      </tbody></table>` : '<div class="empty">Chưa có HV đăng ký máy giặt. Bấm "Thêm HV dùng máy giặt".</div>'}</div></div>`;
+        ${washUsers.map(s => `<tr><td><a href="#" data-act="studentDetail" data-args='[${s.id}]'><strong>${esc(s.name)}</strong></a>${s.code ? `<div class="muted" style="font-size:11px">${esc(s.code)}</div>` : ''}</td><td data-label="Phòng">${s.room_id ? `<a href="#" data-act="roomDetail" data-args='[${s.room_id}]'>${esc(s.room_name || '—')}</a>` : esc(s.room_name || '—')}</td><td data-label="Ngày đăng ký">${s.washing_from ? fmtDate(s.washing_from) : '<span class="muted">chưa rõ</span>'}</td><td data-label="Mã pháp nhân">${legalEntityCell(s.gender)}</td><td class="num"><button class="btn sm ghost" data-act="toggleWashing" data-args='[${s.id}, false]'>${IC.pause} Ngưng</button></td></tr>`).join('')}
+      </tbody></table>` : `<div class="empty">${trongChuaCo('học viên dùng máy giặt')} Bấm <strong>Thêm học viên</strong>.</div>`}</div></div>`;
   }
   syncFilterUrl(); // BL-17: tab dịch vụ (washing/parking) + tìm xe lên URL
 }
@@ -161,7 +161,7 @@ function pkAdminPanels(deNghi, baoCao, cb) {
   const gio = iso => { const t = new Date(iso); return isNaN(t) ? '' : `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`; };
   const luc = iso => iso ? `${fmtDate(String(iso).slice(0, 10))} ${gio(iso)}` : '—';
   const mailChu = x => x.mail_sent_at ? `${IC.mail} email đã gửi ${gio(x.mail_sent_at)}${x.mail_to ? ' tới ' + esc(x.mail_to) : ''}`
-    : x.mail_error ? `<span style="color:var(--red-ink)">${IC.alert} email chưa gửi được: ${esc(x.mail_error)}</span>` : `${IC.hourglass} đang gửi email…`;
+    : x.mail_error ? `<span style="color:var(--red-ink)" title="${esc(x.mail_error)}">${IC.alert} email chưa gửi được</span>` : `${IC.hourglass} đang gửi email…`;
   const dailies = (cb && cb.dailies) || [], vangLau = (cb && cb.vang_lau) || [];
   const LOAI = { stranger: ['Xe lạ', 'red'], absent_long: ['Vắng nhiều ngày', 'amber'], other: ['Khác', 'gray'] };
   const TT = { new: ['Mới', 'blue'], seen: ['Đã xem', 'amber'], done: ['Đã xử lý', 'green'] };
@@ -171,7 +171,7 @@ function pkAdminPanels(deNghi, baoCao, cb) {
     ${dailies.length ? dailies.map(x => `<div class="bang-tin" style="border-color:var(--green)">${IC.checkCircle} <span>${x.facility_name ? `<strong>${esc(x.facility_name)}</strong> · ` : ''}An ninh <strong>${esc(x.closed_by)}</strong> chốt lúc <strong>${gio(x.closed_at)}</strong> · ${x.co_mat} có · ${x.vang} vắng · ${x.so_bao_cao} báo cáo${x.vang_lau ? ` · <strong>${x.vang_lau}</strong> xe vắng lâu` : ''}<br>${mailChu(x)}</span></div>`).join('')
     : cb && cb.chua_chot ? `<div class="bang-tin" style="border-color:var(--red);color:var(--red-ink)">${IC.alert} <span>Đã quá <strong>${esc(cb.alert_time)}</strong> mà an ninh <strong>chưa chốt bãi xe</strong> hôm nay.</span></div>`
       : `<div class="muted" style="font-size:13px">${IC.hourglass} An ninh chưa chốt lượt kiểm hôm nay${cb ? ` (chuông sẽ nhắc sau ${esc(cb.alert_time)})` : ''}.</div>`}
-    ${vangLau.length ? `<div class="bang-tin" style="border-color:var(--red);margin-top:8px">${IC.alert} <span><strong>${vangLau.length}</strong> xe vắng liên tiếp từ ${cb.alert_days} ngày — kiểm tra lại đăng ký hoặc hỏi chủ xe:
+    ${vangLau.length ? `<div class="bang-tin" style="border-color:var(--red);margin-top:8px">${IC.alert} <span><strong>${vangLau.length}</strong> xe vắng liên tiếp từ ${cb.alert_days} ngày trở lên — kiểm tra lại đăng ký hoặc hỏi chủ xe:
       ${vangLau.map(x => `<strong>${esc(x.plate)}</strong> (${esc(x.student_name || '')}${x.room_name ? ' · ' + esc(x.room_name) : ''} · ${x.days} ngày)`).join(' · ')}</span></div>` : ''}
   </div></div>`;
 
@@ -189,8 +189,8 @@ function pkAdminPanels(deNghi, baoCao, cb) {
 
   window._pkBaoCao = baoCao;   // pkGanXeForm tra lại biển số / nội dung của báo cáo khi bấm ghi xe
   const oBaoCao = `<div class="panel" id="pk_panel_baocao"><div class="hd"><h2>${IC.flag} Báo cáo bãi xe từ an ninh (${baoCao.length})</h2>
-      <div class="toolbar"><button class="btn sm ${pkAdminLoc === 'new' ? 'pri' : ''}" data-act="pkAdminLocGo" data-args='["new"]'>Chưa xem</button>
-      <button class="btn sm ${pkAdminLoc === 'all' ? 'pri' : ''}" data-act="pkAdminLocGo" data-args='["all"]'>30 ngày gần đây</button></div></div>
+      <div class="toolbar"><button class="btn sm ${pkAdminLoc === 'new' ? 'pri' : ''}" data-act="pkAdminLocGo" data-args='["new"]' aria-pressed="${pkAdminLoc === 'new'}">Chưa xem</button>
+      <button class="btn sm ${pkAdminLoc === 'all' ? 'pri' : ''}" data-act="pkAdminLocGo" data-args='["all"]' aria-pressed="${pkAdminLoc === 'all'}">30 ngày gần đây</button></div></div>
     <div class="table-wrap card-tbl">${baoCao.length ? `<table><thead><tr><th>Ngày</th><th>Loại</th><th>Biển số</th><th>Nội dung</th><th>Người gửi</th><th>Trạng thái</th><th></th></tr></thead><tbody>
       ${baoCao.map(x => `<tr>
         <td data-label="Ngày" style="white-space:nowrap">${fmtDate(x.report_date)}</td><td data-label="Loại">${bd(LOAI, x.kind)}</td>
@@ -199,7 +199,7 @@ function pkAdminPanels(deNghi, baoCao, cb) {
         <td data-label="Trạng thái">${bd(TT, x.status)}${x.handled_by ? `<div class="muted" style="font-size:11px">${esc(x.handled_by)} · ${luc(x.handled_at)}</div>` : ''}</td>
         <td class="num"><div class="rowbtns" style="justify-content:flex-end">
           ${x.has_photo ? `<button class="btn sm ghost" title="Xem ảnh" data-act="pkXemAnhBaoCao" data-args='[${x.id}]'>${IC.search}</button>` : ''}
-          ${x.kind === 'stranger' && !x.vehicle_id ? `<button class="btn sm pri" title="Xe này là của một học viên đang ở — ghi vào danh sách gửi xe" data-act="pkGanXeForm" data-args='[${x.id}]'>${IC.bike} Ghi vào danh sách xe</button>` : ''}
+          ${x.kind === 'stranger' && !x.vehicle_id ? `<button class="btn sm pri" title="Xe này là của một học viên đang ở — ghi vào danh sách gửi xe" data-act="pkGanXeForm" data-args='[${x.id}]'>${IC.bike} Ghi vào danh sách</button>` : ''}
           ${x.status === 'new' ? `<button class="btn sm" data-act="pkBcTrangThai" data-args='[${x.id},"seen"]'>Đã xem</button>` : ''}
           ${x.status !== 'done' ? `<button class="btn sm green" data-act="pkBcTrangThai" data-args='[${x.id},"done"]'>${IC.check} Đã xử lý</button>` : ''}
         </div></td></tr>`).join('')}
@@ -235,7 +235,7 @@ function pkGanXeForm(id) {
   const bc = (window._pkBaoCao || []).find(x => x.id === id) || {};
   const dsHV = ST.students.filter(isOccupying)
     .sort((a, b) => (a.room_name || '').localeCompare(b.room_name || '', 'vi') || (a.name || '').localeCompare(b.name || '', 'vi'));
-  if (!dsHV.length) return toast('Không có học viên đang ở để gán xe', 'err');
+  if (!dsHV.length) return toast('Không có học viên đang ở để gán xe', 'info');
   openModal(`
     <div class="mh"><h3>${IC.bike} Ghi xe lạ vào danh sách gửi xe</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
@@ -245,7 +245,7 @@ function pkGanXeForm(id) {
       </select></div>
       <div class="grid2">
         <div class="field"><label>Biển số ${SAO}</label><input id="pg_plate" value="${esc(bc.plate || '')}" placeholder="63-B4 508.58" autocapitalize="characters"></div>
-        <div class="field"><label>Loại xe</label><input id="pg_type" placeholder="Xe số / Xe ga..."></div>
+        <div class="field"><label>Loại xe</label><input id="pg_type" placeholder="Xe số / Xe ga…"></div>
       </div>
       <div class="grid2">
         <div class="field"><label>Mã dán xe</label><input id="pg_sticker" placeholder="201.1"></div>
@@ -254,7 +254,7 @@ function pkGanXeForm(id) {
       <div class="hint">${IC.bulb} Hiệu lực lấy theo lượt ở của học viên (nhận phòng → trả phòng), sửa được ở màn Gửi xe.
         Phí gửi xe ${money(ST.settings.parking_fee)}/xe/tháng tính từ đó. Lưu xong báo cáo này chuyển sang <strong>Đã xử lý</strong>.</div>
     </div>
-    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="pkGanXeLuu" data-args='[${id}]'>Lưu vào danh sách xe</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="pkGanXeLuu" data-args='[${id}]'>Lưu</button></div>`);
   setTimeout(() => el('pg_stu') && el('pg_stu').focus(), 50);
 }
 async function pkGanXeLuu(id) {
@@ -270,10 +270,10 @@ async function pkGanXeLuu(id) {
 }
 function addWashingForm() {
   const avail = ST.students.filter(s => !s.uses_washing && isOccupying(s)).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'vi'));
-  if (!avail.length) return toast('Mọi học viên đang ở đều đã dùng máy giặt', 'err');
+  if (!avail.length) return toast('Mọi học viên đang ở đều đã dùng máy giặt', 'info');
   const opts = avail.map(s => `<option value="${s.id}">${esc(s.name)}${s.code ? ' (' + esc(s.code) + ')' : ''}${s.room_name ? ' — ' + esc(s.room_name) : ''}</option>`).join('');
   openModal(`
-    <div class="mh"><h3>${IC.washer} Thêm HV dùng máy giặt</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mh"><h3>${IC.washer} Thêm học viên dùng máy giặt</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="field"><label>Học viên ${SAO}</label><select id="wash_stu"><option value="">— Chọn học viên đang ở —</option>${opts}</select></div>
       <div class="hint">${IC.info} Phí máy giặt ${money(+ST.settings.washing_fee || 0)}/tháng sẽ được tính vào phiếu báo từ kỳ kế tiếp.</div>
@@ -327,9 +327,12 @@ const REV_AN_KHI_0 = ['other', 'deposit'];
 let _revData = [];   // doanh thu nam hien hanh — de exportRevenue() tu lay lai (khong nhoi vao data-args)
 async function viewRevenue() {
   el('content').innerHTML = '<div class="spinner"></div>';
-  const years = await guard(() => API.revenueYears());
-  if (years.length && !years.includes(revYear)) revYear = years[0];
-  const data = await guard(() => API.revenue(revYear));
+  let years, data;
+  try {
+    years = await API.revenueYears();
+    if (years.length && !years.includes(revYear)) revYear = years[0];
+    data = await API.revenue(revYear);
+  } catch (e) { return renderViewError('revenue', e); }
   _revData = data;
   const sum = k => data.reduce((a, m) => a + (+m[k] || 0), 0);
   // Cọc là tiền GIỮ HỘ (trả lại khi trả phòng) — để riêng, không cộng vào doanh thu.
@@ -364,13 +367,13 @@ async function viewRevenue() {
     <div class="cards">
       <div class="stat"><div class="l">${IC.calendar} Năm</div><div class="v sm"><select id="ry" style="font-size:15px;font-weight:600;padding:6px 8px">${(years.length ? years : [revYear]).map(y => `<option value="${y}" ${y === revYear ? 'selected' : ''}>${y}</option>`).join('')}</select></div></div>
       <div class="stat"><div class="l">${IC.trendingUp} Tổng tiền đã lập phiếu</div><div class="v sm">${money(grand)}
-        <div class="sub2" style="font-weight:500">${thangCuoi ? `đã lập tới Tháng ${thangCuoi.slice(5)}/${thangCuoi.slice(0, 4)}` : 'chưa lập phiếu nào'}${coc ? ` · cọc giữ hộ ${money(coc)} (không tính doanh thu)` : ''}</div></div></div>
+        <div class="sub2" style="font-weight:500">${thangCuoi ? `đã lập tới tháng ${thangCuoi.slice(5)}/${thangCuoi.slice(0, 4)}` : 'chưa lập phiếu nào'}${coc ? ` · cọc giữ hộ ${money(coc)} (không tính doanh thu)` : ''}</div></div></div>
     </div>
 
     ${revComp}
     <div class="panel"><div class="hd"><h2>${IC.trendingUp} Tiền đã lập phiếu theo tháng — năm ${revYear}</h2>
       <span class="muted" style="font-size:12px">Đơn vị: đồng</span>
-      <button class="btn sm" data-act="exportRevenue">${IC.download} Xuất Excel (CSV)</button></div>
+      <button class="btn sm" data-act="exportRevenue">${IC.download} Xuất CSV (mở bằng Excel)</button></div>
       <div class="table-wrap card-tbl">
       ${data.length ? `<table><thead><tr><th>Tháng</th>
         ${cot.map(([, l]) => `<th class="num">${shortSvc(l)}</th>`).join('')}
@@ -394,7 +397,7 @@ async function viewRevenue() {
           <td><strong>${esc(ST.settings[codeKey] || '—')}</strong></td>
           <td class="muted">${esc(ST.settings.bravo_fee_type || '')}</td>
           <td>${l}</td><td class="num">${moneyN(v)}</td></tr>`; }).join('')}
-        <tr style="background:var(--bg2)"><td colspan="3"><strong>TỔNG TIỀN PHIẾU</strong> <span class="muted" style="font-weight:500">(gồm cả cọc)</span></td><td class="num"><strong>${moneyN(grand + coc)}</strong></td></tr>
+        <tr style="background:var(--bg2)"><td colspan="3"><strong>Tổng tiền phiếu</strong> <span class="muted" style="font-weight:500">(gồm cả cọc)</span></td><td class="num"><strong>${moneyN(grand + coc)}</strong></td></tr>
       </tbody></table></div>
       <div class="pad muted" style="font-size:12.5px">${IC.bulb} Mã sản phẩm Bravo chỉnh trong <a href="#" data-act="adminGo" data-args='["settings"]'>Cài đặt</a>. Số liệu = tổng tiền đã lập phiếu báo, gồm cả tiền cọc thu ở kỳ nhận phòng. Thu tiền thực tế do Bravo quản lý. Số HV xuất cảnh xem ở <a href="#" data-act="adminGo" data-args='["exec"]'>Điều hành</a>.</div>
     </div>`;
@@ -484,7 +487,8 @@ function xoaLocNhatKy() { auditFilter = { user: '', from: '', to: '', offset: 0 
 async function viewAudit() {
   el('topActions').innerHTML = `<button class="btn" data-act="viewAudit">${IC.refresh} Tải lại</button>`;
   el('content').innerHTML = '<div class="spinner"></div>';
-  const res = await guard(() => API.auditLog({ limit: auditLimit, ...auditFilter }));
+  let res;
+  try { res = await API.auditLog({ limit: auditLimit, ...auditFilter }); } catch (e) { return renderViewError('audit', e); }
   // Endpoint giờ trả { total, limit, offset, rows } (trước là mảng) để lọc + lật trang được (V2-66).
   const rows = Array.isArray(res) ? res : (res.rows || []);
   const total = Array.isArray(res) ? rows.length : (res.total || 0);
@@ -509,7 +513,7 @@ async function viewAudit() {
     </div>
     <div class="panel"><div class="hd"><h2>${IC.history} Nhật ký thao tác</h2>
       <div class="flex" style="gap:8px;flex-wrap:wrap">
-        <div class="search"><span class="i">${IC.search}</span><input id="auUser" placeholder="Lọc theo người dùng..." value="${esc(auditFilter.user)}"></div>
+        <div class="search"><span class="i">${IC.search}</span><input id="auUser" placeholder="Lọc theo người dùng…" value="${esc(auditFilter.user)}"></div>
         <label class="muted" style="font-size:12px;display:flex;align-items:center;gap:4px">Từ <input id="auFrom" style="padding:5px;width:118px"></label>
         <label class="muted" style="font-size:12px;display:flex;align-items:center;gap:4px">Đến <input id="auTo" style="padding:5px;width:118px"></label>
         <button class="btn sm" id="auApply">${IC.search} Lọc</button>

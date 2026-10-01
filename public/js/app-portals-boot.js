@@ -16,7 +16,7 @@ async function renderStudent() {
         <div class="flex" style="gap:10px">
           <button class="notif-bell" id="hvNotifBell" title="Thông báo" aria-haspopup="dialog" aria-expanded="false" data-act="toggleHvNotif">${IC.bell}<span class="notif-dot" id="hvNotifDot" style="display:none"></span></button>
         </div>
-        <div class="toolbar"><button class="btn sm" data-act="loadStudentPortal">${IC.refresh} Tải lại</button>${laKiemNhiem() ? `<button class="btn sm" data-act="switchPortal" data-args='["work"]'>${IC.arrowLeft} Về cổng làm việc</button>` : ''}${dungMatKhau() ? `<button class="btn sm" data-act="changePwd">${IC.key} Đổi mật khẩu</button>` : ''}<button class="btn sm" data-act="logout">${IC.logOut} Đăng xuất</button></div>
+        <div class="toolbar"><button class="btn sm" data-act="loadStudentPortal">${IC.refresh} Tải lại</button>${laKiemNhiem() ? `<button class="btn sm" data-act="switchPortal" data-args='["work"]'>${IC.arrowLeft} Cổng làm việc</button>` : ''}${dungMatKhau() ? `<button class="btn sm" data-act="changePwd">${IC.key} Đổi mật khẩu</button>` : ''}<button class="btn sm" data-act="logout">${IC.logOut} Đăng xuất</button></div>
       </div>
       <div class="content" id="content"><div class="spinner"></div></div>
     </div></div>`;
@@ -129,7 +129,7 @@ async function loadStudentPortal() {
       <div class="pad muted" style="font-size:12.5px">${IC.info} Bấm vào từng kỳ để xem chi tiết khoản thu. &nbsp;·&nbsp; ${IC.creditCard} Đóng tiền qua mã QR Ban Quản lý gửi trên Zalo theo hạn hằng tháng.</div>
     </div></div>
 
-    <div class="panel" id="pnHoTro"><div class="hd"><h2>${IC.handCoins} Hỗ trợ học viên</h2><button class="btn sm pri" data-act="damageForm">${IC.plus} Gửi yêu cầu hỗ trợ</button></div><div class="table-wrap card-tbl">
+    <div class="panel" id="pnHoTro"><div class="hd"><h2>${IC.handCoins} Hỗ trợ học viên</h2><button class="btn sm pri" data-act="damageForm">${IC.plus} Gửi yêu cầu</button></div><div class="table-wrap card-tbl">
       ${damage.length ? `<table><thead><tr><th>Ngày</th><th>Loại</th><th>Nội dung</th><th>Trạng thái</th></tr></thead><tbody>
         ${damage.map(d => `<tr><td data-label="Ngày">${fmtDate(String(d.created_at).slice(0, 10))}</td><td data-label="Loại">${supCatBadge(d.category)}</td><td data-label="Nội dung"><strong>${esc(d.title)}</strong>${d.description ? `<div class="muted" style="font-size:12px">${esc(d.description)}</div>` : ''}</td><td data-label="Trạng thái">${d.status === 'done' ? '<span class="badge green">Đã xử lý</span>' : d.status === 'blocked' ? '<span class="badge red">Chưa xử lý được — liên hệ Ban Quản lý</span>' : d.status === 'processing' ? '<span class="badge blue">Đang xử lý</span>' : '<span class="badge amber">Mới</span>'}</td></tr>`).join('')}
       </tbody></table>` : `<div class="empty">${trongChuaCo('yêu cầu nào')}</div>`}
@@ -166,8 +166,8 @@ function damageForm(cat) {
         <option value="violation"${sel('violation')}>Báo cáo vi phạm</option>
         <option value="other"${sel('other')}>Khác (cần hỗ trợ trong quá trình ở)</option>
       </select></div>
-      <div class="field"><label>Nội dung ${SAO}</label><input id="dm_title" placeholder="Nêu ngắn gọn nội dung..."></div>
-      <div class="field"><label>Mô tả chi tiết</label><textarea id="dm_desc" rows="3" placeholder="Mô tả thêm nếu cần..."></textarea></div>
+      <div class="field"><label>Nội dung ${SAO}</label><input id="dm_title" placeholder="Nêu ngắn gọn nội dung…"></div>
+      <div class="field"><label>Mô tả chi tiết</label><textarea id="dm_desc" rows="3" placeholder="Mô tả thêm nếu cần…"></textarea></div>
       <div class="hint" id="dmHint" style="font-size:12px">${IC.info} Báo hư hỏng thiết bị/cơ sở vật chất trong phòng để quản lý sửa chữa.</div>
     </div>
     <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="submitDamage">Gửi yêu cầu</button></div>`);
@@ -252,7 +252,7 @@ function myWifiBlock(profile) {
 }
 async function copyWifi(mk) {
   try { await navigator.clipboard.writeText(mk); toast('Đã chép mật khẩu wifi'); }
-  catch (e) { toast('Không chép tự động được — hãy chép tay', 'err'); }
+  catch (e) { toast('Không sao chép được — chép tay mật khẩu bên trên', 'err'); }
 }
 
 /* Panel "Liên hệ khi cần" — đặt NGAY ĐẦU trang, trên cả hồ sơ cá nhân. Số an ninh ca đêm là thứ
@@ -360,11 +360,8 @@ function myAssetsPanel(assets, profile) {
 
   return `<div class="panel"><div class="hd"><h2>${IC.box} Cơ sở vật chất trong phòng</h2></div><div class="pad">
     ${room.length ? `<h4 class="asset-h">Trang bị chung của phòng <span class="muted" style="text-transform:none;font-weight:500">(dùng chung, hỏng do hao mòn không phải đền)</span></h4>${list(room, false)}` : ''}
-    ${mine.length ? `<h4 class="asset-h" style="margin-top:18px">Bàn giao riêng cho bạn <span class="muted" style="text-transform:none;font-weight:500">— nếu làm mất / hư / không vệ sinh thì trừ tiền cọc theo mức bên phải</span></h4>${list(mine, true)}` : ''}
-    <div class="hint" style="margin:18px 0 0">${IC.info}<span>Con số <strong>"Đền nếu mất/hư"</strong> bên phải sẽ bị
-      <strong>trừ vào tiền cọc</strong> khi bạn trả phòng — chỉ khi món đó <strong>mất, hư hoặc chưa vệ sinh</strong>.
-      Đồ hỏng do <strong>hao mòn bình thường</strong> thì <strong>không phải đền</strong>. Nếu có bất kỳ vấn đề gì
-      trong quá trình ở, hãy <strong>Gửi yêu cầu hỗ trợ</strong> ở mục <strong>Hỗ trợ học viên</strong> bên dưới.</span></div>
+    ${mine.length ? `<h4 class="asset-h" style="margin-top:18px">Bàn giao riêng cho bạn <span class="muted" style="text-transform:none;font-weight:500">— mất, hư hoặc chưa vệ sinh thì trừ tiền cọc theo mức ghi ở từng món</span></h4>${list(mine, true)}` : ''}
+    <div class="hint" style="margin:18px 0 0">${IC.info}<span>Có vấn đề gì trong quá trình ở thì gửi yêu cầu ở mục <strong>Hỗ trợ học viên</strong>.</span></div>
   </div></div>`;
 }
 
@@ -385,9 +382,9 @@ async function toggleMyWashing(on) {
    Mỗi loại khai: [icon, câu chữ, id khối để nhảy tới]. */
 const HV_NOTIF = {
   invoice_new:       n => [IC.receipt, `Phiếu báo kỳ ${monthLabel(n.txt)} đã có — ${money(n.amount)}`, 'pnPhieu'],
-  invoice_paid:      n => [IC.checkCircle, `Đã xác nhận nhận tiền kỳ ${monthLabel(n.txt)}`, 'pnPhieu'],
+  invoice_paid:      n => [IC.checkCircle, `Đã nhận tiền kỳ ${monthLabel(n.txt)}`, 'pnPhieu'],
   checkout_done:     n => [IC.logOut, `Đơn trả phòng đã được duyệt${n.txt ? ` — ngày trả ${fmtDate(n.txt)}` : ''}`, 'pnTraPhong'],
-  checkout_rejected: () => [IC.alert, 'Đơn trả phòng không được duyệt — liên hệ Ban Quản lý', 'pnTraPhong'],
+  checkout_rejected: () => [IC.alert, 'Đơn trả phòng bị từ chối — liên hệ Ban Quản lý', 'pnTraPhong'],
   handover:          () => [IC.key, 'Đã xác nhận bàn giao phòng', 'pnTraPhong'],
   deposit_refunded:  () => [IC.handCoins, 'Tiền cọc của bạn đã được hoàn', 'pnTraPhong'],
   damage_assigned:   n => [IC.wrench, `Yêu cầu "${esc(n.txt)}" đã chuyển bộ phận xử lý`, 'pnHoTro'],
@@ -485,7 +482,7 @@ async function renderMaintenance() {
   el('app').innerHTML = `
     <div class="app"><div class="main" style="margin:0 auto;max-width:940px;width:100%">
       <div class="top">
-        <div><h1>${IC.shield} An ninh &amp; Bảo trì</h1><div class="sub">Xin chào, ${esc(Auth.user.full_name || Auth.user.username)}${coSoCuaToi(' · ')}</div></div>
+        <div><h1>${IC.shield} An ninh / Bảo trì</h1><div class="sub">Xin chào, ${esc(Auth.user.full_name || Auth.user.username)}${coSoCuaToi(' · ')}</div></div>
         <div class="toolbar"><button class="btn sm" data-act="loadMaintenance">${IC.refresh} Tải lại</button>${laKiemNhiem() ? `<button class="btn sm" data-act="switchPortal" data-args='["tenant"]'>${IC.home} Cổng học viên</button>` : ''}${dungMatKhau() ? `<button class="btn sm" data-act="changePwd">${IC.key} Đổi mật khẩu</button>` : ''}<button class="btn sm" data-act="logout">${IC.logOut} Đăng xuất</button></div>
       </div>
       <div class="content" id="content"><div class="spinner"></div></div>
@@ -534,7 +531,7 @@ async function maintNapDem() {
 async function loadMaintenance() {
   const veTab = () => el('maintTabs') && (el('maintTabs').innerHTML = MAINT_TABS.map(([k, ico, nhan]) => {
     const n = _maintDem[k];
-    return `<button class="btn sm ${maintTab === k ? 'pri' : ''}" data-act="maintGo" data-args='["${k}"]'>${IC[ico]} ${nhan}${
+    return `<button class="btn sm ${maintTab === k ? 'pri' : ''}" data-act="maintGo" data-args='["${k}"]' aria-pressed="${maintTab === k}">${IC[ico]} ${nhan}${
       n ? ` <span class="badge red" style="margin-left:2px">${n}</span>` : ''}</button>`;
   }).join(''));
   el('content').innerHTML = `<div class="pill-row" id="maintTabs"></div><div id="maintBody"><div class="spinner"></div></div>`;
@@ -567,7 +564,7 @@ async function loadMaintGiat() {
 
     <div class="panel" style="margin-top:10px"><div class="hd"><h2>${IC.washer} Đang dùng máy giặt (<span id="mgCount">${ds.length}</span>)</h2>
       <div class="toolbar"><div class="search"><span class="i">${IC.search}</span>
-        <input id="mgSearch" placeholder="Tìm phòng / tên học viên / mã..."></div>
+        <input id="mgSearch" placeholder="Tìm phòng / tên học viên / mã…"></div>
         <button class="btn sm pri" data-act="mgBaoForm">${IC.plus} Đề nghị đăng ký</button></div></div>
       <div class="table-wrap card-tbl">
         ${ds.length ? `<table><thead><tr><th>Phòng</th><th class="num">Tầng</th><th>Học viên</th><th>Mã HV</th><th>Ngày đăng ký</th></tr></thead><tbody>
@@ -649,7 +646,7 @@ async function loadCaTruc() {
       <thead><tr><th>Học viên</th><th>Phòng</th><th>${laNhan ? 'Dự kiến vào' : 'Đăng ký trả'}</th><th></th></tr></thead>
       <tbody>${ds.map(x => `<tr>
         <td data-label="Học viên"><strong>${esc(x.name)}</strong></td><td data-label="Phòng">${esc(x.room_name || '—')}</td>
-        <td data-label="Ngày">${fmtDate(x.date)}${quaNgay(x) > 0 ? ` <span class="badge red">quá ${quaNgay(x)} ngày</span>` : ''}</td>
+        <td data-label="${laNhan ? 'Dự kiến vào' : 'Đăng ký trả'}">${fmtDate(x.date)}${quaNgay(x) > 0 ? ` <span class="badge red">quá ${quaNgay(x)} ngày</span>` : ''}</td>
         <td class="num">${hoNut(x, laNhan)}</td></tr>`).join('')}</tbody></table></div>`
     : `<div class="empty">Không có học viên cần ${laNhan ? 'nhận' : 'trả'} phòng.</div>`;
   const o = (ico, nhan, gia, tab, mau) => `<div class="stat" role="button" tabindex="0" data-act="maintGo" data-args='["${tab}"]' style="cursor:pointer">
@@ -686,25 +683,25 @@ async function loadMaintViec() {
   const done = tasks.filter(t => t.status === 'done');
   el('maintBody').innerHTML = `
     ${maintCanhBao(pending.length, 'việc sửa chữa chưa xong', 'Không còn việc sửa chữa nào.')}
-    <div class="panel"><div class="hd"><h2>${IC.wrench} Cần xử lý (${pending.length})</h2></div><div class="table-wrap card-tbl">
-      ${pending.length ? `<table><thead><tr><th>Chuyển lúc</th><th>Phòng</th><th>Nội dung</th><th>Người báo</th><th>Trạng thái</th><th></th></tr></thead><tbody>
+    ${pending.length ? `<div class="panel"><div class="hd"><h2>${IC.wrench} Cần xử lý (${pending.length})</h2></div><div class="table-wrap card-tbl">
+      <table><thead><tr><th>Ngày chuyển</th><th>Phòng</th><th>Nội dung</th><th>Người báo</th><th>Trạng thái</th><th></th></tr></thead><tbody>
         ${pending.map(t => `<tr>
-          <td data-label="Chuyển lúc">${fmtDate(String(t.assigned_at).slice(0, 10))}</td>
+          <td data-label="Ngày chuyển">${fmtDate(String(t.assigned_at).slice(0, 10))}</td>
           <td data-label="Phòng"><strong>${esc(t.room_name || '—')}</strong></td>
           <td data-label="Nội dung"><strong>${esc(t.title)}</strong>${t.description ? `<div class="muted" style="font-size:12px">${esc(t.description)}</div>` : ''}</td>
           <td data-label="Người báo">${esc(t.student_name || '—')}${t.student_phone ? `<div class="muted" style="font-size:11px">${esc(t.student_phone)}</div>` : ''}</td>
           <td data-label="Trạng thái">${t.status === 'blocked' ? `<span class="badge red">Chưa xử lý được</span>${t.admin_note ? `<div style="font-size:11px;color:var(--red-ink)">Lý do: ${esc(t.admin_note)}</div>` : ''}`
-            : t.status === 'processing' ? '<span class="badge blue">Đang xử lý</span>' : '<span class="badge amber">Mới nhận</span>'}</td>
+            : t.status === 'processing' ? '<span class="badge blue">Đang xử lý</span>' : '<span class="badge amber">Mới</span>'}</td>
           <td class="num"><div class="rowbtns" style="justify-content:flex-end;flex-wrap:wrap;gap:4px">
             ${t.status !== 'processing' ? `<button class="btn sm" data-act="maintDo" data-args='[${t.id},"processing"]'>Bắt đầu xử lý</button>` : ''}
             <button class="btn sm" data-act="maintBlockForm" data-args='[${t.id}]'>${IC.alert} Chưa xử lý được</button>
             <button class="btn sm green" data-act="maintDoneForm" data-args='[${t.id}]'>${IC.check} Đã xử lý xong</button>
           </div></td></tr>`).join('')}
-      </tbody></table>` : '<div class="empty">Không có công việc cần xử lý.</div>'}
-    </div></div>
+      </tbody></table>
+    </div></div>` : ''}
     ${!maintChiChuaXong && done.length ? `<div class="panel"><div class="hd"><h2>${IC.history} Đã hoàn thành (${done.length})</h2></div><div class="table-wrap card-tbl">
-      <table><thead><tr><th>Xong lúc</th><th>Phòng</th><th>Nội dung</th><th>Ghi chú bảo trì</th></tr></thead><tbody>
-        ${done.map(t => `<tr><td data-label="Xong lúc">${fmtDate(String(t.resolved_at || t.assigned_at).slice(0, 10))}</td><td data-label="Phòng">${esc(t.room_name || '—')}</td><td data-label="Nội dung">${esc(t.title)}</td><td data-label="Ghi chú" class="muted">${esc(t.admin_note || '—')}</td></tr>`).join('')}
+      <table><thead><tr><th>Ngày xong</th><th>Phòng</th><th>Nội dung</th><th>Ghi chú bảo trì</th></tr></thead><tbody>
+        ${done.map(t => `<tr><td data-label="Ngày xong">${fmtDate(String(t.resolved_at || t.assigned_at).slice(0, 10))}</td><td data-label="Phòng">${esc(t.room_name || '—')}</td><td data-label="Nội dung">${esc(t.title)}</td><td data-label="Ghi chú bảo trì" class="muted">${esc(t.admin_note || '—')}</td></tr>`).join('')}
       </tbody></table></div></div>` : ''}`;
 }
 /* ---- Bàn giao phòng (bảo trì xác nhận nhận/trả phòng thực tế) ---- */
@@ -720,7 +717,7 @@ function hoNut(x, laNhan) {
   const kind = laNhan ? 'checkin' : 'checkout', r = x.report;
   if (hoXong(x, laNhan)) {
     const ngay = laNhan ? x.check_in_date : (x.checkout_actual_date || x.check_out_date);
-    return `<span class="badge green">${IC.check} ${laNhan ? 'Đã nhận phòng' : 'Đã trả'} ${fmtDate(String(ngay || '').slice(0, 10))}</span>${
+    return `<span class="badge green">${IC.check} ${laNhan ? 'Đã nhận phòng' : 'Đã trả phòng'} ${fmtDate(String(ngay || '').slice(0, 10))}</span>${
       r && r.status === 'approved' ? `<div class="muted" style="font-size:11px">Biên bản #${r.id} đã xác nhận</div>` : ''}`;
   }
   if (r && r.status === 'pending') {
@@ -730,7 +727,7 @@ function hoNut(x, laNhan) {
   const traLai = r && r.status === 'returned';
   return `${traLai ? `<div style="font-size:11px;color:var(--red-ink);white-space:normal;margin-bottom:4px">${IC.alert} Ban Quản lý trả lại: ${esc(r.review_note || '')}</div>` : ''}
     <button class="btn sm green" data-act="bienBanForm" data-args='["${kind}",${x.id}]'>${IC.filePen} ${
-      traLai ? 'Lập lại biên bản' : (laNhan ? 'Lập biên bản nhận phòng' : 'Lập biên bản trả phòng')}</button>`;
+      traLai ? 'Lập lại biên bản' : 'Lập biên bản'}</button>`;
 }
 async function loadHandovers(month) {
   if (month) hoMonth = month;
@@ -762,7 +759,7 @@ async function loadHandovers(month) {
     <td data-label="Ngày">${fmtDate(x.date)}</td>
     <td class="num">${hoNut(x, true)}</td></tr>`;
   const outRow = x => `<tr>
-    <td data-label="Học viên"><strong>${esc(x.name)}</strong></td><td data-label="Phòng">${esc(x.room_name || '—')}</td><td data-label="Ngày ĐK">${fmtDate(x.date)}</td>
+    <td data-label="Học viên"><strong>${esc(x.name)}</strong></td><td data-label="Phòng">${esc(x.room_name || '—')}</td><td data-label="Ngày đăng ký trả">${fmtDate(x.date)}</td>
     <td class="num">${hoNut(x, false)}</td></tr>`;
 
   const tatCa = laNhan ? d.checkins : d.checkouts;
@@ -770,7 +767,7 @@ async function loadHandovers(month) {
   const chuaXong = tatCa.filter(x => !hoXong(x, laNhan) && !(x.report && x.report.status === 'pending'));
   const hien = maintChiChuaXong ? chuaXong : tatCa;
   const tieuDe = laNhan ? 'Nhận phòng' : 'Trả phòng';
-  const cotNgay = laNhan ? 'Ngày' : 'Ngày ĐK';
+  const cotNgay = laNhan ? 'Ngày' : 'Ngày đăng ký trả';
   area.innerHTML = `
     <div class="panel"><div class="hd"><h2>${laNhan ? IC.userCheck : IC.doorOpen} ${tieuDe} — ${monthLabel(hoMonth)}</h2>
       <input id="ho_month" aria-label="Chọn tháng" title="Chọn tháng" style="font-weight:600;padding:6px 8px;border-radius:8px;max-width:150px"></div>
@@ -870,14 +867,14 @@ async function bienBanLuu(kind, id) {
   }));
   if (r === null) return;
   closeModal();
-  toast(`Đã gửi biên bản #${r.id} — chờ Ban Quản lý xác nhận${+r.damage_amount ? ` · hư hao ${money(+r.damage_amount)}` : ''}`);
+  toast('Đã gửi biên bản — chờ Ban Quản lý xác nhận');
   loadMaintenance();
 }
 async function maintDo(id, status) { await guard(() => API.maintenanceTaskStatus(id, status)); toast('Đã cập nhật'); loadMaintenance(); }
 function maintDoneForm(id) {
   openModal(`
     <div class="mh"><h3>${IC.check} Hoàn thành công việc</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
-    <div class="mb"><div class="field"><label>Ghi chú bảo trì (đã làm gì)</label><textarea id="mt_note" rows="3" placeholder="VD: Đã thay vòi nước mới, kiểm tra lại..."></textarea></div></div>
+    <div class="mb"><div class="field"><label>Ghi chú bảo trì (đã làm gì)</label><textarea id="mt_note" rows="3" placeholder="VD: Đã thay vòi nước mới, kiểm tra lại…"></textarea></div></div>
     <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="submitMaintDone" data-args='[${id}]'>Xác nhận đã xong</button></div>`);
 }
 async function submitMaintDone(id) {
@@ -888,7 +885,7 @@ function maintBlockForm(id) {
   openModal(`
     <div class="mh"><h3>${IC.alert} Chưa xử lý được</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb"><div class="field"><label>Lý do chưa xử lý được ${SAO}</label>
-      <textarea id="mt_reason" rows="3" placeholder="VD: Cần thay linh kiện, đang đặt hàng · Ngoài khả năng, cần thợ ngoài · Chờ học viên có mặt..."></textarea></div>
+      <textarea id="mt_reason" rows="3" placeholder="VD: Cần thay linh kiện, đang đặt hàng · Ngoài khả năng, cần thợ ngoài · Chờ học viên có mặt…"></textarea></div>
       <div class="hint" style="font-size:12px">${IC.info} Công việc vẫn nằm trong danh sách "Cần xử lý"; quản lý & học viên sẽ thấy lý do này.</div>
     </div>
     <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="submitMaintBlock" data-args='[${id}]'>Lưu lý do</button></div>`);
@@ -973,7 +970,7 @@ async function loadParkingCheck() {
 
   const gio = iso => { const t = new Date(iso); return isNaN(t) ? '' : `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`; };
   const mailChu = x => x.mail_sent_at ? `${IC.mail} email đã gửi lúc ${gio(x.mail_sent_at)}${x.mail_to ? ' tới ' + esc(x.mail_to) : ''}`
-    : x.mail_error ? `${IC.alert} email chưa gửi được: ${esc(x.mail_error)}` : `${IC.hourglass} đang gửi email…`;
+    : x.mail_error ? `<span title="${esc(x.mail_error)}">${IC.alert} email chưa gửi được — Ban Quản lý vẫn xem được báo cáo ở màn Gửi xe</span>` : `${IC.hourglass} đang gửi email…`;
   const oChot = (d.dailies || []).map(x => `<div class="bang-tin" style="border-color:var(--green);margin-top:10px">${IC.checkCircle}
     <span>${x.facility_name ? `<strong>${esc(x.facility_name)}</strong> · ` : ''}Đã chốt lúc <strong>${gio(x.closed_at)}</strong> bởi <strong>${esc(x.closed_by)}</strong> ·
     ${x.co_mat} có · ${x.vang} vắng · ${x.so_bao_cao} báo cáo${x.vang_lau ? ` · <strong>${x.vang_lau}</strong> xe vắng ≥ ${nguong} ngày` : ''}<br>${mailChu(x)}</span></div>`).join('');
@@ -988,7 +985,7 @@ async function loadParkingCheck() {
       <div class="stat"><div class="l">${IC.bike} Xe phải kiểm</div><div class="v sm">${s.tong}</div></div>
       <div class="stat"><div class="l">${IC.checkCircle} Có</div><div class="v sm" style="color:var(--green)">${s.co_mat}</div></div>
       <div class="stat"><div class="l">${IC.undo} Vắng</div><div class="v sm">${s.vang}</div></div>
-      <div class="stat"><div class="l">${IC.hourglass} Chưa đánh</div><div class="v sm" style="color:${conLai ? 'var(--amber-ink)' : 'var(--green)'}">${conLai}</div></div>
+      <div class="stat"><div class="l">${IC.hourglass} Chưa kiểm</div><div class="v sm" style="color:${conLai ? 'var(--amber-ink)' : 'var(--green)'}">${conLai}</div></div>
     </div>
     <div class="panel"><div class="hd">
       <h2>${IC.bike} Điểm danh bãi xe — ${fmtDate(d.date)}${laHomNay ? ' (hôm nay)' : ''}</h2>
@@ -997,19 +994,18 @@ async function loadParkingCheck() {
         <button class="btn sm pri" data-act="pkXeLaForm">${IC.alert} Báo xe lạ</button>
       </div></div>
       <div class="pad">
-        <div class="bang-tin">${IC.info} <span>Đi hết bãi, bấm <strong>Có</strong>/<strong>Vắng</strong> từng xe; xe nào cần thì <strong>Báo cáo</strong> hoặc <strong>Sửa biển</strong>.
-          Xong bấm <strong>Chốt & gửi báo cáo ngày</strong>: xe chưa đánh sẽ ghi là <strong>vắng</strong>, Ban Quản lý nhận báo cáo qua chuông và email.</span></div>
+        <div class="bang-tin">${IC.info} <span>Đi hết bãi, bấm Có hoặc Vắng cho từng xe, xong thì bấm <strong>Chốt ngày</strong>.</span></div>
         <div class="flex" style="gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">
-          <button class="btn ${conLai ? 'pri' : ''}" data-act="pkChotLuot">${IC.check} ${daChot ? 'Chốt lại & gửi báo cáo' : 'Chốt & gửi báo cáo ngày'}${conLai ? ` (${conLai} xe còn lại)` : ''}</button>
+          <button class="btn ${conLai ? 'pri' : ''}" data-act="pkChotLuot">${IC.check} ${daChot ? 'Chốt lại' : 'Chốt ngày'}${conLai ? ` (${conLai} xe chưa kiểm)` : ''}</button>
         </div>
         ${oChot}
       </div>
       <div class="pill-row" style="margin:0 16px 10px">
-        <button class="btn sm ${pkTab === 'dang_o' ? 'pri' : ''}" data-act="pkTabGo" data-args='["dang_o"]'>${IC.home} Đang ở <span class="badge ${pkTab === 'dang_o' ? 'gray' : 'green'}" style="margin-left:2px">${dangO.length}</span></button>
-        <button class="btn sm ${pkTab === 'da_tra' ? 'pri' : ''}" data-act="pkTabGo" data-args='["da_tra"]'>${IC.doorOpen} Đã trả <span class="badge gray" style="margin-left:2px">${daTra.length}</span></button>
+        <button class="btn sm ${pkTab === 'dang_o' ? 'pri' : ''}" data-act="pkTabGo" data-args='["dang_o"]' aria-pressed="${pkTab === 'dang_o'}">${IC.home} Đang ở <span class="badge ${pkTab === 'dang_o' ? 'gray' : 'green'}" style="margin-left:2px">${dangO.length}</span></button>
+        <button class="btn sm ${pkTab === 'da_tra' ? 'pri' : ''}" data-act="pkTabGo" data-args='["da_tra"]' aria-pressed="${pkTab === 'da_tra'}">${IC.doorOpen} Đã trả <span class="badge gray" style="margin-left:2px">${daTra.length}</span></button>
       </div>
       <div class="search" style="margin:0 16px 10px"><span class="i">${IC.search}</span>
-        <input id="pk_tim" placeholder="Gõ vài số cuối biển, tên chủ xe hoặc phòng..."></div>
+        <input id="pk_tim" placeholder="Gõ vài số cuối biển, tên chủ xe hoặc phòng…"></div>
       <div class="table-wrap card-tbl">${ds.length
         ? `<table><thead><tr><th>Biển số</th><th>Chủ xe</th><th></th></tr></thead><tbody>
             ${ds.map(hang).join('')}
@@ -1040,7 +1036,7 @@ async function loadParkingCheck() {
 
 async function pkDanhDau(vehicleId, status) {
   await guard(() => API.parkingMark({ vehicle_id: vehicleId, date: pkNgay, status }));
-  toast(status === 'present' ? 'Đã ghi: có' : 'Đã ghi: vắng');
+  toast(status === 'present' ? 'Đã ghi: có gửi' : 'Đã ghi: vắng');
   loadParkingCheck();
 }
 async function pkBoDanhDau(id) {
@@ -1054,7 +1050,7 @@ async function pkChotLuot() {
   if (!(await xacNhan(`Chốt lượt kiểm ngày ${fmtDate(pkNgay)} và gửi báo cáo cho Ban Quản lý?\n\n${conLai} xe chưa đánh dấu sẽ được ghi là vắng.${daChot ? '\nNgày này đã chốt một lần — lần này ghi đè số liệu; email chỉ gửi lại nếu số liệu đổi.' : ''}`, { dongY: 'Chốt và gửi' }))) return;
   const r = await guard(() => API.parkingFinish(pkNgay));
   const dl = r.daily || {};
-  toast(`Đã chốt · ghi ${r.da_ghi_vang} xe vắng · ${dl.mail === 'sending' ? 'đang gửi email báo cáo' : 'số liệu không đổi, không gửi lại email'}`);
+  toast(dl.mail === 'sending' ? 'Đã chốt ngày' : 'Đã chốt ngày — số liệu không đổi, không gửi lại email');
   loadParkingCheck();
 }
 function pkXemAnh(id) { pkModalAnh('/api/maintenance/parking/photo/' + id); }
@@ -1181,11 +1177,11 @@ function onPkBien() {
   }
   hop.innerHTML = top.map(({ v }) => `
     <div class="flex" style="justify-content:space-between;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)">
-      <div><strong>${esc(v.plate)}</strong>${v.status ? ` <span class="badge ${v.status === 'present' ? 'green' : 'gray'}">${v.status === 'present' ? 'Đã ghi: có' : 'Đã ghi: vắng'}</span>` : ''}
+      <div><strong>${esc(v.plate)}</strong>${v.status ? ` <span class="badge ${v.status === 'present' ? 'green' : 'gray'}">${v.status === 'present' ? 'Đã ghi: có gửi' : 'Đã ghi: vắng'}</span>` : ''}
         <div class="muted" style="font-size:12px">${esc(v.student_name || '—')} · ${esc(v.room_name || 'chưa xếp phòng')}</div></div>
       <button class="btn sm green" data-act="pkQuetChon" data-args='[${v.vehicle_id}]'>${IC.check} Có</button>
     </div>`).join('')
-    + `<div style="margin-top:10px"><button class="btn sm ghost" data-act="pkGhiXeLaTuQuet">${IC.plus} Không phải xe nào ở trên — ghi là xe lạ</button></div>`;
+    + `<div style="margin-top:10px"><button class="btn sm ghost" data-act="pkGhiXeLaTuQuet">${IC.plus} Ghi là xe lạ</button></div>`;
 }
 async function pkQuetChon(vehicleId) {
   await guard(() => API.parkingMark({ vehicle_id: vehicleId, date: pkNgay, status: 'present', photo: pkAnh || undefined }));
@@ -1304,7 +1300,7 @@ function pkCameraForm() {
   openModal(`
     <div class="mh"><h3>${IC.search} Quét biển số</h3><button class="x" aria-label="Đóng" data-act="pkCamDong">×</button></div>
     <div class="mb" style="padding-top:8px">
-      <div id="pk_cam_box" data-act="pkCamQuetLai" title="Chạm để quét lại"
+      <div id="pk_cam_box" data-act="pkCamQuetLai" title="Bấm để quét lại"
            style="position:relative;background:#000;border-radius:12px;overflow:hidden;aspect-ratio:3/4;max-height:56vh;margin:0 auto;cursor:pointer">
         <video id="pk_video" playsinline autoplay muted style="width:100%;height:100%;object-fit:cover"></video>
         <div id="pk_khung" style="position:absolute;border:3px solid #fff;border-radius:8px;box-shadow:0 0 0 9999px rgba(0,0,0,.45);pointer-events:none"></div>
@@ -1314,7 +1310,7 @@ function pkCameraForm() {
       <div class="hint" style="font-size:12px">${IC.info} Đưa biển số vào trong khung trắng, giữ máy yên khoảng một giây.
         App chỉ tự ghi "có gửi" khi đọc <strong>trùng khít</strong> biển đã đăng ký; lệch dù một ký tự là nó
         hiện vài xe gần giống để <strong>bạn xác nhận</strong>, máy không tự quyết.
-        Đọc sai thì bấm <strong>Quét lại</strong> (hoặc chạm vào hình) — không phải tắt camera. Trời tối thì bật đèn pin.</div>
+        Đọc sai thì bấm <strong>Quét lại</strong> (hoặc bấm vào hình) — không phải tắt camera. Trời tối thì bật đèn pin.</div>
     </div>
     <div class="mf">
       <button class="btn" data-act="pkCamQuetLai">${IC.refresh} Quét lại</button>
@@ -1337,8 +1333,8 @@ async function pkCamChay() {
   // trong mạng nội bộ thì navigator.mediaDevices không tồn tại — phải nói rõ, đừng để văng TypeError.
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     bao(location.protocol === 'https:' || location.hostname === 'localhost'
-      ? 'Trình duyệt này không hỗ trợ camera. Dùng nút "Gõ tay thay vì quét" bên dưới.'
-      : 'Chỉ quét được khi vào app bằng địa chỉ https:// (đang vào bằng ' + location.protocol + '//' + location.hostname + '). Dùng nút "Gõ tay thay vì quét" bên dưới.');
+      ? 'Trình duyệt này không hỗ trợ camera. Dùng nút "Gõ tay" bên dưới.'
+      : 'Chỉ quét được khi vào app bằng địa chỉ https:// (đang vào bằng ' + location.protocol + '//' + location.hostname + '). Dùng nút "Gõ tay" bên dưới.');
     return;
   }
   let stream;
@@ -1347,8 +1343,8 @@ async function pkCamChay() {
   } catch (e) {
     const n = e && e.name;
     bao(n === 'NotAllowedError' ? 'Bạn đã từ chối quyền dùng camera. Mở lại quyền trong cài đặt trình duyệt rồi thử lại.'
-      : n === 'NotFoundError' ? 'Máy này không có camera. Dùng nút "Gõ tay thay vì quét" bên dưới.'
-      : 'Không mở được camera (' + (n || 'lỗi') + '). Dùng nút "Gõ tay thay vì quét" bên dưới.');
+      : n === 'NotFoundError' ? 'Máy này không có camera. Dùng nút "Gõ tay" bên dưới.'
+      : 'Không mở được camera (' + (n || 'lỗi') + '). Dùng nút "Gõ tay" bên dưới.');
     return;
   }
   const v = el('pk_video');
@@ -1360,7 +1356,7 @@ async function pkCamChay() {
   pkCamDatKhung();
 
   try { await pkNapOrt(bao); }
-  catch (e) { bao('Không tải được bộ đọc: ' + (e.message || '') + '. Dùng nút "Gõ tay thay vì quét".'); return; }
+  catch (e) { bao('Không tải được bộ đọc: ' + (e.message || '') + '. Dùng nút "Gõ tay".'); return; }
   bao('Đưa biển vào khung trắng…');
 
   let lanTruoc = '';
@@ -1818,7 +1814,7 @@ function setupResizable(table) {
   ths.forEach((th, i) => {
     if (i === ths.length - 1) return; // cột cuối không cần tay cầm
     const h = document.createElement('span');
-    h.className = 'rz-handle'; h.title = 'Kéo để chỉnh độ rộng cột · nhấp đúp để trả về mặc định';
+    h.className = 'rz-handle'; h.title = 'Kéo để chỉnh độ rộng cột · bấm đúp để trả về mặc định';
     // Pointer Events: một đường cho cả chuột, cảm ứng và bút. Trước đây chỉ bắt mousedown nên máy
     // tính bảng không kéo được cột nào.
     h.addEventListener('pointerdown', e => {
@@ -1892,11 +1888,11 @@ async function loadSecretary() {
   el('content').innerHTML = `
     <div class="panel"><div class="hd"><h2>${IC.fileText} Hợp đồng & CCCD (<span id="tkCount">${ds.length}</span>)</h2>
       <div class="toolbar"><div class="search"><span class="i">${IC.search}</span>
-        <input id="tkSearch" placeholder="Tìm họ tên / số HĐ / lớp..."></div></div></div>
+        <input id="tkSearch" placeholder="Tìm họ tên / số HĐ / lớp…"></div></div></div>
       <div class="table-wrap card-tbl">
         ${ds.length ? `<table><thead><tr><th>Họ tên</th><th>Ngày sinh</th><th>Trường / lớp</th><th>Số HĐ</th>
           <th>Ngày nhận phòng</th><th>Ngày trả phòng</th>
-          <th class="num">Scan HĐ</th><th class="num">CCCD trước</th><th class="num">CCCD sau</th></tr></thead><tbody>
+          <th class="num">Bản chụp HĐ</th><th class="num">CCCD trước</th><th class="num">CCCD sau</th></tr></thead><tbody>
           ${ds.map(s => `<tr data-s="${esc(((s.name || '') + ' ' + (s.contract_no || '') + ' ' + (s.class_name || '')).toLowerCase())}">
             <td data-label="Họ tên"><strong>${esc(s.name)}</strong></td>
             <td data-label="Ngày sinh">${s.birth_date ? fmtDate(s.birth_date) : '<span class="muted">—</span>'}</td>
@@ -1904,14 +1900,14 @@ async function loadSecretary() {
             <td data-label="Số HĐ">${coHD(s) ? `<strong>${esc(s.contract_no)}</strong>` : '<span class="badge amber">chưa có</span>'}</td>
             <td data-label="Ngày nhận phòng">${s.check_in_date ? fmtDate(s.check_in_date) : '<span class="muted">—</span>'}</td>
             <td data-label="Ngày trả phòng">${s.check_out_date ? fmtDate(s.check_out_date) : '<span class="muted">—</span>'}</td>
-            <td class="num" data-label="Scan HĐ">${hsCo(s.has_contract_scan, 'Bản scan hợp đồng', `/api/students/${s.id}/contract-scan`)}</td>
+            <td class="num" data-label="Bản chụp HĐ">${hsCo(s.has_contract_scan, 'Bản chụp hợp đồng', `/api/students/${s.id}/contract-scan`)}</td>
             <td class="num" data-label="CCCD trước">${hsCo(s.has_cccd_front, 'CCCD mặt trước', `/api/students/${s.id}/cccd/front`)}</td>
             <td class="num" data-label="CCCD sau">${hsCo(s.has_cccd_back, 'CCCD mặt sau', `/api/students/${s.id}/cccd/back`)}</td>
           </tr>`).join('')}
           ${hangKhongKhop('hồ sơ', 9)}
         </tbody></table>` : `<div class="empty">${trongChuaCo('hồ sơ nào')}</div>`}
       </div>
-      <div class="pad"><div class="hint">${IC.info}<span>Bấm <strong>Xem</strong> ở ba cột cuối để mở tệp (ảnh hoặc PDF) trong tab mới.</span></div></div>
+      <div class="pad"><div class="hint">${IC.info}<span>Bấm <strong>Xem</strong> ở ba cột cuối để mở tệp (ảnh hoặc PDF) trong cửa sổ mới.</span></div></div>
     </div>`;
   const sb = el('tkSearch'); if (sb) attachRowSearch(sb, 'tkCount');
 }
@@ -1948,7 +1944,7 @@ async function loadTeacher() {
   el('content').innerHTML = `
     <div class="panel"><div class="hd"><h2>${IC.calendar} Trực nhật theo phòng (<span id="gvCount">${phong.length}</span>)</h2>
       <div class="toolbar"><div class="search"><span class="i">${IC.search}</span>
-        <input id="gvSearch" placeholder="Tìm phòng / tên người trực..."></div></div></div>
+        <input id="gvSearch" placeholder="Tìm phòng / tên người trực…"></div></div></div>
       <div class="table-wrap card-tbl">
         ${phong.length ? `<table><thead><tr><th>Phòng</th><th class="num">Tầng</th><th class="num">Số người</th>
           <th>Hôm nay trực</th><th>Ngày mai</th></tr></thead><tbody>
@@ -1967,7 +1963,7 @@ async function loadTeacher() {
 
     <div class="panel"><div class="hd"><h2>${IC.alert} Vi phạm nội quy (<span id="gvVpCount">${ds.length}</span>)</h2>
       <div class="toolbar"><div class="search"><span class="i">${IC.search}</span>
-        <input id="gvVpSearch" placeholder="Tìm học viên / phòng / lỗi..."></div></div></div>
+        <input id="gvVpSearch" placeholder="Tìm học viên / phòng / lỗi…"></div></div></div>
       <div class="table-wrap card-tbl">
         ${ds.length ? `<table><thead><tr><th>Ngày</th><th>Học viên</th><th>Phòng</th><th>Lỗi</th><th>Mức độ</th><th>Ghi chú</th></tr></thead><tbody>
           ${ds.map(v => `<tr data-s="${esc(((v.student_name || '') + ' ' + (v.room_name || '') + ' ' + (v.type_name || '') + ' ' + (v.note || '')).toLowerCase())}">

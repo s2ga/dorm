@@ -4,6 +4,7 @@ package mail
 import (
 	"context"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 
@@ -13,6 +14,27 @@ import (
 )
 
 var sevVN = map[string]string{"minor": "Nhẹ", "major": "Nặng", "severe": "Nghiêm trọng"}
+
+// Câu báo dùng chung khi chưa gửi được thư. Lỗi gốc của máy chủ SMTP chỉ ghi log; người dùng xem chi tiết
+// bằng nút "Kiểm tra kết nối" ở Cài đặt › Email.
+const (
+	cauChuaCauHinh   = "Chưa cấu hình máy chủ email ở Cài đặt"
+	cauChuaCauHinhHV = "Chưa cấu hình máy chủ email hoặc email nhà trường ở Cài đặt"
+)
+
+func loiGuiThu(viec string, err error) string {
+	log.Printf("[mail] %s: %v", viec, err)
+	return "Máy chủ email không gửi được thư — bấm Kiểm tra kết nối ở Cài đặt › Email để xem lỗi"
+}
+
+// chuKy: dòng ký cuối mọi thư — "Ban Quản lý <tên KTX>" kèm hotline nếu có.
+func chuKy(s map[string]string, dorm string) string {
+	k := "--\nBan Quản lý " + dorm
+	if s["hotline"] != "" {
+		k += "\nHotline: " + s["hotline"]
+	}
+	return k
+}
 
 func fmtDate(d string) string {
 	if d == "" {
@@ -53,7 +75,7 @@ func MailStatus(ctx context.Context, database *db.DB) (bool, string) {
 		return false, "Lỗi đọc cấu hình"
 	}
 	if !SmtpReady(s) {
-		return false, "Chưa cấu hình SMTP / email nhà trường trong Cài đặt"
+		return false, cauChuaCauHinhHV
 	}
 	return true, ""
 }
@@ -103,7 +125,7 @@ func TestConnection(ctx context.Context, database *db.DB, o Override) (bool, str
 		"smtp_user": user, "smtp_pass": pass,
 	}
 	if s["smtp_host"] == "" || s["smtp_user"] == "" || s["smtp_pass"] == "" {
-		return false, "Thiếu host / tài khoản / mật khẩu SMTP"
+		return false, "Thiếu máy chủ, tài khoản hoặc mật khẩu SMTP"
 	}
 	sc, err := dialer(s).Dial()
 	if err != nil {
@@ -120,13 +142,13 @@ func smtpErrMsg(err error) string {
 	hint := ""
 	switch {
 	case strings.Contains(le, "timeout") || strings.Contains(le, "connection refused") || strings.Contains(le, "no such host") || strings.Contains(le, "network is unreachable"):
-		hint = " → Sai host/cổng, HOẶC nhà cung cấp máy chủ (vd Render gói free) đang CHẶN cổng SMTP. Thử cổng 587; nếu vẫn timeout thì nhà cung cấp chặn SMTP — phải dùng dịch vụ gửi mail qua HTTP API (SendGrid/Resend…) hoặc nâng gói."
+		hint = " Sai máy chủ hoặc cổng, hoặc nơi đặt máy chủ app đang chặn cổng SMTP. Thử cổng 587; vẫn không được thì cần dịch vụ gửi email qua HTTP hoặc nâng gói hosting."
 	case strings.Contains(le, "authentication") || strings.Contains(le, "535") || strings.Contains(le, "username and password") || strings.Contains(le, "5.7."):
-		hint = " → Sai tài khoản/mật khẩu. Gmail & Outlook KHÔNG nhận mật khẩu thường — phải tạo 'App Password' (mật khẩu ứng dụng) và dán vào đây."
+		hint = " Sai tài khoản hoặc mật khẩu. Gmail và Outlook không nhận mật khẩu thường — tạo mật khẩu ứng dụng (App Password) rồi dán vào đây."
 	case strings.Contains(le, "tls") || strings.Contains(le, "certificate") || strings.Contains(le, "handshake") || strings.Contains(le, "first record does not look like"):
-		hint = " → Sai kiểu mã hoá: cổng 465 phải BẬT bảo mật (SSL), cổng 587 phải TẮT bảo mật (dùng STARTTLS). Đổi lại rồi thử."
+		hint = " Sai kiểu bảo mật: cổng 465 dùng SSL/TLS, cổng 587 dùng STARTTLS. Đổi lại rồi thử."
 	}
-	return "Không kết nối được máy chủ SMTP. Lý do: " + e + hint
+	return "Không kết nối được máy chủ email." + hint + "\nChi tiết kỹ thuật: " + e
 }
 
 // Student + Violation cho mail.
@@ -158,7 +180,7 @@ func SendViolationMail(ctx context.Context, database *db.DB, student Student, vi
 		return false, "Lỗi đọc cấu hình", ""
 	}
 	if !SmtpReady(s) {
-		return false, "Chưa cấu hình SMTP / email nhà trường", ""
+		return false, cauChuaCauHinhHV, ""
 	}
 	lines := make([]string, len(violations))
 	for i, v := range violations {
@@ -187,15 +209,11 @@ func SendViolationMail(ctx context.Context, database *db.DB, student Student, vi
 	subject := fmt.Sprintf("[%s] Thông báo vi phạm nội trú — Học viên %s", dorm, student.Name)
 	code := ""
 	if student.Code != "" {
-		code = " (MSHV " + student.Code + ")"
+		code = " (mã học viên " + student.Code + ")"
 	}
 	cls := ""
 	if student.ClassName != "" {
 		cls = ", lớp " + student.ClassName
-	}
-	hotline := ""
-	if s["hotline"] != "" {
-		hotline = "\nHotline: " + s["hotline"]
 	}
 	text := fmt.Sprintf(`Kính gửi %s,
 
@@ -205,8 +223,7 @@ Ban Quản lý %s xin thông báo: học viên %s%s%s đã vi phạm nội quy k
 
 Kính đề nghị Nhà trường phối hợp nhắc nhở, xử lý. Trân trọng cảm ơn.
 
---
-Ban Quản lý %s%s`, schoolName, dorm, student.Name, code, cls, len(violations), strings.Join(lines, "\n"), dorm, hotline)
+%s`, schoolName, dorm, student.Name, code, cls, len(violations), strings.Join(lines, "\n"), chuKy(s, dorm))
 
 	html := strings.ReplaceAll(escHTML(text), "\n", "<br>")
 	from := s["smtp_from"]
@@ -220,7 +237,7 @@ Ban Quản lý %s%s`, schoolName, dorm, student.Name, code, cls, len(violations)
 	m.SetBody("text/plain", text)
 	m.AddAlternative("text/html", html)
 	if err := dialer(s).DialAndSend(m); err != nil {
-		return false, "Lỗi gửi mail: " + err.Error(), ""
+		return false, loiGuiThu("thư vi phạm", err), ""
 	}
 	return true, "", s["school_email"]
 }
@@ -264,7 +281,7 @@ func SendParkingDaily(ctx context.Context, database *db.DB, to []string, d Parki
 		return false, "Lỗi đọc cấu hình"
 	}
 	if !SmtpConfigured(s) {
-		return false, "Chưa cấu hình SMTP trong Cài đặt"
+		return false, cauChuaCauHinh
 	}
 	if len(to) == 0 {
 		return false, "Chưa có email nhận báo cáo"
@@ -317,10 +334,7 @@ func SendParkingDaily(ctx context.Context, database *db.DB, to []string, d Parki
 		}
 		b.WriteString(line + "\n")
 	}
-	b.WriteString("\nMở app → Dịch vụ → Gửi xe để duyệt đề nghị sửa biển và xử lý báo cáo.\n\n--\n" + dorm)
-	if s["hotline"] != "" {
-		b.WriteString("\nHotline: " + s["hotline"])
-	}
+	b.WriteString("\nMở app → Dịch vụ → Gửi xe để duyệt đề nghị sửa biển và xử lý báo cáo.\n\n" + chuKy(s, dorm))
 	text := b.String()
 	html := strings.ReplaceAll(escHTML(text), "\n", "<br>")
 
@@ -335,7 +349,7 @@ func SendParkingDaily(ctx context.Context, database *db.DB, to []string, d Parki
 	m.SetBody("text/plain", text)
 	m.AddAlternative("text/html", html)
 	if err := dialer(s).DialAndSend(m); err != nil {
-		return false, "Lỗi gửi mail: " + err.Error()
+		return false, loiGuiThu("thư báo cáo bãi xe", err)
 	}
 	return true, ""
 }

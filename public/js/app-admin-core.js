@@ -20,27 +20,27 @@ function renderAdmin() {
           <button data-v="invoices"><span class="ico">${IC.wallet}</span><span class="lbl">Tiền phòng</span></button>
           ${isAdmin ? `<button data-v="revenue"><span class="ico">${IC.trendingUp}</span><span class="lbl">Dự báo doanh thu</span></button>` : ''}
           <div class="grp">Tiếp nhận & Hỗ trợ</div>
-          <button data-v="reg"><span class="ico">${IC.filePen}</span><span class="lbl">Đơn đăng ký</span><span class="cnt" id="navReg" style="display:none"></span></button>
-          <button data-v="checkout"><span class="ico">${IC.logOut}</span><span class="lbl">Đơn trả phòng</span><span class="cnt" id="navCheckout" style="display:none"></span></button>
-          <button data-v="repair"><span class="ico">${IC.wrench}</span><span class="lbl">Báo hư hỏng</span><span class="cnt" id="navRepair" style="display:none"></span></button>
-          <button data-v="violations"><span class="ico">${IC.alert}</span><span class="lbl">Vi phạm</span><span class="cnt" id="navViol" style="display:none"></span></button>
-          <button data-v="feedback"><span class="ico">${IC.inbox}</span><span class="lbl">Góp ý & hỗ trợ</span><span class="cnt" id="navFeed" style="display:none"></span></button>
+          <button data-v="reg"><span class="ico">${IC.filePen}</span><span class="lbl">Đơn đăng ký</span><span class="cnt" id="navReg" title="Người cần xác nhận nhận phòng" style="display:none"></span></button>
+          <button data-v="checkout"><span class="ico">${IC.logOut}</span><span class="lbl">Đơn trả phòng</span><span class="cnt" id="navCheckout" title="Người cần xác nhận trả phòng" style="display:none"></span></button>
+          <button data-v="repair"><span class="ico">${IC.wrench}</span><span class="lbl">Báo hư hỏng</span><span class="cnt" id="navRepair" title="Báo hư hỏng chưa xử lý xong" style="display:none"></span></button>
+          <button data-v="violations"><span class="ico">${IC.alert}</span><span class="lbl">Vi phạm</span><span class="cnt" id="navViol" title="Học viên cần báo nhà trường" style="display:none"></span></button>
+          <button data-v="feedback"><span class="ico">${IC.inbox}</span><span class="lbl">Góp ý & hỗ trợ</span><span class="cnt" id="navFeed" title="Góp ý / yêu cầu hỗ trợ chưa xử lý xong" style="display:none"></span></button>
           ${isAdmin ? `<div class="grp">Hệ thống</div>
           <button data-v="audit"><span class="ico">${IC.history}</span><span class="lbl">Nhật ký</span></button>
-          <button data-v="settings"><span class="ico">${IC.settings}</span><span class="lbl">Cài đặt</span><span class="cnt" id="navSettings" style="display:none"></span></button>` : ''}
+          <button data-v="settings"><span class="ico">${IC.settings}</span><span class="lbl">Cài đặt</span><span class="cnt" id="navSettings" title="Tài khoản Microsoft chờ duyệt" style="display:none"></span></button>` : ''}
         </nav>
         <div class="foot">
           <div class="u">${esc(Auth.user.full_name || Auth.user.username)}</div>
           <div class="r muted" style="font-size:11px">${isAdmin ? 'Quản trị viên' : 'Nhân viên'}${coSoCuaToi(' · ')}</div>
           ${laKiemNhiem() ? `<button data-act="switchPortal" data-args='["tenant"]'>${IC.home} Cổng học viên</button>` : ''}
           ${dungMatKhau() ? `<button data-act="changePwd">${IC.key} Đổi mật khẩu</button>` : ''}
-          <button data-act="logout">${IC.logOut} Đăng xuất</button>
+          <button class="foot-out" data-act="logout">${IC.logOut} Đăng xuất</button>
         </div>
       </aside>
       <div class="side-backdrop" id="sideBackdrop" data-act="toggleSide"></div>
       <div class="main">
         <div class="top">
-          <button class="hamburger" data-act="toggleSide" aria-label="Menu" aria-expanded="false">${IC.menu}</button>
+          <button class="hamburger" data-act="toggleSide" aria-label="Trình đơn" aria-expanded="false">${IC.menu}</button>
           <button class="hamburger" id="backBtn" data-act="goBack" aria-label="Quay lại" title="Quay lại" style="display:none">${IC.arrowLeft}</button>
           <div style="flex:1;min-width:0"><h1 id="pgTitle">Tổng quan</h1><div class="sub" id="pgSub"></div></div>
           ${/* topActions nằm NGOÀI cụm chuông: trên điện thoại cụm nút hành động rộng cả trăm pixel,
@@ -171,10 +171,10 @@ function renderFacilitySelector() {
   const show = Auth.user && Auth.user.role === 'admin' && (ST.facilities || []).length > 1;
   if (!show) { box.innerHTML = ''; return; }
   const cur = ST.facilityFilter || 0;
-  box.innerHTML = `<select title="Lọc theo cơ sở" data-change="onFacSel" style="font-size:13px;padding:7px 9px;border-radius:10px;border:1px solid var(--line);background:var(--card)">
-    <option value="0">${IC.building} Tất cả cơ sở</option>
+  box.innerHTML = `<label class="fac-sel">${IC.building}<span class="fac-chu">Cơ sở:</span><select data-change="onFacSel" aria-label="Lọc theo cơ sở">
+    <option value="0">Tất cả cơ sở</option>
     ${ST.facilities.map(f => `<option value="${f.id}" ${cur === f.id ? 'selected' : ''}>${esc(f.name)}</option>`).join('')}
-  </select>`;
+  </select></label>`;
 }
 async function setFacilityFilter(f) {
   ST.facilityFilter = +f || 0;

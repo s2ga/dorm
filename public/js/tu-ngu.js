@@ -28,3 +28,7 @@ const tenKhoanNgan = k => (KHOAN_TIEN[k] || [k, k])[1];
 const trongChuaCo = dt => `Chưa có ${dt}.`;
 const trongKhongKhop = dt => `Không có ${dt} khớp bộ lọc.`;
 const NHAN_XOA_LOC = 'Xóa bộ lọc';
+
+// Số điện thoại: cùng luật với máy chủ (valid.IsValidPhone — 8 đến 15 chữ số, bỏ qua dấu cách/chấm/gạch).
+const CAU_SDT_SAI = 'Số điện thoại cần 8–15 chữ số';
+const soDienThoaiHopLe = s => { const n = String(s || '').replace(/\D/g, '').length; return n >= 8 && n <= 15; };

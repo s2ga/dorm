@@ -81,13 +81,13 @@ const VO_NGHIA = 'zzqx-khong-ai-ten-nay';
   await cho(() => stuFilter === 'departure' && !!document.querySelector('#content .empty'));
   let e = await oTrong();
   ok('Học viên lọc ra rỗng → "Không có học viên khớp bộ lọc." (không nói "Chưa có") + nút',
-    e && e.chu.startsWith('Không có học viên khớp bộ lọc.') && e.nut.includes('✕ Xóa bộ lọc'), JSON.stringify(e));
+    e && e.chu.startsWith('Không có học viên khớp bộ lọc.') && e.nut.includes('Xóa bộ lọc'), JSON.stringify(e));
   await page.click('#content .empty [data-act="stuGo"]');
   ok('… bấm → về "Tất cả", có danh sách', await cho(() => stuFilter === 'all' && document.querySelectorAll('#content tbody tr:not(.no-result)').length > 0));
   ok('Thanh "Đang lọc" dùng cùng nhãn "Xóa bộ lọc"', await page.evaluate(() => {
     xuatCanhGo('1999');
     const b = document.querySelector('#content .pill-row [data-act="stuGo"]');
-    return !!b && b.textContent.trim() === '✕ Xóa bộ lọc';
+    return !!b && b.textContent.trim() === 'Xóa bộ lọc';
   }));
 
   // ── Phòng ──────────────────────────────────────────────────────────────────
@@ -104,7 +104,7 @@ const VO_NGHIA = 'zzqx-khong-ai-ten-nay';
     await cho(() => roomFilter === 'vuot' && !!document.querySelector('#content .empty'));
     e = await oTrong();
     ok('Phòng lọc "quá tải" ra rỗng → "Không có phòng khớp bộ lọc." chứ không "Chưa có phòng nào. Bấm Thêm phòng"',
-      e && e.chu.startsWith('Không có phòng khớp bộ lọc.') && !/Chưa có phòng/.test(e.chu) && e.nut.includes('✕ Xóa bộ lọc'), JSON.stringify(e));
+      e && e.chu.startsWith('Không có phòng khớp bộ lọc.') && !/Chưa có phòng/.test(e.chu) && e.nut.includes('Xóa bộ lọc'), JSON.stringify(e));
     await page.evaluate(() => roomGo('all'));
   }
 
@@ -135,7 +135,7 @@ const VO_NGHIA = 'zzqx-khong-ai-ten-nay';
     await cho(k => hsLoc === k && !!document.getElementById('hsSearch'), loc);
     if (await soHangHien('#content') === 0) {
       e = await oTrong();
-      ok(`Hồ sơ lọc "${ten}" ra rỗng → "Không có hồ sơ khớp bộ lọc." + nút`, e && e.chu.startsWith('Không có hồ sơ khớp bộ lọc.') && e.nut.includes('✕ Xóa bộ lọc'), JSON.stringify(e));
+      ok(`Hồ sơ lọc "${ten}" ra rỗng → "Không có hồ sơ khớp bộ lọc." + nút`, e && e.chu.startsWith('Không có hồ sơ khớp bộ lọc.') && e.nut.includes('Xóa bộ lọc'), JSON.stringify(e));
       continue;
     }
     await go('#hsSearch', VO_NGHIA);
@@ -161,7 +161,7 @@ const VO_NGHIA = 'zzqx-khong-ai-ten-nay';
   await page.evaluate(() => regGo('rejected'));
   await cho(() => regFilter === 'rejected' && !!document.querySelector('#pnDon .empty'));
   e = await oTrong();
-  ok('… tab "Từ chối" rỗng → "Không có đơn đăng ký khớp bộ lọc." + nút', e && e.chu.startsWith('Không có đơn đăng ký khớp bộ lọc.') && e.nut.includes('✕ Xóa bộ lọc'), JSON.stringify(e));
+  ok('… tab "Từ chối" rỗng → "Không có đơn đăng ký khớp bộ lọc." + nút', e && e.chu.startsWith('Không có đơn đăng ký khớp bộ lọc.') && e.nut.includes('Xóa bộ lọc'), JSON.stringify(e));
   await page.click('#pnDon .empty [data-act="regGo"]');
   ok('… bấm → tab "Tất cả", hiện đơn', await cho(() => regFilter === 'all' && document.querySelectorAll('#pnDon tbody tr').length === 1));
   donGia = [];
@@ -176,7 +176,7 @@ const VO_NGHIA = 'zzqx-khong-ai-ten-nay';
   await page.evaluate(v => { auditFilter = { user: v, from: '', to: '', offset: 0 }; viewAudit(); }, VO_NGHIA);
   await cho(() => !!document.querySelector('#content .empty'));
   e = await oTrong();
-  ok('Nhật ký lọc không ra → "Không có bản ghi khớp bộ lọc." + nút', e && e.chu.startsWith('Không có bản ghi khớp bộ lọc.') && e.nut.includes('✕ Xóa bộ lọc'), JSON.stringify(e));
+  ok('Nhật ký lọc không ra → "Không có bản ghi khớp bộ lọc." + nút', e && e.chu.startsWith('Không có bản ghi khớp bộ lọc.') && e.nut.includes('Xóa bộ lọc'), JSON.stringify(e));
   await page.click('#content .empty [data-act="xoaLocNhatKy"]');
   ok('… bấm → bỏ lọc, có bản ghi', await cho(() => auditFilter.user === '' && document.querySelectorAll('#content tbody tr').length > 0));
 

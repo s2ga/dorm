@@ -29,7 +29,7 @@ const soTien = s => +String(s || '').replace(/[^\d]/g, '') || 0;
   const chuToanMan = (await page.locator('#content').textContent()) || '';
   ok('Bỏ hẳn chữ "dự báo doanh thu" gây hiểu nhầm', !/dự báo/i.test(chuToanMan));
   ok('Thẻ đầu ghi "Tổng tiền đã lập phiếu"', /Tổng tiền đã lập phiếu/.test(chuToanMan));
-  ok('Ghi rõ đã lập tới tháng nào', /đã lập tới Tháng \d{2}\/\d{4}|chưa lập phiếu nào/.test(chuToanMan), chuToanMan.slice(0, 0));
+  ok('Ghi rõ đã lập tới tháng nào', /đã lập tới tháng \d{2}\/\d{4}|chưa lập phiếu nào/.test(chuToanMan), chuToanMan.slice(0, 0));
   ok('Nói rõ chưa trừ phần chưa thu', /chưa trừ phần chưa thu/.test(chuToanMan));
 
   const coBang = await page.locator('.panel table').first().count() > 0;

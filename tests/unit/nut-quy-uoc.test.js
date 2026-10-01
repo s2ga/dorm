@@ -1,6 +1,6 @@
-// Quy ước nút: trong chân modal (.mf) nút chính đứng cuối (phụ trái, chính phải), "Đóng" luôn là nút thường,
-// không để hai nút đỏ đứng sát nhau; nút đỏ (danger) chỉ cho việc xoá / khoá / trả phòng / giữ cọc / miễn nhiệm /
-// từ chối. Sửa và xoá trong bảng là nút icon ghost, không dùng chữ "Sửa" / "Xóa" trơn.
+// Quy ước nút: trong chân modal (.mf) nút chính đứng cuối, "Đóng" là nút thường, không hai nút đỏ sát nhau; nút đỏ
+// chỉ cho xoá / khoá / trả phòng / giữ cọc / miễn nhiệm / từ chối. Sửa, xoá trong bảng là nút icon ghost. Nút × có
+// aria-label, nút lọc dạng viên có aria-pressed.
 const fs = require('fs');
 const path = require('path');
 
@@ -26,11 +26,15 @@ module.exports = {
   name: 'Quy ước nút — vị trí, màu đỏ, sửa/xoá',
 
   run(t) {
-    const gap = { thuTu: [], dong: [], doSat: [], doSai: [], chuTron: [] };
+    const gap = { thuTu: [], dong: [], doSat: [], doSai: [], chuTron: [], xKhongNhan: [], pillKhongAria: [] };
     let soMf = 0;
     for (const f of fs.readdirSync(DIR).filter(x => x.endsWith('.js'))) {
       const src = fs.readFileSync(path.join(DIR, f), 'utf8');
       const dong = i => src.slice(0, i).split('\n').length;
+      for (const m of src.matchAll(/<button class="x"[^>]*>/g)) if (!/aria-label=/.test(m[0])) gap.xKhongNhan.push(`${f}:${dong(m.index)}`);
+      for (const m of src.matchAll(/<button class="(?:btn sm|seg) \$\{[^}]*\? '(?:pri|on)' : ''\}"[^>]*>/g)) {
+        if (!/aria-pressed=/.test(m[0])) gap.pillKhongAria.push(`${f}:${dong(m.index)}`);
+      }
       const reMf = /<div class="mf"[^>]*>/g;
       let m;
       while ((m = reMf.exec(src))) {
@@ -57,5 +61,7 @@ module.exports = {
     t.eq('Không có hai nút đỏ đứng sát nhau', gap.doSat.length, 0, gap.doSat.join(' · '));
     t.eq('Nút đỏ chỉ cho xoá / khoá / trả phòng / giữ cọc / miễn nhiệm / từ chối', gap.doSai.length, 0, gap.doSai.join(' · '));
     t.eq('Sửa / xoá trong bảng là nút icon, không phải chữ trơn', gap.chuTron.length, 0, gap.chuTron.join(' · '));
+    t.eq('Nút × đóng modal có aria-label', gap.xKhongNhan.length, 0, gap.xKhongNhan.join(' · '));
+    t.eq('Nút lọc dạng viên (bật/tắt) có aria-pressed', gap.pillKhongAria.length, 0, gap.pillKhongAria.join(' · '));
   },
 };

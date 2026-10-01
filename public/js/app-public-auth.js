@@ -52,7 +52,7 @@ async function ssoHandleReturn() {
   }
   history.replaceState(null, '', location.pathname); // dọn ?code khỏi thanh địa chỉ
   const fail = msg => { location.href = '/?sso_error=' + encodeURIComponent(msg); }; // dùng lại màn login + ghi chú lỗi
-  el('app').innerHTML = '<div class="intro-loading"><div class="spinner"></div></div>';
+  el('app').innerHTML = '<div class="intro-loading"><div class="spinner"></div><p>Đang đăng nhập bằng Microsoft…</p></div>';
   try {
     let saved;
     try { saved = await API.ssoExchangeParams(qp.get('state')); }
@@ -133,7 +133,7 @@ function renderChoDuyet() {
 
 /* ================= TRANG ĐĂNG KÝ CÔNG KHAI ================= */
 async function renderPublicRegister() {
-  el('app').innerHTML = `<div class="intro-loading"><div class="spinner"></div></div>`;
+  el('app').innerHTML = `<div class="intro-loading"><div class="spinner"></div><p>Đang tải thông tin khu nội trú…</p></div>`;
   let info = null;
   try { info = await API.publicInfo(); } catch (e) {}
   if (!info || typeof info !== 'object') {   // BL-22: publicInfo lỗi -> KHÔNG render trang với giá "0" giả
@@ -162,7 +162,7 @@ async function renderPublicRegister() {
       <div class="intro-hero-in">
         <div class="intro-brand">${IC.home} <span>${dorm}</span></div>
         <h1>${T('intro_hero_title', 'Không gian nội trú\nan tâm & nề nếp').replace(/\n/g, '<br>')}</h1>
-        <p>${info.address ? esc(info.address) + ' — ' : ''}${T('intro_hero_desc', 'chỗ ở tiện nghi, kỷ luật, đồng hành cùng học viên trên hành trình sang Nhật.')}</p>
+        <p>${info.address ? esc(info.address) + '. ' : ''}${T('intro_hero_desc', 'Chỗ ở tiện nghi, kỷ luật, đồng hành cùng học viên trên hành trình sang Nhật.')}</p>
         <div class="intro-stats">
           ${oGiuongTrong('Giường trống nam', info.bed_free_male, info.bed_soon_male)}
           ${oGiuongTrong('Giường trống nữ', info.bed_free_female, info.bed_soon_female)}
@@ -229,7 +229,7 @@ async function renderPublicRegister() {
     </section>
 
     <section class="intro-sec" id="dangky">
-      <div class="intro-head"><span class="eyebrow">Đăng ký</span><h2>Đăng ký ở nội trú</h2>
+      <div class="intro-head"><span class="eyebrow">Đăng ký</span><h2>Đăng ký nội trú</h2>
         <p>Điền thông tin bên dưới, Ban Quản lý sẽ liên hệ xếp phòng cho bạn — không cần tài khoản.
           Đã có tài khoản? <a href="/">Đăng nhập</a></p></div>
       <div class="intro-form"><div id="pubBody"><div class="spinner"></div></div></div>
@@ -264,7 +264,7 @@ async function renderPublicRegister() {
         <div class="field"><label>Ngày sinh ${SAO}</label><input id="a_birth">
           <div class="price-sub">Ký túc xá nhận học viên từ ${info.age_min || 17} đến ${info.age_max || 39} tuổi.</div></div>
       </div>
-      <div class="field"><label>Ngày muốn nhận phòng ${SAO}</label><input id="a_movein" required>
+      <div class="field"><label>Ngày muốn nhận phòng ${SAO}</label><input id="a_movein">
         <div class="muted" style="font-size:12.5px;margin-top:4px">${IC.info} Ban Quản lý xếp phòng theo ngày này. Chọn từ hôm nay trở đi; chưa chắc thì chọn ngày dự kiến và báo lại sau.</div>
       </div>
       <div class="muted" style="font-size:12.5px;margin:2px 0 7px">${IC.info} <strong>Chưa khai giảng?</strong> Nhiều bạn thuê phòng trước khi vào học — nếu chưa có mã học viên / lớp, bạn cứ <strong>bỏ trống 2 ô dưới</strong>. Khi nào có, báo Ban Quản lý cập nhật sau.</div>
@@ -275,7 +275,7 @@ async function renderPublicRegister() {
       <div class="field"><label>Dịch vụ đăng ký thêm</label>
         <label class="check"><input type="checkbox" id="a_wash"> ${IC.washer} Máy giặt (${money(info.washing_fee)}/tháng)</label>
         <label class="check" style="margin-top:8px"><input type="checkbox" id="a_park" data-change="onPlateBoxToggle"> ${IC.bike} Gửi xe (${money(info.parking_fee)}/xe/tháng)</label>
-        <div id="plateBox" style="display:none;margin-top:8px"><input id="a_plate" placeholder="Biển số xe (VD: 63-B4 508.58)" autocapitalize="characters"></div>
+        <div id="plateBox" style="display:none;margin-top:8px"><label for="a_plate">Biển số xe</label><input id="a_plate" placeholder="63-B4 508.58" autocapitalize="characters"></div>
       </div>
       <div class="field"><label>Ảnh CCCD (2 mặt) ${SAO}</label>
         <div class="muted" style="font-size:12px;margin:-2px 0 8px">${IC.info} Chụp <strong>ngang</strong>, đủ sáng, thấy rõ 4 góc. Ảnh sẽ tự xoay đúng chiều khi tải lên.
@@ -297,6 +297,7 @@ async function renderPublicRegister() {
     // Mọi lỗi nhập báo ngay tại ô (form có novalidate: không dùng bong bóng của trình duyệt).
     if (!el('a_name').value.trim()) return loiTaiO('a_name', 'Nhập họ tên');
     if (!el('a_phone').value.trim()) return loiTaiO('a_phone', 'Nhập số điện thoại');
+    if (!soDienThoaiHopLe(el('a_phone').value)) return loiTaiO('a_phone', CAU_SDT_SAI);
     if (el('a_facility') && !el('a_facility').value) return loiTaiO('a_facility', 'Chọn cơ sở đăng ký');
     if (!el('a_gender').value) return loiTaiO('a_gender', 'Chọn giới tính');
     const ngaySinh = el('a_birth').dataset.iso || '';
@@ -315,7 +316,7 @@ async function renderPublicRegister() {
     // e.submitter có thể null (gửi form bằng lệnh, không qua nút bấm) -> tra ngược nút Gửi.
     // Đây là form học viên LẠ tự đăng ký: văng lỗi ở đây là mất đơn mà không ai biết.
     const btn = e.submitter || e.target.querySelector('[type=submit]') || {};
-    btn.disabled = true; btn.textContent = 'Đang gửi...';
+    btn.disabled = true; btn.textContent = 'Đang gửi…';
     const body = {
       name: el('a_name').value.trim(), phone: el('a_phone').value.trim(), gender: el('a_gender').value,
       birth_date: el('a_birth').dataset.iso || null, desired_check_in: el('a_movein').dataset.iso || null,
@@ -378,7 +379,6 @@ async function renderLogin() {
         <div class="auth-hero">
           <h1>Ở an tâm,<br>quen dần nếp Nhật.</h1>
           <p>Một chỗ ở yên tâm, sinh hoạt ngăn nắp — để nếp sống và sự kỷ luật của người Nhật dần thành thói quen.</p>
-          <a class="auth-hero-link" href="/dang-ky">${IC.building} Xem giới thiệu khu nội trú →</a>
         </div>
       </div>
       <div class="auth-right">
@@ -388,21 +388,21 @@ async function renderLogin() {
           <div id="lgNotice"></div>
           <div id="lgSso" style="display:none">
             ${/* Logo Microsoft 4 ô vẽ tay (không tải ngoài — CSP). Nút là hành động CHÍNH nên tô đậm như nút Đăng nhập cũ. */''}
-            <button type="button" class="btn lg auth-btn auth-sso" data-act="ssoLogin"><svg class="ms-logo" viewBox="0 0 21 21" aria-hidden="true"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg> Đăng nhập bằng tài khoản Microsoft</button>
+            <button type="button" class="btn lg auth-btn auth-sso" data-act="ssoLogin"><svg class="ms-logo" viewBox="0 0 21 21" aria-hidden="true"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg> Đăng nhập Microsoft</button>
             ${/* Form tài khoản BQL cấp GIẤU khi có Microsoft: hai ô cùng hiện là người ta gõ tài khoản Microsoft
                   vào ô bên dưới. Ai chưa có Microsoft (nhân viên, học viên mới) bấm dòng này mới mở form. */''}
-            <button type="button" class="auth-alt" id="lgAlt" data-act="lgMoNoiBo"><span class="q">Chưa có tài khoản Microsoft?</span><u>Đăng nhập bằng tài khoản do Ban Quản lý cấp</u></button>
+            <button type="button" class="auth-alt" id="lgAlt" data-act="lgMoNoiBo"><span class="q">Chưa có tài khoản Microsoft?</span><u>Dùng tài khoản nội bộ</u></button>
           </div>
-          <form id="loginForm">
-            <div class="field"><label>Tên đăng nhập</label><input id="lg_user" autocomplete="username"></div>
+          <form id="loginForm" novalidate>
+            <div class="field"><label>Tên đăng nhập</label><input id="lg_user" autocomplete="username" autocapitalize="off" spellcheck="false"></div>
             <div class="field"><label>Mật khẩu</label><input id="lg_pass" type="password" autocomplete="current-password"></div>
-            <button class="btn pri lg auth-btn" type="submit">Đăng nhập →</button>
+            <button class="btn pri lg auth-btn" type="submit">Đăng nhập</button>
             <p class="muted" style="font-size:13px;margin:10px 0 0;text-align:center">Quên mật khẩu? Liên hệ Ban Quản lý để được cấp lại.</p>
           </form>
           <div class="auth-or"><span>Học viên mới?</span></div>
           <a class="auth-card" href="/dang-ky">
             <span class="ac-ico">${IC.graduation}</span>
-            <div><b>Xem giới thiệu &amp; đăng ký nội trú</b><small>Xem phòng ở, tiện ích, bảng giá và đăng ký — không cần tài khoản</small></div>
+            <div><b>Giới thiệu &amp; đăng ký nội trú</b><small>Xem phòng ở, tiện ích, bảng giá và đăng ký — không cần tài khoản</small></div>
             <span class="ac-arrow">→</span>
           </a>
         </div>
@@ -430,7 +430,9 @@ async function renderLogin() {
 
   el('loginForm').addEventListener('submit', async e => {
     e.preventDefault();
-    const btn = e.submitter; btn.disabled = true; btn.textContent = 'Đang vào...';
+    if (!el('lg_user').value.trim()) return loiTaiO('lg_user', 'Nhập tên đăng nhập');
+    if (!el('lg_pass').value) return loiTaiO('lg_pass', 'Nhập mật khẩu');
+    const btn = e.submitter || e.target.querySelector('[type=submit]'); btn.disabled = true; btn.textContent = 'Đang đăng nhập…';
     try {
       // /login CHỈ xác thực + đặt cookie. KHÔNG gửi "cổng" (loại tài khoản là thuộc tính user trong DB),
       // và KHÔNG lấy thông tin user ở đây — boot() sẽ hỏi /auth/me (nguồn duy nhất về danh tính).
@@ -438,7 +440,7 @@ async function renderLogin() {
       Auth.user = null;   // xoá hint cũ để boot() lấy thông tin MỚI từ /me, không dùng nhầm dữ liệu người trước
       boot();             // boot() gọi /me + chọn giao diện theo user.role (quản lý / bảo trì / học viên)
     } catch (err) {
-      btn.disabled = false; btn.textContent = 'Đăng nhập →';
+      btn.disabled = false; btn.textContent = 'Đăng nhập';
       toast(err.message, 'err');
     }
   });
@@ -467,7 +469,7 @@ function renderForceChangePw() {
       <div class="auth-right">
         <div class="auth-form">
           <h2>Đổi mật khẩu</h2>
-          <p class="sub">Xin chào <strong>${esc(u.full_name || u.username || '')}</strong> — hãy tạo mật khẩu mới (tối thiểu 6 ký tự).</p>
+          <p class="sub">Xin chào <strong>${esc(u.full_name || u.username || '')}</strong>. Tạo mật khẩu mới, tối thiểu 6 ký tự.</p>
           <form id="fcpForm">
             <div class="field"><label>Mật khẩu mới</label><input id="fcp_new" type="password" autocomplete="new-password" placeholder="Tối thiểu 6 ký tự" autofocus></div>
             <div class="field"><label>Nhập lại mật khẩu mới</label><input id="fcp_new2" type="password" autocomplete="new-password" placeholder="Nhập lại"></div>
@@ -483,7 +485,7 @@ function renderForceChangePw() {
     const n1 = el('fcp_new').value, n2 = el('fcp_new2').value;
     if (n1.length < 6) return loiTaiO('fcp_new', 'Mật khẩu mới tối thiểu 6 ký tự');
     if (n1 !== n2) return loiTaiO('fcp_new2', 'Nhập lại mật khẩu không khớp');
-    const btn = e.submitter; btn.disabled = true; btn.textContent = 'Đang đổi...';
+    const btn = e.submitter; btn.disabled = true; btn.textContent = 'Đang đổi…';
     try {
       await API.changePassword(n1);
       Auth.user = { ...Auth.user, must_change_password: false };
@@ -502,18 +504,16 @@ const AdminTitles = {
   tamtru: ['Tạm trú', 'Ảnh CCCD gửi công an'],
   students: ['Học viên', 'Hồ sơ, hợp đồng, tạm trú'],
   rooms: ['Phòng', 'Danh sách phòng theo tầng / hạng / giới tính'],
-  vehicles: ['Xe', 'Danh sách xe học viên gửi'],
   services: ['Dịch vụ', 'Máy giặt · Gửi xe — dịch vụ tùy chọn của học viên'],
   hoso: ['Hồ sơ lưu trữ', 'Hợp đồng & CCCD của toàn bộ học viên — ai còn thiếu giấy tờ'],
   checkin: ['Nhận / trả phòng', 'Lịch sử ra / vào ký túc xá'],
   invoices: ['Tiền phòng', 'Phiếu báo hàng tháng, điện nước, cọc'],
   revenue: ['Dự báo doanh thu', 'Dự báo từ phiếu báo tiền phòng · đối chiếu Bravo (thu thật do Bravo quản lý)'],
   reg: ['Đơn đăng ký', 'Duyệt đơn đăng ký vào ở'],
-  checkout: ['Đơn trả phòng', 'Duyệt đơn xin trả phòng'],
+  checkout: ['Đơn trả phòng', 'Duyệt đơn trả phòng'],
   repair: ['Báo hư hỏng', 'Hư hỏng cơ sở vật chất, chuyển bảo trì'],
   violations: ['Vi phạm', 'Ghi nhận & theo dõi vi phạm học viên'],
   feedback: ['Góp ý & hỗ trợ', 'Học viên báo vi phạm · cần hỗ trợ khác'],
-  requests: ['Đơn đăng ký', 'Duyệt đơn đăng ký vào ở'],
   audit: ['Nhật ký', 'Thao tác của quản trị viên & nhân viên'],
   settings: ['Cài đặt', 'Đơn giá, hạng phòng, cơ sở'],
 };
@@ -581,7 +581,7 @@ const thueNguyenPhong = s => s.room_id ? roomType(roomById(s.room_id) || {}) ===
 const rentalLabelOf = s => thueNguyenPhong(s) ? RENTAL_LABEL.phong : RENTAL_LABEL.ghep;
 const RESI = { registered: ['Đã đăng ký', 'green'], processing: ['Đang xử lý', 'amber'], unregistered: ['Chưa đăng ký', 'gray'] };
 const resiBadge = st => { const [l, c] = RESI[st] || RESI.unregistered; return `<span class="badge ${c}">${l}</span>`; };
-const CONTRACT_LABEL = { done: 'Đã ký HĐ', scanned: 'Đã scan HĐ', unsigned: 'Chưa ký HĐ', none: 'Không ký HĐ', handover: 'Đã ký phiếu bàn giao' };
+const CONTRACT_LABEL = { done: 'Đã ký HĐ', scanned: 'Đã chụp HĐ', unsigned: 'Chưa ký HĐ', none: 'Không ký HĐ', handover: 'Đã ký phiếu bàn giao' };
 const CONTRACT_BADGE = { done: 'green', scanned: 'blue', unsigned: 'amber', none: 'gray', handover: 'blue' };
 
 // Các ô giảm giá % trong form học viên: [tên cột, id ô nhập, nhãn]
