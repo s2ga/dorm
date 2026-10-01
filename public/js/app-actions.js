@@ -278,7 +278,6 @@ function onFRoomFromGender() {
   if (el('f_legal')) el('f_legal').textContent = legalEntity(this.value);
 }
 function onLgHintGender() { el('lgHint').textContent = 'Pháp nhân: ' + (this.value === 'female' ? (ST.settings.legal_female || 'E2') : (ST.settings.legal_male || 'S2')); }
-function onLoginBoxToggle() { el('loginBox').style.display = this.checked ? 'block' : 'none'; }
 function onPlateBoxToggle() { el('plateBox').style.display = this.checked ? 'block' : 'none'; }
 function onFloorDisp() { el('f_floor_disp').value = 'Tầng ' + roomFloorOf(this.value); }
 // Ô họ tên tự chuẩn lại khi rời ô (owner chốt 24/09) — máy chủ cũng chuẩn lần nữa lúc lưu.

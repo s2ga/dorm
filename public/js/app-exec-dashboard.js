@@ -214,7 +214,7 @@ function tamTruSheet() {
 
   _tamTruDot = ready;
   el('topActions').innerHTML = ready.length
-    ? `<button class="btn pri" data-act="tamTruIn">${IC.printer} In & chuyển sang Đang xử lý (${ready.length})</button>`
+    ? `<button class="btn pri" data-act="tamTruIn">${IC.printer} In ${ready.length} hồ sơ</button>`
     : '';
 
   const oTen = s => `<td><div class="flex stu-name" data-act="studentDetail" data-args='[${s.id}]' role="button" tabindex="0" title="Mở hồ sơ">
@@ -325,19 +325,29 @@ function tamTruCatMo(id, side) {
   });
 }
 
-// Đợt đang hiện trên trang in (để nút In biết chuyển ai). Bấm In = hồ sơ đã xuất đi công an -> cả đợt
-// sang "Đang xử lý" ngay, khỏi phải nhớ vào từng hồ sơ; "Đã đăng ký" nhập tay khi công an trả kết quả.
+// Đợt đang hiện trên trang in. In xong hỏi lại rồi mới chuyển cả đợt sang "Đang xử lý" — hộp in bị
+// huỷ thì không đổi gì. "Đã đăng ký" nhập tay khi công an trả kết quả.
 let _tamTruDot = [];
 function tamTruIn() {
   window.print();
+  const n = _tamTruDot.filter(s => s.residency_status === 'unregistered').length;
+  if (!n) return;
+  openModal(`
+    <div class="mh"><h3>${IC.printer} Đã in xong?</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
+    <div class="mb"><p style="margin:0">Chuyển <strong>${n} hồ sơ</strong> trong bản in sang <strong>Đang xử lý</strong>?</p>
+      <p class="muted" style="margin:8px 0 0">Chưa in được hoặc chưa gửi công an thì bấm Để sau, hồ sơ giữ nguyên "Chưa đăng ký".</p></div>
+    <div class="mf"><button class="btn" data-act="closeModal">Để sau</button><button class="btn pri" data-act="tamTruXacNhanIn">${IC.check} Chuyển ${n} hồ sơ</button></div>`);
+}
+function tamTruXacNhanIn() {
+  closeModal();
   return tamTruChuyenXuLy();
 }
-// PUT hồ sơ gộp với bản hiện có ở máy chủ nên chỉ cần gửi đúng ô tạm trú. Hỏng bạn nào thì báo tên
-// và cho bấm thử lại — không in lại, không chuyển lần hai ai đã xong.
+// PUT hồ sơ gộp với bản hiện có ở máy chủ nên chỉ cần gửi đúng ô tạm trú. Hỏng hồ sơ nào thì báo tên
+// và cho bấm thử lại — không in lại, không chuyển lần hai hồ sơ đã xong.
 async function tamTruChuyenXuLy() {
   const ds = _tamTruDot.filter(s => s.residency_status === 'unregistered');
   if (!ds.length) return;
-  el('topActions').innerHTML = `<button class="btn" disabled>${IC.hourglass} Đang chuyển ${ds.length} bạn sang Đang xử lý…</button>`;
+  el('topActions').innerHTML = `<button class="btn" disabled>${IC.hourglass} Đang chuyển ${ds.length} hồ sơ sang Đang xử lý…</button>`;
   const kq = await Promise.allSettled(ds.map(s => API.updateStudent(s.id, { residency_status: 'processing' })));
   const loi = [];
   kq.forEach((r, i) => {
@@ -347,15 +357,15 @@ async function tamTruChuyenXuLy() {
   const xong = ds.length - loi.length;
   if (xong) {
     el('content').insertAdjacentHTML('afterbegin', `<div class="rc-noprint" style="background:#f1f8f2;border:1px solid #bfd9c4;border-radius:10px;padding:12px 14px;margin-bottom:14px">
-      <strong style="color:var(--brand,#1b5e3b)">${IC.checkCircle} Đã chuyển ${xong} bạn sang "Đang xử lý".</strong>
-      <div style="font-size:13px;margin-top:4px">Khi công an trả kết quả tạm trú, mở hồ sơ từng bạn đổi ô Tạm trú sang <strong>Đã đăng ký</strong>.</div></div>`);
+      <strong style="color:var(--brand,#1b5e3b)">${IC.checkCircle} Đã chuyển ${xong} hồ sơ sang "Đang xử lý".</strong>
+      <div style="font-size:13px;margin-top:4px">Khi công an trả kết quả tạm trú, mở từng hồ sơ đổi ô Tạm trú sang <strong>Đã đăng ký</strong>.</div></div>`);
     try { await napLai('students'); } catch (e) { /* trạng thái đã ghi ở máy chủ; số đếm Tổng quan sẽ đúng ở lần nạp sau */ }
   }
   if (loi.length) {
-    toast(`Chưa chuyển được ${loi.length} bạn: ${loi.join(', ')}`, 'err');
-    el('topActions').innerHTML = `<button class="btn pri" data-act="tamTruChuyenXuLy">${IC.refresh} Thử lại chuyển ${loi.length} bạn còn lại</button> <button class="btn" data-act="doPrint">${IC.printer} In lại</button>`;
+    toast(`Chưa chuyển được ${loi.length} hồ sơ: ${loi.join(', ')}`, 'err');
+    el('topActions').innerHTML = `<button class="btn pri" data-act="tamTruChuyenXuLy">${IC.refresh} Thử lại (${loi.length})</button> <button class="btn" data-act="doPrint">${IC.printer} In lại</button>`;
   } else {
-    toast(`Đã chuyển ${xong} bạn sang Đang xử lý`);
+    toast(`Đã chuyển ${xong} hồ sơ sang Đang xử lý`);
     el('topActions').innerHTML = `<button class="btn" data-act="doPrint">${IC.printer} In lại</button>`;
   }
 }

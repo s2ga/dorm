@@ -688,8 +688,9 @@ function cccdCat(side) {
 // một mạch không có mốc nào để bám.
 const nhomForm = (ico, ten, noiDung) => `<div class="form-nhom"><h4>${ico || ''}${ten}</h4>${noiDung}</div>`;
 async function studentForm(id) {
+  if (!id) return;
   quenPhongMoc();
-  const s = id ? await guard(() => API.student(id)) : { name: '', code: '', gender: 'female', phone: '', id_card: '', room_id: '', check_in_date: today(), note: '', uses_washing: false, rental_type: 'ghep', residency_status: 'unregistered', contract_status: 'unsigned', class_name: '', birth_date: '', contract_no: '', contract_date: '', class_start_date: '', expected_departure: '', parent_phone: '' };
+  const s = await guard(() => API.student(id));
   window._svV = s._v || null;   // ghi nhớ hồ sơ này ở phiên bản nào lúc mình MỞ form
   _cccdFront = null; _cccdBack = null; _cccdFrontChanged = false; _cccdBackChanged = false;
   _cccdGoc = { front: null, back: null };
@@ -699,7 +700,7 @@ async function studentForm(id) {
   const coHienTai = (s.planned_check_out || '').slice(0, 10);
   const daRoi = !!s.check_out_date;
   openModal(`
-    <div class="mh"><h3>${id ? 'Sửa học viên' : 'Thêm học viên'}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mh"><h3>Sửa học viên</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       ${nhomForm(IC.user, 'Thông tin cá nhân', `
         <div class="grid2">
@@ -760,7 +761,7 @@ async function studentForm(id) {
         <div class="grid2">
           <div class="field"><label>Số HĐ <span class="opt">(nhập tay · ⚡ gợi ý số kế tiếp)</span></label>
             <div class="flex" style="gap:6px"><input id="f_cno" value="${esc(s.contract_no || '')}" placeholder="38/2026/HĐKTX-E2" style="flex:1">
-            <button type="button" class="btn sm" data-act="suggestContractNo" data-args='[${id || 0}]' title="Điền số kế tiếp của dãy theo năm + pháp nhân">${IC.zap}</button></div></div>
+            <button type="button" class="btn sm" data-act="suggestContractNo" data-args='[${id}]' title="Điền số kế tiếp của dãy theo năm + pháp nhân">${IC.zap}</button></div></div>
           <div class="field"><label>Pháp nhân</label>
             <div class="ro-in"><strong id="f_legal">${esc(legalEntity(s.gender))}</strong> <span class="muted">— theo giới tính, đổi ở mục Thông tin cá nhân</span></div></div>
         </div>
@@ -774,29 +775,21 @@ async function studentForm(id) {
           <div class="hint">${IC.info}<span>Thuê <strong>trên ${shortTermMaxDays()} ngày</strong> (ghép hoặc nguyên phòng) → ký <strong>HĐ thuê phòng</strong>.
             Thuê <strong>dưới ${shortTermMaxDays()} ngày</strong> hoặc <strong>nhân viên công tác</strong> → ký <strong>phiếu đăng ký & bàn giao</strong>.
             Phòng an ninh không cần ký gì.</span></div></div>
-        ${/* Tệp scan lưu NGAY khi chọn (cần có id), khác mọi ô còn lại vốn chờ nút Lưu. Hồ sơ mới
-              chưa có id nên chưa đính kèm được — nói thẳng thay vì để nút bấm không ăn. */''}
+        ${/* Tệp scan lưu NGAY khi chọn, khác mọi ô còn lại vốn chờ nút Lưu. */''}
         <div class="field" style="margin:0"><label>File đính kèm <span class="opt">(bản scan HĐ — ảnh hoặc PDF)</span></label>
-          ${!id ? '<div class="ro-in"><span class="muted">Lưu hồ sơ xong mới đính kèm được.</span></div>' : `
-            ${s.contract_scan
+          ${s.contract_scan
     ? (s.contract_scan_ext === 'pdf'
       ? `<a class="btn sm" href="${s.contract_scan}" target="_blank" rel="noopener">${IC.fileText} Mở bản scan (PDF)</a>`
       : `<a href="${s.contract_scan}" target="_blank" rel="noopener" title="Bấm để xem cỡ đầy đủ"><img src="${s.contract_scan}" style="max-width:100%;max-height:200px;border-radius:8px;border:1px solid var(--line)"></a>`)
     : '<p class="muted" style="margin:0 0 6px;font-size:12px">Chưa đính kèm.</p>'}
-            ${s.contract_scan ? ` <button type="button" class="btn sm ghost" data-act="goScanHD" data-args='[${id}]' title="Gỡ bản scan đang có">${IC.trash} Gỡ</button>` : ''}
-            <div style="margin-top:6px"><input type="file" accept="application/pdf,image/png,image/jpeg" id="hd_scan_form" data-change="tepScanHD" data-args='[${id}]'></div>
-            <div class="hint">${IC.info}<span>Chọn tệp là lưu ngay, không cần bấm Lưu. Nhận PDF · PNG · JPG, tối đa ${TEP_TOI_DA_MB}MB.</span></div>`}
+          ${s.contract_scan ? ` <button type="button" class="btn sm ghost" data-act="goScanHD" data-args='[${id}]' title="Gỡ bản scan đang có">${IC.trash} Gỡ</button>` : ''}
+          <div style="margin-top:6px"><input type="file" accept="application/pdf,image/png,image/jpeg" id="hd_scan_form" data-change="tepScanHD" data-args='[${id}]'></div>
+          <div class="hint">${IC.info}<span>Chọn tệp là lưu ngay, không cần bấm Lưu. Nhận PDF · PNG · JPG, tối đa ${TEP_TOI_DA_MB}MB.</span></div>
         </div>`)}
 
-      ${!id ? nhomForm(IC.plus, 'Khởi tạo', `
-        <label class="check"><input type="checkbox" id="f_dep"> ${IC.lock} Đã đóng cọc ${money(ST.settings.deposit_fee)} khi nhận phòng <span class="opt">— chỉ tick khi đã thật sự nhận tiền</span></label>
-        <label class="check" style="margin-top:8px"><input type="checkbox" id="f_login" data-change="onLoginBoxToggle"> ${IC.key} Tạo tài khoản đăng nhập</label>
-        <div id="loginBox" style="display:none;background:var(--bg2);padding:12px;border-radius:10px;margin-top:8px">
-          <div class="field" style="margin:0"><label>Tên đăng nhập <span class="opt">(trống = mã HV)</span></label><input id="f_luser"></div>
-          <div class="hint" style="margin-top:8px">${IC.key} Mật khẩu do máy tự tạo, hiện <strong>một lần</strong> sau khi lưu.</div>
-        </div>`) : `<div class="hint">${IC.info}<span>Giảm giá theo % nay chỉnh ở màn <strong>Tiền phòng</strong> — bấm ✎ trên phiếu của học viên. Tiền nằm ở đâu thì sửa ở đó.</span></div>`}
+      <div class="hint">${IC.info}<span>Giảm giá theo % nay chỉnh ở màn <strong>Tiền phòng</strong> — bấm ✎ trên phiếu của học viên. Tiền nằm ở đâu thì sửa ở đó.</span></div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveStudent" data-args='[${id || 0}]'>Lưu</button></div>`, true);
+    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveStudent" data-args='[${id}]'>Lưu</button></div>`, true);
   if (s.cccd_front) { cccdDatGoc('front', s.cccd_front); cccdVeAnh('front', s.cccd_front); }
   if (s.cccd_back) { cccdDatGoc('back', s.cccd_back); cccdVeAnh('back', s.cccd_back); }
   attachDate(el('f_birth'), s.birth_date, { max: today() });
@@ -849,10 +842,6 @@ async function saveStudent(id) {
     // Không gửi field = máy chủ giữ nguyên giá trị cũ, không phải xoá trắng.
   };
   if (!body.name) return toast('Nhập họ tên', 'err');
-  if (!id) {
-    body.deposit_paid = el('f_dep').checked;
-    if (el('f_login').checked) { body.create_login = true; body.login_username = el('f_luser').value.trim(); }
-  }
   // Chỉ gửi mặt ảnh NÀO vừa chọn — không gửi = giữ nguyên ảnh cũ trên máy chủ.
   if (_cccdFrontChanged) body.cccd_front = _cccdFront;
   if (_cccdBackChanged) body.cccd_back = _cccdBack;
@@ -860,7 +849,7 @@ async function saveStudent(id) {
   //   - TRÙNG hồ sơ (mã HV/CCCD đã có) -> chỉ đường sang Chuyển phòng / Check-in lại
   //   - Phòng QUÁ TẢI -> hỏi có xếp nữa không (đồng ý thì ghi nhật ký)
   const saved = await guard(() => withDuplicateGuide(() => withOverloadConfirm(ok =>
-    id ? API.updateStudent(id, { ...body, confirm_overload: ok }) : API.createStudent({ ...body, confirm_overload: ok }))));
+    API.updateStudent(id, { ...body, confirm_overload: ok }))));
   if (saved === null) return; // người dùng bấm Hủy, hoặc đã được chỉ sang hồ sơ cũ
   await refreshCache(); await luuXongVeLai(veLaiNen); toast('Đã lưu học viên');
 }

@@ -118,7 +118,6 @@ const API = {
   students: deleted => api('/students' + (deleted ? '?deleted=1' : '') + facAmp(!!deleted)),
   studentsArchive: () => api('/students/archive'),
   student: id => api('/students/' + id),
-  createStudent: b => api('/students', { method: 'POST', body: b }),
   updateStudent: (id, b) => api('/students/' + id, { method: 'PUT', body: b }),
   deleteStudent: (id, reason) => api('/students/' + id, { method: 'DELETE', body: { reason: reason || '' } }),
   restoreStudent: id => api('/students/' + id + '/restore', { method: 'POST' }),
