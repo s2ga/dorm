@@ -41,6 +41,31 @@ module.exports = {
         t.eq('Tên trên tài khoản đăng nhập cũng theo chuẩn', fn, P + ' Võ Đông Triều');
       }
 
+      // ── Duyệt tài khoản Microsoft thành học viên: tên Microsoft thường IN HOA ────────
+      const taoChoDuyet = async (hau, ten) => (await t.db.query(
+        `INSERT INTO users (username, password_hash, role, full_name, email, auth_provider, approved)
+         VALUES ($1, 'x', 'pending', $2, $1, 'sso', false) RETURNING id`, [P + hau + '@esuhai.test', ten])).rows[0].id;
+      const tkMoi = await taoChoDuyet('_ms1', P + ' ĐẶNG NGUYỄN PHƯƠNG THỦY');
+      const dt = await t.api('POST', `/api/admin/users/${tkMoi}/approve-student`, T, {
+        new_student: { name: P + ' ĐẶNG NGUYỄN PHƯƠNG THỦY', gender: 'female' },
+      });
+      t.eq('Duyệt tài khoản Microsoft, tạo hồ sơ mới → 200', dt.status, 200, `HTTP ${dt.status} ${dt.json && dt.json.error || ''}`);
+      if (dt.json && dt.json.student_id) {
+        t.eq('Hồ sơ mới mang tên đã chuẩn, không giữ IN HOA của Microsoft',
+          await tenTrongCSDL(dt.json.student_id), P + ' Đặng Nguyễn Phương Thủy');
+      }
+      const fnMoi = (await t.db.query('SELECT full_name FROM users WHERE id=$1', [tkMoi])).rows[0].full_name;
+      t.eq('… tên trên tài khoản đăng nhập theo hồ sơ', fnMoi, P + ' Đặng Nguyễn Phương Thủy');
+
+      const hsCo = await t.api('POST', '/api/students', T, {
+        name: P + ' Lý Thị Mai', gender: 'female', birth_date: '2004-05-06', rental_type: 'ghep',
+      });
+      const tkCu = await taoChoDuyet('_ms2', P + ' LY THI MAI');
+      const gan = await t.api('POST', `/api/admin/users/${tkCu}/approve-student`, T, { student_id: hsCo.json && hsCo.json.id });
+      t.eq('Gắn tài khoản Microsoft vào hồ sơ có sẵn → 200', gan.status, 200, `HTTP ${gan.status} ${gan.json && gan.json.error || ''}`);
+      const fnCu = (await t.db.query('SELECT full_name FROM users WHERE id=$1', [tkCu])).rows[0].full_name;
+      t.eq('… tên trên tài khoản lấy theo hồ sơ, không giữ tên Microsoft', fnCu, P + ' Lý Thị Mai');
+
       // ── Đơn đăng ký công khai ───────────────────────────────────────────────────────
       const fac = (await t.db.query('SELECT id FROM facilities WHERE deleted_at IS NULL ORDER BY id LIMIT 1')).rows[0];
       const don = await t.api('POST', '/api/public/apply', null, {

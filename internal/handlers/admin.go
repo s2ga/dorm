@@ -880,7 +880,7 @@ func (h *Handlers) ApproveUserAsStudent(c *gin.Context) {
 		// màn Học viên xếp phòng sau, lúc đó mới phát sinh tiền.
 		if e := h.pool().QueryRow(ctx,
 			`INSERT INTO students (name, code, gender, phone, class_name, email) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
-			strings.TrimSpace(body.NewStudent.Name), strings.TrimSpace(body.NewStudent.Code), gioiTinh,
+			valid.TenChuan(body.NewStudent.Name), strings.TrimSpace(body.NewStudent.Code), gioiTinh,
 			strings.TrimSpace(body.NewStudent.Phone), strings.TrimSpace(body.NewStudent.ClassName),
 			strings.ToLower(strings.TrimSpace(userEmail))).Scan(&studentID); e != nil {
 			badRequest(c, "Không tạo được hồ sơ học viên (mã hoặc email đã tồn tại?): "+e.Error())
@@ -918,8 +918,10 @@ func (h *Handlers) ApproveUserAsStudent(c *gin.Context) {
 	}
 
 	// facility_id = NULL: phạm vi của học viên đến từ hồ sơ/phòng, không phải từ cơ sở phụ trách.
+	// Tên tài khoản bám theo hồ sơ (BL-09) thay cho tên Microsoft đặt sẵn, thường IN HOA.
 	if _, err := h.pool().Exec(ctx,
-		`UPDATE users SET role='student', student_id=$1, approved=true, facility_id=NULL
+		`UPDATE users SET role='student', student_id=$1, approved=true, facility_id=NULL,
+		        full_name = COALESCE((SELECT name FROM students WHERE id=$1), full_name)
 		   WHERE id=$2 AND role IN (`+adminManagedRolesSQL+`) AND deleted_at IS NULL`, studentID, id); err != nil {
 		serverErr(c)
 		return
