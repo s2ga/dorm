@@ -18,7 +18,7 @@ import (
 // msgTaiKhoanBiKhoa: câu trả lời DUY NHẤT cho tài khoản đã bị khoá (đăng nhập thường và SSO dùng
 // chung). Khoá là "đóng cửa", không phải "chờ duyệt" — nói đúng để người dùng biết đường liên hệ,
 // và tuyệt đối KHÔNG cấp vé phiên.
-const msgTaiKhoanBiKhoa = "Tài khoản đang không đăng nhập được. Vui lòng liên hệ ban quản lý khu nội trú."
+const msgTaiKhoanBiKhoa = "Tài khoản đang không đăng nhập được. Vui lòng liên hệ Ban Quản lý khu nội trú."
 
 type loginUser struct {
 	ID           int
@@ -137,7 +137,7 @@ func (h *Handlers) Login(c *gin.Context) {
 	if !user.Approved {
 		h.Guard.GhiNhanKetQua(c.Request.Context(), username, true, now)
 		loginLog(h, c, &user.ID, user.Username, user.Role, "tài khoản chờ admin duyệt")
-		c.JSON(http.StatusForbidden, gin.H{"error": "Tài khoản đang chờ quản trị viên duyệt. Vui lòng liên hệ ban quản lý."})
+		c.JSON(http.StatusForbidden, gin.H{"error": "Tài khoản đang chờ Ban Quản lý duyệt. Vui lòng liên hệ Ban Quản lý."})
 		return
 	}
 

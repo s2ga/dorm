@@ -1225,7 +1225,7 @@ function viewSettings() {
         <div class="field"><label>Mật khẩu (App Password) ${s.smtp_pass_set ? '<span class="badge green" style="font-size:10px">Đã lưu</span>' : ''}</label><input id="set_smtp_pass" type="password" value="" placeholder="${s.smtp_pass_set ? '•••••• (để trống nếu giữ nguyên)' : 'Nhập App Password'}"></div>
       </div>
       <div class="grid2">
-        <div class="field"><label>Người gửi <span class="opt">(from)</span></label><input id="set_smtp_from" value="${esc(s.smtp_from || '')}" placeholder="Ban quản lý KTX"></div>
+        <div class="field"><label>Người gửi <span class="opt">(from)</span></label><input id="set_smtp_from" value="${esc(s.smtp_from || '')}" placeholder="Ban Quản lý KTX"></div>
         <div class="field"><label>Bảo mật (secure)</label><select id="set_smtp_secure"><option value="false" ${s.smtp_secure !== 'true' ? 'selected' : ''}>false — STARTTLS (port 587)</option><option value="true" ${s.smtp_secure === 'true' ? 'selected' : ''}>true — SSL/TLS (port 465)</option></select></div>
       </div>
       <div class="hint" style="font-size:12px">${IC.lock} Vì bảo mật, mật khẩu SMTP <strong>không bao giờ được trả về</strong>. Để trống ô mật khẩu khi lưu nếu muốn giữ nguyên mật khẩu đã lưu.</div>
@@ -1426,7 +1426,7 @@ async function loadAdminUsers() {
         ${u.email ? `<div class="muted" style="font-size:11px">${esc(u.email)}</div>` : ''}</td>
       <td>${esc(u.full_name || '—')}</td>
       <td><span class="badge ${rc}">${rl}</span>
-        ${u.student_id ? `<div style="margin-top:3px"><span class="badge ${u.student_deleted ? 'red' : 'green'}" style="font-size:10px" title="${u.student_deleted ? 'Hồ sơ thuê phòng đã bị khoá — nên gỡ liên kết (bấm Sửa)' : 'Kiêm khách thuê phòng — chuyển được sang cổng khách thuê'}">${IC.home} Kiêm khách thuê${u.student_deleted ? ' · hồ sơ đã khoá' : ''}</span>
+        ${u.student_id ? `<div style="margin-top:3px"><span class="badge ${u.student_deleted ? 'red' : 'green'}" style="font-size:10px" title="${u.student_deleted ? 'Hồ sơ thuê phòng đã bị khoá — nên gỡ liên kết (bấm Sửa)' : 'Nhân viên ở KTX — chuyển được sang cổng học viên'}">${IC.home} Ở KTX${u.student_deleted ? ' · hồ sơ đã khoá' : ''}</span>
           <div class="muted" style="font-size:11px">${esc((u.student_code ? u.student_code + ' · ' : '') + (u.student_room || 'chưa xếp phòng'))}</div></div>` : ''}</td>
       <td>${u.facility_id ? esc(u.facility_name || facilityName(u.facility_id)) : '<span class="badge gray" title="Điều hành — thấy tất cả cơ sở">Tất cả</span>'}</td>
       <td class="num"><div class="rowbtns" style="justify-content:flex-end">
@@ -1641,11 +1641,11 @@ function userForm(id) {
       ${id && u.role !== 'admin' && id !== Auth.user.id ? `<div class="field" style="border-top:1px solid var(--line);padding-top:12px;margin-top:4px"><label>Lỡ tạo nhầm vai?</label>
         <div class="sub2" style="margin-bottom:6px">Người này thật ra là <strong>học viên</strong>: bấm nút dưới để ghép hồ sơ học viên — vai nhân viên bị gỡ, không cần tạo lại tài khoản.</div>
         <button type="button" class="btn sm" data-act="duyetTaiKhoanForm" data-args='[${id},"hocvien"]'>${IC.graduation || IC.user} Chuyển thành tài khoản học viên</button></div>` : ''}
-      ${id ? `<div class="field" style="border-top:1px solid var(--line);padding-top:12px;margin-top:4px"><label>Kiêm khách thuê phòng</label>
+      ${id ? `<div class="field" style="border-top:1px solid var(--line);padding-top:12px;margin-top:4px"><label>Nhân viên ở KTX — gắn hồ sơ học viên</label>
         ${u.student_id ? `<div class="bang-tin">${IC.home} Đang gắn hồ sơ: <strong>${esc(u.student_name || '—')}</strong>${u.student_code ? ` (${esc(u.student_code)})` : ''}${u.student_room ? ` · phòng ${esc(u.student_room)}` : ''}
           ${u.student_deleted ? `<div style="font-size:12px;margin-top:4px">${IC.alert} Hồ sơ đã bị khoá — nên gỡ liên kết.</div>` : ''}
           <div style="margin-top:8px"><button type="button" class="btn sm ghost" data-act="unlinkTenant" data-args='[${id}]'>Gỡ liên kết</button></div></div>`
-      : `<div class="sub2" style="margin-bottom:6px">Nhân viên thuê phòng trong KTX: gắn hồ sơ để chuyển được sang cổng khách thuê, vai trò giữ nguyên. Chỉ chọn được hồ sơ chưa có tài khoản đăng nhập.</div>
+      : `<div class="sub2" style="margin-bottom:6px">Nhân viên thuê phòng trong KTX: gắn hồ sơ để chuyển được sang cổng học viên, vai trò giữ nguyên. Chỉ chọn được hồ sơ chưa có tài khoản đăng nhập.</div>
         <input id="ap_hvq" data-input="apFilterHV" placeholder="Gõ vài chữ: mã HV, họ tên hoặc SĐT — bấm một dòng để chọn" autocomplete="off">
         <input type="hidden" id="ap_hvid" value="">
         <div id="ap_hvbox" style="max-height:180px;overflow:auto;border:1px solid var(--line);border-radius:10px;margin-top:6px"></div>
@@ -1667,12 +1667,12 @@ async function linkTenant(id) {
   const sid = +((el('ap_hvid') || {}).value || 0);
   if (!sid) return toast('Chọn một hồ sơ trong danh sách trước đã', 'err');
   await guard(() => API.linkStudent(id, sid));
-  closeModal(); toast('Đã gắn hồ sơ — tài khoản này chuyển được sang cổng khách thuê');
+  closeModal(); toast('Đã gắn hồ sơ — tài khoản này chuyển được sang cổng học viên');
   await napLai('students'); // login_username của hồ sơ vừa gắn đổi -> danh sách chọn phải tươi
   loadAdminUsers();
 }
 async function unlinkTenant(id) {
-  if (!confirm('Gỡ hồ sơ thuê phòng khỏi tài khoản này? Người này sẽ không vào được cổng khách thuê nữa.')) return;
+  if (!confirm('Gỡ hồ sơ thuê phòng khỏi tài khoản này? Người này sẽ không vào được cổng học viên nữa.')) return;
   await guard(() => API.unlinkStudent(id));
   closeModal(); toast('Đã gỡ liên kết hồ sơ');
   await napLai('students');
@@ -1783,7 +1783,7 @@ async function moKhoaStuAcc(id) {
 /* ---------- Đổi NGƯỢC: tài khoản học viên -> nhân viên ----------
    Chiều xuôi nằm ở userForm ("Chuyển thành tài khoản học viên"). Thiếu chiều này thì chuyển nhầm một
    cái là hết đường lui: vai 'student' rơi khỏi /admin/users nên dòng biến mất khỏi màn Tài khoản.
-   Hồ sơ đang gắn hỏi tại chỗ: gỡ hẳn, hay giữ thành nhân viên kiêm khách thuê phòng. */
+   Hồ sơ đang gắn hỏi tại chỗ: gỡ hẳn, hay giữ thành nhân viên ở KTX (vào được cổng học viên). */
 function doiVeNhanVienForm(id) {
   const u = (window._stuAccCache || []).find(x => x.id === id); if (!u) return;
   const dangO = u.student_status === 'in';
@@ -1805,9 +1805,9 @@ function doiVeNhanVienForm(id) {
       </select></div>
       <div class="field"><label>Hồ sơ học viên đang gắn</label><select id="dv_keep">
         <option value="0">Gỡ hẳn — tài khoản thành nhân viên thuần</option>
-        <option value="1">Giữ — nhân viên kiêm khách thuê phòng</option>
+        <option value="1">Giữ — nhân viên ở KTX, vào được cổng học viên</option>
       </select><div class="sub2" style="margin-top:4px">Gỡ hẳn: hồ sơ <strong>vẫn còn nguyên</strong> trong danh sách học viên, chỉ không còn tài khoản đăng nhập — cấp lại được ở màn hồ sơ.
-        Giữ: một tài khoản vào được cả màn quản trị lẫn cổng khách thuê.</div></div>
+        Giữ: một tài khoản vào được cả màn quản trị lẫn cổng học viên.</div></div>
       ${dangO ? `<div class="hint" style="font-size:12px">${IC.alert} Hồ sơ này <strong>đang ở</strong>. Nếu người đang ở thật là học viên thì gỡ liên kết sẽ lấy mất lối đăng nhập của họ — cân nhắc chọn "Giữ".</div>` : ''}
     </div>
     <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="doiVeNhanVien" data-args='[${id}]'>Đổi về nhân viên</button></div>`);

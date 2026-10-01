@@ -492,7 +492,7 @@ async function viewAudit() {
     const s = `${r.username} ${label} ${r.detail || ''} ${r.path || ''}`.toLowerCase();
     return `<tr data-s="${esc(s)}">
       <td style="white-space:nowrap">${fmtDT(r.at)}</td>
-      <td><strong>${esc(r.username || '—')}</strong> <span class="badge ${r.role === 'admin' ? 'gray' : 'blue'}" style="font-size:10px">${r.role === 'admin' ? 'QTV' : 'NV'}</span></td>
+      <td><strong>${esc(r.username || '—')}</strong> <span class="badge ${(ROLE_LABEL[r.role] || [])[1] || 'gray'}" style="font-size:10px">${esc((ROLE_LABEL[r.role] || [])[0] || (r.role === 'student' ? 'Học viên' : r.role || '—'))}</span></td>
       <td><span class="badge ${AUDIT_MCLR[r.method] || 'gray'}" style="font-size:10px">${AUDIT_MVERB[r.method] || r.method}</span> ${esc(label)}</td>
       <td class="muted" style="font-size:12px;max-width:420px">${auditDetail(r.detail)}</td>
     </tr>`;

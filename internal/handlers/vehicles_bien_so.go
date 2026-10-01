@@ -98,7 +98,7 @@ func (h *Handlers) MaintDeNghiSuaBien(c *gin.Context) {
 	if h.pool().QueryRow(ctx, "SELECT id, plate_moi FROM vehicle_plate_requests WHERE vehicle_id=$1 AND status='pending'", id).
 		Scan(&reqID, &reqMoi) == nil {
 		conflict(c, gin.H{
-			"error":   "Xe này đã có đề nghị đang chờ duyệt (biển " + reqMoi + "). Chờ quản trị viên xử lý xong rồi gửi lại.",
+			"error":   "Xe này đã có đề nghị đang chờ duyệt (biển " + reqMoi + "). Chờ Ban Quản lý xử lý xong rồi gửi lại.",
 			"request": gin.H{"id": reqID, "plate_moi": reqMoi},
 		})
 		return

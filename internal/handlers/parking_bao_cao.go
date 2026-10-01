@@ -245,7 +245,7 @@ func (h *Handlers) ParkingReportDelete(c *gin.Context) {
 		return
 	}
 	if status != parkingBcMoi {
-		conflict(c, gin.H{"error": "Quản trị viên đã xem báo cáo này — không xoá được nữa."})
+		conflict(c, gin.H{"error": "Ban Quản lý đã xem báo cáo này — không xoá được nữa."})
 		return
 	}
 	if _, err := h.pool().Exec(ctx, "DELETE FROM parking_reports WHERE id=$1", id); err != nil {

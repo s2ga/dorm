@@ -27,7 +27,7 @@ import (
 func meStudentID(c *gin.Context) (int, bool) {
 	u := auth.CurrentUser(c)
 	if u == nil || u.StudentID == nil {
-		forbidden(c, "Tài khoản chưa được gắn với hồ sơ học viên. Vui lòng liên hệ ban quản lý.")
+		forbidden(c, "Tài khoản chưa được gắn với hồ sơ học viên. Vui lòng liên hệ Ban Quản lý.")
 		return 0, false
 	}
 	return *u.StudentID, true

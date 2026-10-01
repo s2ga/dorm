@@ -55,7 +55,7 @@ func defaultSettings(dormName string) [][2]string {
 		{"intro_price_title", "Bảng giá chi phí"},
 		{"intro_price_desc", "Minh bạch theo từng khoản. Tiền điện tính theo công-tơ, chia đều số người ở phòng."},
 		{"intro_contact_title", "Liên hệ & đường đến"},
-		{"intro_contact_desc", "Ghé thăm hoặc gọi cho ban quản lý để được tư vấn xếp phòng."},
+		{"intro_contact_desc", "Ghé thăm hoặc gọi cho Ban Quản lý để được tư vấn xếp phòng."},
 		{"imgcap_khuon-vien-1", "Khuôn viên"}, {"imgcap_khuon-vien-2", "Sảnh sinh hoạt chung"}, {"imgcap_khuon-vien-3", "Khu tự học"},
 		{"imgcap_phong-1", "Phòng ghép"}, {"imgcap_phong-2", "Nội thất phòng"}, {"imgcap_phong-3", "Khu vệ sinh"},
 		{"school_name", "Nhà trường"}, {"school_email", ""}, {"violation_mail_threshold", "3"},

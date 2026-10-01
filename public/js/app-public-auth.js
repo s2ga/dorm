@@ -104,7 +104,7 @@ function renderChoDuyet() {
         <div style="font-size:40px">${IC.clock || IC.info}</div>
         <h2>Tài khoản đang chờ duyệt</h2>
         <p class="sub">Bạn đã đăng nhập bằng Microsoft với email <strong>${esc(u.email || u.username || '')}</strong>,
-        nhưng quản trị viên chưa cấp quyền sử dụng. Vui lòng liên hệ ban quản lý khu nội trú để được duyệt.</p>
+        nhưng Ban Quản lý chưa cấp quyền sử dụng. Vui lòng liên hệ Ban Quản lý để được duyệt.</p>
         <button class="btn pri lg auth-btn" data-act="logout">Đăng xuất</button>
       </div>
     </div></div>`;
@@ -216,14 +216,14 @@ async function renderPublicRegister() {
 
     <section class="intro-sec alt">
       <div class="intro-head"><span class="eyebrow">Liên hệ</span><h2>${T('intro_contact_title', 'Liên hệ & đường đến')}</h2>
-        <p>${T('intro_contact_desc', 'Ghé thăm hoặc gọi cho ban quản lý để được tư vấn xếp phòng.')}</p></div>
+        <p>${T('intro_contact_desc', 'Ghé thăm hoặc gọi cho Ban Quản lý để được tư vấn xếp phòng.')}</p></div>
       <div class="intro-contact">
         <div class="contact-info">
           ${info.address ? `<div class="ci-row">${IC.mapPin}<div><b>Địa chỉ</b><span>${esc(info.address)}</span></div></div>` : ''}
           ${/* Dưới tên khu là SỐ HOTLINE, không phải câu mô tả — người ta vào đây để gọi. */''}
           <div class="ci-row">${IC.home}<div><b>${dorm}</b>${info.hotline
     ? `<a class="ci-tel" href="tel:${esc(String(info.hotline).replace(/[\s.]/g, ''))}">${IC.phone}${esc(info.hotline)}</a>`
-    : '<span>Ban quản lý khu nội trú</span>'}${info.contact_person ? `<span>${esc(info.contact_person)}</span>` : ''}</div></div>
+    : '<span>Ban Quản lý khu nội trú</span>'}${info.contact_person ? `<span>${esc(info.contact_person)}</span>` : ''}</div></div>
         </div>
         ${info.address ? `<div class="contact-map"><iframe title="Bản đồ" src="https://www.google.com/maps?q=${encodeURIComponent(info.address)}&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div>` : ''}
       </div>
@@ -244,9 +244,9 @@ async function renderPublicRegister() {
           <div class="price-sub">Ký túc xá nhận học viên từ ${info.age_min || 17} đến ${info.age_max || 39} tuổi.</div></div>
       </div>
       <div class="field"><label>Ngày muốn nhận phòng ${SAO}</label><input id="a_movein" required>
-        <div class="muted" style="font-size:12.5px;margin-top:4px">${IC.info} Ban quản lý xếp phòng theo ngày này. Chọn từ hôm nay trở đi; chưa chắc ngày nào thì cứ chọn tạm rồi báo lại sau.</div>
+        <div class="muted" style="font-size:12.5px;margin-top:4px">${IC.info} Ban Quản lý xếp phòng theo ngày này. Chọn từ hôm nay trở đi; chưa chắc ngày nào thì cứ chọn tạm rồi báo lại sau.</div>
       </div>
-      <div class="muted" style="font-size:12.5px;margin:2px 0 7px">${IC.info} <strong>Chưa khai giảng?</strong> Nhiều bạn thuê phòng trước khi vào học — nếu chưa có mã học viên / lớp, bạn cứ <strong>bỏ trống 2 ô dưới</strong>. Khi nào có, báo Ban quản lý cập nhật sau.</div>
+      <div class="muted" style="font-size:12.5px;margin:2px 0 7px">${IC.info} <strong>Chưa khai giảng?</strong> Nhiều bạn thuê phòng trước khi vào học — nếu chưa có mã học viên / lớp, bạn cứ <strong>bỏ trống 2 ô dưới</strong>. Khi nào có, báo Ban Quản lý cập nhật sau.</div>
       <div class="grid2">
         <div class="field"><label>Mã học viên <span class="opt">(nếu đã có)</span></label><input id="a_code"></div>
         <div class="field"><label>Lớp <span class="opt">(nếu đã có)</span></label><input id="a_class"></div>
@@ -371,7 +371,7 @@ async function renderLogin() {
             <button type="button" class="btn lg auth-btn auth-sso" data-act="ssoLogin"><svg class="ms-logo" viewBox="0 0 21 21" aria-hidden="true"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg> Đăng nhập bằng tài khoản Microsoft</button>
             ${/* Form tài khoản BQL cấp GIẤU khi có Microsoft: hai ô cùng hiện là người ta gõ tài khoản Microsoft
                   vào ô bên dưới. Ai chưa có Microsoft (nhân viên, học viên mới) bấm dòng này mới mở form. */''}
-            <button type="button" class="auth-alt" id="lgAlt" data-act="lgMoNoiBo"><span class="q">Chưa có tài khoản Microsoft?</span><u>Đăng nhập bằng tài khoản do Ban quản lý cấp</u></button>
+            <button type="button" class="auth-alt" id="lgAlt" data-act="lgMoNoiBo"><span class="q">Chưa có tài khoản Microsoft?</span><u>Đăng nhập bằng tài khoản do Ban Quản lý cấp</u></button>
           </div>
           <form id="loginForm">
             <div class="field"><label>Tài khoản</label><input id="lg_user" autocomplete="username" placeholder="Tên đăng nhập"></div>
@@ -391,7 +391,7 @@ async function renderLogin() {
   // Thông báo khi vừa quay về từ Microsoft (server chuyển hướng kèm tham số)
   const qp = new URLSearchParams(location.search);
   if (qp.get('sso_pending')) {
-    el('lgNotice').innerHTML = `<div class="auth-note">Tài khoản Microsoft của bạn đã được ghi nhận nhưng <strong>chưa được quản trị viên duyệt</strong>. Vui lòng liên hệ ban quản lý.</div>`;
+    el('lgNotice').innerHTML = `<div class="auth-note">Tài khoản Microsoft của bạn đã được ghi nhận nhưng <strong>chưa được Ban Quản lý duyệt</strong>. Vui lòng liên hệ Ban Quản lý.</div>`;
   } else if (qp.get('sso_error')) {
     el('lgNotice').innerHTML = `<div class="auth-note err"><span class="err-inline">${esc(qp.get('sso_error'))}</span></div>`;
   }

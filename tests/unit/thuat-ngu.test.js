@@ -8,6 +8,8 @@ const CAM = [
   { ten: 'Chứng từ tiền hàng tháng gọi là "phiếu báo" — không dùng "hoá đơn"/"phiếu thu"', re: /h[oó][aá] đơn|phiếu thu/i },
   // ghiChuRaVao và PATH_VIEWS['/check-in'] cố ý chứa chữ cũ: đổi ghi chú bản ghi cũ khi hiển thị, nhận dấu trang cũ.
   { ten: 'Vào/rời phòng gọi là "Nhận phòng"/"Trả phòng" — không dùng "Check-in"/"Check-out"', re: /check-(in|out)\b/i, boQua: /ghiChuRaVao|PATH_VIEWS\[/ },
+  { ten: 'Người ở gọi là "học viên", cổng gọi là "Cổng học viên" — không dùng "khách thuê"', re: /khách thuê/i },
+  { ten: 'Đơn vị quản lý viết "Ban Quản lý" — không viết "ban quản lý"/"Ban quản lý", không viết tắt "QTV"', re: /[Bb]an quản lý|\bQTV\b/ },
 ];
 
 // JS: bỏ chú thích dòng, khối đầu dòng, ${/* … */''} trong template, và "// …" cuối dòng.

@@ -199,14 +199,14 @@ func SendViolationMail(ctx context.Context, database *db.DB, student Student, vi
 	}
 	text := fmt.Sprintf(`Kính gửi %s,
 
-Ban quản lý %s xin thông báo: học viên %s%s%s đã vi phạm nội quy ký túc xá %d lần:
+Ban Quản lý %s xin thông báo: học viên %s%s%s đã vi phạm nội quy ký túc xá %d lần:
 
 %s
 
 Kính đề nghị Nhà trường phối hợp nhắc nhở, xử lý. Trân trọng cảm ơn.
 
 --
-Ban quản lý %s%s`, schoolName, dorm, student.Name, code, cls, len(violations), strings.Join(lines, "\n"), dorm, hotline)
+Ban Quản lý %s%s`, schoolName, dorm, student.Name, code, cls, len(violations), strings.Join(lines, "\n"), dorm, hotline)
 
 	html := strings.ReplaceAll(escHTML(text), "\n", "<br>")
 	from := s["smtp_from"]

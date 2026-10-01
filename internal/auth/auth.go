@@ -164,7 +164,7 @@ func (a *Auth) RequireAuth() gin.HandlerFunc {
 
 		path := c.Request.URL.Path
 		if !approved && !pendingAllow[path] {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Tài khoản đang chờ quản trị viên duyệt."})
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Tài khoản đang chờ Ban Quản lý duyệt."})
 			return
 		}
 		if mustChange && !mustChangeAllow[path] {
@@ -200,7 +200,7 @@ func (a *Auth) RequireStudentLink() gin.HandlerFunc {
 		u := CurrentUser(c)
 		if u == nil || u.StudentID == nil {
 			// Cùng câu với meStudentID (handlers/me.go) để client hiển thị nhất quán.
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Tài khoản chưa được gắn với hồ sơ học viên. Vui lòng liên hệ ban quản lý."})
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Tài khoản chưa được gắn với hồ sơ học viên. Vui lòng liên hệ Ban Quản lý."})
 			return
 		}
 		c.Next()

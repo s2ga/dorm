@@ -97,7 +97,7 @@ func (h *Handlers) MaintWashingRequest(c *gin.Context) {
 	if h.pool().QueryRow(ctx, "SELECT id FROM washing_requests WHERE student_id=$1 AND status='pending'", b.StudentID).
 		Scan(&cuID) == nil {
 		conflict(c, gin.H{
-			"error":   ten + " đã có đề nghị đang chờ duyệt. Chờ quản trị viên xử lý xong rồi gửi lại.",
+			"error":   ten + " đã có đề nghị đang chờ duyệt. Chờ Ban Quản lý xử lý xong rồi gửi lại.",
 			"request": gin.H{"id": cuID},
 		})
 		return

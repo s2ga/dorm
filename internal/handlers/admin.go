@@ -960,7 +960,7 @@ func (h *Handlers) AdminLinkStudent(c *gin.Context) {
 		return
 	}
 	if !adminValidRoles[curRole] {
-		badRequest(c, "Chỉ tài khoản nhân viên mới gắn kiêm khách thuê phòng được. Tài khoản học viên/chờ duyệt xử lý ở màn riêng.")
+		badRequest(c, "Chỉ tài khoản nhân viên mới gắn được hồ sơ thuê phòng (cổng học viên). Tài khoản học viên/chờ duyệt xử lý ở màn riêng.")
 		return
 	}
 	if curSID != nil {
