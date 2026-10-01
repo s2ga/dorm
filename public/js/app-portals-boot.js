@@ -2010,6 +2010,19 @@ function chongBam2Lan(fn) {
   'toggleMyWashing', 'uploadRulesDoc', 'removeRulesDoc', 'luuChotGiuaKy', 'xoaChotGiuaKy',
   'luuTatCaChotGiuaKy', 'pkGanXeLuu', 'tamTruXacNhanIn', 'tamTruChuyenXuLy',
   'pkTuChoiBienLuu', 'washReqTuChoiLuu',
+  // Phòng · học viên · cọc
+  'doRefund', 'settleDeposit', 'goGhiNhanCoc', 'restoreStudentAndReload', 'delRoom', 'restoreRoom', 'delVehicle',
+  // Tiền phòng · cài đặt · tài khoản
+  'saveApprove', 'doStuAccPw', 'genChot', 'doThuCaKy', 'doiVeNhanVien', 'khoaStuAcc', 'moKhoaStuAcc',
+  'revokeStuSession', 'delUser', 'unlockUser', 'delInvoice', 'recalcInv', 'luuGiamPct', 'saveImgCaptions',
+  'delAsset', 'delVtype', 'delFacility',
+  // Tiếp nhận · dịch vụ
+  'doConfirmCout', 'rejectApp', 'delApp', 'setDamage', 'assignMaint', 'rejectCout', 'delViolation', 'notifySchool',
+  'khongDenForm', 'pkDuyetBien', 'pkBcTrangThai', 'washReqDuyet', 'doSuaNgayTra',
+  'goScanHD', 'thuCaKyForm', 'removeIntroMedia',
+  // Cổng an ninh / bảo trì
+  'mgBaoGui', 'maintSuaBienLuu', 'pkLuuBaoCaoXe', 'pkLuuXeLa', 'pkXoaBaoCao', 'maintDo', 'pkBoDanhDau', 'pkChotLuot',
+  'pkCamSuaBien', 'pkQuetChon',
 ].forEach(ten => {
   if (typeof window[ten] === 'function') window[ten] = chongBam2Lan(window[ten]);
   else console.warn('[chống bấm 2 lần] không thấy hàm:', ten); // đổi tên hàm mà quên sửa đây -> báo ngay

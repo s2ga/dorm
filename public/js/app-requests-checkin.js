@@ -220,7 +220,7 @@ function choXacNhanRaHTML() {
 function khongDenForm(id) {
   const s = studentById(id); if (!s) return;
   if (!confirm(`${s.name} không đến nhận phòng?\n\nHồ sơ sẽ bị KHOÁ (lý do: không đến), chỗ đã đặt được nhả ra. Mở khoá được sau nếu bạn ấy quay lại.`)) return;
-  guard(() => API.deleteStudent(id, 'Không đến nhận phòng (dự kiến ' + fmtDate(s.planned_check_in) + ')')).then(async r => {
+  return guard(() => API.deleteStudent(id, 'Không đến nhận phòng (dự kiến ' + fmtDate(s.planned_check_in) + ')')).then(async r => {
     if (r === null) return;
     await refreshCache(); toast('Đã khoá hồ sơ — chỗ đã nhả'); viewRequests();
   });
