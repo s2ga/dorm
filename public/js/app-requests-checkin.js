@@ -294,9 +294,9 @@ function violationForm(studentId) {
   openModal(`
     <div class="mh"><h3>${IC.alert} Ghi nhận vi phạm</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <div class="field"><label>Học viên ${SAO}</label><select id="vf_stu" ${studentId ? 'disabled' : ''}>${sOpts}</select></div>
+      <div class="field"><label>Học viên ${SAO}</label><select id="vf_stu" ${studentId ? 'disabled' : ''}>${studentId ? '' : '<option value="">— Chọn học viên —</option>'}${sOpts}</select></div>
       <div class="grid2">
-        <div class="field"><label>Loại vi phạm ${SAO}</label><select id="vf_type">${tOpts || '<option value="">(Chưa có loại — thêm trong Cài đặt)</option>'}</select></div>
+        <div class="field"><label>Loại vi phạm ${SAO}</label><select id="vf_type">${tOpts ? '<option value="">— Chọn loại vi phạm —</option>' + tOpts : '<option value="">(Chưa có loại — thêm trong Cài đặt)</option>'}</select></div>
         <div class="field"><label>Ngày</label><input id="vf_date"></div>
       </div>
       <div class="field"><label>Ghi chú / diễn giải</label><textarea id="vf_note" rows="2" placeholder="Mô tả cụ thể sự việc..."></textarea></div>
@@ -668,8 +668,8 @@ function quickPick(type) {
   if (!pool.length) return toast(type === 'in' ? 'Không có học viên nào đang ở ngoài' : 'Không có học viên nào đang ở', 'err');
   openModal(`
     <div class="mh"><h3>${type === 'in' ? IC.check+' Chọn học viên nhận phòng' : IC.undo+' Chọn học viên trả phòng'}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
-    <div class="mb"><div class="field"><label>Chọn học viên</label>
-      <select id="q_stu">${pool.map(s => `<option value="${s.id}">${esc(s.name)} ${s.code ? '(' + esc(s.code) + ')' : ''}</option>`).join('')}</select></div></div>
+    <div class="mb"><div class="field"><label>Học viên ${SAO}</label>
+      <select id="q_stu"><option value="">— Chọn học viên —</option>${pool.map(s => `<option value="${s.id}">${esc(s.name)} ${s.code ? '(' + esc(s.code) + ')' : ''}</option>`).join('')}</select></div></div>
     <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="quickPickGo" data-args='["${type}"]'>Tiếp tục</button></div>`);
 }
 

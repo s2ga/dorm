@@ -247,8 +247,16 @@ function svcGo(t) { svcTab = t; viewServices(); }
 function reloadView() { closeModal(); adminGo(ST.view); }
 
 /* ---- Wrapper: ca doc DOM / dieu kien / method object ---- */
-function quickPickGo(type) { const id = +el('q_stu').value; closeModal(); (type === 'in' ? checkInForm : checkOutForm)(id); }
-function washAdd() { toggleWashing(+el('wash_stu').value, true); }
+function quickPickGo(type) {
+  const id = +el('q_stu').value;
+  if (!id) return loiTaiO('q_stu', 'Chọn học viên');
+  closeModal(); (type === 'in' ? checkInForm : checkOutForm)(id);
+}
+function washAdd() {
+  const id = +el('wash_stu').value;
+  if (!id) return loiTaiO('wash_stu', 'Chọn học viên');
+  toggleWashing(id, true);
+}
 function delUserRow(id) { delUser(id, (this && this.dataset && this.dataset.uname) || ''); } // ten doc tu data-uname (delUser = KHOA tai khoan)
 function unlockUserRow(id) { unlockUser(id, (this && this.dataset && this.dataset.uname) || ''); }
 function logout() { Auth.logout(); }

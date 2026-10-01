@@ -1,6 +1,6 @@
 // Test giao diện (Playwright), KHÔNG ghi dữ liệu: ở khổ điện thoại (390px) các bảng .card-tbl gấp thành thẻ,
 // mỗi ô có nhãn trùng tiêu đề cột (mỗi thẻ chỉ một ô không nhãn làm tên thẻ, cột nút để trơn), và trang không cuộn ngang.
-// Bảng có thể trống trên CSDL thử thì được trả dữ liệu giả qua route GET.
+// Dữ liệu giả qua route GET (bảng có thể trống trên CSDL thử), có chuỗi dài không khoảng trắng để canh tràn ngang.
 const { chromium } = require('playwright');
 
 const BASE = process.env.TEST_BASE || 'http://localhost:3000';
@@ -16,27 +16,32 @@ const ok = (name, cond, extra = '') => {
 
 const NHAN_RIENG = { GT: 'Giới tính' };   // tiêu đề viết tắt -> nhãn viết đủ trên thẻ
 const LUC = '2026-09-28T03:00:00Z';
+const DAI = 'chuoi_rat_dai_khong_co_khoang_trang_' + 'x'.repeat(160);   // không có chỗ ngắt dòng tự nhiên
 const GIA = {
   '/api/applications': [
     { id: 990001, status: 'pending', name: 'Đơn thử một', phone: '0900000001', gender: 'female', created_at: LUC, desired_check_in: '2026-10-05', pref: 'Tầng thấp', wants_parking: true, plate: '59A-123.45' },
-    { id: 990002, status: 'approved', name: 'Đơn thử hai', phone: '0900000002', gender: 'male', created_at: LUC, class_name: 'Lớp thử' },
+    { id: 990002, status: 'approved', name: 'Đơn thử hai', phone: '0900000002', gender: 'male', created_at: LUC, class_name: 'Lớp thử', note: DAI },
   ],
   '/api/requests/checkout': [
-    { id: 990011, status: 'pending', student_name: 'HV thử', room_name: '201', created_at: LUC, desired_date: '2026-10-10', reason: 'other', note: 'Về quê' },
+    { id: 990011, status: 'pending', student_name: 'HV thử', room_name: '201', created_at: LUC, desired_date: '2026-10-10', reason: 'other', note: DAI },
   ],
   '/api/requests/damage': [
-    { id: 990021, category: 'damage', status: 'new', title: 'Hỏng vòi nước', description: 'Rò nước', student_name: 'HV thử', room_name: '201', created_at: LUC },
-    { id: 990022, category: 'violation', status: 'processing', title: 'Ồn sau 23h', student_name: 'HV thử', room_name: '202', created_at: LUC },
+    { id: 990021, category: 'damage', status: 'new', title: 'Hỏng vòi nước', description: DAI, student_name: 'HV thử', room_name: '201', created_at: LUC },
+    { id: 990022, category: 'violation', status: 'processing', title: 'Ồn sau 23h', description: DAI, student_name: 'HV thử', room_name: '202', created_at: LUC },
   ],
   '/api/violations': [
-    { id: 990031, student_id: 990099, student_name: 'HV thử', student_code: 'HV-THU', room_name: '201', type_name: 'Về trễ', severity: 'minor', level: 3, date: '2026-09-27', note: 'Về lúc 23h40', notified_school: false },
+    { id: 990031, student_id: 990099, student_name: 'HV thử', student_code: 'HV-THU', room_name: '201', type_name: 'Về trễ', severity: 'minor', level: 3, date: '2026-09-27', note: DAI, notified_school: false },
   ],
   '/api/violations/stats': { threshold: 3, needMail: 1 },
   '/api/vehicles/plate-requests': { rows: [
-    { id: 990041, plate_cu: '59A-111.11', plate_moi: '59A-111.12', student_id: 990099, student_name: 'HV thử', room_name: '201', note: 'Đọc sai số cuối', requested_by: 'anninh', requested_at: LUC },
+    { id: 990041, plate_cu: '59A-111.11', plate_moi: '59A-111.12', student_id: 990099, student_name: 'HV thử', room_name: '201', note: DAI, requested_by: 'anninh', requested_at: LUC },
   ] },
   '/api/vehicles/parking-reports': { rows: [
-    { id: 990051, report_date: '2026-09-28', kind: 'stranger', plate: '51F-999.99', note: 'Xe lạ đậu qua đêm', reported_by: 'anninh', status: 'new' },
+    { id: 990051, report_date: '2026-09-28', kind: 'stranger', plate: '51F-999.99', note: DAI, reported_by: 'anninh', status: 'new' },
+  ] },
+  '/api/admin/audit': { total: 2, limit: 200, offset: 0, rows: [
+    { at: LUC, username: '__test_ten_dang_nhap_dai_giaovien', role: 'teacher', method: 'PUT', path: '/api/settings', detail: JSON.stringify({ note: DAI }) },
+    { at: LUC, username: 'admin', role: 'admin', method: 'POST', path: '/api/violations', detail: DAI },
   ] },
 };
 const HV = {
@@ -44,7 +49,7 @@ const HV = {
   '/api/me/invoices': [], '/api/me/checkout-request': [], '/api/me/violations': [], '/api/me/roommates': [],
   '/api/me/assets': [], '/api/me/chores': [], '/api/me/logs': [], '/api/me/notifications': [],
   '/api/me/damage': [
-    { id: 990061, category: 'damage', status: 'processing', title: 'Bóng đèn cháy', description: 'Đèn nhà tắm', created_at: LUC },
+    { id: 990061, category: 'damage', status: 'processing', title: 'Bóng đèn cháy', description: DAI, created_at: LUC },
   ],
 };
 
@@ -139,7 +144,7 @@ const HV = {
   if (dangO) await kiem('Máy giặt', '#svcBody .panel:last-child .card-tbl');
   else ok('Máy giặt (BỎ QUA: không ai đang ở)', true);
 
-  // ── Doanh thu, Nhật ký (dữ liệu thật) ──────────────────────────────────────
+  // ── Doanh thu (dữ liệu thật), Nhật ký (dữ liệu giả) ───────────────────────
   await page.evaluate(() => adminGo('revenue'));
   await cho(() => ST.view === 'revenue' && !!document.querySelector('#content .panel table, #content .panel .empty'));
   const coThang = await page.evaluate(() => {

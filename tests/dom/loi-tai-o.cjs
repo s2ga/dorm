@@ -79,6 +79,8 @@ const loiO = (page, id) => page.evaluate(i => {
   ok('… có họ tên, thiếu SĐT → báo tại ô SĐT', r && r.coLoi && r.chu === 'Nhập số điện thoại', JSON.stringify(r));
   ok('… lỗi họ tên đã tự gỡ khi gõ', !(await loiO(p2, 'a_name')).coLoi);
   await p2.fill('#a_phone', '0900000000');
+  if (await p2.evaluate(() => !!el('a_facility') && !el('a_facility').value)) await p2.selectOption('#a_facility', { index: 1 });
+  await p2.selectOption('#a_gender', 'female');
   await p2.click('#applyForm [type=submit]'); await p2.waitForTimeout(400);
   r = await loiO(p2, 'a_birth');
   ok('… thiếu ngày sinh → báo tại ô Ngày sinh, lịch mở sẵn', r && r.coLoi && r.chu === 'Chọn ngày sinh' && await p2.locator('.cal-pop').count() > 0, JSON.stringify(r));

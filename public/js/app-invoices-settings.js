@@ -736,7 +736,7 @@ function invoiceForm(id) {
     <div class="mh"><h3>${id ? 'Sửa phiếu báo' : 'Thêm phiếu báo lẻ'}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="grid2">
-        <div class="field"><label>Học viên ${SAO}</label><select id="i_stu" ${id ? 'disabled' : ''}>${opts}</select></div>
+        <div class="field"><label>Học viên ${SAO}</label><select id="i_stu" ${id ? 'disabled' : ''}>${id ? '' : '<option value="">— Chọn học viên —</option>'}${opts}</select></div>
         <div class="field"><label>Kỳ</label><input id="i_month"></div>
       </div>
       <div class="grid2">${f('Số ngày ở', 'days_stayed')}${f(tenKhoan('room_charge'), 'room_charge')}</div>
@@ -1555,7 +1555,7 @@ function duyetTaiKhoanForm(id, mode) {
             <div class="field"><label>Mã học viên</label><input id="ap_code" placeholder="TXTS-S25..."></div>
           </div>
           <div class="grid2">
-            <div class="field"><label>Giới tính</label><select id="ap_gender"><option value="male">Nam</option><option value="female">Nữ</option></select></div>
+            <div class="field"><label>Giới tính ${SAO}</label><select id="ap_gender"><option value="">— Chọn giới tính —</option><option value="male">Nam</option><option value="female">Nữ</option></select></div>
             <div class="field"><label>Số điện thoại</label><input id="ap_phone" type="tel" inputmode="tel" placeholder="09..."></div>
           </div>
           <div class="field"><label>Lớp</label><input id="ap_class" placeholder="Esu684"></div>
@@ -1588,6 +1588,7 @@ async function saveApprove(id) {
     },
   };
   if (!sid && !body.new_student.name) return loiTaiO('ap_name', 'Nhập họ tên để tạo hồ sơ học viên');
+  if (!sid && !body.new_student.gender) return loiTaiO('ap_gender', 'Chọn giới tính');
   // 409 needs_merge: hồ sơ đã có tài khoản — hỏi rồi gộp hai lối đăng nhập làm một (có Microsoft),
   // hoặc khoá bản thừa (khong_sso: tài khoản đang duyệt không có gì để gộp).
   let r, khongSSO = false;

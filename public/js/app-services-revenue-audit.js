@@ -274,7 +274,7 @@ function addWashingForm() {
   openModal(`
     <div class="mh"><h3>${IC.washer} Thêm HV dùng máy giặt</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <div class="field"><label>Chọn học viên</label><select id="wash_stu">${opts}</select></div>
+      <div class="field"><label>Học viên ${SAO}</label><select id="wash_stu"><option value="">— Chọn học viên đang ở —</option>${opts}</select></div>
       <div class="hint">${IC.info} Phí máy giặt ${money(+ST.settings.washing_fee || 0)}/tháng sẽ được tính vào phiếu báo từ kỳ kế tiếp.</div>
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="washAdd">Thêm</button></div>`);

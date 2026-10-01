@@ -334,6 +334,7 @@ async function leaderForm(roomId) {
     <div class="mb">
       ${!inRoom.length ? '<p class="muted">Phòng này chưa có ai ở — chưa cử phòng trưởng được.</p>' : `
       <div class="field"><label>Chọn phòng trưởng ${SAO}</label><select id="l_stu">
+        ${cur && inRoom.some(s => s.id === cur.id) ? '' : '<option value="">— Chọn học viên trong phòng —</option>'}
         ${inRoom.map(s => `<option value="${s.id}" ${cur && cur.id === s.id ? 'selected' : ''}>${esc(s.name)}${cur && cur.id === s.id ? ' — đang làm' : ''}</option>`).join('')}
       </select></div>
       <div class="field"><label>Nhận nhiệm vụ từ ngày</label><input id="l_date"></div>
@@ -1112,6 +1113,7 @@ function vehicleForm(vid, studentId) {
     <div class="mh"><h3>${vid ? 'Sửa xe' : 'Thêm xe'}${s.name ? ': ' + esc(s.name) : ''}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       ${chonHV ? `<div class="field"><label>Chủ xe ${SAO}</label><select id="v_stu" data-change="onVehicleStudent">
+        <option value="">— Chọn học viên đang ở —</option>
         ${dsHV.map(x => `<option value="${x.id}">${esc(x.name)}${x.code ? ' (' + esc(x.code) + ')' : ''}${x.room_name ? ' — ' + esc(x.room_name) : ''}</option>`).join('')}
       </select></div>` : ''}
       <div class="grid2">
@@ -1130,7 +1132,7 @@ function vehicleForm(vid, studentId) {
         Mặc định lấy theo ngày nhận phòng và ngày trả phòng của học viên — sửa được nếu xe đăng ký muộn hơn hoặc ngừng gửi sớm hơn.</div>
     </div>
     <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="saveVehicle" data-args='[${vid || 0}, ${sid}]'>Lưu</button></div>`);
-  const dau = chonHV ? (dsHV[0] || {}) : v;
+  const dau = chonHV ? {} : v;
   attachDate(el('v_from'), (dau.from_date || dau.check_in_date || '').slice(0, 10));
   attachDate(el('v_to'), (dau.to_date || dau.check_out_date || '').slice(0, 10));
 }
@@ -1348,7 +1350,9 @@ async function restoreStudentAndReload(id) {
 // Admin tạo ĐƠN ĐĂNG KÝ hộ học viên (thay cho việc thêm học viên trực tiếp).
 // Đơn vào trạng thái "Chờ duyệt" -> admin bấm "Thêm vào phòng" để tạo học viên.
 function appForm() {
-  const facOpts = (ST.facilities || []).map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join('');
+  const nhieuCS = (ST.facilities || []).length > 1;
+  const facOpts = (nhieuCS ? '<option value="">— Chọn cơ sở —</option>' : '')
+    + (ST.facilities || []).map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join('');
   openModal(`
     <div class="mh"><h3>${IC.filePen} Tạo đơn đăng ký</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
@@ -1358,7 +1362,7 @@ function appForm() {
         <div class="field"><label>SĐT ${SAO}</label><input id="ap_phone" type="tel" inputmode="tel" placeholder="09..."></div>
       </div>
       <div class="grid2">
-        <div class="field"><label>Giới tính</label><select id="ap_gender"><option value="female">Nữ</option><option value="male">Nam</option></select></div>
+        <div class="field"><label>Giới tính ${SAO}</label><select id="ap_gender"><option value="">— Chọn giới tính —</option><option value="female">Nữ</option><option value="male">Nam</option></select></div>
         <div class="field"><label>Ngày sinh</label><input id="ap_birth" readonly></div>
       </div>
       <div class="grid2">
@@ -1366,7 +1370,7 @@ function appForm() {
         <div class="field"><label>Lớp</label><input id="ap_class" placeholder="Esu..."></div>
       </div>
       <div class="grid2">
-        <div class="field"><label>Cơ sở</label><select id="ap_fac">${facOpts}</select></div>
+        <div class="field"><label>Cơ sở${nhieuCS ? ' ' + SAO : ''}</label><select id="ap_fac">${facOpts}</select></div>
         <div class="field"><label>Ngày muốn nhận phòng ${SAO}</label><input id="ap_movein" readonly></div>
       </div>
       <div class="field"><label>Nguyện vọng phòng</label><input id="ap_pref" placeholder="VD: tầng thấp, gần thang máy..."></div>
@@ -1385,6 +1389,8 @@ async function saveApp() {
   const name = el('ap_name').value.trim(), phone = el('ap_phone').value.trim();
   if (!name) return loiTaiO('ap_name', 'Nhập họ tên');
   if (!phone) return loiTaiO('ap_phone', 'Nhập số điện thoại');
+  if (!el('ap_gender').value) return loiTaiO('ap_gender', 'Chọn giới tính');
+  if (el('ap_fac').options.length && !el('ap_fac').value) return loiTaiO('ap_fac', 'Chọn cơ sở');
   const ngayVao = el('ap_movein').dataset.iso || '';
   if (!ngayVao) return loiTaiO('ap_movein', 'Chọn ngày muốn nhận phòng');
   if (ngayVao < today()) return loiTaiO('ap_movein', 'Ngày muốn nhận phòng đã qua — chọn lại');

@@ -126,6 +126,8 @@ const cho = async (page, dk, ms = 15000) => {
   await page.evaluate(() => appForm());
   await page.fill('#ap_name', 'Kiem Thu Don');
   await page.fill('#ap_phone', '0900000000');
+  await page.selectOption('#ap_gender', 'female');
+  if (await page.evaluate(() => !el('ap_fac').value && el('ap_fac').options.length > 1)) await page.selectOption('#ap_fac', { index: 1 });
   await page.evaluate(() => { document.getElementById('ap_movein').dataset.iso = '2099-01-01'; });
   await page.click('#modal [data-act="saveApp"]');
   await page.waitForTimeout(1200);

@@ -258,9 +258,9 @@ async function renderPublicRegister() {
         <div class="field"><label>Họ tên ${SAO}</label><input id="a_name" required data-change="onTenChuan"></div>
         <div class="field"><label>Số điện thoại ${SAO}</label><input id="a_phone" type="tel" autocomplete="tel" inputmode="tel" required></div>
       </div>
-      ${info.facilities && info.facilities.length ? `<div class="field"><label>Cơ sở đăng ký ${SAO}</label><select id="a_facility">${info.facilities.map(f => `<option value="${f.id}">${esc(f.name)}${f.address ? ' — ' + esc(f.address) : ''}</option>`).join('')}</select></div>` : ''}
+      ${info.facilities && info.facilities.length ? `<div class="field"><label>Cơ sở đăng ký ${SAO}</label><select id="a_facility">${info.facilities.length > 1 ? '<option value="">— Chọn cơ sở —</option>' : ''}${info.facilities.map(f => `<option value="${f.id}">${esc(f.name)}${f.address ? ' — ' + esc(f.address) : ''}</option>`).join('')}</select></div>` : ''}
       <div class="grid2">
-        <div class="field"><label>Giới tính ${SAO}</label><select id="a_gender"><option value="female">Nữ</option><option value="male">Nam</option></select></div>
+        <div class="field"><label>Giới tính ${SAO}</label><select id="a_gender"><option value="">— Chọn giới tính —</option><option value="female">Nữ</option><option value="male">Nam</option></select></div>
         <div class="field"><label>Ngày sinh ${SAO}</label><input id="a_birth">
           <div class="price-sub">Ký túc xá nhận học viên từ ${info.age_min || 17} đến ${info.age_max || 39} tuổi.</div></div>
       </div>
@@ -297,6 +297,8 @@ async function renderPublicRegister() {
     // Mọi lỗi nhập báo ngay tại ô (form có novalidate: không dùng bong bóng của trình duyệt).
     if (!el('a_name').value.trim()) return loiTaiO('a_name', 'Nhập họ tên');
     if (!el('a_phone').value.trim()) return loiTaiO('a_phone', 'Nhập số điện thoại');
+    if (el('a_facility') && !el('a_facility').value) return loiTaiO('a_facility', 'Chọn cơ sở đăng ký');
+    if (!el('a_gender').value) return loiTaiO('a_gender', 'Chọn giới tính');
     const ngaySinh = el('a_birth').dataset.iso || '';
     if (!ngaySinh) return loiTaiO('a_birth', 'Chọn ngày sinh');
     const tuoi = soTuoi(ngaySinh);
