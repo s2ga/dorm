@@ -3,8 +3,11 @@ const $ = s => document.querySelector(s);
 const el = id => document.getElementById(id);
 
 const esc = s => (s == null ? '' : String(s)).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const money = n => (Number(n) || 0).toLocaleString('vi-VN');  // số tiền — KHÔNG kèm đơn vị "đ" (bỏ đơn vị toàn app theo yêu cầu)
-const moneyN = money;
+// Đơn vị tiền theo Luật Ngân hàng Nhà nước 2010 (Điều 17): "đồng", ký hiệu "đ".
+// money: số tiền đứng riêng (ô tổng, câu, thông báo) -> "1.500.000 đ" (khoảng trắng không ngắt dòng).
+// moneyN: ô tiền trong bảng — không kèm đơn vị, đơn vị ghi một lần ở tiêu đề cột hoặc "Đơn vị: đồng".
+const moneyN = n => (Number(n) || 0).toLocaleString('vi-VN');
+const money = n => moneyN(n) + ' đ';
 // Số kWh: 2 số lẻ, cắt số 0 thừa ở đuôi. Chốt 2 chứ không hơn vì hệ thống tài chính bên đối tác
 // chỉ nhận tới 2 số lẻ — ghi khác nhau là hai bên lệch số.
 const kwh = n => (Number(n) || 0).toLocaleString('vi-VN', { maximumFractionDigits: 2 });

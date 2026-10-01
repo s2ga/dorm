@@ -115,15 +115,15 @@ async function loadStudentPortal() {
       <div class="pad muted" style="font-size:12.5px">${IC.info} Vui lòng tuân thủ nội quy ký túc xá. Vi phạm nhiều lần sẽ được thông báo về nhà trường.</div>
     </div></div>` : ''}
 
-    <div class="panel" id="pnPhieu"><div class="hd"><h2>${IC.receipt} Phiếu báo tiền phòng</h2></div><div class="table-wrap card-tbl">
+    <div class="panel" id="pnPhieu"><div class="hd"><h2>${IC.receipt} Phiếu báo tiền phòng</h2><span class="muted" style="font-size:12px">Đơn vị: đồng</span></div><div class="table-wrap card-tbl">
       ${invs.length ? `<table><thead><tr><th>Kỳ</th><th class="num">Tiền phòng</th><th class="num">Điện</th><th class="num">Khác</th><th class="num">Giảm</th><th class="num">Tổng</th></tr></thead><tbody>
         ${invs.map(i => {
           // Cột "Giảm" phải hiện, nếu không thì 4 cột đầu cộng lại KHÔNG ra Tổng — học viên tưởng app tính sai
           const giam = (+i.leader_discount || 0) + (+i.room_discount || 0) + (+i.fee_discount || 0);
-          return `<tr style="cursor:pointer" data-act="myInvoiceDetail" data-args='[${i.id}]' title="Bấm để xem chi tiết khoản thu"><td>${monthLabel(i.month)}<div style="margin-top:4px">${invPaidBadge(i)}</div></td><td class="num" data-label="Tiền phòng">${money(i.room_charge)}</td><td class="num" data-label="Điện">${money(i.electric_charge)}</td>
-          <td class="num" data-label="Khác">${money((+i.water_charge) + (+i.service_charge) + (+i.washing_charge) + (+i.parking_charge) + (+i.other_charge || 0) + (+i.deposit_charge || 0))}</td>
-          <td class="num" data-label="Giảm">${giam ? `<span class="badge green">−${money(giam)}</span>` : '—'}</td>
-          <td class="num" data-label="Tổng"><strong>${money(i.total)}</strong></td></tr>`;
+          return `<tr style="cursor:pointer" data-act="myInvoiceDetail" data-args='[${i.id}]' title="Bấm để xem chi tiết khoản thu"><td>${monthLabel(i.month)}<div style="margin-top:4px">${invPaidBadge(i)}</div></td><td class="num" data-label="Tiền phòng">${moneyN(i.room_charge)}</td><td class="num" data-label="Điện">${moneyN(i.electric_charge)}</td>
+          <td class="num" data-label="Khác">${moneyN((+i.water_charge) + (+i.service_charge) + (+i.washing_charge) + (+i.parking_charge) + (+i.other_charge || 0) + (+i.deposit_charge || 0))}</td>
+          <td class="num" data-label="Giảm">${giam ? `<span class="badge green">−${moneyN(giam)}</span>` : '—'}</td>
+          <td class="num" data-label="Tổng"><strong>${moneyN(i.total)}</strong></td></tr>`;
         }).join('')}
       </tbody></table>` : '<div class="empty">Chưa có phiếu báo.</div>'}
       <div class="pad muted" style="font-size:12.5px">${IC.info} Bấm vào từng kỳ để xem chi tiết khoản thu. &nbsp;·&nbsp; ${IC.creditCard} Đóng tiền qua mã QR quản lý gửi trên Zalo theo hạn hằng tháng.</div>

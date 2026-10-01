@@ -340,9 +340,9 @@ async function viewRevenue() {
   // Bảng theo tháng
   const monthRows = data.map(m => `<tr>
     <td><strong>${m.month.slice(5)}/${m.month.slice(0, 4)}</strong></td>
-    ${cot.map(([k]) => `<td class="num">${+m[k] ? money(m[k]) : '<span class="muted">—</span>'}</td>`).join('')}
-    <td class="num"><strong>${money(dtThang(m))}</strong></td>
-    <td class="num rev-coc">${+m.deposit ? money(m.deposit) : '<span class="muted">—</span>'}</td>
+    ${cot.map(([k]) => `<td class="num">${+m[k] ? moneyN(m[k]) : '<span class="muted">—</span>'}</td>`).join('')}
+    <td class="num"><strong>${moneyN(dtThang(m))}</strong></td>
+    <td class="num rev-coc">${+m.deposit ? moneyN(m.deposit) : '<span class="muted">—</span>'}</td>
   </tr>`).join('');
 
   // Cơ cấu doanh thu (BL-65: chuyển từ màn Tiền phòng sang đây — đúng nơi phân tích doanh thu)
@@ -367,6 +367,7 @@ async function viewRevenue() {
 
     ${revComp}
     <div class="panel"><div class="hd"><h2>${IC.trendingUp} Tiền đã lập phiếu theo tháng — năm ${revYear}</h2>
+      <span class="muted" style="font-size:12px">Đơn vị: đồng</span>
       <button class="btn sm" data-act="exportRevenue">${IC.download} Xuất Excel (CSV)</button></div>
       <div class="table-wrap">
       ${data.length ? `<table><thead><tr><th>Tháng</th>
@@ -375,9 +376,9 @@ async function viewRevenue() {
         <th class="num rev-coc" title="Tiền giữ hộ, trả lại khi học viên trả phòng — không cộng vào doanh thu">Cọc giữ hộ</th></tr></thead>
         <tbody>${monthRows}
           <tr style="background:var(--bg2)"><td><strong>Cả năm</strong></td>
-          ${cot.map(([k]) => `<td class="num"><strong>${money(sum(k))}</strong></td>`).join('')}
-          <td class="num"><strong>${money(grand)}</strong></td>
-          <td class="num rev-coc"><strong>${coc ? money(coc) : '—'}</strong></td></tr>
+          ${cot.map(([k]) => `<td class="num"><strong>${moneyN(sum(k))}</strong></td>`).join('')}
+          <td class="num"><strong>${moneyN(grand)}</strong></td>
+          <td class="num rev-coc"><strong>${coc ? moneyN(coc) : '—'}</strong></td></tr>
         </tbody></table>` : '<div class="empty">Chưa có phiếu báo trong năm này.</div>'}
       </div>
       <div class="pad"><div class="hint">${IC.info}<span>Đây là tiền <strong>đã ghi trên phiếu báo</strong>, chưa trừ phần chưa thu — không phải tiền đã về két.
@@ -386,12 +387,12 @@ async function viewRevenue() {
     </div>
 
     <div class="panel"><div class="hd"><h2>${IC.receipt} Tổng theo dịch vụ (đối chiếu Bravo) — năm ${revYear}</h2></div>
-      <div class="table-wrap"><table><thead><tr><th>Mã SP Bravo</th><th>Loại phí</th><th>Dịch vụ</th><th class="num">Tiền phiếu cả năm</th></tr></thead><tbody>
+      <div class="table-wrap"><table><thead><tr><th>Mã SP Bravo</th><th>Loại phí</th><th>Dịch vụ</th><th class="num">Tiền phiếu cả năm (đ)</th></tr></thead><tbody>
         ${REV_SERVICES.map(([k, l, codeKey]) => { const v = sum(k); if (!v && REV_AN_KHI_0.includes(k)) return ''; return `<tr>
           <td><strong>${esc(ST.settings[codeKey] || '—')}</strong></td>
           <td class="muted">${esc(ST.settings.bravo_fee_type || '')}</td>
-          <td>${l}</td><td class="num">${money(v)}</td></tr>`; }).join('')}
-        <tr style="background:var(--bg2)"><td colspan="3"><strong>TỔNG TIỀN PHIẾU</strong> <span class="muted" style="font-weight:500">(gồm cả cọc)</span></td><td class="num"><strong>${money(grand + coc)}</strong></td></tr>
+          <td>${l}</td><td class="num">${moneyN(v)}</td></tr>`; }).join('')}
+        <tr style="background:var(--bg2)"><td colspan="3"><strong>TỔNG TIỀN PHIẾU</strong> <span class="muted" style="font-weight:500">(gồm cả cọc)</span></td><td class="num"><strong>${moneyN(grand + coc)}</strong></td></tr>
       </tbody></table></div>
       <div class="pad muted" style="font-size:12.5px">${IC.bulb} Mã sản phẩm Bravo chỉnh trong <a href="#" data-act="adminGo" data-args='["settings"]'>Cài đặt</a>. Số liệu = tổng tiền đã lập phiếu báo, gồm cả tiền cọc thu ở kỳ nhận phòng. Thu tiền thực tế do Bravo quản lý. Số HV xuất cảnh xem ở <a href="#" data-act="adminGo" data-args='["exec"]'>Điều hành</a>.</div>
     </div>`;

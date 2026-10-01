@@ -42,7 +42,7 @@ async function viewRooms() {
             xoá là không tự nói ra được, nên giữ đúng câu đó. */''}
       ${del || !list.length ? '' : `<div class="hint only-touch" style="margin:12px 12px 0">${IC.info}<span><strong>Giữ</strong> hoặc <strong>kéo ngang</strong> một hàng để xoá phòng.</span></div>`}
     <div class="table-wrap card-tbl">
-      ${list.length ? `<table><thead><tr><th>Phòng</th><th>Loại</th><th>Mã pháp nhân</th><th class="num">Đang ở</th><th>${IC.star} Phòng trưởng</th><th class="num">Giá thuê</th><th></th></tr></thead><tbody>
+      ${list.length ? `<table><thead><tr><th>Phòng</th><th>Loại</th><th>Mã pháp nhân</th><th class="num">Đang ở</th><th>${IC.star} Phòng trưởng</th><th class="num">Giá thuê (đ)</th><th></th></tr></thead><tbody>
       ${list.map(r => { const c = chiSoPhong(r); return `<tr data-s="${esc((r.name + ' ' + genderLabel(r.gender) + ' ' + legalEntityCell(r.gender) + ' tầng' + r.floor + ' hạng' + (r.hang || 'b')).toLowerCase())}"${del ? ''
         // Cả hàng bấm được. KHÔNG đặt role="button" lên <tr>: role đó lược hết <td> con với trình đọc
         // màn hình; bàn phím đi bằng .stu-name bên dưới. data-del/data-delid: cử chỉ giữ/kéo để xoá trên
@@ -63,7 +63,7 @@ async function viewRooms() {
         <td data-label="Phòng trưởng"${leaderOf(r.id) ? '' : ' data-trong="1"'}>${leaderCell(r)}</td>
         ${/* bọc giá trị trong MỘT thẻ: ở chế độ thẻ, td[data-label] là flex space-between nên nhiều
              con sẽ bị xé ra hai đầu ("1.200.000" một bên, "/người" bên kia) */''}
-        <td class="num" data-label="Giá thuê"><span>${money(+r.monthly_fee > 0 ? r.monthly_fee : ST.settings.room_fee)}${roomIsShared(r) ? '<span class="muted">/người</span>' : ''}${roomType(r) === 'whole' ? `<div class="sub2">Nguyên phòng: ${money(ST.settings['room_price_' + (r.hang || 'B')])}</div>` : ''}</span></td>
+        <td class="num" data-label="Giá thuê (đ)"><span>${moneyN(+r.monthly_fee > 0 ? r.monthly_fee : ST.settings.room_fee)}${roomIsShared(r) ? '<span class="muted">/người</span>' : ''}${roomType(r) === 'whole' ? `<div class="sub2">Nguyên phòng: ${money(ST.settings['room_price_' + (r.hang || 'B')])}</div>` : ''}</span></td>
         <td class="num"><div class="rowbtns" style="justify-content:flex-end">
           ${del ? `<button class="btn sm green" data-act="restoreRoom" data-args='[${r.id}]'>${IC.undo} Khôi phục</button>`
                 // Sửa phòng + cử phòng trưởng đã có trong card Chi tiết phòng -> bỏ 2 nút khỏi hàng.
@@ -960,9 +960,9 @@ async function studentDetail(id) {
       </div></div>
 
       <h4 style="margin:18px 0 8px">${IC.receipt} Phiếu báo tiền phòng</h4>
-      ${invs.length ? `<div class="table-wrap"><table><thead><tr><th>Kỳ</th><th class="num">Tổng tiền phiếu</th><th></th></tr></thead><tbody>
+      ${invs.length ? `<div class="table-wrap"><table><thead><tr><th>Kỳ</th><th class="num">Tổng tiền phiếu (đ)</th><th></th></tr></thead><tbody>
         ${invs.map(i => `<tr style="cursor:pointer" data-act="phieuBaoHV" data-args='[${i.id}]' role="button" tabindex="0" title="Xem phiếu báo kỳ ${monthLabel(i.month)}">
-          <td>${monthLabel(i.month)}</td><td class="num"><strong>${money(i.total)}</strong></td>
+          <td>${monthLabel(i.month)}</td><td class="num"><strong>${moneyN(i.total)}</strong></td>
           <td class="num"><span class="row-chev" aria-hidden="true">${IC.chevronRight}</span></td></tr>`).join('')}
       </tbody></table></div>` : '<p class="muted">Chưa có phiếu báo.</p>'}
       <h4 style="margin:18px 0 8px">${IC.history} Lịch sử ở & chuyển phòng</h4>
@@ -1226,7 +1226,7 @@ async function refundForm(id) {
     <div class="mh"><h3>${IC.handCoins} Hoàn cọc: ${esc(s.name || '')}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="hint">Tick số lượng tài sản <strong>hư hao / mất / không vệ sinh</strong> để khấu trừ vào cọc. Có thể sửa đơn giá bồi hoàn.</div>
-      <div class="table-wrap" style="max-height:280px;overflow:auto"><table><thead><tr><th>Tài sản</th><th class="num">SL hư/mất</th><th class="num">Đơn giá</th><th class="num">Thành tiền</th></tr></thead><tbody>
+      <div class="table-wrap" style="max-height:280px;overflow:auto"><table><thead><tr><th>Tài sản</th><th class="num">SL hư/mất</th><th class="num">Đơn giá (đ)</th><th class="num">Thành tiền (đ)</th></tr></thead><tbody>
         ${person.length ? `<tr><td colspan="4" style="background:#fbeee3;font-weight:700;font-size:12px">Trang thiết bị theo người</td></tr>${person.map(assetRow).join('')}` : ''}
         ${fixed.length ? `<tr><td colspan="4" style="background:#fbeee3;font-weight:700;font-size:12px">Trang thiết bị cố định</td></tr>${fixed.map(assetRow).join('')}` : ''}
       </tbody></table></div>
@@ -1252,7 +1252,7 @@ function dedCalc() {
     const fee = +document.querySelector(`[data-dfee="${id}"]`).value || 0;
     const line = (+q.value || 0) * fee;
     total += line;
-    el('dl_' + id).textContent = money(line);
+    el('dl_' + id).textContent = moneyN(line);
   });
   const deposit = +(el('dedRefund').dataset.deposit || 0);
   el('dedTotal').textContent = money(total);
@@ -1452,7 +1452,7 @@ function quyCoc() {
   const rowFor = s => `<tr>
     <td><span class="hd-ref" data-act="studentDetail" data-args='[${s.id}]' role="button" tabindex="0" title="Xem chi tiết học viên"><strong>${esc(s.name)}</strong></span><div class="sub2">${s.room_id ? `<span class="hd-ref" data-act="roomDetail" data-args='[${s.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng">${esc(s.room_name || '')}</span>` : 'Chưa xếp'} · ${esc(s.code || '')}</div></td>
     <td>${legalEntityCell(s.gender)}</td>
-    <td class="num">${money(s.deposit_amount)}</td>
+    <td class="num">${moneyN(s.deposit_amount)}</td>
     <td>${fmtDate(s.deposit_date)}</td>
     <td>${statusBadge(s)}</td>
     <td class="num">${liveStatus(s) === 'left' ? `<button class="btn sm green" data-act="hoanCocTuQuy" data-args='[${s.id}]'>Hoàn cọc</button>` : ''}</td>
@@ -1466,9 +1466,9 @@ function quyCoc() {
         <div class="kpi"><span class="ic ic-red">${IC.handCoins}</span><div><div class="v">${pending.length}</div><div class="l">Cần hoàn cọc ${pendAmt ? '(' + money(pendAmt) + ')' : ''}</div></div></div>
       </div>
       ${pending.length ? `<div class="bang-tin" style="background:var(--red-bg);border-color:#fca5a5;color:#b91c1c">${IC.handCoins} <strong>${pending.length} học viên đã trả phòng</strong> đang chờ hoàn cọc — hãy xử lý sớm.</div>
-        <div class="table-wrap" style="margin-bottom:18px"><table><thead><tr><th>Học viên</th><th>Mã pháp nhân</th><th class="num">Cọc</th><th>Ngày đóng</th><th>Trạng thái</th><th></th></tr></thead><tbody>${pending.map(rowFor).join('')}</tbody></table></div>` : `<div class="hint">${IC.checkCircle} Không có khoản cọc nào chờ hoàn.</div>`}
+        <div class="table-wrap" style="margin-bottom:18px"><table><thead><tr><th>Học viên</th><th>Mã pháp nhân</th><th class="num">Cọc (đ)</th><th>Ngày đóng</th><th>Trạng thái</th><th></th></tr></thead><tbody>${pending.map(rowFor).join('')}</tbody></table></div>` : `<div class="hint">${IC.checkCircle} Không có khoản cọc nào chờ hoàn.</div>`}
       <h4 style="margin:6px 0 8px">Đang giữ cọc (${staying.length})</h4>
-      ${staying.length ? `<div class="table-wrap"><table><thead><tr><th>Học viên</th><th>Mã pháp nhân</th><th class="num">Cọc</th><th>Ngày đóng</th><th>Trạng thái</th><th></th></tr></thead><tbody>${staying.map(rowFor).join('')}</tbody></table></div>` : '<p class="muted">Chưa có.</p>'}
+      ${staying.length ? `<div class="table-wrap"><table><thead><tr><th>Học viên</th><th>Mã pháp nhân</th><th class="num">Cọc (đ)</th><th>Ngày đóng</th><th>Trạng thái</th><th></th></tr></thead><tbody>${staying.map(rowFor).join('')}</tbody></table></div>` : '<p class="muted">Chưa có.</p>'}
     </div>
     <div class="mf"><button class="btn" data-act="modalBack">Đóng</button></div>`, true);
 }

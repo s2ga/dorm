@@ -127,8 +127,8 @@ async function renderPublicRegister() {
   const dorm = esc(info.dorm_name || 'Ký túc xá Học viên');
   const imgCard = (key, def) => { const label = esc(info['imgcap_' + key] || def); return `<figure class="ph-img"><img src="/api/public/image/${key}" alt="${label}" loading="lazy" data-err="onImgRemove"><span class="ph-ico">${IC.building}</span><figcaption>${label}</figcaption></figure>`; };
   const amen = (ico, label) => `<div class="amen-item"><span class="amen-ic">${ico}</span><span>${label}</span></div>`;
-  const priceRow = (label, val, unit, note) => `<tr><td>${label}${note ? `<div class="price-sub">${note}</div>` : ''}</td><td class="num"><strong>${money(val)}</strong><span class="muted"> ${unit}</span></td></tr>`;
-  const priceRowOpt = (label, val, unit) => `<tr><td>${label} <span class="price-opt">tùy chọn</span><div class="price-sub">Chỉ tính khi đăng ký sử dụng</div></td><td class="num"><strong>${money(val)}</strong><span class="muted"> ${unit}</span></td></tr>`;
+  const priceRow = (label, val, unit, note) => `<tr><td>${label}${note ? `<div class="price-sub">${note}</div>` : ''}</td><td class="num"><strong>${money(val)}</strong><span class="muted">${unit}</span></td></tr>`;
+  const priceRowOpt = (label, val, unit) => `<tr><td>${label} <span class="price-opt">tùy chọn</span><div class="price-sub">Chỉ tính khi đăng ký sử dụng</div></td><td class="num"><strong>${money(val)}</strong><span class="muted">${unit}</span></td></tr>`;
   const T = (k, def) => esc(info[k] || def); // nội dung trang giới thiệu (admin chỉnh trong Cài đặt)
   // Giường trống tách phòng nam / phòng nữ; "sắp trống" là phần tăng thêm khi người có lịch trả đi hết.
   const oGiuongTrong = (nhan, trong, sapTrong) =>
