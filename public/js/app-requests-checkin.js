@@ -35,15 +35,15 @@ async function viewRequests() {
     // BL-117: đã duyệt + tới ngày dự kiến mà chưa ai xác nhận đã vào -> BQL xác nhận (Check-in ghi ngày
     // thật) hoặc bấm "Không đến" (khoá hồ sơ, nhả chỗ). Tới lúc đó họ KHÔNG được tính là đang ở.
     banner = canXuLyPhongPanel('checkin');
-    body = pills + (shown.length ? `<div class="table-wrap"><table><thead><tr><th>Ngày gửi</th><th>Họ tên</th><th>SĐT</th><th>GT</th><th>Hình thức</th><th>Muốn nhận phòng</th><th>Nguyện vọng</th><th>Trạng thái</th><th></th></tr></thead><tbody>
+    body = pills + (shown.length ? `<div class="table-wrap card-tbl"><table><thead><tr><th>Ngày gửi</th><th>Họ tên</th><th>SĐT</th><th>GT</th><th>Hình thức</th><th>Muốn nhận phòng</th><th>Nguyện vọng</th><th>Trạng thái</th><th></th></tr></thead><tbody>
       ${shown.map(a => `<tr>
-        <td>${fmtDate(String(a.created_at).slice(0, 10))}</td>
+        <td data-label="Ngày gửi">${fmtDate(String(a.created_at).slice(0, 10))}</td>
         <td>${a.student_id ? `<a href="#" data-act="studentDetail" data-args='[${a.student_id}]' title="Xem chi tiết học viên"><strong>${esc(a.name)}</strong></a>` : `<strong>${esc(a.name)}</strong>`}${a.class_name ? `<div class="muted" style="font-size:11px">${esc(a.class_name)}</div>` : ''}${a.facility_name ? `<div class="sub2">${IC.building} ${esc(a.facility_name)}</div>` : ''}</td>
-        <td>${esc(a.phone)}</td><td>${genderLabel(a.gender)}</td>
-        <td class="muted" style="font-size:12px">${RENTAL_LABEL[a.rental_type] || 'Thuê ghép'}</td>
-        <td style="font-size:12px;white-space:nowrap">${a.desired_check_in ? fmtDate(a.desired_check_in) : '<span class="muted">chưa nêu</span>'}</td>
-        <td style="font-size:12px">${a.pref ? esc(a.pref) : (a.wants_washing || a.wants_parking || a.plate || a.note || a.admin_note ? '' : '<span class="muted">—</span>')}${a.wants_washing || a.wants_parking || a.plate ? `<div style="margin-top:3px">${a.wants_washing ? `<span class="badge gray">${IC.washer} Máy giặt</span> ` : ''}${a.wants_parking || a.plate ? `<span class="badge gray">${IC.bike} Gửi xe${a.plate ? ' · ' + esc(a.plate) : ''}</span>` : ''}</div>` : ''}${a.note ? `<div class="muted" style="margin-top:3px">${esc(a.note)}</div>` : ''}${noteLine(a.admin_note)}</td>
-        <td><span class="badge ${nhanTTDon(a.status)[1]}">${nhanTTDon(a.status)[0]}</span></td>
+        <td data-label="SĐT">${esc(a.phone)}</td><td data-label="Giới tính">${genderLabel(a.gender)}</td>
+        <td data-label="Hình thức" class="muted" style="font-size:12px">${RENTAL_LABEL[a.rental_type] || 'Thuê ghép'}</td>
+        <td data-label="Muốn nhận phòng" style="font-size:12px;white-space:nowrap">${a.desired_check_in ? fmtDate(a.desired_check_in) : '<span class="muted">chưa nêu</span>'}</td>
+        <td data-label="Nguyện vọng" style="font-size:12px">${a.pref ? esc(a.pref) : (a.wants_washing || a.wants_parking || a.plate || a.note || a.admin_note ? '' : '<span class="muted">—</span>')}${a.wants_washing || a.wants_parking || a.plate ? `<div style="margin-top:3px">${a.wants_washing ? `<span class="badge gray">${IC.washer} Máy giặt</span> ` : ''}${a.wants_parking || a.plate ? `<span class="badge gray">${IC.bike} Gửi xe${a.plate ? ' · ' + esc(a.plate) : ''}</span>` : ''}</div>` : ''}${a.note ? `<div class="muted" style="margin-top:3px">${esc(a.note)}</div>` : ''}${noteLine(a.admin_note)}</td>
+        <td data-label="Trạng thái"><span class="badge ${nhanTTDon(a.status)[1]}">${nhanTTDon(a.status)[0]}</span></td>
         <td class="num"><div class="rowbtns" style="justify-content:flex-end">
           ${a.status === 'pending' ? `<button class="btn sm green" data-act="approveForm" data-args='[${a.id}]'>${IC.check} Duyệt</button><button class="btn sm" data-act="rejectApp" data-args='[${a.id}]'>Từ chối</button>` : ''}
           <button class="btn sm ghost" title="Ghi chú" data-act="noteForm" data-args='["app", ${a.id}]'>${IC.filePen}</button>
@@ -62,15 +62,15 @@ async function viewRequests() {
         : `${trongKhongKhop('đơn trả phòng')} ${nutXoaLoc(`data-act="coutGo" data-args='["all"]'`)}`;
     hd = `${IC.logOut} Đơn trả phòng (${shownC.length})`;
     banner = canXuLyPhongPanel('checkout');
-    body = pillsC + (shownC.length ? `<div class="table-wrap"><table><thead><tr><th>Ngày gửi</th><th>Học viên</th><th>Phòng</th><th>Ngày trả</th><th>Lý do</th><th>Trạng thái</th><th></th></tr></thead><tbody>
+    body = pillsC + (shownC.length ? `<div class="table-wrap card-tbl"><table><thead><tr><th>Ngày gửi</th><th>Học viên</th><th>Phòng</th><th>Ngày trả</th><th>Lý do</th><th>Trạng thái</th><th></th></tr></thead><tbody>
       ${shownC.map(c => `<tr>
-        <td>${fmtDate(String(c.created_at).slice(0, 10))}</td>
-        <td>${c.student_id ? `<a href="#" data-act="studentDetail" data-args='[${c.student_id}]' title="Xem chi tiết học viên">${esc(c.student_name || '—')}</a>` : esc(c.student_name || '—')}</td><td>${(studentById(c.student_id) || {}).room_id ? `<a href="#" data-act="roomDetail" data-args='[${(studentById(c.student_id) || {}).room_id}]' title="Xem chi tiết phòng">${esc(c.room_name || '—')}</a>` : esc(c.room_name || '—')}</td>
+        <td data-label="Ngày gửi">${fmtDate(String(c.created_at).slice(0, 10))}</td>
+        <td>${c.student_id ? `<a href="#" data-act="studentDetail" data-args='[${c.student_id}]' title="Xem chi tiết học viên">${esc(c.student_name || '—')}</a>` : esc(c.student_name || '—')}</td><td data-label="Phòng">${(studentById(c.student_id) || {}).room_id ? `<a href="#" data-act="roomDetail" data-args='[${(studentById(c.student_id) || {}).room_id}]' title="Xem chi tiết phòng">${esc(c.room_name || '—')}</a>` : esc(c.room_name || '—')}</td>
         ${/* Ngày trả = lịch MỚI NHẤT trên hồ sơ (đổi lịch sau khi duyệt thì cột này đổi theo); ngày xin ban đầu
               chỉ còn trong lịch sử hồ sơ — owner chốt 26/08: hiển thị cái mới nhất thôi. */''}
-        <td>${fmtDate(c.status === 'done' ? (c.student_check_out || c.student_planned_check_out || c.desired_date) : c.desired_date)}</td>
-        <td>${REASON_LABEL[c.reason] || 'Khác'}${c.note ? `<div class="muted" style="font-size:12px">${esc(c.note)}</div>` : ''}${noteLine(c.admin_note)}</td>
-        <td>${nhanDonTraPhong(c)}</td>
+        <td data-label="Ngày trả">${fmtDate(c.status === 'done' ? (c.student_check_out || c.student_planned_check_out || c.desired_date) : c.desired_date)}</td>
+        <td data-label="Lý do">${REASON_LABEL[c.reason] || 'Khác'}${c.note ? `<div class="muted" style="font-size:12px">${esc(c.note)}</div>` : ''}${noteLine(c.admin_note)}</td>
+        <td data-label="Trạng thái">${nhanDonTraPhong(c)}</td>
         <td class="num"><div class="rowbtns" style="justify-content:flex-end">
           ${c.status === 'pending' ? `<button class="btn sm green" data-act="confirmCout" data-args='[${c.id}]' title="Duyệt lịch trả dự kiến — chưa phải trả phòng thật">Duyệt</button><button class="btn sm" data-act="rejectCout" data-args='[${c.id}]'>Từ chối</button>` : ''}
           <button class="btn sm ghost" title="Ghi chú" data-act="noteForm" data-args='["cout", ${c.id}]'>${IC.filePen}</button>
@@ -83,12 +83,12 @@ async function viewRequests() {
     const ds = dmgFilter === 'all' ? dsAll : dmgFilter === 'done' ? dsAll.filter(d => d.status === 'done') : dsAll.filter(d => d.status !== 'done');
     const pillD = (f, tx, n) => `<button class="btn sm ${dmgFilter === f ? 'pri' : ''}" data-act="dmgGo" data-args='["${f}"]'>${tx} (${n})</button>`;
     const pillsD = `<div class="pill-row" style="padding:12px 14px 0">${pillD('open', 'Chưa xong', dsAll.filter(d => d.status !== 'done').length)}${pillD('done', 'Đã xử lý', dsAll.filter(d => d.status === 'done').length)}${pillD('all', 'Tất cả', dsAll.length)}</div>`;
-    const tbl = pillsD + (ds.length ? `<div class="table-wrap"><table><thead><tr><th>Ngày</th><th>Học viên</th><th>Phòng</th><th>Nội dung</th><th>Trạng thái</th><th></th></tr></thead><tbody>
+    const tbl = pillsD + (ds.length ? `<div class="table-wrap card-tbl"><table><thead><tr><th>Ngày</th><th>Học viên</th><th>Phòng</th><th>Nội dung</th><th>Trạng thái</th><th></th></tr></thead><tbody>
       ${ds.map(d => `<tr>
-        <td>${fmtDate(String(d.created_at).slice(0, 10))}</td>
-        <td>${d.student_id ? `<a href="#" data-act="studentDetail" data-args='[${d.student_id}]' title="Xem chi tiết học viên">${esc(d.student_name || '—')}</a>` : esc(d.student_name || '—')}</td><td>${d.room_id ? `<a href="#" data-act="roomDetail" data-args='[${d.room_id}]' title="Xem chi tiết phòng">${esc(d.room_name || '—')}</a>` : esc(d.room_name || '—')}</td>
-        <td><strong>${esc(d.title)}</strong>${d.description ? `<div class="muted" style="font-size:12px">${esc(d.description)}</div>` : ''}${noteLine(d.admin_note)}</td>
-        <td>${d.status === 'done' ? '<span class="badge green">Đã xử lý</span>'
+        <td data-label="Ngày">${fmtDate(String(d.created_at).slice(0, 10))}</td>
+        <td>${d.student_id ? `<a href="#" data-act="studentDetail" data-args='[${d.student_id}]' title="Xem chi tiết học viên">${esc(d.student_name || '—')}</a>` : esc(d.student_name || '—')}</td><td data-label="Phòng">${d.room_id ? `<a href="#" data-act="roomDetail" data-args='[${d.room_id}]' title="Xem chi tiết phòng">${esc(d.room_name || '—')}</a>` : esc(d.room_name || '—')}</td>
+        <td data-label="Nội dung"><strong>${esc(d.title)}</strong>${d.description ? `<div class="muted" style="font-size:12px">${esc(d.description)}</div>` : ''}${noteLine(d.admin_note)}</td>
+        <td data-label="Trạng thái">${d.status === 'done' ? '<span class="badge green">Đã xử lý</span>'
           : d.status === 'blocked' ? `<span class="badge red">Bảo trì: chưa xử lý được</span>${d.admin_note ? `<div style="font-size:11px;color:var(--red-ink)">Lý do: ${esc(d.admin_note)}</div>` : ''}`
           : d.assigned_at ? `<span class="badge blue">${IC.wrench} Đã chuyển bảo trì</span>`
           : d.status === 'processing' ? '<span class="badge blue">Đang xử lý</span>' : '<span class="badge amber">Mới</span>'}</td>
@@ -115,14 +115,14 @@ async function viewRequests() {
     const pillsV = `<div class="pill-row" style="padding:12px 14px 0">
       ${pillV('canbao', `${IC.alert} Cần báo nhà trường`, soHVCanBao + ' HV')}${pillV('all', 'Tất cả', vios.length + ' lượt')}</div>`;
     const vioRows = dsVio.map(v => `<tr>
-      <td>${fmtDate(v.date)}</td>
+      <td data-label="Ngày">${fmtDate(v.date)}</td>
       <td><a href="#" data-act="studentDetail" data-args='[${v.student_id}]'><strong>${esc(v.student_name)}</strong></a>${v.student_code ? `<div class="muted" style="font-size:11px">${esc(v.student_code)}</div>` : ''}${v.room_name ? `<div class="muted" style="font-size:11px">${(studentById(v.student_id) || {}).room_id ? `<a href="#" data-act="roomDetail" data-args='[${(studentById(v.student_id) || {}).room_id}]' title="Xem chi tiết phòng">${esc(v.room_name)}</a>` : esc(v.room_name)}</div>` : ''}</td>
-      <td>${esc(v.type_name)}${v.note ? `<div class="muted" style="font-size:12px">${esc(v.note)}</div>` : ''}</td>
-      <td>${vioSevBadge(v.severity)}</td>
-      <td class="num"><span class="badge ${v.level >= threshold ? 'red' : 'gray'}">Lần ${v.level}</span></td>
-      <td>${v.notified_school ? '<span class="badge green">Đã báo</span>' : (v.level >= threshold ? '<span class="badge amber">Cần báo</span>' : '<span class="muted">—</span>')}</td>
+      <td data-label="Loại vi phạm">${esc(v.type_name)}${v.note ? `<div class="muted" style="font-size:12px">${esc(v.note)}</div>` : ''}</td>
+      <td data-label="Mức độ">${vioSevBadge(v.severity)}</td>
+      <td data-label="Lần" class="num"><span class="badge ${v.level >= threshold ? 'red' : 'gray'}">Lần ${v.level}</span></td>
+      <td data-label="Nhà trường">${v.notified_school ? '<span class="badge green">Đã báo</span>' : (v.level >= threshold ? '<span class="badge amber">Cần báo</span>' : '<span class="muted">—</span>')}</td>
       <td class="num"><div class="rowbtns" style="justify-content:flex-end">
-        ${v.level >= threshold && !v.notified_school ? `<button class="btn sm" data-act="notifySchool" data-args='[${v.student_id}]'>${IC.inbox} Gửi mail</button>` : ''}
+        ${v.level >= threshold && !v.notified_school ? `<button class="btn sm" data-act="notifySchool" data-args='[${v.student_id}]'>${IC.inbox} Gửi email</button>` : ''}
         <button class="btn sm ghost" data-act="delViolation" data-args='[${v.id}]' data-mota="${esc(`"${v.type_name || ''}" ngày ${fmtDate(v.date)} của ${v.student_name || ''}`)}" title="Xóa vi phạm">${IC.trash}</button>
       </div></td></tr>`).join('');
     hd = vioFilter === 'canbao'
@@ -130,8 +130,8 @@ async function viewRequests() {
       : `${IC.alert} Danh sách vi phạm (${dsVio.length})`;
     actions = `<button class="btn sm" data-act="violationStatsModal">${IC.trendingUp} Thống kê</button>
       <button class="btn sm pri" data-act="violationForm">${IC.plus} Ghi nhận vi phạm</button>`;
-    banner = (vstats && vstats.needMail) ? `<div class="bang-tin" style="background:var(--red-bg);border-color:#e3b8ad;color:var(--red-ink)">${IC.alert} <strong>${vstats.needMail} học viên</strong> vi phạm ≥ ${threshold} lần cần báo nhà trường. Cấu hình SMTP trong <a href="#" data-act="adminGo" data-args='["settings"]'>Cài đặt</a> để gửi email tự động, hoặc bấm <strong>Gửi mail</strong> ở từng dòng.</div>` : '';
-    body = pillsV + (dsVio.length ? `<div class="table-wrap"><table><thead><tr><th>Ngày</th><th>Học viên</th><th>Loại vi phạm</th><th>Mức độ</th><th class="num">Lần</th><th>Nhà trường</th><th></th></tr></thead><tbody>${vioRows}</tbody></table></div>`
+    banner = (vstats && vstats.needMail) ? `<div class="bang-tin" style="background:var(--red-bg);border-color:#e3b8ad;color:var(--red-ink)">${IC.alert} <strong>${vstats.needMail} học viên</strong> vi phạm từ ${threshold} lần trở lên cần báo nhà trường. Cấu hình SMTP trong <a href="#" data-act="adminGo" data-args='["settings"]'>Cài đặt</a> để gửi email tự động, hoặc bấm <strong>Gửi email</strong> ở từng dòng.</div>` : '';
+    body = pillsV + (dsVio.length ? `<div class="table-wrap card-tbl"><table><thead><tr><th>Ngày</th><th>Học viên</th><th>Loại vi phạm</th><th>Mức độ</th><th class="num">Lần</th><th>Nhà trường</th><th></th></tr></thead><tbody>${vioRows}</tbody></table></div>`
       : `<div class="empty">${!vios.length ? `${trongChuaCo('vi phạm nào')} Bấm <strong>Ghi nhận vi phạm</strong> hoặc mở chi tiết học viên.` : 'Không có học viên vi phạm cần báo nhà trường.'}</div>`);
   } else {
     // Hộp thư góp ý: học viên báo vi phạm / cần hỗ trợ khác (category violation, other).
@@ -140,13 +140,13 @@ async function viewRequests() {
     const fb = fbFilter === 'all' ? fbAll : fbFilter === 'done' ? fbAll.filter(d => d.status === 'done') : fbAll.filter(d => d.status !== 'done');
     const pillF = (f, tx, n) => `<button class="btn sm ${fbFilter === f ? 'pri' : ''}" data-act="fbGo" data-args='["${f}"]'>${tx} (${n})</button>`;
     const pillsF = `<div class="pill-row" style="padding:12px 14px 0">${pillF('open', 'Chưa xong', fbAll.filter(d => d.status !== 'done').length)}${pillF('done', 'Đã xử lý', fbAll.filter(d => d.status === 'done').length)}${pillF('all', 'Tất cả', fbAll.length)}</div>`;
-    const tbl = pillsF + (fb.length ? `<div class="table-wrap"><table><thead><tr><th>Ngày</th><th>Loại</th><th>Học viên</th><th>Phòng</th><th>Nội dung</th><th>Trạng thái</th><th></th></tr></thead><tbody>
+    const tbl = pillsF + (fb.length ? `<div class="table-wrap card-tbl"><table><thead><tr><th>Ngày</th><th>Loại</th><th>Học viên</th><th>Phòng</th><th>Nội dung</th><th>Trạng thái</th><th></th></tr></thead><tbody>
       ${fb.map(d => `<tr>
-        <td>${fmtDate(String(d.created_at).slice(0, 10))}</td>
-        <td>${supCatBadge(d.category)}</td>
-        <td>${d.student_id ? `<a href="#" data-act="studentDetail" data-args='[${d.student_id}]' title="Xem chi tiết học viên">${esc(d.student_name || '—')}</a>` : esc(d.student_name || '—')}</td><td>${d.room_id ? `<a href="#" data-act="roomDetail" data-args='[${d.room_id}]' title="Xem chi tiết phòng">${esc(d.room_name || '—')}</a>` : esc(d.room_name || '—')}</td>
-        <td><strong>${esc(d.title)}</strong>${d.description ? `<div class="muted" style="font-size:12px">${esc(d.description)}</div>` : ''}${noteLine(d.admin_note)}</td>
-        <td>${d.status === 'done' ? '<span class="badge green">Đã xử lý</span>' : d.status === 'processing' ? '<span class="badge blue">Đang xử lý</span>' : '<span class="badge amber">Mới</span>'}</td>
+        <td data-label="Ngày">${fmtDate(String(d.created_at).slice(0, 10))}</td>
+        <td data-label="Loại">${supCatBadge(d.category)}</td>
+        <td>${d.student_id ? `<a href="#" data-act="studentDetail" data-args='[${d.student_id}]' title="Xem chi tiết học viên">${esc(d.student_name || '—')}</a>` : esc(d.student_name || '—')}</td><td data-label="Phòng">${d.room_id ? `<a href="#" data-act="roomDetail" data-args='[${d.room_id}]' title="Xem chi tiết phòng">${esc(d.room_name || '—')}</a>` : esc(d.room_name || '—')}</td>
+        <td data-label="Nội dung"><strong>${esc(d.title)}</strong>${d.description ? `<div class="muted" style="font-size:12px">${esc(d.description)}</div>` : ''}${noteLine(d.admin_note)}</td>
+        <td data-label="Trạng thái">${d.status === 'done' ? '<span class="badge green">Đã xử lý</span>' : d.status === 'processing' ? '<span class="badge blue">Đang xử lý</span>' : '<span class="badge amber">Mới</span>'}</td>
         <td class="num"><div class="rowbtns" style="justify-content:flex-end">
           ${d.status === 'new' ? `<button class="btn sm" data-act="setDamage" data-args='[${d.id},"processing"]'>Đang xử lý</button>` : ''}
           ${d.category === 'violation' ? `<button class="btn sm" data-act="vioFromFeedback" data-args='[${d.id}]'>${IC.alert} Ghi nhận vi phạm</button>` : ''}
@@ -312,7 +312,7 @@ async function saveViolation(studentId) {
   if (!type_id) return loiTaiO('vf_type', 'Chọn loại vi phạm (thêm trong Cài đặt nếu chưa có)');
   const r = await guard(() => API.createViolation({ student_id: sid, type_id, date: el('vf_date').dataset.iso, note: el('vf_note').value.trim() }));
   await refreshCache(); await luuXongVeLai(veLaiNen);
-  if (r.mail && r.mail.queued) toast(`Đã ghi vi phạm lần ${r.level} · đang gửi mail nhà trường…`);
+  if (r.mail && r.mail.queued) toast(`Đã ghi vi phạm lần ${r.level} · đang gửi email nhà trường…`);
   else toast(`Đã ghi nhận vi phạm lần ${r.level}`);
 }
 async function delViolation(id, studentId) {

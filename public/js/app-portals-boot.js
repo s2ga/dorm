@@ -129,9 +129,9 @@ async function loadStudentPortal() {
       <div class="pad muted" style="font-size:12.5px">${IC.info} Bấm vào từng kỳ để xem chi tiết khoản thu. &nbsp;·&nbsp; ${IC.creditCard} Đóng tiền qua mã QR Ban Quản lý gửi trên Zalo theo hạn hằng tháng.</div>
     </div></div>
 
-    <div class="panel" id="pnHoTro"><div class="hd"><h2>${IC.handCoins} Hỗ trợ học viên</h2><button class="btn sm pri" data-act="damageForm">${IC.plus} Gửi yêu cầu hỗ trợ</button></div><div class="table-wrap">
+    <div class="panel" id="pnHoTro"><div class="hd"><h2>${IC.handCoins} Hỗ trợ học viên</h2><button class="btn sm pri" data-act="damageForm">${IC.plus} Gửi yêu cầu hỗ trợ</button></div><div class="table-wrap card-tbl">
       ${damage.length ? `<table><thead><tr><th>Ngày</th><th>Loại</th><th>Nội dung</th><th>Trạng thái</th></tr></thead><tbody>
-        ${damage.map(d => `<tr><td>${fmtDate(String(d.created_at).slice(0, 10))}</td><td data-label="Loại">${supCatBadge(d.category)}</td><td data-label="Nội dung"><strong>${esc(d.title)}</strong>${d.description ? `<div class="muted" style="font-size:12px">${esc(d.description)}</div>` : ''}</td><td data-label="Trạng thái">${d.status === 'done' ? '<span class="badge green">Đã xử lý</span>' : d.status === 'blocked' ? '<span class="badge red">Chưa xử lý được — liên hệ quản lý</span>' : d.status === 'processing' ? '<span class="badge blue">Đang xử lý</span>' : '<span class="badge amber">Mới</span>'}</td></tr>`).join('')}
+        ${damage.map(d => `<tr><td data-label="Ngày">${fmtDate(String(d.created_at).slice(0, 10))}</td><td data-label="Loại">${supCatBadge(d.category)}</td><td data-label="Nội dung"><strong>${esc(d.title)}</strong>${d.description ? `<div class="muted" style="font-size:12px">${esc(d.description)}</div>` : ''}</td><td data-label="Trạng thái">${d.status === 'done' ? '<span class="badge green">Đã xử lý</span>' : d.status === 'blocked' ? '<span class="badge red">Chưa xử lý được — liên hệ Ban Quản lý</span>' : d.status === 'processing' ? '<span class="badge blue">Đang xử lý</span>' : '<span class="badge amber">Mới</span>'}</td></tr>`).join('')}
       </tbody></table>` : `<div class="empty">${trongChuaCo('yêu cầu nào')}</div>`}
     </div></div>
 
@@ -830,7 +830,7 @@ async function bienBanForm(kind, id) {
         <div class="field"><label>Vệ sinh phòng</label><select id="bb_vs"><option value="">— chưa đánh giá —</option>${Object.entries(HO_VE_SINH).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></div>
         <div class="field"><label>Chìa khoá ${laNhan ? 'đã giao' : 'đã thu'} <span class="opt">(số lượng)</span></label><input id="bb_chia" type="number" min="0" max="50" inputmode="numeric" placeholder="VD: 2"></div>
       </div>
-      <div class="field"><label>Biển số xe đối chiếu <span class="opt">(biển đọc trên xe thật)</span></label><input id="bb_bien" value="${esc(bien)}" placeholder="VD: 59-XB 564.35"></div>
+      <div class="field"><label>Biển số xe đối chiếu <span class="opt">(biển đọc trên xe thật)</span></label><input id="bb_bien" value="${esc(bien)}" placeholder="VD: 59-XB 564.35" autocapitalize="characters"></div>
       <div class="field" style="margin:0"><label>Ghi chú</label><textarea id="bb_note" rows="3" placeholder="${laNhan ? 'VD: Phòng sạch, đã giao chìa phòng + chìa tủ' : 'VD: Tường có vết bẩn nhỏ, thiếu 1 móc treo'}"></textarea></div>
     </div>
     <div class="mf"><button class="btn" data-act="modalBack">Hủy</button>
@@ -960,8 +960,8 @@ async function loadParkingCheck() {
   };
 
   const gio = iso => { const t = new Date(iso); return isNaN(t) ? '' : `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`; };
-  const mailChu = x => x.mail_sent_at ? `${IC.mail} mail đã gửi lúc ${gio(x.mail_sent_at)}${x.mail_to ? ' tới ' + esc(x.mail_to) : ''}`
-    : x.mail_error ? `${IC.alert} mail chưa gửi được: ${esc(x.mail_error)}` : `${IC.hourglass} đang gửi mail…`;
+  const mailChu = x => x.mail_sent_at ? `${IC.mail} email đã gửi lúc ${gio(x.mail_sent_at)}${x.mail_to ? ' tới ' + esc(x.mail_to) : ''}`
+    : x.mail_error ? `${IC.alert} email chưa gửi được: ${esc(x.mail_error)}` : `${IC.hourglass} đang gửi email…`;
   const oChot = (d.dailies || []).map(x => `<div class="bang-tin" style="border-color:var(--green);margin-top:10px">${IC.checkCircle}
     <span>${x.facility_name ? `<strong>${esc(x.facility_name)}</strong> · ` : ''}Đã chốt lúc <strong>${gio(x.closed_at)}</strong> bởi <strong>${esc(x.closed_by)}</strong> ·
     ${x.co_mat} có · ${x.vang} vắng · ${x.so_bao_cao} báo cáo${x.vang_lau ? ` · <strong>${x.vang_lau}</strong> xe vắng ≥ ${nguong} ngày` : ''}<br>${mailChu(x)}</span></div>`).join('');
@@ -1075,7 +1075,7 @@ function pkBaoCaoXeForm(vehicleId) {
       <div class="field"><label>Ảnh <span class="opt">(không bắt buộc)</span></label>
         ${pkNutAnh('pk_cam3', 'onPkCam3')}
         <div id="pk_xem3" style="margin-top:8px"></div></div>
-      <div class="hint" style="font-size:12px">${IC.info} Báo cáo hiện ngay trên chuông của Ban Quản lý và nằm trong mail tổng kết khi chốt ngày.</div>
+      <div class="hint" style="font-size:12px">${IC.info} Báo cáo hiện ngay trên chuông của Ban Quản lý và nằm trong email tổng kết khi chốt ngày.</div>
     </div>
     <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="pkLuuBaoCaoXe" data-args='[${vehicleId}]'>Gửi báo cáo</button></div>`);
   setTimeout(() => { const i = el('pk_bc_note'); if (i) i.focus(); }, 60);
@@ -1104,7 +1104,7 @@ function pkQuetForm() {
         ${pkNutAnh('pk_cam', 'onPkCam')}
         <div id="pk_xem" style="margin-top:8px"></div></div>
       <div class="field"><label>Biển số — gõ vài ký tự là đủ</label>
-        <input id="pk_bien" placeholder="VD: 508 · 63B4 · 50858" autocomplete="off" data-input="onPkBien"></div>
+        <input id="pk_bien" placeholder="VD: 508 · 63B4 · 50858" autocomplete="off" autocapitalize="characters" data-input="onPkBien"></div>
       <div id="pk_goiy"><div class="muted" style="font-size:13px">Gõ để tìm xe trong bãi.</div></div>
     </div>
     <div class="mf"><button class="btn" data-act="modalBack">Đóng</button></div>`);
@@ -1496,7 +1496,7 @@ function pkXeLaForm(bienSan) {
   openModal(`
     <div class="mh"><h3>${IC.alert} Ghi nhận xe lạ</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <div class="field"><label>Biển số ${SAO}</label><input id="pk_la_bien" value="${esc(bienSan || '')}" placeholder="VD: 63-B4 508.58"></div>
+      <div class="field"><label>Biển số ${SAO}</label><input id="pk_la_bien" value="${esc(bienSan || '')}" placeholder="VD: 63-B4 508.58" autocapitalize="characters"></div>
       <div class="field"><label>Ghi chú <span class="opt">(loại xe, màu, chỗ đậu, đã nhắc ai...)</span></label>
         <textarea id="pk_la_note" rows="3" placeholder="VD: Xe Wave đỏ đậu sát cổng, không có mã dán"></textarea></div>
       <div class="field"><label>Ảnh biển số <span class="opt">(không bắt buộc)</span></label>

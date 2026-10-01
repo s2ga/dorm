@@ -1049,7 +1049,7 @@ function viewSettings() {
     <div class="panel"><div class="hd"><h2>${IC.home} Thông tin hiển thị trên phiếu báo</h2></div><div class="pad">
       <div class="grid2">
         <div class="field"><label>Tên ký túc xá</label><input id="set_dorm_name" value="${esc(s.dorm_name || '')}"></div>
-        <div class="field"><label>Hotline <span class="opt">(hiện trên phiếu báo & trang giới thiệu)</span></label><input id="set_hotline" value="${esc(s.hotline || '')}" placeholder="VD: 028 1234 5678"></div>
+        <div class="field"><label>Hotline <span class="opt">(hiện trên phiếu báo & trang giới thiệu)</span></label><input id="set_hotline" type="tel" inputmode="tel" value="${esc(s.hotline || '')}" placeholder="VD: 028 1234 5678"></div>
       </div>
       <div class="grid2">
         <div class="field"><label>Hạn đóng tiền — từ ngày</label><input id="set_due_day_from" type="number" min="1" max="31" value="${esc(s.due_day_from ?? 1)}"></div>
@@ -1113,9 +1113,9 @@ function viewSettings() {
       </div>
       <div class="grid2">
         <div class="field"><label>Báo "xe bỏ gửi" khi vắng liên tiếp <span class="opt">(ngày, dùng cho báo cáo bãi xe)</span></label><input id="set_parking_absent_alert_days" type="number" min="1" value="${esc(s.parking_absent_alert_days ?? 7)}"></div>
-        <div class="field"><label>Nhắc nếu an ninh chưa chốt bãi xe sau <span class="opt">(giờ HH:MM)</span></label><input id="set_parking_close_alert_time" value="${esc(s.parking_close_alert_time || '23:00')}" placeholder="23:00"></div>
+        <div class="field"><label>Nhắc nếu an ninh chưa chốt bãi xe sau <span class="opt">(giờ HH:MM)</span></label><input id="set_parking_close_alert_time" inputmode="numeric" maxlength="5" value="${esc(s.parking_close_alert_time || '23:00')}" placeholder="23:00"></div>
       </div>
-      <div class="field"><label>Email nhận báo cáo bãi xe mỗi ngày <span class="opt">(nhiều địa chỉ cách nhau dấu phẩy · để trống = mọi tài khoản quản trị có email)</span></label><input id="set_parking_report_email" value="${esc(s.parking_report_email || '')}" placeholder="quanly@esuhai.com, truongbp@esuhai.com"></div>
+      <div class="field"><label>Email nhận báo cáo bãi xe mỗi ngày <span class="opt">(nhiều địa chỉ cách nhau dấu phẩy · để trống = mọi tài khoản quản trị có email)</span></label><input id="set_parking_report_email" inputmode="email" value="${esc(s.parking_report_email || '')}" placeholder="quanly@esuhai.com, truongbp@esuhai.com"></div>
       <p class="muted" style="font-size:12px;margin:2px 0 0">${IC.info} Trần giường theo hạng gộp chung ở mục <strong>Đơn giá & quy tắc</strong> (bảng "Cấu hình theo hạng phòng").</p>
       <button class="btn pri" data-act="saveSettings">Lưu cài đặt</button>
     </div></div>
@@ -1155,12 +1155,12 @@ function viewSettings() {
         <div class="field"><label>Mật khẩu wifi</label><input id="set_wifi_password" value="${esc(s.wifi_password || '')}" placeholder="Để trống thì cổng học viên không hiện mật khẩu"></div>
       </div>
       <div class="grid2">
-        <div class="field"><label>An ninh ca ngày — số điện thoại</label><input id="set_security_day_phone" value="${esc(s.security_day_phone || '')}" placeholder="VD: 0909 123 456"></div>
-        <div class="field"><label>An ninh ca đêm — số điện thoại</label><input id="set_security_night_phone" value="${esc(s.security_night_phone || '')}" placeholder="VD: 0938 123 456"></div>
+        <div class="field"><label>An ninh ca ngày — số điện thoại</label><input id="set_security_day_phone" type="tel" inputmode="tel" value="${esc(s.security_day_phone || '')}" placeholder="VD: 0909 123 456"></div>
+        <div class="field"><label>An ninh ca đêm — số điện thoại</label><input id="set_security_night_phone" type="tel" inputmode="tel" value="${esc(s.security_night_phone || '')}" placeholder="VD: 0938 123 456"></div>
       </div>
       <div class="grid2">
-        <div class="field"><label>Ca ngày bắt đầu <span class="opt">(HH:MM)</span></label><input id="set_security_day_from" value="${esc(s.security_day_from || '06:00')}" placeholder="06:00"></div>
-        <div class="field"><label>Ca ngày kết thúc <span class="opt">(HH:MM)</span></label><input id="set_security_day_to" value="${esc(s.security_day_to || '18:00')}" placeholder="18:00"></div>
+        <div class="field"><label>Ca ngày bắt đầu <span class="opt">(HH:MM)</span></label><input id="set_security_day_from" inputmode="numeric" maxlength="5" value="${esc(s.security_day_from || '06:00')}" placeholder="06:00"></div>
+        <div class="field"><label>Ca ngày kết thúc <span class="opt">(HH:MM)</span></label><input id="set_security_day_to" inputmode="numeric" maxlength="5" value="${esc(s.security_day_to || '18:00')}" placeholder="18:00"></div>
       </div>
       <div class="hint" style="font-size:12.5px">${IC.info}<span>Chỉ khai giờ ca ngày, ca đêm là phần còn lại nên hai ca không trùng nhau.
         Số hotline đặt ở mục <strong>Đơn giá &amp; tính tiền</strong>; mật khẩu wifi <strong>chỉ hiện cho học viên đang ở</strong>.</span></div>
@@ -1213,13 +1213,13 @@ function viewSettings() {
     <div class="panel"><div class="hd"><h2>${IC.inbox} Nhà trường & Email (SMTP)</h2></div><div class="pad">
       <div class="grid2">
         <div class="field"><label>Tên nhà trường</label><input id="set_school_name" value="${esc(s.school_name || '')}" placeholder="VD: Trường Nhật ngữ ..."></div>
-        <div class="field"><label>Email nhà trường <span class="opt">(nhận thông báo vi phạm)</span></label><input id="set_school_email" value="${esc(s.school_email || '')}" placeholder="daotao@truong.edu.vn"></div>
+        <div class="field"><label>Email nhà trường <span class="opt">(nhận thông báo vi phạm)</span></label><input id="set_school_email" type="email" inputmode="email" value="${esc(s.school_email || '')}" placeholder="daotao@truong.edu.vn"></div>
       </div>
       <div class="field"><label>Gửi email khi vi phạm đủ <span class="opt">(số lần)</span></label><input id="set_violation_mail_threshold" type="number" min="1" value="${esc(s.violation_mail_threshold || 3)}" style="max-width:120px"></div>
       <div class="hint">${IC.info} Điền cấu hình SMTP để hệ thống tự gửi email. Gmail: máy chủ <strong>smtp.gmail.com</strong>, cổng <strong>587</strong>, bảo mật <strong>STARTTLS</strong>, mật khẩu là <strong>App Password</strong> (không phải mật khẩu đăng nhập Gmail).</div>
       <div class="grid2">
         <div class="field"><label>Máy chủ SMTP</label><input id="set_smtp_host" value="${esc(s.smtp_host || '')}" placeholder="smtp.gmail.com"></div>
-        <div class="field"><label>Cổng</label><input id="set_smtp_port" value="${esc(s.smtp_port || '587')}" placeholder="587"></div>
+        <div class="field"><label>Cổng</label><input id="set_smtp_port" inputmode="numeric" value="${esc(s.smtp_port || '587')}" placeholder="587"></div>
       </div>
       <div class="grid2">
         <div class="field"><label>Tài khoản</label><input id="set_smtp_user" value="${esc(s.smtp_user || '')}" placeholder="email gửi đi"></div>
@@ -1556,7 +1556,7 @@ function duyetTaiKhoanForm(id, mode) {
           </div>
           <div class="grid2">
             <div class="field"><label>Giới tính</label><select id="ap_gender"><option value="male">Nam</option><option value="female">Nữ</option></select></div>
-            <div class="field"><label>Số điện thoại</label><input id="ap_phone" placeholder="09..."></div>
+            <div class="field"><label>Số điện thoại</label><input id="ap_phone" type="tel" inputmode="tel" placeholder="09..."></div>
           </div>
           <div class="field"><label>Lớp</label><input id="ap_class" placeholder="Esu684"></div>
           <div class="hint" style="font-size:12px">${IC.info} Hồ sơ mới để <strong>trống phòng và ngày vào</strong> — duyệt tài khoản không phải là nhận phòng. Xếp phòng ở màn Học viên sau, lúc đó mới phát sinh tiền.</div>

@@ -723,8 +723,8 @@ async function studentForm(id) {
             ${opt('female', s.gender, 'Nữ')}${opt('male', s.gender, 'Nam')}</select></div>
         </div>
         <div class="grid2">
-          <div class="field"><label>Số điện thoại</label><input id="f_phone" value="${esc(s.phone || '')}"></div>
-          <div class="field"><label>SĐT phụ huynh <span class="opt">(khẩn cấp)</span></label><input id="f_pphone" value="${esc(s.parent_phone || '')}"></div>
+          <div class="field"><label>Số điện thoại</label><input id="f_phone" type="tel" inputmode="tel" value="${esc(s.phone || '')}"></div>
+          <div class="field"><label>SĐT phụ huynh <span class="opt">(khẩn cấp)</span></label><input id="f_pphone" type="tel" inputmode="tel" value="${esc(s.parent_phone || '')}"></div>
         </div>
         <div class="field"><label>Email <span class="opt">(để đăng nhập bằng Microsoft)</span></label>
           <input id="f_email" type="email" value="${esc(s.email || '')}" placeholder="hoten@esuhai.com">
@@ -958,10 +958,10 @@ async function studentDetail(id) {
 
       <div class="panel"><div class="hd"><h2 style="font-size:14px">${IC.alert} Vi phạm / Nhắc nhở (${vios.length})</h2>
         <div class="rowbtns">
-          ${vios.length >= vthr && !vios.some(v => v.notified_school) ? `<button class="btn sm danger" data-act="notifySchool" data-args='[${s.id}]'>${IC.inbox} Gửi mail nhà trường</button>` : ''}
+          ${vios.length >= vthr && !vios.some(v => v.notified_school) ? `<button class="btn sm danger" data-act="notifySchool" data-args='[${s.id}]'>${IC.inbox} Gửi email nhà trường</button>` : ''}
           <button class="btn sm pri" data-act="violationForm" data-args='[${s.id}]'>${IC.plus} Ghi nhận</button>
         </div></div><div class="pad">
-        ${vios.length >= vthr ? `<div class="bang-tin" style="background:var(--red-bg);border-color:#e3b8ad;color:var(--red-ink)">${IC.alert} Học viên đã vi phạm <strong>${vios.length} lần</strong> (≥ ${vthr})${vios.some(v => v.notified_school) ? ' — đã gửi mail nhà trường' : ' — cần thông báo nhà trường'}.</div>` : ''}
+        ${vios.length >= vthr ? `<div class="bang-tin" style="background:var(--red-bg);border-color:#e3b8ad;color:var(--red-ink)">${IC.alert} Học viên đã vi phạm <strong>${vios.length} lần</strong> (≥ ${vthr})${vios.some(v => v.notified_school) ? ' — đã gửi email nhà trường' : ' — cần thông báo nhà trường'}.</div>` : ''}
         ${vios.length ? `<div class="table-wrap"><table><thead><tr><th>Ngày</th><th>Loại vi phạm</th><th>Mức độ</th><th class="num">Lần</th><th></th></tr></thead><tbody>
           ${vios.map(v => `<tr><td>${fmtDate(v.date)}</td><td><strong>${esc(v.type_name)}</strong>${v.note ? `<div class="muted" style="font-size:12px">${esc(v.note)}</div>` : ''}</td><td>${vioSevBadge(v.severity)}</td><td class="num"><span class="badge ${v.level >= vthr ? 'red' : 'gray'}">${v.level}</span></td><td class="num"><button class="btn sm ghost" data-act="delViolation" data-args='[${v.id}, ${s.id}]' data-mota="${esc(`"${v.type_name || ''}" ngày ${fmtDate(v.date)} của ${s.name || ''}`)}" title="Xóa vi phạm">${IC.trash}</button></td></tr>`).join('')}
         </tbody></table></div>` : '<p class="muted" style="margin:0">Chưa có vi phạm.</p>'}
@@ -1115,7 +1115,7 @@ function vehicleForm(vid, studentId) {
         ${dsHV.map(x => `<option value="${x.id}">${esc(x.name)}${x.code ? ' (' + esc(x.code) + ')' : ''}${x.room_name ? ' — ' + esc(x.room_name) : ''}</option>`).join('')}
       </select></div>` : ''}
       <div class="grid2">
-        <div class="field"><label>Biển số</label><input id="v_plate" value="${esc(v.plate || '')}" placeholder="63-B4 508.58"></div>
+        <div class="field"><label>Biển số</label><input id="v_plate" value="${esc(v.plate || '')}" placeholder="63-B4 508.58" autocapitalize="characters"></div>
         <div class="field"><label>Loại xe</label><input id="v_type" value="${esc(v.vehicle_type || '')}" placeholder="Xe số / Xe ga..."></div>
       </div>
       <div class="grid2">
@@ -1246,7 +1246,7 @@ async function refundForm(id) {
         <div style="display:flex;justify-content:space-between;font-size:16px;margin-top:6px;padding-top:8px;border-top:1px solid var(--line)"><span><strong>Hoàn thực tế:</strong></span><strong id="dedRefund" data-deposit="${deposit}" style="color:var(--green)">${money(deposit)}</strong></div>
       </div>
       <div class="grid2">
-        <div class="field"><label>Số tài khoản</label><input id="r_acc" value="${esc(s.deposit_account || '')}"></div>
+        <div class="field"><label>Số tài khoản</label><input id="r_acc" inputmode="numeric" value="${esc(s.deposit_account || '')}"></div>
         <div class="field"><label>Ngân hàng</label><input id="r_bank" value="${esc(s.deposit_bank || '')}" placeholder="VIETCOMBANK - ..."></div>
       </div>
       <div class="field"><label>Ngày hoàn</label><input id="r_date"></div>
@@ -1355,11 +1355,11 @@ function appForm() {
       <div class="hint">${IC.info} Đơn tạo ở đây vào danh sách <strong>Đơn đăng ký</strong> ở trạng thái <strong>Chờ duyệt</strong>. Bấm <strong>Duyệt</strong> để xếp phòng và tạo hồ sơ học viên.</div>
       <div class="grid2">
         <div class="field"><label>Họ và tên ${SAO}</label><input id="ap_name" placeholder="Nguyễn Văn A" data-change="onTenChuan"></div>
-        <div class="field"><label>SĐT ${SAO}</label><input id="ap_phone" placeholder="09..."></div>
+        <div class="field"><label>SĐT ${SAO}</label><input id="ap_phone" type="tel" inputmode="tel" placeholder="09..."></div>
       </div>
       <div class="grid2">
         <div class="field"><label>Giới tính</label><select id="ap_gender"><option value="female">Nữ</option><option value="male">Nam</option></select></div>
-        <div class="field"><label>Ngày sinh</label><input id="ap_birth" placeholder="dd/mm/yyyy" readonly></div>
+        <div class="field"><label>Ngày sinh</label><input id="ap_birth" readonly></div>
       </div>
       <div class="grid2">
         <div class="field"><label>Mã học viên (MSHV)</label><input id="ap_code" placeholder="TXTS-..."></div>
@@ -1367,14 +1367,14 @@ function appForm() {
       </div>
       <div class="grid2">
         <div class="field"><label>Cơ sở</label><select id="ap_fac">${facOpts}</select></div>
-        <div class="field"><label>Ngày muốn nhận phòng ${SAO}</label><input id="ap_movein" placeholder="dd/mm/yyyy" readonly></div>
+        <div class="field"><label>Ngày muốn nhận phòng ${SAO}</label><input id="ap_movein" readonly></div>
       </div>
       <div class="field"><label>Nguyện vọng phòng</label><input id="ap_pref" placeholder="VD: tầng thấp, gần thang máy..."></div>
       <div class="grid2">
         <label class="check" style="align-self:center"><input type="checkbox" id="ap_wash"> Đăng ký máy giặt</label>
         <label class="check" style="align-self:center"><input type="checkbox" id="ap_park"> Gửi xe</label>
       </div>
-      <div class="field"><label>Biển số xe (nếu gửi xe)</label><input id="ap_plate" placeholder="59-..."></div>
+      <div class="field"><label>Biển số xe (nếu gửi xe)</label><input id="ap_plate" placeholder="59-..." autocapitalize="characters"></div>
       <div class="field"><label>Ghi chú</label><textarea id="ap_note" rows="2"></textarea></div>
     </div>
     <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="saveApp">Tạo đơn</button></div>`);

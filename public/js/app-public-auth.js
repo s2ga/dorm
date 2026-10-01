@@ -275,7 +275,7 @@ async function renderPublicRegister() {
       <div class="field"><label>Dịch vụ đăng ký thêm</label>
         <label class="check"><input type="checkbox" id="a_wash"> ${IC.washer} Máy giặt (${money(info.washing_fee)}/tháng)</label>
         <label class="check" style="margin-top:8px"><input type="checkbox" id="a_park" data-change="onPlateBoxToggle"> ${IC.bike} Gửi xe (${money(info.parking_fee)}/xe/tháng)</label>
-        <div id="plateBox" style="display:none;margin-top:8px"><input id="a_plate" placeholder="Biển số xe (VD: 63-B4 508.58)"></div>
+        <div id="plateBox" style="display:none;margin-top:8px"><input id="a_plate" placeholder="Biển số xe (VD: 63-B4 508.58)" autocapitalize="characters"></div>
       </div>
       <div class="field"><label>Ảnh CCCD (2 mặt) ${SAO}</label>
         <div class="muted" style="font-size:12px;margin:-2px 0 8px">${IC.info} Chụp <strong>ngang</strong>, đủ sáng, thấy rõ 4 góc. Ảnh sẽ tự xoay đúng chiều khi tải lên.
