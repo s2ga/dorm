@@ -91,6 +91,8 @@ const cho = async (page, dk, ms = 15000) => {
     await page.evaluate(id => roomDetail(id), idPhong);
     await page.waitForSelector('#modal [data-act="delRoom"]', { timeout: 15000 });
     await page.click('#modal [data-act="delRoom"]');
+    // Hỏi xác nhận bằng hộp của app (bản cũ dùng confirm() gốc — page.on('dialog') ở trên đã tự đồng ý).
+    await page.click('.xn-hop [data-xn="1"]', { timeout: 3000 }).catch(() => {});
     await cho(page, x => !x.modal);
     await page.waitForTimeout(600);
     t = await trang(page);

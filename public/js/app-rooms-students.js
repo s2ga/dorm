@@ -360,7 +360,7 @@ async function doSetLeader(roomId) {
 }
 async function unsetLeader(roomId) {
   const cur = leaderOf(roomId);
-  if (!confirm(`Miễn nhiệm phòng trưởng ${cur ? cur.name : ''}?\n\nTừ hôm nay học viên này không còn được miễn tiền nước và phí dịch vụ nữa.`)) return;
+  if (!(await xacNhan(`Miễn nhiệm phòng trưởng ${cur ? cur.name : ''}?\n\nTừ hôm nay học viên này không còn được miễn tiền nước và phí dịch vụ nữa.`, { dongY: 'Miễn nhiệm', nguyHiem: true }))) return;
   await guard(() => API.unsetLeader(roomId, today()));
   await refreshCache(); await luuXongVeLai(veLaiNen); toast('Đã miễn nhiệm phòng trưởng');
 }
@@ -423,7 +423,7 @@ async function saveRoom(id) {
 // ta cần thấy mình đang xoá đúng phòng nào, chứ "phòng này" thì không đối chiếu được với cái gì.
 async function delRoom(id) {
   const r = roomById(id);
-  if (!confirm(`Xoá phòng ${r ? r.name : ''}?\n\n(Có thể khôi phục lại trong mục "Đã xóa")`)) return;
+  if (!(await xacNhan(`Xoá phòng ${r ? r.name : ''}?\n\nCó thể khôi phục lại trong mục "Đã xóa".`, { dongY: 'Xoá phòng', nguyHiem: true }))) return;
   await guard(() => API.deleteRoom(id)); await napLai('rooms', 'students');
   closeModal();   // khi xoá từ card Chi tiết phòng: đóng card lại, không để nó đứng đó tả phòng vừa xoá
   // Chi tiết phòng mở được từ nhiều màn (Học viên, Tổng quan…) -> vẽ lại đúng màn đang đứng.
@@ -1021,7 +1021,7 @@ function tepScanHD(id) {
   r.readAsDataURL(f);
 }
 async function goScanHD(id) {
-  if (!confirm('Gỡ bản scan hợp đồng?\n\nTệp bị xoá khỏi kho, không khôi phục được.')) return;
+  if (!(await xacNhan('Gỡ bản scan hợp đồng?\n\nTệp bị xoá khỏi kho, không khôi phục được.', { dongY: 'Gỡ bản scan', nguyHiem: true }))) return;
   await guard(() => API.deleteContractScan(id));
   toast('Đã gỡ bản scan');
   if (el('f_scan')) return veLaiScanHD(id);
@@ -1146,9 +1146,9 @@ async function saveVehicle(vid, studentId) {
 }
 async function delVehicle(vid, studentId) {
   const v = (window._detailVehicles || []).find(x => x.id === vid) || {};
-  if (!confirm(`Xóa hẳn xe ${v.plate || 'này'}?\n\n`
-    + `• Dùng khi bản ghi NHẬP NHẦM. Xóa là mất hẳn, KHÔNG khôi phục được.\n`
-    + `• Học viên ngừng gửi xe thì ĐỪNG xóa — bấm ${'✎'} rồi điền "Đến ngày". Xe vẫn nằm trong hồ sơ và phí tính đúng tới ngày đó.`)) return;
+  if (!(await xacNhan(`Xóa hẳn xe ${v.plate || 'này'}?\n\n`
+    + `Chỉ dùng khi bản ghi nhập nhầm — xóa là mất hẳn, không khôi phục được.\n`
+    + `Học viên ngừng gửi xe thì không xóa: bấm nút bút chì (Sửa xe) rồi điền "Đến ngày", phí tính đúng tới ngày đó.`, { dongY: 'Xóa hẳn', nguyHiem: true }))) return;
   await guard(() => API.deleteVehicle(vid)); await refreshCache(); toast('Đã xóa hẳn xe'); veManXe(studentId);
 }
 /* Người này đã có hồ sơ rồi — hiện lỗi kèm NÚT ĐI THẲNG tới việc họ thực sự cần làm.
@@ -1437,12 +1437,13 @@ async function saveDeposit(id) {
 // nhận phòng không còn dòng cọc mà cổng học viên vẫn ghi đang giữ.
 async function goGhiNhanCoc(id) {
   const s = studentById(id) || {};
-  if (!confirm(`Gỡ ghi nhận đóng cọc của ${s.name || 'học viên này'}?\n\nHồ sơ về "chưa đóng cọc"${+s.deposit_amount ? ` (đang ghi ${money(s.deposit_amount)})` : ''}. Dùng khi đánh dấu nhầm, KHÔNG phải khi hoàn cọc.`)) return;
+  if (!(await xacNhan(`Gỡ ghi nhận đóng cọc của ${s.name || 'học viên này'}?\n\nHồ sơ về "chưa đóng cọc"${+s.deposit_amount ? ` (đang ghi ${money(s.deposit_amount)})` : ''}. Dùng khi đánh dấu nhầm, không phải khi hoàn cọc.`, { dongY: 'Gỡ ghi nhận', nguyHiem: true }))) return;
   await guard(() => API.setDeposit(id, { undo: true }));
   await refreshCache(); await luuXongVeLai(veLaiNen); toast('Đã gỡ ghi nhận cọc');
 }
 async function settleDeposit(id, action) {
-  if (!confirm(action === 'refund' ? 'Xác nhận HOÀN cọc cho học viên?' : 'Xác nhận KHÔNG hoàn cọc (giữ lại)?')) return;
+  if (!(await xacNhan(action === 'refund' ? 'Xác nhận HOÀN cọc cho học viên?' : 'Xác nhận KHÔNG hoàn cọc (giữ lại)?',
+    { dongY: action === 'refund' ? 'Hoàn cọc' : 'Không hoàn', nguyHiem: action !== 'refund' }))) return;
   await guard(() => API.settleDeposit(id, { action }));
   await refreshCache(); await luuXongVeLai(veLaiNen); toast(action === 'refund' ? 'Đã hoàn cọc' : 'Đã giữ cọc');
 }

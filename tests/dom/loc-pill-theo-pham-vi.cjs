@@ -80,7 +80,8 @@ const ok = (ten, dk, them = '') => {
     ok('Danh sách vẫn lọc đúng phạm vi cũ', sauPheu === truocPheu, `${sauPheu} vs ${truocPheu}`);
     ok('Hàng vừa bấm đã chuyển Đã thu ngay trong phạm vi', await page.evaluate(
       id => (document.querySelector(`tr[data-id="${id}"]`) || {}).dataset.thu === 'paid', idThu));
-    await page.evaluate(id => doiTrangThaiThu(id, 'pending'), idThu);   // trả nguyên trạng dữ liệu local
+    await page.evaluate(id => { doiTrangThaiThu(id, 'pending'); }, idThu);   // trả nguyên trạng dữ liệu local
+    await page.click('.xn-hop [data-xn="1"]', { timeout: 3000 }).catch(() => {});
     await page.waitForTimeout(2000);
   } else console.log('  [BỎ QUA] phạm vi lọc không có phiếu chưa thu để thử');
 

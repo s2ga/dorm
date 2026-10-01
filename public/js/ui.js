@@ -88,6 +88,51 @@ function toast(msg, type = 'ok') {
   t._t = setTimeout(tatToast, Math.min(10000, Math.max(type === 'err' ? 5000 : 3000, String(msg || '').length * 65)));
 }
 function tatToast() { const t = el('toast'); clearTimeout(t._t); t.className = 'toast'; }
+
+// Hộp xác nhận của app thay confirm()/alert()/prompt() gốc: nút tiếng Việt, hành động nguy hiểm tô đỏ, con trỏ đứng ở
+// "Hủy", Tab chỉ đi trong hộp. Lớp phủ riêng (không đụng ngăn xếp #modal) nên gọi được cả khi đang mở modal. Trả Promise.
+// opts: dongY (nhãn nút đồng ý), huy (nhãn nút huỷ; null = chỉ một nút), nguyHiem, oNhap (placeholder ô lý do).
+let _xnDem = 0;
+function hopHoi(cau, opts = {}) {
+  const { dongY = 'Đồng ý', huy = 'Hủy', nguyHiem = false, oNhap = null } = opts;
+  return new Promise(res => {
+    const truoc = document.activeElement, ma = 'xnCau' + (++_xnDem);
+    const nen = document.createElement('div');
+    nen.className = 'xn-nen';
+    nen.innerHTML = `<div class="xn-hop" role="alertdialog" aria-modal="true" aria-labelledby="${ma}">
+      <div class="xn-cau" id="${ma}">${esc(cau).replace(/\n/g, '<br>')}</div>
+      ${oNhap != null ? `<textarea class="xn-o" rows="3" placeholder="${esc(oNhap)}" aria-label="${esc(oNhap || 'Lý do')}"></textarea>` : ''}
+      <div class="xn-nut">${huy == null ? '' : `<button type="button" class="btn" data-xn="0">${esc(huy)}</button>`}
+        <button type="button" class="btn ${nguyHiem ? 'danger' : 'pri'}" data-xn="1">${esc(dongY)}</button></div></div>`;
+    const o = nen.querySelector('.xn-o');
+    const xong = v => {
+      document.removeEventListener('keydown', phim, true); nen.remove();
+      if (truoc && truoc.isConnected && truoc.focus) truoc.focus();
+      res(v);
+    };
+    const tra = dongYThat => oNhap != null ? (dongYThat ? o.value.trim() : null) : dongYThat;
+    const phim = e => {
+      if (nen !== [...document.querySelectorAll('.xn-nen')].pop()) return;   // chỉ hộp trên cùng nhận phím
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); xong(tra(false)); }
+      else if (e.key === 'Tab') {
+        const ds = [...nen.querySelectorAll('textarea, button')], i = ds.indexOf(document.activeElement);
+        e.preventDefault();
+        ds[i < 0 ? 0 : (i + (e.shiftKey ? -1 : 1) + ds.length) % ds.length].focus();
+      }
+    };
+    nen.addEventListener('click', e => {
+      const b = e.target.closest('[data-xn]');
+      if (b) xong(tra(b.dataset.xn === '1'));
+      else if (e.target === nen) xong(tra(false));
+    });
+    document.addEventListener('keydown', phim, true);
+    document.body.appendChild(nen);
+    (o || nen.querySelector('[data-xn="0"]') || nen.querySelector('[data-xn="1"]')).focus();
+  });
+}
+const xacNhan = (cau, opts) => hopHoi(cau, opts);
+const thongBao = cau => hopHoi(cau, { dongY: 'Đã hiểu', huy: null });
+const nhapLyDo = (cau, opts = {}) => hopHoi(cau, { dongY: 'Gửi', ...opts, oNhap: opts.oNhap || '' });
 // BL-30: sao chép văn bản vào clipboard (credential HV, SĐT, số HĐ...). navigator.clipboard chạy ở HTTPS/localhost;
 // execCommand là dự phòng cho ngữ cảnh không an toàn.
 function copyToClipboard(text) {

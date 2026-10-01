@@ -428,6 +428,11 @@ select[size] option{padding:8px 9px;border-radius:8px}
 .toast.err{background:#8f3b30;border-color:#a1483c}
 .toast-x{margin-left:4px;padding:0 4px;border:0;background:transparent;color:inherit;font-size:20px;line-height:1;opacity:.75;cursor:pointer}
 .toast-x:hover,.toast-x:focus-visible{opacity:1}
+.xn-nen{position:fixed;inset:0;z-index:300;background:rgba(20,18,14,.45);display:flex;align-items:center;justify-content:center;padding:16px}
+.xn-hop{background:var(--card);color:var(--ink);border-radius:16px;box-shadow:var(--shadow-lg);width:100%;max-width:440px;padding:20px;animation:pop .15s ease}
+.xn-cau{font-size:15px;line-height:1.55;margin-bottom:16px;overflow-wrap:anywhere}
+.xn-o{width:100%;margin:0 0 14px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;background:var(--card);color:var(--ink)}
+.xn-nut{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
 
 /* ---------- Khác ---------- */
 .muted{color:var(--muted)}

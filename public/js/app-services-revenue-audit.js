@@ -205,7 +205,7 @@ function pkAdminPanels(deNghi, baoCao, cb) {
   return oNgay + oDeNghi + oBaoCao;
 }
 async function pkDuyetBien(id) {
-  if (!confirm('Duyệt đề nghị này? Biển số trên hồ sơ xe sẽ đổi theo biển an ninh đọc được, có ghi nhật ký.')) return;
+  if (!(await xacNhan('Duyệt đề nghị này? Biển số trên hồ sơ xe sẽ đổi theo biển an ninh đọc được, có ghi nhật ký.', { dongY: 'Duyệt' }))) return;
   await guard(() => API.approvePlateRequest(id, ''));
   toast('Đã duyệt — hồ sơ xe đã đổi biển'); viewServices();
 }
@@ -280,7 +280,7 @@ function addWashingForm() {
 }
 async function toggleWashing(id, on) {
   if (!id) return;
-  if (!on && !confirm('Ngưng dịch vụ máy giặt cho học viên này?')) return;
+  if (!on && !(await xacNhan(`Ngưng dịch vụ máy giặt cho ${(studentById(id) || {}).name || 'học viên này'}?`, { dongY: 'Ngưng', nguyHiem: true }))) return;
   await guard(() => API.setWashing(id, on));
   await napLai('students'); await luuXongVeLai(veLaiNen);
   toast(on ? 'Đã thêm HV dùng máy giặt' : 'Đã ngưng máy giặt');

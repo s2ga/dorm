@@ -50,6 +50,7 @@ const ok = (ten, dk, them = '') => {
       if (sau > 0) {
         page.once('dialog', d => d.accept());
         await page.evaluate(i => document.querySelector(`[data-act="doiTrangThaiThu"][data-args='[${i},"pending"]']`).click(), id);
+        await page.click('.xn-hop [data-xn="1"]', { timeout: 3000 }).catch(() => {});
         await page.waitForTimeout(1800);
         ok('Bấm lại chuyển về CHƯA THU (trả nguyên trạng)',
           await page.locator(`[data-act="doiTrangThaiThu"][data-args='[${id},"paid"]']`).count() > 0);

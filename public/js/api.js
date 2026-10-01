@@ -62,7 +62,7 @@ async function withDuplicateGuide(run) {
   catch (e) {
     if (e && e.status === 409 && e.data && e.data.duplicate) { duplicateModal(e.data); return null; }
     // Người khác vừa sửa hồ sơ này -> báo rõ, đừng để đè mất công của họ trong im lặng
-    if (e && e.status === 409 && e.data && e.data.conflict) { alert(e.data.error); return null; }
+    if (e && e.status === 409 && e.data && e.data.conflict) { await thongBao(e.data.error); return null; }
     throw e;
   }
 }
@@ -74,7 +74,7 @@ async function withOverloadConfirm(run) {
   try { return await run(false); }
   catch (e) {
     if (e && e.status === 409 && e.data && e.data.needs_confirm) {
-      if (!confirm(`${e.data.error}\n\nVẫn xếp vào phòng này?\n(Việc này sẽ được ghi vào nhật ký kèm tên người xếp.)`)) return null;
+      if (!(await xacNhan(`${e.data.error}\n\nVẫn xếp vào phòng này? Việc này được ghi vào nhật ký kèm tên người xếp.`, { dongY: 'Vẫn xếp' }))) return null;
       return await run(true);
     }
     throw e;

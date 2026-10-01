@@ -217,13 +217,12 @@ function choXacNhanRaHTML() {
         </div></td></tr>`).join('')}</tbody></table></div></div>`;
 }
 // "Không đến" = khoá hồ sơ với lý do — owner chốt: khoá là vô hiệu hoá tất cả, nhả chỗ, không tính tiền.
-function khongDenForm(id) {
+async function khongDenForm(id) {
   const s = studentById(id); if (!s) return;
-  if (!confirm(`${s.name} không đến nhận phòng?\n\nHồ sơ sẽ bị KHOÁ (lý do: không đến), chỗ đã đặt được nhả ra. Mở khoá được sau nếu học viên quay lại.`)) return;
-  return guard(() => API.deleteStudent(id, 'Không đến nhận phòng (dự kiến ' + fmtDate(s.planned_check_in) + ')')).then(async r => {
-    if (r === null) return;
-    await refreshCache(); toast('Đã khoá hồ sơ — chỗ đã nhả'); viewRequests();
-  });
+  if (!(await xacNhan(`${s.name} không đến nhận phòng?\n\nHồ sơ sẽ bị khoá (lý do: không đến), chỗ đã đặt được nhả ra. Mở khoá được sau nếu học viên quay lại.`, { dongY: 'Khoá hồ sơ', nguyHiem: true }))) return;
+  const r = await guard(() => API.deleteStudent(id, 'Không đến nhận phòng (dự kiến ' + fmtDate(s.planned_check_in) + ')'));
+  if (r === null) return;
+  await refreshCache(); toast('Đã khoá hồ sơ — chỗ đã nhả'); viewRequests();
 }
 function dmgGo(f) { dmgFilter = f; viewRequests(); }
 function fbGo(f) { fbFilter = f; viewRequests(); }
@@ -314,13 +313,13 @@ async function saveViolation(studentId) {
 }
 async function delViolation(id, studentId) {
   const moTa = (this && this.dataset && this.dataset.mota) || 'này';
-  if (!confirm(`Xóa vi phạm ${moTa}?`)) return;
+  if (!(await xacNhan(`Xóa vi phạm ${moTa}?`, { dongY: 'Xóa vi phạm', nguyHiem: true }))) return;
   await guard(() => API.deleteViolation(id)); await napLai('students', 'vstats'); toast('Đã xóa vi phạm');
   await luuXongVeLai(veLaiNen);
 }
 async function notifySchool(studentId) {
   const hv = studentById(studentId);
-  if (!confirm(`Gửi email thông báo vi phạm của ${hv ? hv.name : 'học viên này'} cho nhà trường?`)) return;
+  if (!(await xacNhan(`Gửi email thông báo vi phạm của ${hv ? hv.name : 'học viên này'} cho nhà trường?`, { dongY: 'Gửi email' }))) return;
   const r = await guard(() => API.notifyViolation(studentId));
   await refreshCache();
   if (r.mail && r.mail.sent) toast('Đã gửi email cho nhà trường');
@@ -408,18 +407,18 @@ function copyCred(inputId) { const inp = el(inputId); if (inp) copyToClipboard(i
 function copyCredBoth() { copyToClipboard(`Tên đăng nhập: ${el('cred_user').value}\nMật khẩu: ${el('cred_pass').value}`); }
 const tenDon = id => ((ST.applications || []).find(a => a.id === id) || {}).name || '';
 async function rejectApp(id) {
-  if (!confirm(`Từ chối đơn đăng ký${tenDon(id) ? ' của ' + tenDon(id) : ''}?`)) return;
+  if (!(await xacNhan(`Từ chối đơn đăng ký${tenDon(id) ? ' của ' + tenDon(id) : ''}?`, { dongY: 'Từ chối', nguyHiem: true }))) return;
   await guard(() => API.rejectApplication(id)); toast('Đã từ chối'); viewRequests();
 }
 async function delApp(id) {
-  if (!confirm(`Xóa đơn đăng ký${tenDon(id) ? ' của ' + tenDon(id) : ''}?`)) return;
+  if (!(await xacNhan(`Xóa đơn đăng ký${tenDon(id) ? ' của ' + tenDon(id) : ''}?`, { dongY: 'Xóa đơn', nguyHiem: true }))) return;
   await guard(() => API.deleteApplication(id)); toast('Đã xóa'); viewRequests();
 }
 async function setDamage(id, status) { await guard(() => API.updateDamage(id, { status })); toast('Đã cập nhật'); viewRequests(); }
 async function assignMaint(id) {
   const d = (ST.damage || []).find(x => x.id === id) || {};
   const moTa = [d.title ? `"${d.title}"` : '', d.room_name ? `phòng ${d.room_name}` : ''].filter(Boolean).join(' — ');
-  if (!confirm(`Duyệt báo hư hỏng${moTa ? ' ' + moTa : ''} và chuyển cho bộ phận bảo trì xử lý?`)) return;
+  if (!(await xacNhan(`Duyệt báo hư hỏng${moTa ? ' ' + moTa : ''} và chuyển cho bộ phận bảo trì xử lý?`, { dongY: 'Duyệt và chuyển' }))) return;
   await guard(() => API.assignMaintenance(id));
   toast('Đã chuyển cho bộ phận bảo trì'); viewRequests();
 }
@@ -449,7 +448,7 @@ async function doConfirmCout(id) {
 }
 async function rejectCout(id) {
   const ten = ((ST.couts || []).find(c => c.id === id) || {}).student_name || '';
-  if (!confirm(`Từ chối đơn trả phòng${ten ? ' của ' + ten : ''}?`)) return;
+  if (!(await xacNhan(`Từ chối đơn trả phòng${ten ? ' của ' + ten : ''}?`, { dongY: 'Từ chối', nguyHiem: true }))) return;
   await guard(() => API.rejectCheckoutReq(id)); toast('Đã từ chối'); viewRequests();
 }
 
@@ -494,9 +493,9 @@ function bienBanChoDuyetHTML(kind) {
         </div></td></tr>`).join('')}</tbody></table></div></div>`;
 }
 async function bienBanTraLai(id) {
-  const ly = prompt('Lý do trả lại (an ninh sẽ thấy lý do này và lập lại biên bản):');
+  const ly = await nhapLyDo('Trả lại biên bản cho an ninh lập lại. An ninh sẽ thấy lý do này.', { dongY: 'Trả lại', oNhap: 'Lý do trả lại' });
   if (ly === null) return;
-  if (!ly.trim()) return toast('Nhập lý do trả lại', 'err');
+  if (!ly) return toast('Nhập lý do trả lại', 'err');
   const r = await guard(() => API.handoverReportReturn(id, ly.trim()));
   if (r === null) return;
   try { ST.hoReports = await API.handoverReports('pending'); } catch {}
@@ -609,7 +608,7 @@ async function doSuaNgayTra(id) {
   await refreshCache(); await luuXongVeLai(veLaiNen);
   const n = (r.recalced_roommates || []).length;
   toast(`Đã đổi ngày trả ${fmtDate(r.cu)} → ${fmtDate(r.moi)}${n ? ` · ${n} người cùng phòng được tính lại tiền điện` : ''}`);
-  if (r.canh_bao) alert(r.canh_bao);   // phiếu kỳ này ĐÃ THU — app không tự sửa, phải nói to
+  if (r.canh_bao) await thongBao(r.canh_bao);   // phiếu kỳ này ĐÃ THU — app không tự sửa, phải nói to
 }
 async function doCheckOut(id, hoId) {
   const s = studentById(id);
@@ -622,7 +621,7 @@ async function doCheckOut(id, hoId) {
   toast(r.recalced
     ? `Đã ${hoId ? 'xác nhận biên bản' : 'trả phòng'} · phiếu tháng tính lại ${r.recalced.days_stayed} ngày ở${nRoom ? ` · ${nRoom} người cùng phòng cũng được tính lại tiền điện` : ''}`
     : (hoId ? 'Đã xác nhận biên bản — học viên đã trả phòng' : 'Đã trả phòng'));
-  if (r.canh_bao) alert(r.canh_bao);   // phiếu kỳ này ĐÃ THU — app không tự sửa, phải nói to
+  if (r.canh_bao) await thongBao(r.canh_bao);   // phiếu kỳ này ĐÃ THU — app không tự sửa, phải nói to
   if (s && s.deposit_status === 'held') depositSettlePrompt(id, r.refund);
 }
 function depositSettlePrompt(id, refund) {

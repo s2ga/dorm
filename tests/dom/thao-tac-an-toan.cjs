@@ -73,7 +73,8 @@ const cho = async (page, dk, ms = 15000) => {
     await page.waitForSelector('#modal #f_class', { timeout: 15000 });
     await page.fill('#f_class', 'LOP-KIEM-THU-123');
     const lopTruoc = (await trang(page)).lop;
-    await page.evaluate(id => goScanHD(id), idHv);
+    await page.evaluate(id => { goScanHD(id); }, idHv);   // không await: hàm đang chờ hộp xác nhận
+    await page.click('.xn-hop [data-xn="1"]', { timeout: 3000 }).catch(() => {});
     await page.waitForTimeout(1200);
     const t = await trang(page);
     const lopHoc = await page.evaluate(() => (document.getElementById('f_class') || {}).value);
@@ -155,6 +156,8 @@ const cho = async (page, dk, ms = 15000) => {
     const tenTs = await page.evaluate(b => b.closest('tr').querySelector('strong').textContent, nutXoa);
     hop.length = 0;
     await nutXoa.click();
+    const cauHop = await page.textContent('.xn-cau', { timeout: 3000 }).catch(() => null);   // hộp xác nhận của app
+    if (cauHop != null) { hop.push(cauHop); await page.click('.xn-hop [data-xn="1"]'); }
     await page.waitForTimeout(1200);
     ok('Hỏi xoá tài sản có nêu tên tài sản', hop.some(m => m.includes(tenTs)), JSON.stringify(hop));
     ok('Xoá tài sản xong, ô wifi đang gõ vẫn giữ chữ', await page.evaluate(() => el('set_wifi_ssid') && el('set_wifi_ssid').value) === 'WIFI-KIEM-THU');

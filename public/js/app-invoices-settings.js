@@ -201,7 +201,7 @@ async function recalcInv(id) { const r = await guard(() => API.recalcInvoice(id)
 async function delInvoice(id) {
   const i = (_invAll || []).find(x => x.id === id) || {};   // BL-30: nêu tên/tổng để tránh xóa nhầm
   const who = [i.student_name, i.room_name].filter(Boolean).join(' · ');
-  if (!confirm(`Xóa phiếu báo${who ? ' của ' + who : ''}${i.total != null ? ' (tổng ' + money(i.total) + ')' : ''}?`)) return;
+  if (!(await xacNhan(`Xóa phiếu báo${who ? ' của ' + who : ''}${i.total != null ? ' (tổng ' + money(i.total) + ')' : ''}?`, { dongY: 'Xóa phiếu', nguyHiem: true }))) return;
   await guard(() => API.deleteInvoice(id)); toast('Đã xóa');
   await luuXongVeLai(veLaiNen);   // phiếu không nằm trong ST -> màn Tiền phòng tự nạp lại khi vẽ
 }
@@ -561,7 +561,7 @@ async function luuTatCaChotGiuaKy() {
     } catch (e) { loi.push(`${i.dataset.mrten}: ${(e && e.message) || 'lỗi'}`); }
   }
   await veLaiChotGiuaKy(el('e_month').dataset.ym || elecMonth);
-  if (loi.length) alert(`Lưu được ${ok}/${o.length} ô.\n\nKhông lưu được:\n• ${loi.join('\n• ')}`);
+  if (loi.length) await thongBao(`Lưu được ${ok}/${o.length} ô.\n\nKhông lưu được:\n• ${loi.join('\n• ')}`);
   toast(loi.length ? `Lưu ${ok}/${o.length} ô — ${loi.length} ô lỗi` : `Đã chốt ${ok} chỉ số · tính lại ${hoaDon} phiếu báo`, loi.length ? 'err' : 'ok');
 }
 // Giữ chỉ số đang gõ dở qua lần vẽ lại modal.
@@ -591,7 +591,7 @@ async function luuChotGiuaKy(idx, roomId, date, studentId) {
 }
 async function xoaChotGiuaKy(id) {
   const moTa = (this && this.dataset && this.dataset.mota) || 'này';
-  if (!confirm(`Gỡ lần chốt ${moTa}? Phiếu báo liên quan sẽ được tính lại.`)) return;
+  if (!(await xacNhan(`Gỡ lần chốt ${moTa}? Phiếu báo liên quan sẽ được tính lại.`, { dongY: 'Gỡ lần chốt', nguyHiem: true }))) return;
   await guard(() => API.deleteMeterRead(id));
   toast('Đã gỡ lần chốt');
   await veLaiChotGiuaKy(el('e_month').dataset.ym || elecMonth);
@@ -600,10 +600,10 @@ async function saveElectric() {
   if (badElectricRooms().length) return toast('Có phòng "số cuối < số đầu" — sửa lại chỉ số điện trước khi lưu', 'err');
   // Ô chốt giữa kỳ có nút Lưu riêng, không thuộc bảng này -> cảnh báo trước khi bỏ.
   const goDo = [...document.querySelectorAll('#modal input[id^="mr_"]')].filter(i => i.value.trim() !== '');
-  if (goDo.length && !confirm(
-    `Còn ${goDo.length} ô chốt giữa kỳ đang gõ dở CHƯA lưu.\n\n`
+  if (goDo.length && !(await xacNhan(
+    `Còn ${goDo.length} ô chốt giữa kỳ đang gõ dở chưa lưu.\n\n`
     + `Mỗi dòng chốt giữa kỳ có nút "Lưu" riêng — nút này chỉ lưu bảng chỉ số cuối kỳ phía trên.\n\n`
-    + `Vẫn đóng và bỏ những ô đó?`)) return;
+    + `Vẫn đóng và bỏ những ô đó?`, { dongY: 'Bỏ và đóng', huy: 'Ở lại', nguyHiem: true }))) return;
   const readings = readElectricInputs();
   await guard(() => API.saveElectric({ month: el('e_month').dataset.ym, readings }));
   closeModal(); toast('Đã lưu chỉ số cuối kỳ');
@@ -797,7 +797,7 @@ function nutThuTien(i) {
 async function doiTrangThaiThu(id, status) {
   const inv = (_invAll || []).find(x => x.id === id);
   const ten = inv ? inv.student_name : '';
-  if (status === 'pending' && !confirm(`Mở khoá phiếu của ${ten} về CHƯA THU?\n\nPhiếu đã thu được CHỐT — mở ra mới sửa hay tính lại được. Thao tác này có ghi nhật ký.`)) return;
+  if (status === 'pending' && !(await xacNhan(`Mở khoá phiếu của ${ten} về "Chưa thu"?\n\nPhiếu đã thu được chốt — mở ra mới sửa hay tính lại được. Thao tác này có ghi nhật ký.`, { dongY: 'Mở khoá phiếu' }))) return;
   await guard(() => API.setInvoiceStatus(id, status));
   // Đang đứng ở tab ngược với trạng thái mới thì hàng vừa bấm sẽ biến mất — nhảy sang đúng tab để
   // người dùng thấy nó đi đâu, thay vì tưởng mất phiếu.
@@ -1422,7 +1422,7 @@ async function loadAdminUsers() {
       </div></td></tr>`;
     return `<tr>
       <td><strong>${esc(u.username)}</strong>${u.id === me ? ' <span class="badge amber" style="font-size:10px">Bạn</span>' : ''}
-        ${u.auth_provider && u.auth_provider !== 'local' ? `<span class="badge blue" style="font-size:10px" title="Đăng nhập bằng Microsoft">${esc(u.auth_provider === 'sso' ? 'Microsoft' : 'MK + Microsoft')}</span>` : ''}
+        ${u.auth_provider && u.auth_provider !== 'local' ? `<span class="badge blue" style="font-size:10px" title="Đăng nhập bằng Microsoft">${esc(u.auth_provider === 'sso' ? 'Microsoft' : 'Mật khẩu + Microsoft')}</span>` : ''}
         ${u.email ? `<div class="muted" style="font-size:11px">${esc(u.email)}</div>` : ''}</td>
       <td>${esc(u.full_name || '—')}</td>
       <td><span class="badge ${rc}">${rl}</span>
@@ -1431,7 +1431,7 @@ async function loadAdminUsers() {
       <td>${u.facility_id ? esc(u.facility_name || facilityName(u.facility_id)) : '<span class="badge gray" title="Điều hành — thấy tất cả cơ sở">Tất cả</span>'}</td>
       <td class="num"><div class="rowbtns" style="justify-content:flex-end">
         <button class="btn sm" data-act="userForm" data-args='[${u.id}]'>Sửa</button>
-        ${u.auth_provider === 'sso' ? '' : `<button class="btn sm" title="Chỉ áp dụng cho tài khoản còn dùng mật khẩu" data-act="resetUserPwForm" data-args='[${u.id}]'>${IC.key} MK</button>`}
+        ${u.auth_provider === 'sso' ? '' : `<button class="btn sm" title="Chỉ áp dụng cho tài khoản còn dùng mật khẩu" data-act="resetUserPwForm" data-args='[${u.id}]'>${IC.key} Mật khẩu</button>`}
         ${u.id === me ? '' : `<button class="btn sm ghost" title="Khoá tài khoản — chặn đăng nhập, KHÔNG xoá dữ liệu" data-act="delUserRow" data-args='[${u.id}]' data-uname="${esc(u.username)}">${IC.lock} Khoá</button>`}
       </div></td>
     </tr>`;
@@ -1612,7 +1612,7 @@ async function saveApprove(id) {
       + `${a.co_mat_khau ? ' lẫn mật khẩu cũ' : ''}.\n`
       + `• Khoá tài khoản đó là chặn cả hai lối vào.\n`
       + `• Bản chờ duyệt này sẽ bị gỡ.`;
-    if (!confirm(`${e.data.error}${chiTiet}`)) return;
+    if (!(await xacNhan(`${e.data.error}${chiTiet}`, { dongY: 'Gộp tài khoản' }))) return;
     r = await guard(() => API.approveUserAsStudent(id, { ...body, merge: true }));
   }
   closeModal();
@@ -1672,7 +1672,7 @@ async function linkTenant(id) {
   loadAdminUsers();
 }
 async function unlinkTenant(id) {
-  if (!confirm('Gỡ hồ sơ thuê phòng khỏi tài khoản này? Người này sẽ không vào được cổng học viên nữa.')) return;
+  if (!(await xacNhan('Gỡ hồ sơ thuê phòng khỏi tài khoản này? Người này sẽ không vào được cổng học viên nữa.', { dongY: 'Gỡ liên kết', nguyHiem: true }))) return;
   await guard(() => API.unlinkStudent(id));
   closeModal(); toast('Đã gỡ liên kết hồ sơ');
   await napLai('students');
@@ -1707,7 +1707,7 @@ async function loadStudentAccounts() {
     return `<tr data-s="${ds}">
       <td><strong>${esc(u.username)}</strong>
         ${u.auth_provider && u.auth_provider !== 'local' ? `<span class="badge blue" style="font-size:10px" title="Đã liên kết Microsoft">Microsoft</span>` : ''}
-        ${u.must_change_password ? '<span class="badge amber" style="font-size:10px" title="Lần đăng nhập tới sẽ bị bắt đổi mật khẩu">Phải đổi MK</span>' : ''}
+        ${u.must_change_password ? '<span class="badge amber" style="font-size:10px" title="Lần đăng nhập tới sẽ bị bắt đổi mật khẩu">Phải đổi mật khẩu</span>' : ''}
         ${u.email ? `<div class="muted" style="font-size:11px">${esc(u.email)}</div>` : ''}</td>
       <td>${u.student_id ? `<div class="flex stu-name" data-act="studentDetail" data-args='[${u.student_id}]' role="button" tabindex="0" title="Xem chi tiết học viên"><div><strong>${esc(u.student_name || u.full_name || '—')}</strong>${u.student_code ? `<div class="muted" style="font-size:11px">${esc(u.student_code)}</div>` : ''}</div><span class="row-chev" aria-hidden="true">${IC.chevronRight}</span></div>` : `${esc(u.student_name || u.full_name || '—')}${u.student_code ? `<div class="muted" style="font-size:11px">${esc(u.student_code)}</div>` : ''}`}</td>
       <td>${esc(u.room_name || '—')}</td>
@@ -1718,7 +1718,7 @@ async function loadStudentAccounts() {
         ${u.locked ? (dsxoa
         ? `<button class="btn sm" disabled title="Hồ sơ đang khoá — mở khoá hồ sơ ở màn Học viên trước, rồi mới mở được tài khoản">${IC.lock} Mở khoá</button>`
         : `<button class="btn sm pri" title="Cho đăng nhập lại" data-act="moKhoaStuAcc" data-args='[${u.id}]'>${IC.unlock || IC.key} Mở khoá</button>`)
-      : `<button class="btn sm" title="Đặt lại mật khẩu" data-act="stuAccPwForm" data-args='[${u.id}]'>${IC.key} MK</button>
+      : `<button class="btn sm" title="Đặt lại mật khẩu" data-act="stuAccPwForm" data-args='[${u.id}]'>${IC.key} Mật khẩu</button>
         <button class="btn sm ghost" title="Đá mọi thiết bị đang đăng nhập (không đổi mật khẩu)" data-act="revokeStuSession" data-args='[${u.id}]'>Thu hồi phiên</button>
         <button class="btn sm ghost" title="Chặn đăng nhập — hồ sơ và tiền phòng giữ nguyên" data-act="khoaStuAccForm" data-args='[${u.id}]'>${IC.lock} Khoá</button>
         <button class="btn sm ghost" title="Lỡ chuyển nhầm sang học viên — đổi về tài khoản nhân viên" data-act="doiVeNhanVienForm" data-args='[${u.id}]'>Đổi về nhân viên</button>`}
@@ -1747,7 +1747,7 @@ async function doStuAccPw(id) {
 }
 async function revokeStuSession(id) {
   const u = (window._stuAccCache || []).find(x => x.id === id); if (!u) return;
-  if (!confirm(`Thu hồi mọi phiên đăng nhập của "${u.student_name || u.username}"?\n\nHọc viên sẽ bị đăng xuất khỏi mọi thiết bị và phải đăng nhập lại. Mật khẩu KHÔNG đổi.`)) return;
+  if (!(await xacNhan(`Thu hồi mọi phiên đăng nhập của "${u.student_name || u.username}"?\n\nHọc viên sẽ bị đăng xuất khỏi mọi thiết bị và phải đăng nhập lại. Mật khẩu không đổi.`, { dongY: 'Thu hồi phiên', nguyHiem: true }))) return;
   await guard(() => API.revokeStudentSession(id));
   toast('Đã thu hồi phiên đăng nhập');
 }
@@ -1776,7 +1776,7 @@ async function moKhoaStuAcc(id) {
   const u = (window._stuAccCache || []).find(x => x.id === id); if (!u) return;
   // Hồ sơ khoá thì mở tài khoản cũng vô nghĩa: đăng nhập vẫn bị chặn vì hồ sơ.
   if (u.student_deleted) return toast('Hồ sơ đang khoá — mở khoá hồ sơ ở màn Học viên trước', 'err');
-  if (!confirm(`Mở khoá đăng nhập cho "${u.student_name || u.username}"?\n\nHọc viên đăng nhập lại được bằng mật khẩu cũ. Nếu không nhớ mật khẩu thì bấm tiếp "MK" để cấp lại.`)) return;
+  if (!(await xacNhan(`Mở khoá đăng nhập cho "${u.student_name || u.username}"?\n\nHọc viên đăng nhập lại được bằng mật khẩu cũ. Nếu không nhớ mật khẩu thì bấm tiếp "Mật khẩu" để cấp lại.`, { dongY: 'Mở khoá' }))) return;
   await guard(() => API.unlockStudentAccount(id));
   toast('Đã mở khoá đăng nhập'); loadStudentAccounts();
 }
@@ -1837,12 +1837,12 @@ async function doResetUserPw(id) {
 }
 // KHOÁ (không xoá): chặn đăng nhập + đá mọi phiên đang mở, dữ liệu và nhật ký giữ nguyên, mở lại được.
 async function delUser(id, name) {
-  if (!confirm(`Khoá tài khoản "${name}"?\n\n• Người này KHÔNG đăng nhập được nữa và bị đá khỏi mọi thiết bị ngay.\n• Dữ liệu, nhật ký thao tác VẪN GIỮ — đây không phải xoá.\n• Mở lại được bất cứ lúc nào bằng nút "Mở khoá".`)) return;
+  if (!(await xacNhan(`Khoá tài khoản "${name}"?\n\nNgười này không đăng nhập được nữa và bị đăng xuất khỏi mọi thiết bị ngay. Dữ liệu và nhật ký thao tác vẫn giữ — mở lại được bằng nút "Mở khoá".`, { dongY: 'Khoá tài khoản', nguyHiem: true }))) return;
   await guard(() => API.deleteUser(id));
   toast('Đã khoá tài khoản'); loadAdminUsers();
 }
 async function unlockUser(id, name) {
-  if (!confirm(`Mở khoá tài khoản "${name}"? Người này sẽ đăng nhập lại được.`)) return;
+  if (!(await xacNhan(`Mở khoá tài khoản "${name}"? Người này sẽ đăng nhập lại được.`, { dongY: 'Mở khoá' }))) return;
   await guard(() => API.unlockUser(id));
   toast('Đã mở khoá tài khoản'); loadAdminUsers();
 }
@@ -1861,7 +1861,7 @@ function uploadIntroMedia(key, input) {
 }
 async function removeIntroMedia(key) {
   const nhan = (INTRO_MEDIA.find(m => m[0] === key) || [])[1] || key;
-  if (!confirm(`Xóa ảnh "${nhan}"? Trang giới thiệu sẽ hiện ô mẫu.`)) return;
+  if (!(await xacNhan(`Xóa ảnh "${nhan}"? Trang giới thiệu sẽ hiện ô mẫu.`, { dongY: 'Xóa ảnh', nguyHiem: true }))) return;
   await guard(() => API.deleteMedia(key)); toast('Đã xóa ảnh'); veLaiAnhGioiThieu(key);
 }
 
@@ -1877,7 +1877,7 @@ function uploadRulesDoc(input) {
   r.readAsDataURL(f);
 }
 async function removeRulesDoc() {
-  if (!confirm('Xóa file nội quy?\n\nHọc viên sẽ không còn thấy mục "Nội quy ký túc xá" trong trang Phòng của tôi.')) return;
+  if (!(await xacNhan('Xóa file nội quy?\n\nHọc viên sẽ không còn thấy mục "Nội quy ký túc xá" trong trang Phòng của tôi.', { dongY: 'Xóa file', nguyHiem: true }))) return;
   await guard(() => API.deleteMedia('noi-quy')); toast('Đã xóa nội quy'); refreshRulesDocStatus();
 }
 /* ---- Tình trạng dữ liệu ----
@@ -1992,7 +1992,7 @@ async function saveVtype(id) {
 }
 async function delVtype(id) {
   const t = (ST.vtypes || []).find(x => x.id === id) || {};
-  if (!confirm(`Xóa loại vi phạm "${t.name || ''}"?`)) return;
+  if (!(await xacNhan(`Xóa loại vi phạm "${t.name || ''}"?`, { dongY: 'Xóa', nguyHiem: true }))) return;
   await guard(() => API.deleteVType(id)); await napLai('vtypes'); toast('Đã xóa'); veLaiBangCaiDat('setVtypeRows', hangLoaiVP);
 }
 async function saveSsoSettings() {
@@ -2080,7 +2080,7 @@ async function saveAsset(id) {
 }
 async function delAsset(id) {
   const a = ST.assets.find(x => x.id === id) || {};
-  if (!confirm(`Xóa tài sản "${a.name || ''}"?`)) return;
+  if (!(await xacNhan(`Xóa tài sản "${a.name || ''}"?`, { dongY: 'Xóa', nguyHiem: true }))) return;
   await guard(() => API.deleteAsset(id)); await napLai('assets'); toast('Đã xóa'); veLaiBangCaiDat('setAssetRows', hangTaiSan);
 }
 async function saveBravo() {
@@ -2138,7 +2138,7 @@ async function saveFacility(id) {
 }
 async function delFacility(id) {
   const f = (ST.facilities || []).find(x => x.id === id) || {};   // BL-30 + BL-35[11a]: nêu tên + cảnh báo dây chuyền
-  if (!confirm(`Xóa cơ sở "${f.name || ''}"${f.room_count ? ` — đang có ${f.room_count} phòng, xóa có thể ảnh hưởng dữ liệu liên quan` : ''}?`)) return;
+  if (!(await xacNhan(`Xóa cơ sở "${f.name || ''}"${f.room_count ? ` — đang có ${f.room_count} phòng, xóa có thể ảnh hưởng dữ liệu liên quan` : ''}?`, { dongY: 'Xóa cơ sở', nguyHiem: true }))) return;
   await guard(() => API.deleteFacility(id)); await refreshCache(); toast('Đã xóa'); veLaiBangCaiDat('setFacRows', hangCoSo);
 }
 

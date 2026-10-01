@@ -160,11 +160,8 @@ function _ccChay(tr) {
   const id = +tr.dataset.delid;
   _ccDon(true);
   _ccDaChay = true;                                          // -> touchend sẽ preventDefault, chặn click ma
-  _actRun(tr.dataset.del, tr, null, JSON.stringify([id]));   // delRoom(id) — tự có confirm() bên trong
-  // Lưới thứ hai, theo thời gian. Đặt mốc SAU khi hành động chạy xong chứ không phải trước: delRoom mở
-  // confirm() — hộp thoại này CHẶN luồng theo thời gian THẬT, người ta đắn đo 2-3 giây là bình thường,
-  // đặt mốc trước thì cửa sổ đã hết hạn lúc cú click mới tới. (Test tự động không lộ ra điều này: máy
-  // bấm OK trong vài mili giây nên cửa sổ nào cũng kịp.)
+  _actRun(tr.dataset.del, tr, null, JSON.stringify([id]));   // delRoom(id) — tự hỏi xác nhận bên trong
+  // Lưới thứ hai, theo thời gian: hộp hỏi xoá hiện ngay dưới ngón tay, click ma rơi vào đó là bấm hộ người dùng.
   _ccVuaChay = Date.now();
 }
 document.addEventListener('touchstart', e => {
@@ -208,13 +205,13 @@ document.addEventListener('touchend', e => {
 document.addEventListener('touchcancel', () => { _ccDaChay = false; _ccDon(true); }, { passive: true });
 // Sau khi cử chỉ phát hành động, trình duyệt vẫn bồi thêm một cú click -> nuốt ở pha capture,
 // nếu không thì xoá xong lại mở luôn card chi tiết của phòng vừa xoá.
-// Lưới thứ hai (preventDefault ở touchend là lưới chính): chỉ nuốt click rơi vào HÀNG BẢNG, trong
+// Lưới thứ hai (preventDefault ở touchend là lưới chính): chỉ nuốt click rơi vào HÀNG BẢNG hoặc HỘP HỎI, trong
 // 500ms. Hẹp cả về chỗ lẫn về thời gian, vì kéo ngang xa thì trình duyệt tự huỷ tap và KHÔNG bồi
 // click nào — cửa sổ mở toang sẽ nuốt oan cú chạm thật kế tiếp của người dùng ở bất kỳ đâu.
 document.addEventListener('click', e => {
   if (!_ccVuaChay) return;
   if (Date.now() - _ccVuaChay > 500) { _ccVuaChay = 0; return; }
-  if (e.target.closest && e.target.closest('tr')) { e.stopPropagation(); e.preventDefault(); }
+  if (e.target.closest && e.target.closest('tr, .xn-nen')) { e.stopPropagation(); e.preventDefault(); }
   _ccVuaChay = 0;                          // dù nuốt hay không, chỉ xét ĐÚNG một cú click kế tiếp
 }, true);
 
@@ -256,8 +253,8 @@ function delUserRow(id) { delUser(id, (this && this.dataset && this.dataset.unam
 function unlockUserRow(id) { unlockUser(id, (this && this.dataset && this.dataset.uname) || ''); }
 function logout() { Auth.logout(); }
 // BL-80: cây búa cũ (thu hồi vé cấp tài khoản) nay là một nút riêng, tường minh.
-function logoutMoiThietBi() {
-  if (confirm('Thoát khỏi MỌI thiết bị đang đăng nhập tài khoản này?\n\nDùng khi nghi lộ mật khẩu hoặc quên đăng xuất ở máy khác.')) Auth.logout(true);
+async function logoutMoiThietBi() {
+  if (await xacNhan('Thoát khỏi mọi thiết bị đang đăng nhập tài khoản này?\n\nDùng khi nghi lộ mật khẩu hoặc quên đăng xuất ở máy khác.', { dongY: 'Thoát mọi thiết bị', nguyHiem: true })) Auth.logout(true);
 }
 function doPrint() { window.print(); }
 function reloadPage() { location.reload(); } // BL-22: nút "Tải lại" trang công khai (CSP chặn inline onclick)

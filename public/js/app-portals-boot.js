@@ -372,9 +372,10 @@ function myAssetsPanel(assets, profile) {
 // (billing.go:598). Phiếu kỳ này chưa đóng tiền mà được lập lại là phí vào luôn kỳ này; phiếu đã
 // đóng thì bị khoá (invoices.go:855) nên phí rơi sang kỳ sau. Câu hỏi phải nói đúng như vậy.
 async function toggleMyWashing(on) {
-  if (!confirm(on
+  if (!(await xacNhan(on
     ? 'Đăng ký dùng máy giặt?\n\nNếu phiếu báo kỳ này chưa đóng tiền thì phí có thể được tính luôn vào kỳ này. Phiếu đã đóng rồi thì tính từ kỳ sau.'
-    : 'Hủy đăng ký máy giặt?\n\nNếu phiếu báo kỳ này chưa đóng tiền thì kỳ này cũng thôi tính phí. Phiếu đã đóng rồi thì hết tính từ kỳ sau.')) return;
+    : 'Hủy đăng ký máy giặt?\n\nNếu phiếu báo kỳ này chưa đóng tiền thì kỳ này cũng thôi tính phí. Phiếu đã đóng rồi thì hết tính từ kỳ sau.',
+  { dongY: on ? 'Đăng ký' : 'Hủy đăng ký', huy: 'Không', nguyHiem: !on }))) return;
   await guard(() => API.meWashing(on));
   toast(on ? 'Đã đăng ký máy giặt' : 'Đã hủy máy giặt'); loadStudentPortal();
 }
@@ -1027,17 +1028,17 @@ async function pkDanhDau(vehicleId, status) {
   loadParkingCheck();
 }
 async function pkBoDanhDau(id) {
-  if (!confirm('Bỏ ghi nhận này?')) return;
+  if (!(await xacNhan('Bỏ ghi nhận điểm danh của xe này?', { dongY: 'Bỏ ghi nhận', nguyHiem: true }))) return;
   await guard(() => API.parkingUndo(id));
   toast('Đã bỏ ghi nhận'); loadParkingCheck();
 }
 async function pkChotLuot() {
   const conLai = pkData ? pkData.summary.chua_danh : 0;
   const daChot = !!(pkData && pkData.dailies && pkData.dailies.length);
-  if (!confirm(`Chốt lượt kiểm ngày ${fmtDate(pkNgay)} và gửi báo cáo cho Ban Quản lý?\n\n${conLai} xe chưa đánh dấu sẽ được ghi là VẮNG.${daChot ? '\nHôm nay đã chốt một lần — lần này ghi đè số liệu; mail chỉ gửi lại nếu số liệu đổi.' : ''}`)) return;
+  if (!(await xacNhan(`Chốt lượt kiểm ngày ${fmtDate(pkNgay)} và gửi báo cáo cho Ban Quản lý?\n\n${conLai} xe chưa đánh dấu sẽ được ghi là vắng.${daChot ? '\nNgày này đã chốt một lần — lần này ghi đè số liệu; email chỉ gửi lại nếu số liệu đổi.' : ''}`, { dongY: 'Chốt và gửi' }))) return;
   const r = await guard(() => API.parkingFinish(pkNgay));
   const dl = r.daily || {};
-  toast(`Đã chốt · ghi ${r.da_ghi_vang} xe vắng · ${dl.mail === 'sending' ? 'đang gửi mail báo cáo' : 'số liệu không đổi, không gửi lại mail'}`);
+  toast(`Đã chốt · ghi ${r.da_ghi_vang} xe vắng · ${dl.mail === 'sending' ? 'đang gửi email báo cáo' : 'số liệu không đổi, không gửi lại email'}`);
   loadParkingCheck();
 }
 function pkXemAnh(id) { pkModalAnh('/api/maintenance/parking/photo/' + id); }
@@ -1084,7 +1085,7 @@ async function pkLuuBaoCaoXe(vehicleId) {
 }
 async function pkXoaBaoCao(id) {
   const moTa = (this && this.dataset && this.dataset.mota) || 'này';
-  if (!confirm(`Xoá báo cáo ${moTa}? Chỉ xoá được khi Ban Quản lý chưa xem.`)) return;
+  if (!(await xacNhan(`Xoá báo cáo ${moTa}? Chỉ xoá được khi Ban Quản lý chưa xem.`, { dongY: 'Xoá báo cáo', nguyHiem: true }))) return;
   await guard(() => API.parkingReportDelete(id));
   toast('Đã xoá báo cáo'); loadParkingCheck();
 }
@@ -1436,7 +1437,7 @@ async function pkCamNhan(bien) {
 }
 // Biển trên app ghi sai so với xe thật: sửa lại rồi ghi điểm danh luôn, khỏi phải nhớ quay lại.
 async function pkCamSuaBien(vehicleId, bien) {
-  if (!confirm(`Sửa biển số trong app thành "${bien}" (đọc từ ảnh)?\n\nSau đó sẽ ghi luôn là có gửi. Lần sửa này được ghi vết.`)) return;
+  if (!(await xacNhan(`Sửa biển số trong app thành "${bien}" (đọc từ ảnh)?\n\nSau đó sẽ ghi luôn là có gửi. Lần sửa này được ghi vết.`, { dongY: 'Sửa biển' }))) return;
   const r = await guard(() => API.maintSuaBienSo(vehicleId, bien));
   if (!r) return;
   toast(r.doi ? `Đã sửa biển: ${r.cu || '(trống)'} → ${r.plate}` : 'Biển không đổi');
@@ -1511,7 +1512,7 @@ async function pkLuuXeLa() {
     // Biển hoá ra đã đăng ký: mời điểm danh đúng chỗ thay vì tạo một bản ghi "xe lạ" sai.
     const dk = e && e.status === 409 && e.data && e.data.registered;
     if (dk) {
-      if (confirm(`${e.data.error}\n\n${dk.plate} — ${dk.student_name || ''}${dk.room_name ? ' · ' + dk.room_name : ''}\n\nĐánh dấu xe này CÓ GỬI luôn?`)) {
+      if (await xacNhan(`${e.data.error}\n\n${dk.plate} — ${dk.student_name || ''}${dk.room_name ? ' · ' + dk.room_name : ''}\n\nĐánh dấu xe này là có gửi luôn?`, { dongY: 'Ghi có gửi' })) {
         await guard(() => API.parkingMark({ vehicle_id: dk.vehicle_id, date: pkNgay, status: 'present', photo: pkAnh || undefined }));
         closeModal(); toast('Đã ghi: có gửi'); loadParkingCheck();
       }
