@@ -30,7 +30,7 @@ async function viewInvoices() {
   const fltCu = (_invTbl && _invTbl._flt && _invTbl._flt.cols && _invTbl._flt.cols.size)
     ? { cols: new Map(_invTbl._flt.cols), page: _invTbl._flt.page || 0 } : null;
   const cuonCu = window.scrollY;
-  el('topActions').innerHTML = `<button class="btn" data-act="electricForm">${IC.zap} Chỉ số điện</button><button class="btn" data-act="oneInvoiceForm">${IC.plus} HĐ cho 1 HV</button><button class="btn pri" data-act="generateForm">${IC.receipt} Tạo hóa đơn theo tháng</button>`;
+  el('topActions').innerHTML = `<button class="btn" data-act="electricForm">${IC.zap} Chỉ số điện</button><button class="btn" data-act="oneInvoiceForm">${IC.plus} Phiếu báo 1 học viên</button><button class="btn pri" data-act="generateForm">${IC.receipt} Lập phiếu báo tháng</button>`;
   el('content').innerHTML = '<div class="spinner"></div>';
   const months = await guard(() => API.invoiceMonths());
   // Chỉ tự nhảy tới kỳ CÓ hóa đơn khi đang ở kỳ MẶC ĐỊNH (tháng hiện tại) mà nó chưa có hóa đơn.
@@ -108,7 +108,7 @@ async function viewInvoices() {
           : `Đã ẩn <strong>${soAn}</strong> phiếu 0 đồng của thành viên phòng thuê nguyên phòng — tiền gộp vào phiếu người ký hợp đồng.`}
         <button class="btn sm ghost" data-act="toggleThanhVienNP">${invHienThanhVienNP ? 'Ẩn đi' : 'Hiện ra'}</button></div>` : ''}
       <div class="table-wrap card-tbl">
-      ${all.length === 0 ? `<div class="empty">Chưa có hóa đơn nào cho kỳ này.<br><br><button class="btn pri" data-act="generateForm">${IC.receipt} Tạo hóa đơn</button></div>` :
+      ${all.length === 0 ? `<div class="empty">Chưa có phiếu báo nào cho kỳ này.<br><br><button class="btn pri" data-act="generateForm">${IC.receipt} Lập phiếu báo</button></div>` :
       list.length ? `<table><thead><tr><th>Học viên</th><th>Phòng</th><th>Mã pháp nhân</th><th class="num">Ngày ở</th><th class="num">Tiền phòng</th><th class="num">Điện</th><th class="num">Nước</th><th class="num">DV</th><th class="num">Giặt</th><th class="num">Xe</th>${coCoc ? '<th class="num">Cọc</th>' : ''}<th class="num">Giảm</th><th class="num">Tổng</th><th></th></tr></thead><tbody>
         ${list.map(i => `<tr class="${laNguyenPhong(i) && +i.total ? 'inv-np' : ''}" data-id="${i.id}" data-thu="${i.status === 'paid' ? 'paid' : 'unpaid'}" data-s="${esc(((i.student_name || '') + ' ' + (i.student_code || '') + ' ' + (i.room_name || '') + ' ' + invLegalEntity(i)).toLowerCase())}">
           <td><div class="flex stu-name" data-act="studentDetail" data-args='[${i.student_id}]' role="button" tabindex="0" title="Xem chi tiết học viên">
@@ -138,7 +138,7 @@ async function viewInvoices() {
             <button class="btn sm ghost" data-act="invoiceForm" data-args='[${i.id}]'>${IC.pencil}</button>
             <button class="btn sm ghost" data-act="delInvoice" data-args='[${i.id}]'>${IC.trash}</button>`}
           </div></td></tr>`).join('')}
-        <tr class="no-result" style="display:none"><td colspan="${coCoc ? 14 : 13}"><div class="empty">Không tìm thấy hóa đơn phù hợp.</div></td></tr>
+        <tr class="no-result" style="display:none"><td colspan="${coCoc ? 14 : 13}"><div class="empty">Không tìm thấy phiếu báo phù hợp.</div></td></tr>
       </tbody><tfoot><tr class="tot-row">
         <td><strong>TỔNG</strong></td>
         <td data-label="Phòng" class="muted" data-tot="count">${list.length} phiếu</td>
@@ -154,7 +154,7 @@ async function viewInvoices() {
         <td class="num" data-label="Giảm"><strong data-tot="discount">${sumK(list, 'leader_discount') + sumK(list, 'room_discount') + sumK(list, 'fee_discount') ? '−' + moneyN(sumK(list, 'leader_discount') + sumK(list, 'room_discount') + sumK(list, 'fee_discount')) : '—'}</strong></td>
         <td class="num" data-label="Tổng"><strong data-tot="total">${moneyN(sumK(list, 'total'))}</strong></td>
         <td class="num"></td>
-      </tr></tfoot></table>` : `<div class="empty">Không có hóa đơn nào để hiện trong kỳ này.</div>`}
+      </tr></tfoot></table>` : `<div class="empty">Không có phiếu báo nào để hiện trong kỳ này.</div>`}
     </div></div>
     ${roomFeePanel}
     ${elecPanel}`;
@@ -201,7 +201,7 @@ async function recalcInv(id) { const r = await guard(() => API.recalcInvoice(id)
 async function delInvoice(id) {
   const i = (_invAll || []).find(x => x.id === id) || {};   // BL-30: nêu tên/tổng để tránh xóa nhầm
   const who = [i.student_name, i.room_name].filter(Boolean).join(' · ');
-  if (!confirm(`Xóa hóa đơn${who ? ' của ' + who : ''}${i.total != null ? ' (tổng ' + money(i.total) + ')' : ''}?`)) return;
+  if (!confirm(`Xóa phiếu báo${who ? ' của ' + who : ''}${i.total != null ? ' (tổng ' + money(i.total) + ')' : ''}?`)) return;
   await guard(() => API.deleteInvoice(id)); toast('Đã xóa');
   await luuXongVeLai(veLaiNen);   // phiếu không nằm trong ST -> màn Tiền phòng tự nạp lại khi vẽ
 }
@@ -227,12 +227,12 @@ async function doThuCaKy() {
   closeModalNgay(); toast(`Đã đánh dấu đã thu ${r.updated} phiếu kỳ ${monthLabel(invMonth)}`); viewInvoices();
 }
 
-/* Tạo hóa đơn tự tính cho 1 học viên (VD học viên mới vào giữa tháng) */
+/* Lập phiếu báo tự tính cho 1 học viên (VD học viên mới vào giữa tháng) */
 function oneInvoiceForm() {
   openModal(`
-    <div class="mh"><h3>${IC.plus} Tạo hóa đơn cho 1 học viên</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mh"><h3>${IC.plus} Lập phiếu báo cho 1 học viên</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <div class="hint">${IC.info} Dùng khi có học viên mới vào giữa tháng. Hệ thống <strong>tự tính</strong> theo phòng, số ngày ở và chỉ số điện đã lưu — không ảnh hưởng hóa đơn người khác (người đã đóng sẽ bị khóa).</div>
+      <div class="hint">${IC.info} Dùng khi có học viên mới vào giữa tháng. Hệ thống <strong>tự tính</strong> theo phòng, số ngày ở và chỉ số điện đã lưu — không ảnh hưởng phiếu báo của người khác (phiếu đã thu được giữ nguyên).</div>
       <div class="field"><label>Học viên *</label>
         <div class="search"><span class="i">${IC.search}</span><input id="oi_q" placeholder="Tìm tên, mã HV hoặc số phòng..." autocomplete="off" data-input="locHVHoaDon"></div>
         <select id="oi_stu" size="7" style="margin-top:8px"></select>
@@ -263,7 +263,7 @@ async function saveOneInvoice() {
   if (!month) return toast('Chọn kỳ', 'err');
   const r = await guard(() => API.generateOneInvoice({ student_id, month }));
   closeModal(); invMonth = month; invFilter = 'all';
-  toast(r.created ? 'Đã tạo hóa đơn cho học viên' : 'Đã cập nhật hóa đơn');
+  toast(r.created ? 'Đã lập phiếu báo cho học viên' : 'Đã cập nhật phiếu báo');
   viewInvoices();
   if (r.invoice) { r.invoice.room_name = (roomById(r.invoice.room_id) || {}).name || ''; setTimeout(() => phieuBao(r.invoice), 150); }
 }
@@ -286,14 +286,14 @@ async function renderGenerateForm(month) {
     API.electricHistory(kyDien, 6).catch(() => null),   // chỉ để so kỳ trước — hỏng thì bảng vẫn chạy
   ]);
   modalThay(`
-    <div class="mh"><h3>${IC.receipt} Tạo hóa đơn tháng</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mh"><h3>${IC.receipt} Lập phiếu báo tháng</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="field"><label>Kỳ (tháng)</label><input id="g_month"></div>
       <div class="hint">${IC.bulb} Phiếu kỳ <strong>${month}</strong> = tiền phòng/nước/dịch vụ kỳ ${month} (thu trước) + <strong>tiền điện kỳ ${kyDien}</strong>. Nhập <strong>số cuối công-tơ đọc cuối kỳ ${kyDien}</strong>; số đầu tự nối. Tiền điện = (cuối − đầu) × ${money(ST.settings.electric_unit)}, chia theo ngày ở từng chặng.</div>
       ${electricTable(rooms, lichSu)}
-      <p class="muted" style="font-size:12px;margin-top:10px">Hóa đơn <strong>chưa đóng</strong> sẽ được <strong>tính lại</strong> theo điện & ngày mới; hóa đơn <strong>đã đóng</strong> được giữ nguyên. Phòng có người rời kỳ ${kyDien} mà thiếu chỉ số ngày rời sẽ bị <strong>bỏ qua</strong> — nhập bổ sung ở màn <em>Chỉ số điện</em> rồi chạy lại.</p>
+      <p class="muted" style="font-size:12px;margin-top:10px">Phiếu báo <strong>chưa thu</strong> sẽ được <strong>tính lại</strong> theo điện & ngày mới; phiếu <strong>đã thu</strong> được giữ nguyên. Phòng có người rời kỳ ${kyDien} mà thiếu chỉ số ngày rời sẽ bị <strong>bỏ qua</strong> — nhập bổ sung ở màn <em>Chỉ số điện</em> rồi chạy lại.</p>
     </div>
-    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="runGenerate">Lưu số điện & tạo/cập nhật hóa đơn</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="runGenerate">Xem trước</button></div>`);
   // attachMonth phát Event('change') KHÔNG nổi bọt -> data-change (uỷ quyền ở document) không bắt được;
   // phải gắn onchange thẳng vào ô.
   attachMonth(el('g_month'), month);
@@ -380,7 +380,7 @@ function badElectricRooms() {
     return en > 0 && en < st;
   });
 }
-/* Màn hình nhập chỉ số điện độc lập (lưu, không tạo hóa đơn) */
+/* Màn hình nhập chỉ số điện độc lập (lưu, không lập phiếu báo) */
 let elecMonth = curMonth();
 // thangMo: mở thẳng vào một kỳ (nút trong cảnh báo lập hoá đơn). Bấm từ topActions thì tham số
 // đầu là event (data-act không truyền args) -> chỉ nhận chuỗi YYYY-MM.
@@ -504,7 +504,7 @@ function chotGiuaKyHTML(month, reads, rooms) {
     </tr>`).join('');
   return `
     <h4 style="margin:18px 0 6px">Chốt giữa kỳ — chỉ số hôm học viên rời phòng</h4>
-    ${thieu.length ? `<div class="bang-tin">${IC.alert} <strong>${thieu.length} lượt rời phòng CHƯA có chỉ số.</strong> Không nhập thì phần điện của người rời đổ sang người ở lại, và phòng bị bỏ qua khi tạo hóa đơn kỳ sau.</div>` : ''}
+    ${thieu.length ? `<div class="bang-tin">${IC.alert} <strong>${thieu.length} lượt rời phòng CHƯA có chỉ số.</strong> Không nhập thì phần điện của người rời đổ sang người ở lại, và phòng bị bỏ qua khi lập phiếu báo kỳ sau.</div>` : ''}
     <div class="table-wrap" id="chot_cuon" style="max-height:300px;overflow:auto"><table>
       <thead><tr><th>Phòng</th><th>Ngày</th><th>Học viên rời</th><th>Mã pháp nhân</th>
         <th class="num">Chỉ số chốt</th><th class="num">Chỉ số cuối kỳ</th>
@@ -561,7 +561,7 @@ async function luuTatCaChotGiuaKy() {
   }
   await veLaiChotGiuaKy(el('e_month').dataset.ym || elecMonth);
   if (loi.length) alert(`Lưu được ${ok}/${o.length} ô.\n\nKhông lưu được:\n• ${loi.join('\n• ')}`);
-  toast(loi.length ? `Lưu ${ok}/${o.length} ô — ${loi.length} ô lỗi` : `Đã chốt ${ok} chỉ số · tính lại ${hoaDon} hóa đơn`, loi.length ? 'err' : 'ok');
+  toast(loi.length ? `Lưu ${ok}/${o.length} ô — ${loi.length} ô lỗi` : `Đã chốt ${ok} chỉ số · tính lại ${hoaDon} phiếu báo`, loi.length ? 'err' : 'ok');
 }
 // Giữ chỉ số đang gõ dở qua lần vẽ lại modal.
 function giuChiSoDangGo() {
@@ -585,7 +585,7 @@ async function luuChotGiuaKy(idx, roomId, date, studentId) {
   if (v === '' || isNaN(+v) || +v < 0) return toast('Nhập chỉ số công-tơ (số không âm)', 'err');
   const r = await guard(() => API.saveMeterRead({ room_id: roomId, date, reading: +v, student_id: studentId || undefined }));
   if (inp) inp.value = '';
-  toast(`Đã chốt chỉ số · tính lại ${r.recalculated} hóa đơn của ${r.affected} học viên liên quan`);
+  toast(`Đã chốt chỉ số · tính lại ${r.recalculated} phiếu báo của ${r.affected} học viên liên quan`);
   await veLaiChotGiuaKy(el('e_month').dataset.ym || elecMonth);
 }
 async function xoaChotGiuaKy(id) {
@@ -646,21 +646,21 @@ function genTomTat(r, month, xemTruoc) {
     ${thieu ? `<div class="bang-tin" style="border-color:var(--red-ink)">${IC.alert} <span><strong>${thieu} học viên bị bỏ qua</strong> (cả phòng chờ chung, không riêng người rời) — còn thiếu các mốc chốt sau:
       <ul style="margin:8px 0 0 18px;line-height:1.8">${(r.warnings || []).map(w => `<li>${esc(w)}</li>`).join('')}</ul>
       <div style="margin-top:10px"><button type="button" class="btn sm pri" data-act="moChotGiuaKy" data-args='["${prevKy(month)}"]'>${IC.zap} Mở Chốt giữa kỳ ${monthLabel(prevKy(month))}</button>
-      <span class="muted" style="font-size:12.5px"> — nhập xong quay lại bấm lập hoá đơn lần nữa.</span></div></span></div>` : ''}
+      <span class="muted" style="font-size:12.5px"> — nhập xong quay lại bấm lập phiếu báo lần nữa.</span></div></span></div>` : ''}
     ${xemTruoc ? `<div class="hint">${IC.info}<span>Đây mới là <strong>xem trước</strong>, chưa ghi gì. Chạy lại bao nhiêu lần cũng được —
-      hoá đơn <strong>đã thu</strong> không bị đụng, học viên vào giữa tháng được tạo bù.</span></div>` : ''}`;
+      phiếu <strong>đã thu</strong> không bị đụng, học viên vào giữa tháng được lập bù.</span></div>` : ''}`;
 }
 async function runGenerate() {
   const month = el('g_month').dataset.ym; if (!month) return toast('Chọn kỳ', 'err');
-  if (badElectricRooms().length) return toast('Có phòng "số cuối < số đầu" — sửa lại chỉ số điện trước khi lập hóa đơn', 'err');
+  if (badElectricRooms().length) return toast('Có phòng "số cuối < số đầu" — sửa lại chỉ số điện trước khi lập phiếu báo', 'err');
   const readings = readElectricInputs();
   const pv = await guard(() => API.generateInvoices({ month, readings, preview: true }));   // dry-run, không lưu
   _genKq = { ...pv, month };
   openModal(`
-    <div class="mh"><h3>${IC.receipt} Xem trước — lập hoá đơn ${monthLabel(month)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mh"><h3>${IC.receipt} Xem trước — lập phiếu báo ${monthLabel(month)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">${genTomTat(pv, month, true)}</div>
     <div class="mf"><button class="btn" data-act="modalBack">Hủy</button>
-      <button class="btn pri" data-act="genChot">${IC.check} Lập hoá đơn</button></div>`, true);
+      <button class="btn pri" data-act="genChot">${IC.check} Lập phiếu báo</button></div>`, true);
 }
 async function genChot() {
   const { month } = _genKq || {};
@@ -671,7 +671,7 @@ async function genChot() {
   invMonth = month; invFilter = 'all';
   viewInvoices();
   modalThay(`
-    <div class="mh"><h3>${IC.checkCircle} Đã lập hoá đơn ${monthLabel(month)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mh"><h3>${IC.checkCircle} Đã lập phiếu báo ${monthLabel(month)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">${genTomTat(r, month, false)}</div>
     <div class="mf"><button class="btn pri" data-act="closeModal">Xong</button></div>`);
 }
@@ -731,7 +731,7 @@ function invoiceForm(id) {
   const opts = ST.students.map(s => `<option value="${s.id}" ${i.student_id === s.id ? 'selected' : ''}>${esc(s.name)}${s.code ? ' (' + esc(s.code) + ')' : ''}</option>`).join('');
   const f = (lbl, key, extra = '') => `<div class="field"><label>${lbl}</label><input id="i_${key}" type="number" min="0" value="${esc(i[key] || 0)}" ${extra}></div>`;
   openModal(`
-    <div class="mh"><h3>${id ? 'Sửa hóa đơn' : 'Thêm hóa đơn lẻ'}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mh"><h3>${id ? 'Sửa phiếu báo' : 'Thêm phiếu báo lẻ'}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="grid2">
         <div class="field"><label>Học viên *</label><select id="i_stu" ${id ? 'disabled' : ''}>${opts}</select></div>
@@ -779,7 +779,7 @@ async function saveInvoice(id) {
     other_charge: g('other_charge'), deposit_charge: g('deposit_charge'), other_note: el('i_other_note').value.trim() };
   if (!body.student_id) return toast('Chọn học viên', 'err');
   await guard(() => id ? API.updateInvoice(id, body) : API.createInvoice(body));
-  invMonth = body.month; await luuXongVeLai(veLaiNen); toast('Đã lưu hóa đơn');
+  invMonth = body.month; await luuXongVeLai(veLaiNen); toast('Đã lưu phiếu báo');
 }
 function toggleThanhVienNP() { invHienThanhVienNP = !invHienThanhVienNP; viewInvoices(); }
 // Cặp gạt Chưa thu | Đã thu: hai trạng thái nằm cạnh nhau, cái đang đúng được tô và KHÔNG bấm được
@@ -824,7 +824,7 @@ function invLoc(k) {
 function phieuThangNayGo() { invMonth = curMonth(); invFilter = 'all'; invSearch = ''; adminGo('invoices'); }
 async function phieuBao(inv) {
   if (typeof inv !== 'object') inv = _invAll.find(x => x.id === +inv);  // nut truyen id; noi khac (sau khi sinh HD) truyen thang object
-  if (!inv) return toast('Không tìm thấy hóa đơn', 'err');
+  if (!inv) return toast('Không tìm thấy phiếu báo', 'err');
   // Hồ sơ đã khoá thì không có trong ST.students — lùi về bản ghi đang mở ở màn chi tiết, không thì
   // phiếu ra trống họ tên / mã HV / ngày nhận phòng.
   const ct = window._detailStudent;
@@ -1762,7 +1762,7 @@ function khoaStuAccForm(id) {
     <div class="mb">
       <p class="muted" style="margin-top:0">Học viên: <strong>${esc(u.student_name || '')}</strong> · Tài khoản: <strong>${esc(u.username)}</strong></p>
       <div class="bang-tin">${IC.lock} Sau khi khoá: học viên <strong>không đăng nhập được</strong> bằng mật khẩu lẫn Microsoft, mọi thiết bị đang mở bị đá ra ngay.</div>
-      <div class="hint" style="font-size:12px">${IC.info} <strong>Hồ sơ và tiền phòng KHÔNG đổi</strong> — vẫn đang ở, vẫn tính tiền, vẫn lập phiếu thu như thường.
+      <div class="hint" style="font-size:12px">${IC.info} <strong>Hồ sơ và tiền phòng KHÔNG đổi</strong> — vẫn đang ở, vẫn tính tiền, vẫn lập phiếu báo như thường.
         Muốn ngừng tính tiền thì đó là <strong>"Khoá hồ sơ"</strong> ở màn Học viên, không phải nút này.
         Mở lại bất cứ lúc nào ngay tại bảng này.</div>
     </div>

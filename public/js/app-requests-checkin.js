@@ -361,7 +361,7 @@ function approveForm(id) {
         <div class="field"><label>Xếp phòng</label><select id="ap_room">${roomOptions('', a.gender)}</select></div>
         <div class="field"><label>Ngày dự kiến nhận phòng${a.desired_check_in ? ' <span class="opt">(bạn ấy muốn ' + fmtDate(a.desired_check_in) + ')</span>' : ''}</label><input id="ap_date"></div>
       </div>
-      <div class="hint">${IC.info} Duyệt đơn chỉ là <strong>xếp chỗ ở</strong>. <strong>Hợp đồng</strong> nhập ở màn hồ sơ học viên khi ký thật; <strong>tiền cọc</strong> tự bật cờ đã đóng khi phiếu thu kỳ nhận phòng được đánh dấu đã thu.</div>
+      <div class="hint">${IC.info} Duyệt đơn chỉ là <strong>xếp chỗ ở</strong>. <strong>Hợp đồng</strong> nhập ở màn hồ sơ học viên khi ký thật; <strong>tiền cọc</strong> tự đánh dấu đã đóng khi phiếu báo kỳ nhận phòng được đánh dấu đã thu.</div>
       <label class="check" style="margin-top:8px"><input type="checkbox" id="ap_login" checked data-change="onApLoginToggle"> ${IC.key} Tạo tài khoản đăng nhập cho học viên</label>
       <div id="apLogin" style="background:var(--bg2);padding:12px;border-radius:10px;margin-top:8px">
         <div class="field" style="margin:0"><label>Tên đăng nhập <span class="opt">(trống = SĐT)</span></label><input id="ap_user" value="${esc(a.phone || '')}"></div>
@@ -464,7 +464,7 @@ const hoHuHaoText = r => {
 };
 // Dòng tóm tắt biên bản trên đầu modal Check-in / Check-out: quản trị biết mình đang xác nhận cái gì.
 const hoBanner = bb => bb ? `<div class="bang-tin" style="display:block">${IC.filePen} <strong>Biên bản #${bb.id}</strong> — an ninh ${esc(bb.created_by || '')} ghi ${fmtDate(String(bb.created_at).slice(0, 10))}:
-    ngày thật ${fmtDate(String(bb.actual_date).slice(0, 10))}${bb.meter_reading != null ? ` · số điện <strong>${esc(String(bb.meter_reading))}</strong>` : ''}${bb.cleanliness && HO_VS_NHAN[bb.cleanliness] ? ` · vệ sinh ${HO_VS_NHAN[bb.cleanliness][0].toLowerCase()}` : ''}${bb.keys_count != null ? ` · ${bb.keys_count} chìa` : ''}${bb.plates ? ` · xe ${esc(bb.plates)}` : ''}${hoHuHaoText(bb) ? `<div style="margin-top:4px">Hư hao: ${esc(hoHuHaoText(bb))} — <em>đề xuất, đưa vào phiếu thu / tất toán cọc ở màn sẵn có</em></div>` : ''}${bb.note ? `<div class="muted" style="margin-top:4px">${esc(bb.note)}</div>` : ''}
+    ngày thật ${fmtDate(String(bb.actual_date).slice(0, 10))}${bb.meter_reading != null ? ` · số điện <strong>${esc(String(bb.meter_reading))}</strong>` : ''}${bb.cleanliness && HO_VS_NHAN[bb.cleanliness] ? ` · vệ sinh ${HO_VS_NHAN[bb.cleanliness][0].toLowerCase()}` : ''}${bb.keys_count != null ? ` · ${bb.keys_count} chìa` : ''}${bb.plates ? ` · xe ${esc(bb.plates)}` : ''}${hoHuHaoText(bb) ? `<div style="margin-top:4px">Hư hao: ${esc(hoHuHaoText(bb))} — <em>đề xuất, đưa vào phiếu báo / tất toán cọc ở màn sẵn có</em></div>` : ''}${bb.note ? `<div class="muted" style="margin-top:4px">${esc(bb.note)}</div>` : ''}
     <div class="muted" style="font-size:12px;margin-top:4px">Số liệu đã điền sẵn bên dưới, sửa được trước khi xác nhận.</div></div>` : '';
 function bienBanChoDuyetHTML(kind) {
   const ds = (ST.hoReports || []).filter(r => r.kind === kind && r.status === 'pending');

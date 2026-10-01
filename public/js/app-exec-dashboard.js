@@ -126,13 +126,13 @@ function dsChuaLapPhieu(coPhieuKyNay, coPhieuKyTruoc) {
 }
 
 async function billOverdueModal() {
-  openModal(`<div class="mh"><h3>${IC.receipt} Chưa lập phiếu thu</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+  openModal(`<div class="mh"><h3>${IC.receipt} Chưa lập phiếu báo</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb"><div class="spinner"></div></div>`, true);
   const M = curMonth(), Mt = _thangTruoc(M);
   let inv, invT;
   try { [inv, invT] = await Promise.all([API.invoices(M), API.invoices(Mt)]); }
   catch (e) {
-    return modalThay(`<div class="mh"><h3>${IC.receipt} Chưa lập phiếu thu</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    return modalThay(`<div class="mh"><h3>${IC.receipt} Chưa lập phiếu báo</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
       <div class="mb"><div class="bang-tin">${IC.alert} <span>Không tải được danh sách phiếu: ${esc(e.message || 'lỗi kết nối')}</span></div></div>
       <div class="mf"><button class="btn" data-act="modalBack">Đóng</button></div>`);
   }
@@ -157,7 +157,7 @@ async function billOverdueModal() {
     <thead><tr><th>Học viên</th><th>Phòng</th><th>Ngày vào</th><th class="num">Đã ở</th><th>Tình trạng</th></tr></thead>
     <tbody>${arr.map(dong).join('')}</tbody></table></div>`;
   modalThay(`
-    <div class="mh"><h3>${IC.receipt} Chưa lập phiếu thu (${tong})</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mh"><h3>${IC.receipt} Chưa lập phiếu báo (${tong})</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="hint">${IC.info} Đúng dân số đợt lập phiếu: đã bỏ thành viên phòng thuê nguyên căn (nằm trong
         phiếu người ký HĐ), tính cả người sắp vào theo lịch và người rời kỳ trước còn thiếu phiếu.</div>
@@ -477,7 +477,7 @@ async function viewDashboard() {
         ${todo(IC.wrench, 'Bảo trì', pDmg, actAttr('baoTriGo'), 'warn')}
         ${todo(IC.flag, 'Đăng ký Tạm Trú', resiOverdue, actAttr('residencyModal'), 'warn')}
         ${todo(IC.fileText, 'Hợp đồng', contractIncomplete, actAttr('contractIssuesModal'), 'warn')}
-        ${todo(IC.receipt, 'Lập phiếu thu', billOverdue, actAttr('billOverdueModal'), 'bad')}
+        ${todo(IC.receipt, 'Lập phiếu báo', billOverdue, actAttr('billOverdueModal'), 'bad')}
         ${todo(IC.alert, 'Quản lý vi phạm', needMail, actAttr('viPhamGo', 'canbao'), 'bad')}
       </div>
     </div></div>

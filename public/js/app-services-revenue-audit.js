@@ -274,7 +274,7 @@ function addWashingForm() {
     <div class="mh"><h3>${IC.washer} Thêm HV dùng máy giặt</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="field"><label>Chọn học viên</label><select id="wash_stu">${opts}</select></div>
-      <div class="hint">${IC.info} Phí máy giặt ${money(+ST.settings.washing_fee || 0)}/tháng sẽ được tính vào hóa đơn từ kỳ kế tiếp.</div>
+      <div class="hint">${IC.info} Phí máy giặt ${money(+ST.settings.washing_fee || 0)}/tháng sẽ được tính vào phiếu báo từ kỳ kế tiếp.</div>
     </div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="washAdd">Thêm</button></div>`);
 }
@@ -418,15 +418,15 @@ function exportRevenue() {
 /* ---------- NHẬT KÝ HỆ THỐNG (AUDIT LOG) ---------- */
 const AUDIT_RES = {
   students: 'Học viên', rooms: 'Phòng', vehicles: 'Xe', assets: 'Tài sản',
-  invoices: 'Hóa đơn', electric: 'Điện', violations: 'Vi phạm', applications: 'Đơn đăng ký',
+  invoices: 'Phiếu báo', electric: 'Điện', violations: 'Vi phạm', applications: 'Đơn đăng ký',
   requests: 'Yêu cầu hỗ trợ', settings: 'Cài đặt', facilities: 'Cơ sở', media: 'Ảnh giới thiệu',
   admin: 'Tài khoản', logs: 'Nhật ký ra/vào', reports: 'Báo cáo', me: 'Học viên (tự thao tác)',
 };
 const AUDIT_SUB = {
   checkin: 'Check-in', checkout: 'Check-out', transfer: 'Chuyển phòng', approve: 'Duyệt đơn',
   reject: 'Từ chối', confirm: 'Xác nhận trả phòng', notify: 'Gửi mail nhà trường', restore: 'Khôi phục',
-  generate: 'Lập hóa đơn hàng loạt', 'generate-one': 'Lập hóa đơn 1 HV', bulk: 'Lưu chỉ số điện',
-  'mark-paid': 'Đánh dấu đã thu', status: 'Đổi trạng thái', recalc: 'Tính lại hóa đơn',
+  generate: 'Lập phiếu báo hàng loạt', 'generate-one': 'Lập phiếu báo 1 học viên', bulk: 'Lưu chỉ số điện',
+  'mark-paid': 'Đánh dấu đã thu', status: 'Đổi trạng thái', recalc: 'Tính lại phiếu báo',
   password: 'Đặt lại mật khẩu', account: 'Cấp tài khoản', deposit: 'Cập nhật cọc',
   'deposit-settle': 'Tất toán cọc', note: 'Ghi chú', types: 'Loại vi phạm', users: 'Tài khoản NV',
   damage: 'Báo hư hỏng', plate: 'Đề nghị sửa biển số', 'plate-requests': 'Đề nghị sửa biển', 'parking-reports': 'Báo cáo bãi xe',

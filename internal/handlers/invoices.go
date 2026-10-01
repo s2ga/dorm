@@ -237,7 +237,7 @@ func (h *Handlers) RecalcInvoice(c *gin.Context) {
 		Scan(&studentID, &month, &status)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			notFound(c, "Không tìm thấy hóa đơn")
+			notFound(c, "Không tìm thấy phiếu báo")
 			return
 		}
 		serverErr(c)
@@ -245,7 +245,7 @@ func (h *Handlers) RecalcInvoice(c *gin.Context) {
 	}
 	// Bấm "Tính lại" trên phiếu ĐÃ THU -> chặn rõ ràng (TP-07). invoices.routes.js:56
 	if status == "paid" {
-		badRequest(c, `Hoá đơn đã thu tiền — không tính lại được. Nếu cần điều chỉnh, chuyển trạng thái về "chưa thu" trước (thao tác này được ghi nhật ký).`)
+		badRequest(c, `Phiếu báo đã thu tiền — không tính lại được. Nếu cần điều chỉnh, chuyển trạng thái về "chưa thu" trước (thao tác này được ghi nhật ký).`)
 		return
 	}
 	updated, err := invoicecalc.RecalcInvoice(ctx, h.DB, studentID, month)
@@ -471,7 +471,7 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 		for i, l := range loi {
 			out[i] = replacePhong(l, names) // thay "phòng #id" -> "phòng <tên>"
 		}
-		badRequest(c, "Chưa lập hoá đơn — có chỉ số điện chưa hợp lệ, sửa rồi làm lại:\n"+strings.Join(out, "\n"))
+		badRequest(c, "Chưa lập phiếu báo — có chỉ số điện chưa hợp lệ, sửa rồi làm lại:\n"+strings.Join(out, "\n"))
 		return
 	}
 
@@ -1114,7 +1114,7 @@ func (h *Handlers) GenerateOneInvoice(c *gin.Context) {
 		return
 	}
 	if hasDup && dStatus == "paid" {
-		badRequest(c, "Hóa đơn kỳ này đã đóng — không sửa")
+		badRequest(c, "Phiếu báo kỳ này đã thu tiền — không sửa được")
 		return
 	}
 
@@ -1351,7 +1351,7 @@ func (h *Handlers) CreateInvoice(c *gin.Context) {
 		return
 	}
 	if exists && exDeleted == nil {
-		badRequest(c, "Học viên đã có hóa đơn trong kỳ này")
+		badRequest(c, "Học viên đã có phiếu báo trong kỳ này")
 		return
 	}
 	if exists && exDeleted != nil {
@@ -1379,7 +1379,7 @@ func (h *Handlers) CreateInvoice(c *gin.Context) {
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'pending') RETURNING *`, vals...)
 	if err != nil {
 		if vehicleIsDup(err) { // 23505 (invoices.routes.js:376)
-			badRequest(c, "Học viên đã có hóa đơn trong kỳ này")
+			badRequest(c, "Học viên đã có phiếu báo trong kỳ này")
 			return
 		}
 		serverErr(c)
@@ -1418,14 +1418,14 @@ func (h *Handlers) UpdateInvoice(c *gin.Context) {
 		Scan(&curStatus, &curLeaderDisc, &curRoomDisc, &curFeeDisc, &curMonth)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			notFound(c, "Không tìm thấy hóa đơn")
+			notFound(c, "Không tìm thấy phiếu báo")
 			return
 		}
 		serverErr(c)
 		return
 	}
 	if curStatus == "paid" {
-		badRequest(c, `Hoá đơn đã thu tiền — không sửa được. Nếu cần điều chỉnh, chuyển trạng thái về "chưa thu" trước (thao tác này được ghi nhật ký).`)
+		badRequest(c, `Phiếu báo đã thu tiền — không sửa được. Nếu cần điều chỉnh, chuyển trạng thái về "chưa thu" trước (thao tác này được ghi nhật ký).`)
 		return
 	}
 	if e := invoiceBadDays(b["days_stayed"], curMonth); e != "" {
@@ -1465,7 +1465,7 @@ func (h *Handlers) UpdateInvoice(c *gin.Context) {
 		return
 	}
 	if row == nil {
-		notFound(c, "Không tìm thấy hóa đơn")
+		notFound(c, "Không tìm thấy phiếu báo")
 		return
 	}
 	c.JSON(http.StatusOK, row)
@@ -1582,7 +1582,7 @@ func (h *Handlers) InvoiceStatus(c *gin.Context) {
 	err := h.pool().QueryRow(ctx, "SELECT status, total FROM invoices WHERE id=$1 AND deleted_at IS NULL", id).Scan(&curStatus, &curTotal)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			notFound(c, "Không tìm thấy hóa đơn")
+			notFound(c, "Không tìm thấy phiếu báo")
 			return
 		}
 		serverErr(c)
@@ -1615,7 +1615,7 @@ func (h *Handlers) InvoiceStatus(c *gin.Context) {
 		return
 	}
 	if row == nil {
-		notFound(c, "Không tìm thấy hóa đơn")
+		notFound(c, "Không tìm thấy phiếu báo")
 		return
 	}
 	// TP-10: đổi trạng thái là thao tác nhạy cảm -> ghi nhật ký (fire-and-forget). invoices.routes.js:454-460
@@ -1644,7 +1644,7 @@ func (h *Handlers) DeleteInvoice(c *gin.Context) {
 	err := h.pool().QueryRow(ctx, "SELECT status FROM invoices WHERE id=$1 AND deleted_at IS NULL", id).Scan(&status)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			notFound(c, "Không tìm thấy hóa đơn")
+			notFound(c, "Không tìm thấy phiếu báo")
 			return
 		}
 		serverErr(c)
@@ -1652,7 +1652,7 @@ func (h *Handlers) DeleteInvoice(c *gin.Context) {
 	}
 	// Xoá phiếu ĐÃ THU = xoá doanh thu đã ghi nhận (TP-09). invoices.routes.js:472
 	if status == "paid" {
-		badRequest(c, `Hoá đơn đã thu tiền — không xoá được. Nếu cần huỷ, chuyển trạng thái về "chưa thu" trước (thao tác này được ghi nhật ký).`)
+		badRequest(c, `Phiếu báo đã thu tiền — không xoá được. Nếu cần huỷ, chuyển trạng thái về "chưa thu" trước (thao tác này được ghi nhật ký).`)
 		return
 	}
 	if _, err := h.pool().Exec(ctx, "UPDATE invoices SET deleted_at=now() WHERE id=$1", id); err != nil {
