@@ -502,7 +502,7 @@ function chotGiuaKyHTML(month, reads, rooms) {
       <td class="num">${esc(String(r.reading))}</td>
       ${(dc => `<td class="num">${dc.cuoi}</td><td class="num">${dc.kwh}</td><td class="num">${dc.tien}</td>`)(
     cgkDoiChieu(r.room_id, String(r.read_date).slice(0, 10), +r.reading))}
-      <td><button class="btn sm" data-act="xoaChotGiuaKy" data-args='[${r.id}]' data-mota="${esc(`phòng ${r.room_name || ''} ngày ${fmtDate(r.read_date)}${r.student_name ? ' — ' + r.student_name : ''}`)}" title="Gỡ lần chốt ghi nhầm">${IC.trash} Gỡ</button></td>
+      <td><button class="btn sm ghost" data-act="xoaChotGiuaKy" data-args='[${r.id}]' data-mota="${esc(`phòng ${r.room_name || ''} ngày ${fmtDate(r.read_date)}${r.student_name ? ' — ' + r.student_name : ''}`)}" title="Gỡ lần chốt ghi nhầm">${IC.trash}</button></td>
     </tr>`).join('');
   return `
     <h4 style="margin:18px 0 6px">Chốt giữa kỳ — chỉ số hôm học viên rời phòng</h4>
@@ -1021,7 +1021,7 @@ function viewSettings() {
   // Số tiền 7 chữ số rất dễ gõ dư/thiếu số 0 -> hiện luôn bản đã phân cách nghìn ngay dưới ô, cập nhật khi gõ
   const fee = (lbl, key, note = '') => `<div class="field"><label>${lbl} ${note ? `<span class="opt">${note}</span>` : ''}</label><input id="set_${key}" type="number" min="0" value="${esc(s[key] || 0)}" data-input="feeHint" data-args='["${key}"]'><div class="sub2" id="hint_${key}" style="margin-top:4px">${money(s[key] || 0)}</div></div>`;
   // Menu gom nhóm: mọi panel VẪN nằm trong DOM (chỉ ẩn bằng [hidden]) để nút "Lưu" đọc field chéo
-  // panel (vd saveSettings đọc cả phiếu báo + đơn giá + ngưỡng) và loadAdminUsers/loadDataHealth vẫn chạy.
+  // panel (vd saveSettings đọc cả phiếu báo + đơn giá + ngưỡng + mã Bravo) và loadAdminUsers/loadDataHealth vẫn chạy.
   const SET_TABS = [
     ['gia', 'Đơn giá & tính tiền', IC.banknote],
     ['coso', 'Cơ sở & tài sản', IC.building],
@@ -1056,7 +1056,6 @@ function viewSettings() {
         <div class="field"><label>Hạn đóng tiền — đến ngày</label><input id="set_due_day_to" type="number" min="1" max="31" value="${esc(s.due_day_to ?? 5)}"></div>
       </div>
       <p class="muted" style="font-size:12px;margin:0">${IC.info} Tên KTX, hotline & hạn đóng hiện trên <strong>phiếu báo</strong>. Địa chỉ lấy theo từng cơ sở (mục <strong>Cơ sở</strong>).</p>
-      <button class="btn pri" style="margin-top:12px" data-act="saveSettings">Lưu cài đặt</button>
     </div></div>
     <div class="panel"><div class="hd"><h2>${IC.banknote} Đơn giá & quy tắc tính tiền</h2></div><div class="pad">
       <div class="grid2">
@@ -1093,11 +1092,10 @@ function viewSettings() {
         <div class="field"><label>Pháp nhân phòng Nữ</label><input id="set_legal_female" value="${esc(s.legal_female || 'E2')}"></div>
         <div class="field"><label>Pháp nhân phòng Nam</label><input id="set_legal_male" value="${esc(s.legal_male || 'S2')}"></div>
       </div>
-      <button class="btn pri" data-act="saveSettings">Lưu cài đặt</button>
     </div></div>
 
     <div class="panel"><div class="hd"><h2>${IC.alert} Ngưỡng nhắc / nghiệp vụ</h2></div><div class="pad">
-      <div class="hint">${IC.info} Các mốc nhắc việc & quy tắc — chỉnh ở đây, không cần sửa code. Lưu chung nút "Lưu cài đặt" ở trên.</div>
+      <div class="hint">${IC.info} Các mốc nhắc việc & quy tắc — chỉnh ở đây, không cần sửa code.</div>
       <div class="grid2">
         <div class="field"><label>Nhắc khi ở quá <span class="opt">(ngày) chưa ký hợp đồng / chưa tạm trú / chưa lập phiếu</span></label><input id="set_overdue_remind_days" type="number" min="1" value="${esc(s.overdue_remind_days ?? 7)}"></div>
         <div class="field"><label>Ngưỡng thuê ghép ngắn hạn <span class="opt">(ở dưới N ngày = ngắn hạn, chỉ ký phiếu)</span></label><input id="set_shortterm_max_days" type="number" min="1" value="${esc(s.shortterm_max_days ?? 60)}"></div>
@@ -1117,7 +1115,6 @@ function viewSettings() {
       </div>
       <div class="field"><label>Email nhận báo cáo bãi xe mỗi ngày <span class="opt">(nhiều địa chỉ cách nhau dấu phẩy · để trống = mọi tài khoản quản trị có email)</span></label><input id="set_parking_report_email" inputmode="email" value="${esc(s.parking_report_email || '')}" placeholder="quanly@esuhai.com, truongbp@esuhai.com"></div>
       <p class="muted" style="font-size:12px;margin:2px 0 0">${IC.info} Trần giường theo hạng gộp chung ở mục <strong>Đơn giá & quy tắc</strong> (bảng "Cấu hình theo hạng phòng").</p>
-      <button class="btn pri" data-act="saveSettings">Lưu cài đặt</button>
     </div></div>
 
     <div class="panel"><div class="hd"><h2>${IC.receipt} Mã sản phẩm Bravo (đối chiếu doanh thu)</h2></div><div class="pad">
@@ -1138,8 +1135,8 @@ function viewSettings() {
         <div class="field"><label>Tiền cọc</label><input id="set_bravo_deposit" value="${esc(s.bravo_deposit || '')}" placeholder="chưa có mã"></div>
         <div></div>
       </div>
-      <button class="btn pri" data-act="saveBravo">Lưu mã Bravo</button>
     </div></div>
+    <div class="set-luu"><span class="muted">Một lần lưu cho cả bốn mục ở trang này.</span><button class="btn pri" data-act="saveSettings">Lưu cài đặt</button></div>
     </div>
 
     ${grpOpen('coso')}
@@ -1333,7 +1330,7 @@ function caiDatDangDo() {
 function veLaiBangCaiDat(id, hang) { const o = el(id); if (o) o.innerHTML = hang(); }
 function hangCoSo() {
   return ST.facilities.map(f => `<tr><td><strong>${esc(f.name)}</strong></td><td class="muted">${esc(f.address || '')}</td><td class="num">${f.room_count}</td>
-    <td class="num"><div class="rowbtns" style="justify-content:flex-end"><button class="btn sm" data-act="facilityForm" data-args='[${f.id}]'>Sửa</button><button class="btn sm danger" data-act="delFacility" data-args='[${f.id}]'>Xóa</button></div></td></tr>`).join('')
+    <td class="num"><div class="rowbtns" style="justify-content:flex-end"><button class="btn sm ghost" title="Sửa cơ sở" data-act="facilityForm" data-args='[${f.id}]'>${IC.pencil}</button><button class="btn sm ghost" title="Xóa cơ sở" data-act="delFacility" data-args='[${f.id}]'>${IC.trash}</button></div></td></tr>`).join('')
     || `<tr><td colspan="4" class="muted">${trongChuaCo('cơ sở nào')}</td></tr>`;
 }
 function hangTaiSan() {
@@ -1341,14 +1338,14 @@ function hangTaiSan() {
     <td><strong>${esc(a.name)}</strong></td>
     <td>${a.category === 'person' ? '<span class="badge blue">Theo người</span>' : '<span class="badge gray">Cố định</span>'}</td>
     <td>${esc(a.unit)}</td><td class="num">${a.quantity}</td><td class="num">${a.fee ? moneyN(a.fee) : '<span class="muted">—</span>'}</td>
-    <td class="num"><div class="rowbtns" style="justify-content:flex-end"><button class="btn sm" data-act="assetForm" data-args='[${a.id}]'>Sửa</button><button class="btn sm ghost" data-act="delAsset" data-args='[${a.id}]' title="Xóa tài sản">${IC.trash}</button></div></td>
+    <td class="num"><div class="rowbtns" style="justify-content:flex-end"><button class="btn sm ghost" title="Sửa tài sản" data-act="assetForm" data-args='[${a.id}]'>${IC.pencil}</button><button class="btn sm ghost" data-act="delAsset" data-args='[${a.id}]' title="Xóa tài sản">${IC.trash}</button></div></td>
   </tr>`).join('') || `<tr><td colspan="6" class="muted">${trongChuaCo('tài sản nào')}</td></tr>`;
 }
 function hangLoaiVP() {
   return (ST.vtypes || []).map(t => `<tr>
     <td><strong>${esc(t.name)}</strong>${t.active === false ? ' <span class="badge gray">Ẩn</span>' : ''}</td>
     <td>${vioSevBadge(t.severity)}</td>
-    <td class="num"><div class="rowbtns" style="justify-content:flex-end"><button class="btn sm" data-act="vtypeForm" data-args='[${t.id}]'>Sửa</button><button class="btn sm ghost" data-act="delVtype" data-args='[${t.id}]' title="Xóa loại vi phạm">${IC.trash}</button></div></td>
+    <td class="num"><div class="rowbtns" style="justify-content:flex-end"><button class="btn sm ghost" title="Sửa loại vi phạm" data-act="vtypeForm" data-args='[${t.id}]'>${IC.pencil}</button><button class="btn sm ghost" data-act="delVtype" data-args='[${t.id}]' title="Xóa loại vi phạm">${IC.trash}</button></div></td>
   </tr>`).join('') || `<tr><td colspan="3" class="muted">${trongChuaCo('loại vi phạm nào')}</td></tr>`;
 }
 // Ảnh trang giới thiệu: tải/xoá xong chỉ nạp lại đúng ô ảnh đó.
@@ -1422,7 +1419,7 @@ async function loadAdminUsers() {
           <div class="muted" style="font-size:11px">${esc((u.student_code ? u.student_code + ' · ' : '') + (u.student_room || 'chưa xếp phòng'))}</div></div>` : ''}</td>
       <td>${u.facility_id ? esc(u.facility_name || facilityName(u.facility_id)) : '<span class="badge gray" title="Điều hành — thấy tất cả cơ sở">Tất cả</span>'}</td>
       <td class="num"><div class="rowbtns" style="justify-content:flex-end">
-        <button class="btn sm" data-act="userForm" data-args='[${u.id}]'>Sửa</button>
+        <button class="btn sm ghost" title="Sửa tài khoản" data-act="userForm" data-args='[${u.id}]'>${IC.pencil}</button>
         ${u.auth_provider === 'sso' ? '' : `<button class="btn sm" title="Chỉ áp dụng cho tài khoản còn dùng mật khẩu" data-act="resetUserPwForm" data-args='[${u.id}]'>${IC.key} Mật khẩu</button>`}
         ${u.id === me ? '' : `<button class="btn sm ghost" title="Khoá tài khoản — chặn đăng nhập, không xoá dữ liệu" data-act="delUserRow" data-args='[${u.id}]' data-uname="${esc(u.username)}">${IC.lock} Khoá</button>`}
       </div></td>
@@ -2079,14 +2076,7 @@ async function delAsset(id) {
   if (!(await xacNhan(`Xóa tài sản "${a.name || ''}"?`, { dongY: 'Xóa', nguyHiem: true }))) return;
   await guard(() => API.deleteAsset(id)); await napLai('assets'); toast('Đã xóa'); veLaiBangCaiDat('setAssetRows', hangTaiSan);
 }
-async function saveBravo() {
-  const keys = ['bravo_fee_type', 'bravo_room', 'bravo_electric', 'bravo_water', 'bravo_service', 'bravo_parking', 'bravo_washing', 'bravo_deposit'];
-  const body = {}; keys.forEach(k => body[k] = el('set_' + k).value.trim());
-  await guard(() => API.updateSettings(body));
-  datMocCaiDat(keys);
-  await napLai('settings'); toast('Đã lưu mã Bravo'); // BL-24: không re-render, giữ input panel khác
-}
-// Wifi + số trực: nút Lưu riêng (như saveIntro/saveBravo) để lưu một nhóm mà không đụng panel khác.
+// Wifi + số trực: nút Lưu riêng (như saveIntro) để lưu một nhóm mà không đụng panel khác.
 async function saveHocVienInfo() {
   const body = {};
   ['wifi_ssid', 'wifi_password', 'security_day_phone', 'security_night_phone', 'security_day_from', 'security_day_to']
@@ -2109,6 +2099,8 @@ async function saveSettings() {
     'due_day_from', 'due_day_to', 'parking_absent_alert_days', 'parking_close_alert_time', 'parking_report_email',
     'room_area_A', 'room_area_B', 'room_area_C', 'room_area_D']
     .forEach(k => { const inp = el('set_' + k); if (inp) body[k] = inp.value; });
+  ['bravo_fee_type', 'bravo_room', 'bravo_electric', 'bravo_water', 'bravo_service', 'bravo_parking', 'bravo_washing', 'bravo_deposit']
+    .forEach(k => { const inp = el('set_' + k); if (inp) body[k] = inp.value.trim(); });
   await guard(() => API.updateSettings(body));
   datMocCaiDat(Object.keys(body));
   // BL-24: KHÔNG re-render toàn trang sau khi lưu — giữ input đang gõ ở các panel khác (mọi panel

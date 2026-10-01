@@ -135,7 +135,7 @@ async function loadStudentPortal() {
       </tbody></table>` : `<div class="empty">${trongChuaCo('yêu cầu nào')}</div>`}
     </div></div>
 
-    <div class="panel" id="pnTraPhong"><div class="hd"><h2>${IC.logOut} Đơn trả phòng</h2>${!pendingCout && profile.status === 'in' && !notMovedIn ? '<button class="btn sm danger" data-act="checkoutReqForm">Xin trả phòng</button>' : ''}</div><div class="pad">
+    <div class="panel" id="pnTraPhong"><div class="hd"><h2>${IC.logOut} Đơn trả phòng</h2>${!pendingCout && profile.status === 'in' && !notMovedIn ? '<button class="btn sm pri" data-act="checkoutReqForm">Xintrả phòng</button>' : ''}</div><div class="pad">
       ${pendingCout ? `<div class="bang-tin">${IC.hourglass} Đã gửi đơn trả phòng, ngày muốn trả <strong>${fmtDate(pendingCout.desired_date)}</strong> — đang chờ Ban Quản lý duyệt.</div>` :
       notMovedIn ? '<p class="muted" style="margin:0">Bạn chưa tới ngày nhận phòng nên chưa thể gửi đơn trả phòng.</p>' :
       profile.status !== 'in' ? '<p class="muted" style="margin:0">Bạn đã trả phòng.</p>' :
@@ -197,7 +197,7 @@ function checkoutReqForm() {
       <div class="field"><label>Ghi chú</label><textarea id="co_note" rows="2"></textarea></div>
       <div class="hint">${IC.info} Đơn sẽ được gửi tới quản lý để duyệt. Cần báo trước 1 tháng để được hoàn cọc.</div>
     </div>
-    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn danger" data-act="submitCheckoutReq">Gửi đơn</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="submitCheckoutReq">Gửi đơn</button></div>`);
   attachDate(el('co_date'), today(), { min: today() });   // BL-35[6]: không cho chọn ngày trả trong quá khứ
 }
 async function submitCheckoutReq() {
@@ -627,7 +627,11 @@ async function loadCaTruc() {
   const body = el('maintBody'); if (!body) return;
   let d;
   try { d = await API.handovers(''); }
-  catch (e) { body.innerHTML = `<div class="bang-tin">${IC.alert} ${esc(e.message)}</div>`; return; }
+  catch (e) {
+    body.innerHTML = `<div class="bang-tin">${IC.alert} <span>${esc(e.message || 'Không tải được ca trực')}</span>
+      <button class="btn sm" data-act="loadMaintenance" style="margin-left:8px">${IC.refresh} Thử lại</button></div>`;
+    return;
+  }
   _hoDS = d; hoMonth = d.month;
   let viec = [], xe = null;
   try { viec = await API.maintenanceTasks(); } catch {}
@@ -673,7 +677,11 @@ function maintCanhBao(soViec, chuCoViec, chuXong) {
 async function loadMaintViec() {
   let tasks = [];
   try { tasks = await API.maintenanceTasks(); }
-  catch (e) { el('maintBody').innerHTML = `<div class="bang-tin">${IC.alert} ${esc(e.message)}</div>`; return; }
+  catch (e) {
+    el('maintBody').innerHTML = `<div class="bang-tin">${IC.alert} <span>${esc(e.message || 'Không tải được danh sách sửa chữa')}</span>
+      <button class="btn sm" data-act="loadMaintenance" style="margin-left:8px">${IC.refresh} Thử lại</button></div>`;
+    return;
+  }
   const pending = tasks.filter(t => t.status !== 'done');
   const done = tasks.filter(t => t.status === 'done');
   el('maintBody').innerHTML = `
@@ -689,7 +697,7 @@ async function loadMaintViec() {
             : t.status === 'processing' ? '<span class="badge blue">Đang xử lý</span>' : '<span class="badge amber">Mới nhận</span>'}</td>
           <td class="num"><div class="rowbtns" style="justify-content:flex-end;flex-wrap:wrap;gap:4px">
             ${t.status !== 'processing' ? `<button class="btn sm" data-act="maintDo" data-args='[${t.id},"processing"]'>Bắt đầu xử lý</button>` : ''}
-            <button class="btn sm danger" data-act="maintBlockForm" data-args='[${t.id}]'>${IC.alert} Chưa xử lý được</button>
+            <button class="btn sm" data-act="maintBlockForm" data-args='[${t.id}]'>${IC.alert} Chưa xử lý được</button>
             <button class="btn sm green" data-act="maintDoneForm" data-args='[${t.id}]'>${IC.check} Đã xử lý xong</button>
           </div></td></tr>`).join('')}
       </tbody></table>` : '<div class="empty">Không có công việc cần xử lý.</div>'}
@@ -721,7 +729,7 @@ function hoNut(x, laNhan) {
   }
   const traLai = r && r.status === 'returned';
   return `${traLai ? `<div style="font-size:11px;color:var(--red-ink);white-space:normal;margin-bottom:4px">${IC.alert} Ban Quản lý trả lại: ${esc(r.review_note || '')}</div>` : ''}
-    <button class="btn sm ${traLai ? 'danger' : 'green'}" data-act="bienBanForm" data-args='["${kind}",${x.id}]'>${IC.filePen} ${
+    <button class="btn sm green" data-act="bienBanForm" data-args='["${kind}",${x.id}]'>${IC.filePen} ${
       traLai ? 'Lập lại biên bản' : (laNhan ? 'Lập biên bản nhận phòng' : 'Lập biên bản trả phòng')}</button>`;
 }
 async function loadHandovers(month) {
@@ -729,7 +737,11 @@ async function loadHandovers(month) {
   const area = el('maintBody'); if (!area) return;
   let d;
   try { d = await API.handovers(hoMonth); }
-  catch (e) { area.innerHTML = `<div class="bang-tin">${IC.alert} ${esc(e.message)}</div>`; return; }
+  catch (e) {
+    area.innerHTML = `<div class="bang-tin">${IC.alert} <span>${esc(e.message || 'Không tải được danh sách nhận / trả phòng')}</span>
+      <button class="btn sm" data-act="loadMaintenance" style="margin-left:8px">${IC.refresh} Thử lại</button></div>`;
+    return;
+  }
   hoMonth = d.month; _hoDS = d;
   const laNhan = maintTab === 'nhan';
   const esq = s => esc(String(s || '')).replace(/'/g, '&#39;');
@@ -879,7 +891,7 @@ function maintBlockForm(id) {
       <textarea id="mt_reason" rows="3" placeholder="VD: Cần thay linh kiện, đang đặt hàng · Ngoài khả năng, cần thợ ngoài · Chờ học viên có mặt..."></textarea></div>
       <div class="hint" style="font-size:12px">${IC.info} Công việc vẫn nằm trong danh sách "Cần xử lý"; quản lý & học viên sẽ thấy lý do này.</div>
     </div>
-    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn danger" data-act="submitMaintBlock" data-args='[${id}]'>Lưu lý do</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="submitMaintBlock" data-args='[${id}]'>Lưu lý do</button></div>`);
   setTimeout(() => el('mt_reason').focus(), 50);
 }
 async function submitMaintBlock(id) {
@@ -982,7 +994,7 @@ async function loadParkingCheck() {
       <h2>${IC.bike} Điểm danh bãi xe — ${fmtDate(d.date)}${laHomNay ? ' (hôm nay)' : ''}</h2>
       <div class="toolbar" style="flex-wrap:wrap;gap:6px">
         <input id="pk_ngay" style="max-width:150px">
-        <button class="btn sm danger" data-act="pkXeLaForm">${IC.alert} Báo xe lạ</button>
+        <button class="btn sm pri" data-act="pkXeLaForm">${IC.alert} Báo xe lạ</button>
       </div></div>
       <div class="pad">
         <div class="bang-tin">${IC.info} <span>Đi hết bãi, bấm <strong>Có</strong>/<strong>Vắng</strong> từng xe; xe nào cần thì <strong>Báo cáo</strong> hoặc <strong>Sửa biển</strong>.
@@ -1164,7 +1176,7 @@ function onPkBien() {
     .filter(x => x.d > 0).sort((a, b) => b.d - a.d).slice(0, 3);
   if (!top.length) {
     hop.innerHTML = `<div class="bang-tin">${IC.alert} Không có xe đăng ký nào khớp <strong>${esc(this.value)}</strong>.
-      <button class="btn sm danger" style="margin-left:8px" data-act="pkGhiXeLaTuQuet">${IC.plus} Ghi là xe lạ</button></div>`;
+      <button class="btn sm pri" style="margin-left:8px" data-act="pkGhiXeLaTuQuet">${IC.plus} Ghi là xe lạ</button></div>`;
     return;
   }
   hop.innerHTML = top.map(({ v }) => `
@@ -1430,14 +1442,14 @@ async function pkCamNhan(bien) {
         Đọc được <strong>${esc(bien)}</strong> — <strong>không trùng khít</strong> biển nào, bạn xác nhận đúng xe:</div>
       ${ungVien.map((t, i) => theXe(t, i === 0)).join('')}
       <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">${nutQuetLai}
-        <button class="btn sm danger" data-act="pkCamXeLa" data-args='["${esc(bien)}"]'>${IC.plus} Ghi là xe lạ</button></div>`;
+        <button class="btn sm" data-act="pkCamXeLa" data-args='["${esc(bien)}"]'>${IC.plus} Ghi là xe lạ</button></div>`;
     return;
   }
   pkTit(false);
   kq.innerHTML = `<div class="bang-tin" style="border-color:var(--amber-ink)">${IC.alert}
       Đọc được <strong>${esc(bien)}</strong> nhưng không giống xe nào đã đăng ký.</div>
     <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">${nutQuetLai}
-      <button class="btn sm danger" data-act="pkCamXeLa" data-args='["${esc(bien)}"]'>${IC.plus} Ghi là xe lạ</button></div>`;
+      <button class="btn sm pri" data-act="pkCamXeLa" data-args='["${esc(bien)}"]'>${IC.plus} Ghi là xe lạ</button></div>`;
 }
 // Biển trên app ghi sai so với xe thật: sửa lại rồi ghi điểm danh luôn, khỏi phải nhớ quay lại.
 async function pkCamSuaBien(vehicleId, bien) {
@@ -1565,7 +1577,11 @@ async function pkBcTai() {
   hop.innerHTML = '<div class="spinner"></div>';
   let d;
   try { d = await API.parkingReport(pkBcTu, pkBcDen); }
-  catch (e) { hop.innerHTML = `<div class="bang-tin">${IC.alert} ${esc(e.message)}</div>`; return; }
+  catch (e) {
+    hop.innerHTML = `<div class="bang-tin">${IC.alert} <span>${esc(e.message || 'Không tải được lịch sử gửi xe')}</span>
+      <button class="btn sm" data-act="pkBcTai" style="margin-left:8px">${IC.refresh} Thử lại</button></div>`;
+    return;
+  }
 
   const nhan = ds => { const p = ds.split('-'); return `${p[2]}/${p[1]}`; };
   const o = st => st === 'present' ? '<span title="Có" style="color:var(--green);font-weight:700">●</span>'
@@ -2006,7 +2022,7 @@ function chongBam2Lan(fn) {
 [
   'saveStudent', 'saveRoom', 'saveVehicle', 'saveAsset', 'saveFacility', 'saveUser', 'saveApp',
   'saveViolation', 'saveVtype', 'saveInvoice', 'saveOneInvoice', 'saveElectric', 'saveDeposit',
-  'saveAccount', 'saveSettings', 'saveIntro', 'saveBravo', 'saveMailSettings', 'saveSsoSettings', 'saveNote',
+  'saveAccount', 'saveSettings', 'saveIntro', 'saveMailSettings', 'saveSsoSettings', 'saveNote',
   'saveHocVienInfo', 'linkTenant', 'unlinkTenant',
   'doApprove', 'doTransfer', 'doCheckOut', 'doCheckIn', 'doSetLeader', 'unsetLeader',
   'doChangePwd', 'doResetUserPw', 'doKhoaHoSo', 'runGenerate',

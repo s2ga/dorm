@@ -105,7 +105,8 @@ async function viewServices() {
     } catch (e) { loiPk = (e && e.message) || 'Không tải được phần bãi xe'; }
     // Vừa chuyển phòng: hiện "cũ → mới" cùng nguồn với màn an ninh.
     const phongXe = v => `${v.prev_room_name ? `<span class="muted" title="Chuyển phòng từ ${fmtDate(v.moved_on)}">${esc(v.prev_room_name)} ${IC.chevronRight} </span>` : ''}${esc(v.room_name || '—')}`;
-    el('svcBody').innerHTML = `${loiPk ? `<div class="bang-tin" style="border-color:var(--red)">${IC.alert} <span>Phần bãi xe (đề nghị sửa biển, báo cáo an ninh) chưa tải được: ${esc(loiPk)}</span></div>` : pkAdminPanels(deNghi, baoCao, cb)}
+    el('svcBody').innerHTML = `${loiPk ? `<div class="bang-tin" style="border-color:var(--red)">${IC.alert} <span>Phần bãi xe (đề nghị sửa biển, báo cáo an ninh) chưa tải được: ${esc(loiPk)}</span>
+      <button class="btn sm" data-act="viewServices" style="margin-left:8px">${IC.refresh} Thử lại</button></div>` : pkAdminPanels(deNghi, baoCao, cb)}
       <div class="panel"><div class="hd"><h2>${IC.bike} Gửi xe — HV đang ở (<span id="vehCount">${totalVeh}</span> xe)</h2>
       <div class="search"><span class="i">${IC.search}</span><input id="vs" placeholder="Tìm biển số, loại, chủ xe, phòng..." value="${esc(vehSearch)}"></div>
       <button class="btn sm" data-act="pkBaoCaoForm">${IC.history} Lịch sử gửi xe</button>
@@ -215,7 +216,7 @@ function pkTuChoiBienForm(id) {
     <div class="mh"><h3>${IC.undo} Từ chối đề nghị sửa biển</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb"><div class="field" style="margin:0"><label>Lý do (an ninh sẽ thấy trên dòng xe) ${SAO}</label>
       <textarea id="pk_tc_note" rows="3" placeholder="VD: Đã đối chiếu cà vẹt, biển trên hồ sơ đúng"></textarea></div></div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn danger" data-act="pkTuChoiBienLuu" data-args='[${id}]'>Từ chối</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn danger" data-act="pkTuChoiBienLuu" data-args='[${id}]'>Từ chối</button></div>`);
   setTimeout(() => el('pk_tc_note') && el('pk_tc_note').focus(), 50);
 }
 async function pkTuChoiBienLuu(id) {
@@ -277,7 +278,7 @@ function addWashingForm() {
       <div class="field"><label>Học viên ${SAO}</label><select id="wash_stu"><option value="">— Chọn học viên đang ở —</option>${opts}</select></div>
       <div class="hint">${IC.info} Phí máy giặt ${money(+ST.settings.washing_fee || 0)}/tháng sẽ được tính vào phiếu báo từ kỳ kế tiếp.</div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="washAdd">Thêm</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="washAdd">Thêm</button></div>`);
 }
 async function toggleWashing(id, on) {
   if (!id) return;

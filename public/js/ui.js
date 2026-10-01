@@ -664,8 +664,8 @@ async function anhSuaMo(nguon, tieuDe, xong) {
         <button class="btn sm" type="button" data-act="anhSuaChonHet">${IC.undo} Chọn lại cả ảnh</button>
       </div>
     </div>
-    <div class="mf"><button class="btn pri" data-act="anhSuaLuu">${IC.check} Xong</button>
-      <button class="btn" data-act="anhSuaDong">Huỷ</button></div>`, true);
+    <div class="mf"><button class="btn" data-act="anhSuaDong">Huỷ</button>
+      <button class="btn pri" data-act="anhSuaLuu">${IC.check} Xong</button></div>`, true);
   anhSuaVe();
   anhSuaKeo();
 }

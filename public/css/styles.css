@@ -442,6 +442,10 @@ select[size] option{padding:8px 9px;border-radius:8px}
 .pager:empty{display:none}
 /* Menu gom trang Cài đặt cho đỡ dài — thanh chọn nhóm ở đầu, mỗi lần hiện 1 nhóm panel */
 .set-nav{border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:22px}
+/* Một nút Lưu cho cả nhóm, dính đáy màn hình khi đang cuộn qua các panel của nhóm */
+.set-luu{position:sticky;bottom:0;z-index:5;display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-wrap:wrap;
+  padding:12px 16px;background:var(--card);border:1px solid var(--line);border-radius:13px;box-shadow:0 -6px 18px rgba(0,0,0,.06)}
+.set-luu .muted{font-size:12.5px;margin-right:auto}
 /* Bảng tin: thông báo trạng thái / kết quả / lỗi — hiện thẳng, KHÔNG thu gọn như note. */
 .bang-tin{background:var(--bg2);border:1px solid var(--line);color:var(--ink2);padding:13px 16px;
   border-radius:13px;font-size:13.5px;margin-bottom:18px;line-height:1.55;overflow:hidden}

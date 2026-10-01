@@ -293,7 +293,7 @@ function roomDetail(id) {
       <button class="btn danger" data-act="delRoom" data-args='[${id}]'>${IC.trash} Xoá phòng</button>
       <button class="btn" data-act="leaderForm" data-args='[${id}]'>${IC.star} Phòng trưởng</button>
       <button class="btn" data-act="roomForm" data-args='[${id}]'>${IC.pencil} Sửa phòng</button>
-      <button class="btn pri" data-act="modalBack">Đóng</button>
+      <button class="btn" data-act="modalBack">Đóng</button>
     </div>`, true);
   napLichSuPhong(id);
 }
@@ -932,8 +932,9 @@ async function studentDetail(id) {
                 ${anh ? `<a href="${anh}" target="_blank" rel="noopener" title="Bấm để xem cỡ đầy đủ"><img src="${anh}" style="max-width:100%;max-height:180px;border-radius:8px;border:1px solid var(--line)"></a>`
     : `<p class="muted" style="margin:0 0 6px;font-size:12px">${trongChuaCo('ảnh')}</p>`}</div>`).join('')}
           </div>
-          <div class="hint">${IC.info}<span>Đây là màn XEM. Nộp hoặc thay giấy tờ thì bấm
-            <button class="btn sm" data-act="studentForm" data-args='[${s.id}]'>${IC.pencil} Sửa hồ sơ</button></span></div>
+          <div class="flex" style="gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
+            <span class="muted" style="font-size:12.5px">Nộp hoặc thay giấy tờ ở form sửa hồ sơ:</span>
+            <button class="btn sm" data-act="studentForm" data-args='[${s.id}]'>${IC.pencil} Sửa hồ sơ</button></div>
         </div>
       </div></div>
 
@@ -959,7 +960,7 @@ async function studentDetail(id) {
 
       <div class="panel"><div class="hd"><h2 style="font-size:14px">${IC.alert} Vi phạm / Nhắc nhở (${vios.length})</h2>
         <div class="rowbtns">
-          ${vios.length >= vthr && !vios.some(v => v.notified_school) ? `<button class="btn sm danger" data-act="notifySchool" data-args='[${s.id}]'>${IC.inbox} Gửi email nhà trường</button>` : ''}
+          ${vios.length >= vthr && !vios.some(v => v.notified_school) ? `<button class="btn sm" data-act="notifySchool" data-args='[${s.id}]'>${IC.inbox} Gửi email nhà trường</button>` : ''}
           <button class="btn sm pri" data-act="violationForm" data-args='[${s.id}]'>${IC.plus} Ghi nhận</button>
         </div></div><div class="pad">
         ${vios.length >= vthr ? `<div class="bang-tin" style="background:var(--red-bg);border-color:#e3b8ad;color:var(--red-ink)">${IC.alert} Học viên đã vi phạm <strong>${vios.length} lần</strong> (≥ ${vthr})${vios.some(v => v.notified_school) ? ' — đã gửi email nhà trường' : ' — cần thông báo nhà trường'}.</div>` : ''}
@@ -978,13 +979,14 @@ async function studentDetail(id) {
       <div id="lsoBox">${lichSuOHTML(stays, s.id)}</div>
     </div>
     <div class="mf">
+      ${s.deleted_at ? '' : `<button class="btn danger" data-act="delStudent" data-args='[${s.id}]'>${IC.lock} Khoá hồ sơ</button>`}
       <button class="btn" data-act="studentForm" data-args='[${s.id}]'>${IC.pencil} Sửa</button>
       ${isOccupying(s) ? `<button class="btn" data-act="transferForm" data-args='[${s.id}]'>${IC.transfer} Chuyển phòng</button>` : ''}
       ${isOccupying(s)
     ? `<button class="btn danger" data-act="checkOutForm" data-args='[${s.id}]'>Trả phòng</button>`
     : `<button class="btn green" data-act="checkInForm" data-args='[${s.id}]'>Nhận phòng lại</button>
        ${s.check_out_date ? `<button class="btn" data-act="suaNgayTraForm" data-args='[${s.id}]' title="Nhập nhầm ngày rời thì sửa ở đây">${IC.calendar} Sửa ngày trả</button>` : ''}`}
-      ${s.deleted_at ? '' : `<button class="btn danger" data-act="delStudent" data-args='[${s.id}]'>${IC.lock} Khoá hồ sơ</button>`}
+      <button class="btn" data-act="modalBack">Đóng</button>
     </div>`);
   if (!s.contract_no) hienSoHDDuKien(s);
 }

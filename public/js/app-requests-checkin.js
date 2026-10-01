@@ -405,7 +405,7 @@ function credentialModal(username, password, dauDong) {
         <div class="flex" style="gap:6px"><input id="cred_pass" value="${esc(password)}" readonly style="flex:1">
         <button type="button" class="btn sm" data-act="copyCred" data-args='["cred_pass"]'>${IC.clipboard} Sao chép</button></div></div>
     </div>
-    <div class="mf"><button class="btn pri" data-act="copyCredBoth">${IC.clipboard} Sao chép cả hai</button><button class="btn" data-act="modalBack">Đóng</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Đóng</button><button class="btn pri" data-act="copyCredBoth">${IC.clipboard} Sao chép cả hai</button></div>`);
 }
 function copyCred(inputId) { const inp = el(inputId); if (inp) copyToClipboard(inp.value); }
 function copyCredBoth() { copyToClipboard(`Tên đăng nhập: ${el('cred_user').value}\nMật khẩu: ${el('cred_pass').value}`); }

@@ -138,7 +138,7 @@ async function napChuaLapPhieu() {
   catch (e) {
     return modalThay(`${dau}
       <div class="mb"><div class="bang-tin" title="${esc(e.message || '')}">${IC.alert} <span>Không tải được danh sách phiếu báo.</span></div></div>
-      <div class="mf"><button class="btn pri" data-act="napChuaLapPhieu">${IC.refresh} Thử lại</button><button class="btn" data-act="modalBack">Đóng</button></div>`);
+      <div class="mf"><button class="btn" data-act="modalBack">Đóng</button><button class="btn pri" data-act="napChuaLapPhieu">${IC.refresh} Thử lại</button></div>`);
   }
   const { kyNay, kyTruoc } = dsChuaLapPhieu(new Set(inv.map(i => i.student_id)), new Set(invT.map(i => i.student_id)));
   const tong = kyNay.length + kyTruoc.length;
@@ -172,8 +172,8 @@ async function napChuaLapPhieu() {
           ${bang(kyTruoc)}` : ''}`
     : `<div class="empty" style="margin-top:10px">${IC.checkCircle} Không có học viên thiếu phiếu báo.</div>`}
     </div>
-    <div class="mf">${tong ? `<button class="btn pri" data-act="adminGo" data-args='["invoices"]'>${IC.receipt} Sang màn Tiền phòng để lập</button>` : ''}
-      <button class="btn" data-act="modalBack">Đóng</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Đóng</button>
+      ${tong ? `<button class="btn pri" data-act="adminGo" data-args='["invoices"]'>${IC.receipt} Sang màn Tiền phòng để lập</button>` : ''}</div>`);
 }
 
 function residencyModal() {
@@ -192,7 +192,7 @@ function residencyModal() {
         ${row(IC.checkCircle, 'Đã có tạm trú', reg, 'resi_registered', 'on')}
       </div>
     </div>
-    <div class="mf"><button class="btn pri" data-act="tamTruMo">${IC.printer} Danh sách gửi công an</button><button class="btn" data-act="modalBack">Đóng</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Đóng</button><button class="btn pri" data-act="tamTruMo">${IC.printer} Danh sách gửi công an</button></div>`);
 }
 
 // Tự gom CCCD 2 mặt của HV đang ở CHƯA đăng ký tạm trú, lọc theo THÁNG VÀO Ở -> trang ảnh in gửi công an.

@@ -1,5 +1,6 @@
 // Test giao diện (Playwright), KHÔNG ghi dữ liệu: lỗi tải hiện câu tiếng Việt kèm nút Thử lại, chi tiết kỹ thuật chỉ
 // nằm trong title; nhãn cấu hình email bằng tiếng Việt mà giá trị lưu không đổi. Lỗi máy chủ giả bằng page.route.
+// Gồm cả màn an ninh, phần bãi xe ở Dịch vụ, và nút "Sửa hồ sơ" ở Chi tiết học viên không bị gom vào Ghi chú.
 const { chromium } = require('playwright');
 
 const BASE = process.env.TEST_BASE || 'http://localhost:3000';
@@ -23,11 +24,13 @@ const LOI = 'loi-ky-thuat-xyz';
   const page = await ctx.newPage();
   const loiJs = [];
   page.on('pageerror', e => loiJs.push(String(e)));
-  let hongPhieu = false, hongKiem = false;
+  let hongPhieu = false, hongKiem = false, hongAnNinh = false, hongBaiXe = false;
+  const AN_NINH = ['/api/maintenance/handovers', '/api/maintenance/tasks', '/api/maintenance/parking/report'];
   await page.route('**/api/**', route => {
     const req = route.request(), p = new URL(req.url()).pathname;
     if (req.method() !== 'GET') return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
-    if ((hongPhieu && p === '/api/invoices') || (hongKiem && p === '/api/admin/data-health')) {
+    if ((hongPhieu && p === '/api/invoices') || (hongKiem && p === '/api/admin/data-health')
+      || (hongAnNinh && AN_NINH.includes(p)) || (hongBaiXe && p === '/api/vehicles/plate-requests')) {
       return route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: LOI }) });
     }
     return route.continue();
@@ -75,6 +78,43 @@ const LOI = 'loi-ky-thuat-xyz';
     nhan.host === 'Máy chủ SMTP' && nhan.port === 'Cổng' && nhan.user === 'Tài khoản' && nhan.from === 'Tên người gửi' && nhan.secure === 'Bảo mật', JSON.stringify(nhan));
   ok('… lựa chọn bảo mật không còn chữ false/true, giá trị lưu giữ nguyên',
     JSON.stringify(nhan.opts) === JSON.stringify([['false', 'STARTTLS (cổng 587)'], ['true', 'SSL/TLS (cổng 465)']]), JSON.stringify(nhan.opts));
+
+  // ── Màn an ninh: ca trực, nhận phòng, sửa chữa, lịch sử gửi xe ─────────────
+  hongAnNinh = true;
+  for (const [tab, ten] of [['ca', 'Ca trực'], ['nhan', 'Nhận phòng'], ['sua', 'Sửa chữa']]) {
+    await page.evaluate(t => { maintTab = t; loadMaintenance(); }, tab);
+    ok(`An ninh / ${ten}: lỗi tải → có nút Thử lại`, await cho(() => !!document.querySelector('#maintBody [data-act="loadMaintenance"]')));
+  }
+  hongAnNinh = false;
+  await page.click('#maintBody [data-act="loadMaintenance"]');
+  ok('… bấm Thử lại → tải được', await cho(() => !!el('maintBody') && !el('maintBody').querySelector('.spinner, [data-act="loadMaintenance"]')));
+  hongAnNinh = true;
+  await page.evaluate(() => pkBaoCaoForm());
+  ok('Lịch sử gửi xe: lỗi tải → có nút Thử lại', await cho(() => !!document.querySelector('#pk_bc_body [data-act="pkBcTai"]')));
+  hongAnNinh = false;
+  await page.click('#pk_bc_body [data-act="pkBcTai"]');
+  ok('… bấm Thử lại → tải được', await cho(() => !!el('pk_bc_body') && !el('pk_bc_body').querySelector('.spinner, [data-act="pkBcTai"]')));
+  await page.evaluate(() => closeModalNgay()); await page.waitForTimeout(400);
+
+  // ── Dịch vụ › Gửi xe: phần bãi xe tải lỗi ──────────────────────────────────
+  hongBaiXe = true;
+  await page.evaluate(() => { svcTab = 'parking'; adminGo('services'); });
+  ok('Gửi xe: phần bãi xe lỗi → có nút Thử lại', await cho(() => !!document.querySelector('#svcBody [data-act="viewServices"]')));
+  hongBaiXe = false;
+  await page.click('#svcBody [data-act="viewServices"]');
+  ok('… bấm Thử lại → hiện bảng đề nghị sửa biển', await cho(() => !!el('pk_panel_bien')));
+
+  // ── Chi tiết học viên: nút "Sửa hồ sơ" ở phần ảnh CCCD không bị gom vào Ghi chú ──
+  const hv = await page.evaluate(() => (ST.students.find(s => !s.deleted_at) || {}).id);
+  await page.evaluate(id => studentDetail(id), hv);
+  await cho(() => !!document.querySelector('#modal .mb [data-act="studentForm"]'));
+  const nut = await page.evaluate(() => {
+    const b = document.querySelector('#modal .mb [data-act="studentForm"]');
+    const r = b.getBoundingClientRect();
+    return { trongGhiChu: !!b.closest('.hint'), hien: r.width > 0 && r.height > 0 && getComputedStyle(b).visibility !== 'hidden' };
+  });
+  ok('Chi tiết học viên: "Sửa hồ sơ" nằm ngoài Ghi chú, hiện sẵn không cần rê chuột', !nut.trongGhiChu && nut.hien, JSON.stringify(nut));
+  await page.evaluate(() => closeModalNgay());
 
   ok('Không có lỗi JavaScript', loiJs.length === 0, loiJs.join(' | '));
   await browser.close();

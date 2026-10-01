@@ -38,11 +38,12 @@ const cho = async (page, dk, ms = 15000) => {
   const hop = [];
   let traLoi = 'accept';
   page.on('dialog', d => { hop.push(d.message()); return traLoi === 'dismiss' ? d.dismiss() : d.accept(); });
-  const daGhi = [];
+  const daGhi = [], thanGhi = [];
   await page.route('**/api/**', async route => {
     const m = route.request().method();
     if (m !== 'GET') {
       daGhi.push(m + ' ' + new URL(route.request().url()).pathname);
+      thanGhi.push(route.request().postData() || '');
       return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
     }
     return route.continue();
@@ -136,10 +137,13 @@ const cho = async (page, dk, ms = 15000) => {
 
   // ── Cài đặt: rời màn khi còn ô gõ dở thì hỏi ──────────────────────────────
   await page.goto('/cai-dat'); await cho(page, x => x.title === 'Cài đặt');
-  ok('Panel "Thông tin hiển thị trên phiếu báo" có nút Lưu riêng', await page.evaluate(() => {
-    const p = document.querySelector('[data-setgroup="gia"] .panel');
-    return !!p && /phiếu báo/.test(p.querySelector('h2').textContent) && !!p.querySelector('[data-act="saveSettings"]');
-  }));
+  const nutLuu = await page.evaluate(() => {
+    const ds = [...document.querySelectorAll('[data-setgroup="gia"] button')].filter(b => /^Lưu/.test(b.textContent.trim()));
+    const r = ds[0] && ds[0].getBoundingClientRect();
+    return { so: ds.length, act: ds[0] && ds[0].dataset.act, trongManHinh: !!r && r.top >= 0 && r.bottom <= innerHeight };
+  });
+  ok('Tab Đơn giá có đúng MỘT nút Lưu (lưu cả phiếu báo, đơn giá, ngưỡng, mã Bravo) và thấy ngay khi mở tab',
+    nutLuu.so === 1 && nutLuu.act === 'saveSettings' && nutLuu.trongManHinh, JSON.stringify(nutLuu));
   await page.fill('#set_hotline', '0999 888 777');
   hop.length = 0; traLoi = 'dismiss';
   await page.evaluate(() => document.querySelector('#nav button[data-v="dashboard"]').click());   // menu là ngăn kéo, đang ẩn
@@ -148,6 +152,12 @@ const cho = async (page, dk, ms = 15000) => {
   ok('… bấm Hủy ở hộp hỏi → vẫn ở Cài đặt, chữ còn nguyên',
     (await trang(page)).title === 'Cài đặt' && await page.evaluate(() => (el('set_hotline') || {}).value) === '0999 888 777');
   traLoi = 'accept';
+  const truocLuu = thanGhi.length;
+  await page.click('[data-setgroup="gia"] [data-act="saveSettings"]');
+  await page.waitForTimeout(1000);
+  const thanLuu = thanGhi.slice(truocLuu).join(' ');
+  ok('Bấm "Lưu cài đặt" một lần → gửi cả hotline vừa gõ lẫn mã Bravo trong cùng request',
+    thanGhi.length - truocLuu === 1 && thanLuu.includes('"hotline":"0999 888 777"') && thanLuu.includes('"bravo_room"'), thanLuu.slice(0, 200));
 
   // ── Cài đặt: xoá một tài sản không xoá chữ đang gõ ở panel khác ───────────
   await page.goto('/cai-dat?tab=coso'); await cho(page, x => x.title === 'Cài đặt');
