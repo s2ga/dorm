@@ -8,7 +8,7 @@ if (!PASS) { console.error('Thiếu TEST_ADMIN_PASS.'); process.exit(2); }
 const MAN = [['/hoc-vien', 'Học viên'], ['/phong', 'Phòng'], ['/tien-phong', 'Tiền phòng'],
   ['/ho-so', 'Hồ sơ lưu trữ'], ['/nhan-tra-phong', 'Nhận/trả phòng'], ['/dich-vu', 'Dịch vụ'],
   ['/dang-ky-noi-tru', 'Đăng ký'], ['/tra-phong', 'Trả phòng'], ['/bao-hong', 'Báo hư hỏng'],
-  ['/vi-pham', 'Vi phạm'], ['/lich-su', 'Lịch sử']];
+  ['/vi-pham', 'Vi phạm'], ['/nhat-ky', 'Nhật ký']];
 
 let fail = 0;
 const ok = (t, d, x = '') => { if (d) console.log('  [OK] ' + t); else { fail++; console.log('  [FAIL] ' + t + (x ? ' -- ' + x : '')); } };

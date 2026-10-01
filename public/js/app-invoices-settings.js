@@ -109,7 +109,7 @@ async function viewInvoices() {
         <button class="btn sm ghost" data-act="toggleThanhVienNP">${invHienThanhVienNP ? 'Ẩn đi' : 'Hiện ra'}</button></div>` : ''}
       <div class="table-wrap card-tbl">
       ${all.length === 0 ? `<div class="empty">Chưa có phiếu báo nào cho kỳ này.<br><br><button class="btn pri" data-act="generateForm">${IC.receipt} Lập phiếu báo</button></div>` :
-      list.length ? `<table><thead><tr><th>Học viên</th><th>Phòng</th><th>Mã pháp nhân</th><th class="num">Ngày ở</th><th class="num">Tiền phòng</th><th class="num">Điện</th><th class="num">Nước</th><th class="num">DV</th><th class="num">Giặt</th><th class="num">Xe</th>${coCoc ? '<th class="num">Cọc</th>' : ''}<th class="num">Giảm</th><th class="num">Tổng</th><th></th></tr></thead><tbody>
+      list.length ? `<table><thead><tr><th>Học viên</th><th>Phòng</th><th>Mã pháp nhân</th><th class="num">Ngày ở</th>${['room_charge', 'electric_charge', 'water_charge', 'service_charge', 'washing_charge', 'parking_charge', ...(coCoc ? ['deposit_charge'] : [])].map(k => `<th class="num" title="${tenKhoan(k)}">${tenKhoanNgan(k)}</th>`).join('')}<th class="num">Giảm</th><th class="num">Tổng</th><th></th></tr></thead><tbody>
         ${list.map(i => `<tr class="${laNguyenPhong(i) && +i.total ? 'inv-np' : ''}" data-id="${i.id}" data-thu="${i.status === 'paid' ? 'paid' : 'unpaid'}" data-s="${esc(((i.student_name || '') + ' ' + (i.student_code || '') + ' ' + (i.room_name || '') + ' ' + invLegalEntity(i)).toLowerCase())}">
           <td><div class="flex stu-name" data-act="studentDetail" data-args='[${i.student_id}]' role="button" tabindex="0" title="Xem chi tiết học viên">
             <div><strong>${esc(i.student_name)}</strong>${i.student_code ? `<div class="sub2">${esc(i.student_code)}</div>` : ''}</div>
@@ -120,12 +120,12 @@ async function viewInvoices() {
           <td data-label="Mã pháp nhân">${invLegalEntity(i)}</td>
           <td class="num" data-label="Ngày ở">${i.days_stayed}</td>
           <td class="num" data-label="Tiền phòng">${moneyN(i.room_charge)}</td>
-          <td class="num" data-label="Điện">${moneyN(i.electric_charge)}<div class="muted" style="font-size:10px">${kwh(i.electric_kwh)} kWh</div></td>
-          <td class="num" data-label="Nước">${moneyN(i.water_charge)}</td>
-          <td class="num" data-label="DV">${moneyN(i.service_charge)}</td>
-          <td class="num" data-label="Giặt">${i.washing_charge ? moneyN(i.washing_charge) : '—'}</td>
-          <td class="num" data-label="Xe">${i.parking_charge ? moneyN(i.parking_charge) : '—'}</td>
-          ${coCoc ? `<td class="num" data-label="Cọc">${+i.deposit_charge ? `<span class="badge blue" title="Tiền cọc thu ở kỳ nhận phòng">${moneyN(i.deposit_charge)}</span>` : '—'}</td>` : ''}
+          <td class="num" data-label="Tiền điện">${moneyN(i.electric_charge)}<div class="muted" style="font-size:10px">${kwh(i.electric_kwh)} kWh</div></td>
+          <td class="num" data-label="Tiền nước">${moneyN(i.water_charge)}</td>
+          <td class="num" data-label="Phí dịch vụ">${moneyN(i.service_charge)}</td>
+          <td class="num" data-label="Máy giặt">${i.washing_charge ? moneyN(i.washing_charge) : '—'}</td>
+          <td class="num" data-label="Gửi xe">${i.parking_charge ? moneyN(i.parking_charge) : '—'}</td>
+          ${coCoc ? `<td class="num" data-label="Tiền cọc">${+i.deposit_charge ? `<span class="badge blue" title="Tiền cọc thu ở kỳ nhận phòng">${moneyN(i.deposit_charge)}</span>` : '—'}</td>` : ''}
           <td class="num" data-label="Giảm">${(+i.leader_discount || 0) + (+i.room_discount || 0) + (+i.fee_discount || 0)
             ? `<span class="badge green" title="${[+i.room_discount ? 'Giảm tiền phòng ' + money(i.room_discount) : '', +i.fee_discount ? 'Giảm các khoản khác ' + money(i.fee_discount) : '', +i.leader_discount ? 'Giảm phòng trưởng ' + money(i.leader_discount) : ''].filter(Boolean).join(' · ')}">−${moneyN((+i.leader_discount || 0) + (+i.room_discount || 0) + (+i.fee_discount || 0))}</span>`
             : '—'}</td>
@@ -145,12 +145,12 @@ async function viewInvoices() {
         <td></td>
         <td class="num"></td>
         <td class="num" data-label="Tiền phòng"><strong data-tot="room_charge">${moneyN(sumK(list, 'room_charge'))}</strong></td>
-        <td class="num" data-label="Điện"><strong data-tot="electric_charge">${moneyN(sumK(list, 'electric_charge'))}</strong></td>
-        <td class="num" data-label="Nước"><strong data-tot="water_charge">${moneyN(sumK(list, 'water_charge'))}</strong></td>
-        <td class="num" data-label="DV"><strong data-tot="service_charge">${moneyN(sumK(list, 'service_charge'))}</strong></td>
-        <td class="num" data-label="Giặt"><strong data-tot="washing_charge">${moneyN(sumK(list, 'washing_charge'))}</strong></td>
-        <td class="num" data-label="Xe"><strong data-tot="parking_charge">${moneyN(sumK(list, 'parking_charge'))}</strong></td>
-        ${coCoc ? `<td class="num" data-label="Cọc"><strong data-tot="deposit_charge">${moneyN(sumK(list, 'deposit_charge'))}</strong></td>` : ''}
+        <td class="num" data-label="Tiền điện"><strong data-tot="electric_charge">${moneyN(sumK(list, 'electric_charge'))}</strong></td>
+        <td class="num" data-label="Tiền nước"><strong data-tot="water_charge">${moneyN(sumK(list, 'water_charge'))}</strong></td>
+        <td class="num" data-label="Phí dịch vụ"><strong data-tot="service_charge">${moneyN(sumK(list, 'service_charge'))}</strong></td>
+        <td class="num" data-label="Máy giặt"><strong data-tot="washing_charge">${moneyN(sumK(list, 'washing_charge'))}</strong></td>
+        <td class="num" data-label="Gửi xe"><strong data-tot="parking_charge">${moneyN(sumK(list, 'parking_charge'))}</strong></td>
+        ${coCoc ? `<td class="num" data-label="Tiền cọc"><strong data-tot="deposit_charge">${moneyN(sumK(list, 'deposit_charge'))}</strong></td>` : ''}
         <td class="num" data-label="Giảm"><strong data-tot="discount">${sumK(list, 'leader_discount') + sumK(list, 'room_discount') + sumK(list, 'fee_discount') ? '−' + moneyN(sumK(list, 'leader_discount') + sumK(list, 'room_discount') + sumK(list, 'fee_discount')) : '—'}</strong></td>
         <td class="num" data-label="Tổng"><strong data-tot="total">${moneyN(sumK(list, 'total'))}</strong></td>
         <td class="num"></td>
@@ -608,10 +608,10 @@ async function saveElectric() {
   closeModal(); toast('Đã lưu chỉ số cuối kỳ');
 }
 const GEN_NHAN = {
-  days_stayed: 'Số ngày ở', room_charge: 'Tiền phòng', electric_kwh: 'Số kWh', electric_charge: 'Tiền điện',
-  water_charge: 'Tiền nước', service_charge: 'Phí dịch vụ', washing_charge: 'Máy giặt', parking_charge: 'Gửi xe',
+  days_stayed: 'Số ngày ở', electric_kwh: 'Số kWh',
+  ...Object.fromEntries(Object.keys(KHOAN_TIEN).map(k => [k, tenKhoan(k)])),
   leader_discount: 'Giảm phòng trưởng', room_discount: 'Giảm tiền phòng', fee_discount: 'Giảm khoản khác',
-  deposit_charge: 'Tiền cọc', total: 'TỔNG',
+  total: 'TỔNG',
 };
 // Số ngày và kWh không phải tiền — in bằng money() thì "31" thành "31" nhưng 41,24 kWh thành "41".
 const genSo = (k, v) => k === 'days_stayed' ? String(+v || 0) : k === 'electric_kwh' ? kwh(v) : money(v);
@@ -737,11 +737,11 @@ function invoiceForm(id) {
         <div class="field"><label>Học viên *</label><select id="i_stu" ${id ? 'disabled' : ''}>${opts}</select></div>
         <div class="field"><label>Kỳ</label><input id="i_month"></div>
       </div>
-      <div class="grid2">${f('Số ngày ở', 'days_stayed')}${f('Tiền phòng', 'room_charge')}</div>
-      <div class="grid2">${f('Tiền điện', 'electric_charge')}${f('Nước', 'water_charge')}</div>
-      <div class="grid2">${f('Dịch vụ', 'service_charge')}${f('Máy giặt', 'washing_charge')}</div>
-      <div class="grid2">${f('Gửi xe', 'parking_charge')}${f('Khoản khác', 'other_charge')}</div>
-      <div class="grid2">${f('Tiền cọc', 'deposit_charge')}<div></div></div>
+      <div class="grid2">${f('Số ngày ở', 'days_stayed')}${f(tenKhoan('room_charge'), 'room_charge')}</div>
+      <div class="grid2">${f(tenKhoan('electric_charge'), 'electric_charge')}${f(tenKhoan('water_charge'), 'water_charge')}</div>
+      <div class="grid2">${f(tenKhoan('service_charge'), 'service_charge')}${f(tenKhoan('washing_charge'), 'washing_charge')}</div>
+      <div class="grid2">${f(tenKhoan('parking_charge'), 'parking_charge')}${f('Khoản khác', 'other_charge')}</div>
+      <div class="grid2">${f(tenKhoan('deposit_charge'), 'deposit_charge')}<div></div></div>
       <div class="field"><label>Ghi chú khoản khác</label><input id="i_other_note" value="${esc(i.other_note || '')}"></div>
       ${(() => {
     // BL-101: chỗ chỉnh GIẢM GIÁ % — nguồn của cột GIẢM. Lưu ở HỒ SƠ (tự áp mỗi kỳ), sửa tại phiếu.
@@ -751,7 +751,7 @@ function invoiceForm(id) {
         <label>Giảm giá theo % <span class="opt">(lưu ở hồ sơ — tự áp cho MỌI kỳ, đưa về 0 là thôi giảm)</span></label>
         <div class="grid2" style="margin-top:6px">${GIAM_O.map(([k, , nhan]) =>
       `<div class="field" style="margin:0"><label>${nhan} (%)</label><input id="g_${k}" type="number" min="0" max="100" step="1" value="${esc(+s[k] || 0)}"></div>`).join('')}</div>
-        ${s.is_leader ? `<div class="hint" style="font-size:12px">${IC.info}<span>Bạn này là <strong>phòng trưởng</strong> — miễn nước + dịch vụ là quy tắc riêng, không nằm trong % ở đây. Muốn bỏ thì miễn nhiệm ở Chi tiết phòng.</span></div>` : ''}
+        ${s.is_leader ? `<div class="hint" style="font-size:12px">${IC.info}<span>Học viên này là <strong>phòng trưởng</strong> — miễn nước + dịch vụ là quy tắc riêng, không nằm trong % ở đây. Muốn bỏ thì miễn nhiệm ở Chi tiết phòng.</span></div>` : ''}
         <div style="margin-top:8px"><button type="button" class="btn sm pri" data-act="luuGiamPct" data-args='[${id},${i.student_id}]'>${IC.check} Lưu % & tính lại phiếu này</button>
         <span class="muted" style="font-size:12px"> — các ô tiền ở trên sẽ được tính lại theo % mới.</span></div>
       </div>`;
@@ -860,14 +860,14 @@ async function phieuBao(inv) {
   const row = (khoan, dg, sl, tt) => rows.push(
     `<tr><td>${++stt}</td><td><strong>${khoan}</strong></td><td class="n">${dg}</td><td>${sl}</td><td class="n">${moneyN(tt)}</td></tr>`);
 
-  row('Tiền phòng' + phu(nguyenPhong ? 'nguyên phòng · hạng ' + esc(room.hang || '—') : 'thuê ghép'),
+  row(tenKhoan('room_charge') + phu(nguyenPhong ? 'nguyên phòng · hạng ' + esc(room.hang || '—') : 'thuê ghép'),
     moneyN(nguyenPhong ? giaHang : set.room_fee),
     `${inv.days_stayed}/${soNgayThang} ngày`,
     inv.room_charge);
   // Kỳ chưa chốt sổ thì reading_end còn 0 — in "910 → 0" là số vô nghĩa, phải nói thẳng là chưa chốt.
   const daChotKy = !!er && +er.reading_end > 0 && +er.reading_end >= +er.reading_start;
   const tongKwh = daChotKy ? Math.round((+er.reading_end - +er.reading_start) * 10) / 10 : null;
-  row(chu('Tiền điện' + phu('kỳ ' + monthLabel(kyDien)), nguyenPhong ? `Tính trọn công-tơ phòng kỳ ${monthLabel(kyDien)}`
+  row(chu(tenKhoan('electric_charge') + phu('kỳ ' + monthLabel(kyDien)), nguyenPhong ? `Tính trọn công-tơ phòng kỳ ${monthLabel(kyDien)}`
         : `Điện thu sau một kỳ: công-tơ kỳ ${monthLabel(kyDien)} chạy ${tongKwh == null ? 'chưa chốt sổ' : tongKwh + ' kWh'}, chia theo ngày ở từng chặng`),
     moneyN(unit),
     `${kwh(inv.electric_kwh)} kWh` + phu(!er ? ''
@@ -881,7 +881,7 @@ async function phieuBao(inv) {
       if (!my || !my.days) continue;
       const tongNgay = (sg.roster || []).reduce((a, x) => a + x.days, 0) || 1;
       const phanKwh = kwh(sg.kwh * my.days / tongNgay);
-      rows.push(`<tr class="rc-seg"><td></td><td colspan="2">· ${fmtDate(sg.from)} → ${fmtDate(sg.to)} — phòng chạy ${Math.round(sg.kwh * 10) / 10} kWh, ${(sg.roster || []).length} người ở</td><td colspan="2">phần bạn ≈ ${phanKwh} kWh (${my.days} ngày)</td></tr>`);
+      rows.push(`<tr class="rc-seg"><td></td><td colspan="2">· ${fmtDate(sg.from)} → ${fmtDate(sg.to)} — phòng chạy ${Math.round(sg.kwh * 10) / 10} kWh, ${(sg.roster || []).length} người ở</td><td colspan="2">phần của học viên ≈ ${phanKwh} kWh (${my.days} ngày)</td></tr>`);
     }
   }
   // HV rời trong kỳ phiếu: phiếu này gánh thêm điện kỳ phiếu tính TỚI NGÀY RỜI (từ số chốt bàn giao).
@@ -897,12 +897,12 @@ async function phieuBao(inv) {
       rows.push(`<tr class="rc-seg"><td></td><td colspan="4">· cộng phần điện ${monthLabel(inv.month)} tới ngày trả phòng ${fmtDate(s.check_out_date)} (theo số công-tơ chốt hôm bàn giao)</td></tr>`);
     }
   }
-  row(chu('Tiền nước', SUAT_CT), moneyN(set.water_fee), `${suatCua(inv.water_charge, set.water_fee)} suất`, inv.water_charge);
-  row(chu('Dịch vụ', 'wifi · rác · an ninh. ' + SUAT_CT), moneyN(set.service_fee), `${suatCua(inv.service_charge, set.service_fee)} suất`, inv.service_charge);
-  if (+inv.washing_charge) row('Máy giặt', moneyN(set.washing_fee), `${Math.round(inv.washing_charge / (+set.washing_fee || 1))} người`, inv.washing_charge);
-  if (+inv.parking_charge) row('Gửi xe', moneyN(set.parking_fee), `${Math.round(inv.parking_charge / (+set.parking_fee || 1))} xe`, inv.parking_charge);
+  row(chu(tenKhoan('water_charge'), SUAT_CT), moneyN(set.water_fee), `${suatCua(inv.water_charge, set.water_fee)} suất`, inv.water_charge);
+  row(chu(tenKhoan('service_charge'), 'wifi · rác · an ninh. ' + SUAT_CT), moneyN(set.service_fee), `${suatCua(inv.service_charge, set.service_fee)} suất`, inv.service_charge);
+  if (+inv.washing_charge) row(tenKhoan('washing_charge'), moneyN(set.washing_fee), `${Math.round(inv.washing_charge / (+set.washing_fee || 1))} người`, inv.washing_charge);
+  if (+inv.parking_charge) row(tenKhoan('parking_charge'), moneyN(set.parking_fee), `${Math.round(inv.parking_charge / (+set.parking_fee || 1))} xe`, inv.parking_charge);
   if (+inv.other_charge) row(inv.other_note || 'Khoản khác', '', '', inv.other_charge);
-  if (+inv.deposit_charge) row(chu('Tiền cọc' + phu('thu một lần khi nhận phòng'),
+  if (+inv.deposit_charge) row(chu(tenKhoan('deposit_charge') + phu('thu một lần khi nhận phòng'),
     'Khoản giữ hộ, hoàn lại khi trả phòng nếu không có hư hao. Chỉ thu ở kỳ nhận phòng.'),
     moneyN(inv.deposit_charge), '1 lần', inv.deposit_charge);
   // Các khoản GIẢM đứng riêng, ghi số âm — người đọc thấy rõ được ưu đãi gì, vì sao tổng thấp hơn
@@ -1058,19 +1058,19 @@ function viewSettings() {
     </div></div>
     <div class="panel"><div class="hd"><h2>${IC.banknote} Đơn giá & quy tắc tính tiền</h2></div><div class="pad">
       <div class="grid2">
-        ${fee('Tiền phòng', 'room_fee', '/người/tháng')}
-        ${fee('Cọc', 'deposit_fee', 'khi nhận phòng')}
+        ${fee(tenKhoan('room_charge'), 'room_fee', '/người/tháng')}
+        ${fee(tenKhoan('deposit_charge'), 'deposit_fee', 'khi nhận phòng')}
       </div>
       <div class="grid2">
-        ${fee('Nước', 'water_fee', '/người/tháng')}
-        ${fee('Điện', 'electric_unit', '/kWh')}
+        ${fee(tenKhoan('water_charge'), 'water_fee', '/người/tháng')}
+        ${fee(tenKhoan('electric_charge'), 'electric_unit', '/kWh')}
       </div>
       <div class="grid2">
-        ${fee('Dịch vụ', 'service_fee', '/người/tháng')}
-        ${fee('Máy giặt', 'washing_fee', '/tháng')}
+        ${fee(tenKhoan('service_charge'), 'service_fee', '/người/tháng')}
+        ${fee(tenKhoan('washing_charge'), 'washing_fee', '/tháng')}
       </div>
       <div class="grid2">
-        ${fee('Gửi xe', 'parking_fee', '/xe/tháng')}
+        ${fee(tenKhoan('parking_charge'), 'parking_fee', '/xe/tháng')}
         <div></div>
       </div>
       <div style="font-weight:600;font-size:13px;margin:10px 0 8px">${IC.home} Cấu hình theo hạng phòng <span class="opt" style="font-weight:400">(giá thuê nguyên phòng · trần giường · diện tích)</span></div>
@@ -1388,7 +1388,6 @@ function gotoUsers() {
   }));
 }
 /* ---------- Quản lý tài khoản nhân viên (chỉ quản trị) ---------- */
-const ROLE_LABEL = { admin: ['Quản trị viên', 'gray'], staff: ['Nhân viên', 'blue'], maintenance: ['An ninh / Bảo trì', 'amber'], secretary: ['Thư ký', 'green'], teacher: ['Giáo viên ProSkills', 'sage'] };
 async function loadAdminUsers() {
   const box = el('usrRows'); if (!box) return;
   let users = [];
@@ -1742,7 +1741,7 @@ async function doStuAccPw(id) {
   const u = (window._stuAccCache || []).find(x => x.id === id); if (!u) return;
   const r = await guard(() => API.setAccount(u.student_id, {})); // endpoint hồ sơ HV: đặt MK + buộc đổi + thu hồi phiên
   closeModal(); loadStudentAccounts();
-  if (r && r.password) credentialModal(r.username, r.password);
+  if (r && r.password) credentialModal(r.username, r.password, 'Đã đặt lại mật khẩu học viên.');
   else toast('Đã cấp lại mật khẩu học viên');
 }
 async function revokeStuSession(id) {

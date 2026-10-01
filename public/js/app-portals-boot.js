@@ -47,14 +47,14 @@ function myInvoiceDetail(id) {
     <div class="mb">
       <p class="muted" style="margin:0 0 12px">Số ngày ở trong kỳ: <strong>${i.days_stayed || 0}</strong> ngày &nbsp;•&nbsp; ${invPaidBadge(i)}</p>
       <div class="table-wrap"><table><tbody>
-        ${line('Tiền phòng', i.room_charge)}
-        ${line('Tiền điện', i.electric_charge, `${kwh(i.electric_kwh)} kWh · kỳ ${monthLabel(prevKy(i.month))}`)}
-        ${opt('Tiền nước', i.water_charge)}
-        ${opt('Phí dịch vụ', i.service_charge)}
-        ${opt('Máy giặt', i.washing_charge)}
-        ${opt('Gửi xe', i.parking_charge)}
+        ${line(tenKhoan('room_charge'), i.room_charge)}
+        ${line(tenKhoan('electric_charge'), i.electric_charge, `${kwh(i.electric_kwh)} kWh · kỳ ${monthLabel(prevKy(i.month))}`)}
+        ${opt(tenKhoan('water_charge'), i.water_charge)}
+        ${opt(tenKhoan('service_charge'), i.service_charge)}
+        ${opt(tenKhoan('washing_charge'), i.washing_charge)}
+        ${opt(tenKhoan('parking_charge'), i.parking_charge)}
         ${opt('Khoản khác', i.other_charge, i.other_note ? esc(i.other_note) : '')}
-        ${opt('Tiền cọc', i.deposit_charge, 'thu một lần khi nhận phòng · hoàn lại khi trả phòng')}
+        ${opt(tenKhoan('deposit_charge'), i.deposit_charge, 'thu một lần khi nhận phòng · hoàn lại khi trả phòng')}
         ${leaderD ? `<tr><td>Giảm phòng trưởng</td><td class="num" style="color:var(--green)">−${money(leaderD)}</td></tr>` : ''}
         ${roomD ? `<tr><td>Giảm tiền phòng</td><td class="num" style="color:var(--green)">−${money(roomD)}</td></tr>` : ''}
         ${feeD ? `<tr><td>Giảm các khoản khác</td><td class="num" style="color:var(--green)">−${money(feeD)}</td></tr>` : ''}
@@ -135,7 +135,7 @@ async function loadStudentPortal() {
       </tbody></table>` : '<div class="empty">Chưa có yêu cầu nào.</div>'}
     </div></div>
 
-    <div class="panel" id="pnTraPhong"><div class="hd"><h2>${IC.logOut} Đăng ký trả phòng</h2>${!pendingCout && profile.status === 'in' && !notMovedIn ? '<button class="btn sm danger" data-act="checkoutReqForm">Xin trả phòng</button>' : ''}</div><div class="pad">
+    <div class="panel" id="pnTraPhong"><div class="hd"><h2>${IC.logOut} Đơn trả phòng</h2>${!pendingCout && profile.status === 'in' && !notMovedIn ? '<button class="btn sm danger" data-act="checkoutReqForm">Xin trả phòng</button>' : ''}</div><div class="pad">
       ${pendingCout ? `<div class="bang-tin">${IC.hourglass} Bạn đã gửi đơn trả phòng ngày <strong>${fmtDate(pendingCout.desired_date)}</strong> — đang chờ Ban Quản lý duyệt.</div>` :
       notMovedIn ? '<p class="muted" style="margin:0">Bạn chưa tới ngày nhận phòng nên chưa thể gửi đơn trả phòng.</p>' :
       profile.status !== 'in' ? '<p class="muted" style="margin:0">Bạn đã trả phòng.</p>' :
@@ -188,7 +188,7 @@ async function submitDamage() {
 }
 function checkoutReqForm() {
   openModal(`
-    <div class="mh"><h3>${IC.logOut} Đăng ký trả phòng</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mh"><h3>${IC.logOut} Gửi đơn trả phòng</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="field"><label>Ngày dự kiến trả phòng</label><input id="co_date"></div>
       <div class="field"><label>Lý do</label><select id="co_reason">

@@ -420,7 +420,7 @@ const AUDIT_RES = {
   students: 'Học viên', rooms: 'Phòng', vehicles: 'Xe', assets: 'Tài sản',
   invoices: 'Phiếu báo', electric: 'Điện', violations: 'Vi phạm', applications: 'Đơn đăng ký',
   requests: 'Yêu cầu hỗ trợ', settings: 'Cài đặt', facilities: 'Cơ sở', media: 'Ảnh giới thiệu',
-  admin: 'Tài khoản', logs: 'Nhật ký ra/vào', reports: 'Báo cáo', me: 'Học viên (tự thao tác)',
+  admin: 'Tài khoản', logs: 'Lịch sử ra/vào', reports: 'Báo cáo', me: 'Học viên (tự thao tác)',
 };
 const AUDIT_SUB = {
   checkin: 'Nhận phòng', checkout: 'Trả phòng', transfer: 'Chuyển phòng', approve: 'Duyệt đơn',
@@ -541,6 +541,6 @@ async function viewAudit() {
 }
 
 /* ---------- TRUNG TÂM HỖ TRỢ ---------- */
-const SUPCAT = { damage: ['Hư hỏng phòng', 'gray', IC.wrench], violation: ['Báo vi phạm', 'amber', IC.flag], other: ['Khác — cần hỗ trợ', 'blue', IC.info] };
+const SUPCAT = { damage: ['Báo hư hỏng', 'gray', IC.wrench], violation: ['Báo vi phạm', 'amber', IC.flag], other: ['Khác — cần hỗ trợ', 'blue', IC.info] };
 const supCatBadge = c => { const [l, cl] = SUPCAT[c] || SUPCAT.damage; return `<span class="badge ${cl}">${l}</span>`; };
 // Mỗi trang là 1 mục nav riêng (điểm 1 — Sếp): reg · checkout · repair · violations · feedback

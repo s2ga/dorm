@@ -20,13 +20,13 @@ function renderAdmin() {
           <button data-v="invoices"><span class="ico">${IC.wallet}</span><span class="lbl">Tiền phòng</span></button>
           ${isAdmin ? `<button data-v="revenue"><span class="ico">${IC.trendingUp}</span><span class="lbl">Dự báo doanh thu</span></button>` : ''}
           <div class="grp">Tiếp nhận & Hỗ trợ</div>
-          <button data-v="reg"><span class="ico">${IC.filePen}</span><span class="lbl">Đăng ký ở nội trú</span><span class="cnt" id="navReg" style="display:none"></span></button>
-          <button data-v="checkout"><span class="ico">${IC.logOut}</span><span class="lbl">Đăng ký trả phòng</span><span class="cnt" id="navCheckout" style="display:none"></span></button>
-          <button data-v="repair"><span class="ico">${IC.wrench}</span><span class="lbl">Báo hư hỏng CSVC</span><span class="cnt" id="navRepair" style="display:none"></span></button>
-          <button data-v="violations"><span class="ico">${IC.alert}</span><span class="lbl">Quản lý vi phạm</span><span class="cnt" id="navViol" style="display:none"></span></button>
-          <button data-v="feedback"><span class="ico">${IC.inbox}</span><span class="lbl">Hộp thư hỗ trợ/góp ý</span><span class="cnt" id="navFeed" style="display:none"></span></button>
+          <button data-v="reg"><span class="ico">${IC.filePen}</span><span class="lbl">Đơn đăng ký</span><span class="cnt" id="navReg" style="display:none"></span></button>
+          <button data-v="checkout"><span class="ico">${IC.logOut}</span><span class="lbl">Đơn trả phòng</span><span class="cnt" id="navCheckout" style="display:none"></span></button>
+          <button data-v="repair"><span class="ico">${IC.wrench}</span><span class="lbl">Báo hư hỏng</span><span class="cnt" id="navRepair" style="display:none"></span></button>
+          <button data-v="violations"><span class="ico">${IC.alert}</span><span class="lbl">Vi phạm</span><span class="cnt" id="navViol" style="display:none"></span></button>
+          <button data-v="feedback"><span class="ico">${IC.inbox}</span><span class="lbl">Góp ý & hỗ trợ</span><span class="cnt" id="navFeed" style="display:none"></span></button>
           ${isAdmin ? `<div class="grp">Hệ thống</div>
-          <button data-v="audit"><span class="ico">${IC.history}</span><span class="lbl">Lịch sử</span></button>
+          <button data-v="audit"><span class="ico">${IC.history}</span><span class="lbl">Nhật ký</span></button>
           <button data-v="settings"><span class="ico">${IC.settings}</span><span class="lbl">Cài đặt</span><span class="cnt" id="navSettings" style="display:none"></span></button>` : ''}
         </nav>
         <div class="foot">
@@ -347,10 +347,12 @@ const VIEW_PATHS = {
   hoso: '/ho-so', tamtru: '/tam-tru',
   checkin: '/nhan-tra-phong', invoices: '/tien-phong', revenue: '/doanh-thu', reg: '/dang-ky-noi-tru',
   checkout: '/tra-phong', repair: '/bao-hong', violations: '/vi-pham', feedback: '/gop-y',
-  audit: '/lich-su', settings: '/cai-dat',
+  audit: '/nhat-ky', settings: '/cai-dat',
 };
 const PATH_VIEWS = Object.fromEntries(Object.entries(VIEW_PATHS).map(([v, p]) => [p, v]));
-PATH_VIEWS['/check-in'] = 'checkin';   // đường dẫn cũ: dấu trang đã lưu vẫn mở đúng màn, URL tự đổi sang đường mới
+// Đường dẫn cũ: dấu trang đã lưu vẫn mở đúng màn, URL tự đổi sang đường mới.
+PATH_VIEWS['/check-in'] = 'checkin';
+PATH_VIEWS['/lich-su'] = 'audit';
 const pathForView = v => VIEW_PATHS[v] || '/';
 // Màn con không có mục menu riêng -> sáng mục menu cha.
 const NAV_CHA = { tamtru: 'dashboard' };
@@ -362,7 +364,7 @@ function viewFromPath(pathname) {
 
 /* ================= BỘ LỌC TRÊN URL (BL-17) =================
    Path = màn (đã có ở BL-10). Query = bộ lọc CỦA CHÍNH màn đó. Vì path tách namespace theo màn,
-   mỗi màn tự đặt tên tham số query mà không đụng màn khác (vd /hoc-vien?f=in, /lich-su?nguoi=an).
+   mỗi màn tự đặt tên tham số query mà không đụng màn khác (vd /hoc-vien?f=in, /nhat-ky?nguoi=an).
    Mỗi màn khai read()/write():
    - read(params): dựng LẠI toàn bộ trạng thái lọc từ query — thiếu tham số nào thì về mặc định
      (URL là nguồn sự thật khi nạp đầu / Back-Forward).
@@ -558,7 +560,7 @@ function adminGo(view, opts) {
     }
     closeModalNgay();
   }
-  if (view === 'requests') view = 'reg'; // alias cũ → trang Đăng ký ở nội trú
+  if (view === 'requests') view = 'reg'; // alias cũ → trang Đơn đăng ký
   if (view === 'vehicles') { svcTab = 'parking'; view = 'services'; } // Xe đã gộp vào Dịch vụ → Gửi xe
   // Chặn nhân viên (staff) truy cập các mục dành riêng quản trị (kể cả deep-link — nay deep-link có thật)
   if (ADMIN_ONLY_VIEWS.includes(view) && Auth.user.role !== 'admin') view = 'dashboard';

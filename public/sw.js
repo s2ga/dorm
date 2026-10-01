@@ -1,13 +1,13 @@
 // Service worker: ưu tiên MẠNG cho giao diện (luôn có bản mới nhất khi online),
 // dùng cache làm dự phòng khi offline. API luôn lấy trực tiếp từ mạng.
-const CACHE = 'ktx-shell-v325';
+const CACHE = 'ktx-shell-v326';
 // Số phiên bản SUY RA TỪ TÊN CACHE — không ghi tay lần thứ hai (lệch với index.html là tải sẵn nguyên
 // bộ asset cũ mà không dùng tới). tests/unit/version.test.js canh việc này.
 const V = (CACHE.match(/-v(\d+)$/) || [, '1'])[1];
 const SHELL = [
   '/', '/index.html',
   `/css/styles.css?v=${V}`,
-  `/js/icons.js?v=${V}`, `/js/api.js?v=${V}`, `/js/ui.js?v=${V}`, `/js/app-actions.js?v=${V}`,
+  `/js/icons.js?v=${V}`, `/js/tu-ngu.js?v=${V}`, `/js/api.js?v=${V}`, `/js/ui.js?v=${V}`, `/js/app-actions.js?v=${V}`,
   `/js/app-public-auth.js?v=${V}`, `/js/app-admin-core.js?v=${V}`, `/js/app-exec-dashboard.js?v=${V}`,
   `/js/app-rooms-students.js?v=${V}`, `/js/app-services-revenue-audit.js?v=${V}`, `/js/app-requests-checkin.js?v=${V}`,
   `/js/app-invoices-settings.js?v=${V}`, `/js/app-portals-boot.js?v=${V}`, `/js/sw-register.js?v=${V}`,

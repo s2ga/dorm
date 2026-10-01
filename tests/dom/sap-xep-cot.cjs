@@ -6,7 +6,7 @@ const PASS = process.env.TEST_ADMIN_PASS;
 if (!PASS) { console.error('Thiếu TEST_ADMIN_PASS.'); process.exit(2); }
 
 const MAN = [['/phong', 'Phòng'], ['/tien-phong', 'Tiền phòng'], ['/ho-so', 'Hồ sơ lưu trữ'],
-  ['/nhan-tra-phong', 'Nhận/trả phòng'], ['/lich-su', 'Lịch sử']];
+  ['/nhan-tra-phong', 'Nhận/trả phòng'], ['/nhat-ky', 'Nhật ký']];
 
 let fail = 0;
 const ok = (t, d, x = '') => { if (d) console.log('  [OK] ' + t); else { fail++; console.log('  [FAIL] ' + t + (x ? ' -- ' + x : '')); } };

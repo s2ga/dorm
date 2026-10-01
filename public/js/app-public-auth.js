@@ -194,12 +194,12 @@ async function renderPublicRegister() {
         <div class="price-form-tag">${IC.users} Hình thức: <strong>Thuê phòng ở ghép</strong> — nhiều học viên ở chung một phòng, chia sẻ chi phí</div>
         <table><tbody>
           <tr class="price-grp"><td colspan="2">${IC.calendar} Chi phí hằng tháng</td></tr>
-          ${priceRow('Tiền phòng', info.room_fee, '/người/tháng')}
-          ${priceRow('Tiền điện', info.electric_unit, '/kWh', 'Theo công-tơ, chia đều số người ở phòng')}
-          ${priceRow('Tiền nước', info.water_fee, '/người/tháng')}
-          ${priceRow('Dịch vụ chung', info.service_fee, '/người/tháng', 'Wifi, rác, an ninh 24/7')}
-          ${priceRowOpt('Máy giặt', info.washing_fee, '/tháng')}
-          ${priceRowOpt('Gửi xe máy', info.parking_fee, '/xe/tháng')}
+          ${priceRow(tenKhoan('room_charge'), info.room_fee, '/người/tháng')}
+          ${priceRow(tenKhoan('electric_charge'), info.electric_unit, '/kWh', 'Theo công-tơ, chia đều số người ở phòng')}
+          ${priceRow(tenKhoan('water_charge'), info.water_fee, '/người/tháng')}
+          ${priceRow(tenKhoan('service_charge'), info.service_fee, '/người/tháng', 'Wifi, rác, an ninh 24/7')}
+          ${priceRowOpt(tenKhoan('washing_charge'), info.washing_fee, '/tháng')}
+          ${priceRowOpt(tenKhoan('parking_charge'), info.parking_fee, '/xe/tháng')}
           <tr class="price-grp"><td colspan="2">${IC.lock} Đóng một lần khi nhận phòng</td></tr>
           <tr class="price-hi"><td><strong>Tiền cọc</strong><div class="price-sub">${IC.checkCircle} Được hoàn lại khi trả phòng đúng quy định</div></td><td class="num"><strong>${money(info.deposit_fee)}</strong></td></tr>
         </tbody></table>
@@ -486,13 +486,13 @@ const AdminTitles = {
   checkin: ['Nhận / trả phòng', 'Lịch sử ra / vào ký túc xá'],
   invoices: ['Tiền phòng', 'Phiếu báo hàng tháng, điện nước, cọc'],
   revenue: ['Dự báo doanh thu', 'Dự báo từ phiếu báo tiền phòng · đối chiếu Bravo (thu thật do Bravo quản lý)'],
-  reg: ['Đăng ký ở nội trú', 'Duyệt đơn đăng ký vào ở'],
-  checkout: ['Đăng ký trả phòng', 'Duyệt đơn xin trả phòng'],
-  repair: ['Báo hư hỏng CSVC', 'Hư hỏng cơ sở vật chất → chuyển bảo trì'],
-  violations: ['Quản lý vi phạm', 'Ghi nhận & theo dõi vi phạm học viên'],
-  feedback: ['Hộp thư hỗ trợ / góp ý', 'Học viên báo vi phạm · cần hỗ trợ khác'],
-  requests: ['Đăng ký ở nội trú', 'Duyệt đơn đăng ký vào ở'],
-  audit: ['Lịch sử hệ thống', 'Lịch sử thao tác của quản lý & nhân viên'],
+  reg: ['Đơn đăng ký', 'Duyệt đơn đăng ký vào ở'],
+  checkout: ['Đơn trả phòng', 'Duyệt đơn xin trả phòng'],
+  repair: ['Báo hư hỏng', 'Hư hỏng cơ sở vật chất, chuyển bảo trì'],
+  violations: ['Vi phạm', 'Ghi nhận & theo dõi vi phạm học viên'],
+  feedback: ['Góp ý & hỗ trợ', 'Học viên báo vi phạm · cần hỗ trợ khác'],
+  requests: ['Đơn đăng ký', 'Duyệt đơn đăng ký vào ở'],
+  audit: ['Nhật ký', 'Thao tác của quản trị viên & nhân viên'],
   settings: ['Cài đặt', 'Đơn giá, hạng phòng, cơ sở'],
 };
 const ADMIN_ONLY_VIEWS = ['exec', 'revenue', 'audit', 'settings'];
@@ -559,7 +559,7 @@ const thueNguyenPhong = s => s.room_id ? roomType(roomById(s.room_id) || {}) ===
 const rentalLabelOf = s => thueNguyenPhong(s) ? RENTAL_LABEL.phong : RENTAL_LABEL.ghep;
 const RESI = { registered: ['Đã đăng ký', 'green'], processing: ['Đang xử lý', 'amber'], unregistered: ['Chưa đăng ký', 'gray'] };
 const resiBadge = st => { const [l, c] = RESI[st] || RESI.unregistered; return `<span class="badge ${c}">${l}</span>`; };
-const CONTRACT_LABEL = { done: 'Đã hoàn tất', scanned: 'Đã scan HĐ', unsigned: 'Chưa ký HĐ', none: 'Không ký HĐ', handover: 'Đã ký phiếu bàn giao' };
+const CONTRACT_LABEL = { done: 'Đã ký HĐ', scanned: 'Đã scan HĐ', unsigned: 'Chưa ký HĐ', none: 'Không ký HĐ', handover: 'Đã ký phiếu bàn giao' };
 const CONTRACT_BADGE = { done: 'green', scanned: 'blue', unsigned: 'amber', none: 'gray', handover: 'blue' };
 
 // Các ô giảm giá % trong form học viên: [tên cột, id ô nhập, nhãn]

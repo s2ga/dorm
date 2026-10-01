@@ -478,7 +478,7 @@ async function viewDashboard() {
         ${todo(IC.flag, 'Đăng ký Tạm Trú', resiOverdue, actAttr('residencyModal'), 'warn')}
         ${todo(IC.fileText, 'Hợp đồng', contractIncomplete, actAttr('contractIssuesModal'), 'warn')}
         ${todo(IC.receipt, 'Lập phiếu báo', billOverdue, actAttr('billOverdueModal'), 'bad')}
-        ${todo(IC.alert, 'Quản lý vi phạm', needMail, actAttr('viPhamGo', 'canbao'), 'bad')}
+        ${todo(IC.alert, 'Vi phạm cần báo', needMail, actAttr('viPhamGo', 'canbao'), 'bad')}
       </div>
     </div></div>
 

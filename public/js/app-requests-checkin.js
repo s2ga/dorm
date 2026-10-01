@@ -26,12 +26,12 @@ async function viewRequests() {
     const shown = regFilter === 'all' ? apps : apps.filter(a => a.status === regFilter);
     hd = `${IC.filePen} Đơn đăng ký (${shown.length})`;   // số trong tiêu đề = số dòng đang hiện, khớp ô Tổng quan
     actions = `<button class="btn sm pri" data-act="appForm">${IC.plus} Tạo đơn đăng ký</button>`;
-    note = `${IC.info} Mọi học viên đều vào qua đơn đăng ký rồi duyệt. Học viên tự đăng ký tại trang công khai, hoặc admin tạo đơn hộ tại đây.`;
+    note = `${IC.info} Mọi học viên đều vào qua đơn đăng ký rồi duyệt. Học viên tự đăng ký tại trang công khai, hoặc tạo đơn hộ tại đây.`;
     const pill = (f, tx, n) => `<button class="btn sm ${regFilter === f ? 'pri' : ''}" data-act="regGo" data-args='["${f}"]'>${tx} (${n})</button>`;
-    const pills = `<div class="pill-row" style="padding:12px 14px 0">${pill('pending', 'Chờ duyệt', counts.pending)}${pill('approved', 'Đã thêm', counts.approved)}${pill('rejected', 'Từ chối', counts.rejected)}${pill('all', 'Tất cả', apps.length)}</div>`;
+    const pills = `<div class="pill-row" style="padding:12px 14px 0">${['pending', 'approved', 'rejected'].map(k => pill(k, nhanTTDon(k)[0], counts[k])).join('')}${pill('all', 'Tất cả', apps.length)}</div>`;
     const emptyTx = !apps.length ? 'Chưa có đơn đăng ký nào.'
       : regFilter === 'pending' ? 'Không có đơn nào đang chờ duyệt.'
-        : regFilter === 'approved' ? 'Chưa có đơn nào đã thêm vào phòng.'
+        : regFilter === 'approved' ? 'Chưa có đơn nào đã duyệt.'
           : regFilter === 'rejected' ? 'Chưa có đơn nào bị từ chối.' : 'Không có đơn phù hợp.';
     // BL-117: đã duyệt + tới ngày dự kiến mà chưa ai xác nhận đã vào -> BQL xác nhận (Check-in ghi ngày
     // thật) hoặc bấm "Không đến" (khoá hồ sơ, nhả chỗ). Tới lúc đó họ KHÔNG được tính là đang ở.
@@ -44,9 +44,9 @@ async function viewRequests() {
         <td class="muted" style="font-size:12px">${RENTAL_LABEL[a.rental_type] || 'Thuê ghép'}</td>
         <td style="font-size:12px;white-space:nowrap">${a.desired_check_in ? fmtDate(a.desired_check_in) : '<span class="muted">chưa nêu</span>'}</td>
         <td style="font-size:12px">${a.pref ? esc(a.pref) : (a.wants_washing || a.wants_parking || a.plate || a.note || a.admin_note ? '' : '<span class="muted">—</span>')}${a.wants_washing || a.wants_parking || a.plate ? `<div style="margin-top:3px">${a.wants_washing ? `<span class="badge gray">${IC.washer} Máy giặt</span> ` : ''}${a.wants_parking || a.plate ? `<span class="badge gray">${IC.bike} Gửi xe${a.plate ? ' · ' + esc(a.plate) : ''}</span>` : ''}</div>` : ''}${a.note ? `<div class="muted" style="margin-top:3px">${esc(a.note)}</div>` : ''}${noteLine(a.admin_note)}</td>
-        <td>${a.status === 'pending' ? '<span class="badge amber">Chờ duyệt</span>' : a.status === 'approved' ? '<span class="badge green">Đã thêm</span>' : '<span class="badge gray">Từ chối</span>'}</td>
+        <td><span class="badge ${nhanTTDon(a.status)[1]}">${nhanTTDon(a.status)[0]}</span></td>
         <td class="num"><div class="rowbtns" style="justify-content:flex-end">
-          ${a.status === 'pending' ? `<button class="btn sm green" data-act="approveForm" data-args='[${a.id}]'>${IC.plus} Thêm vào phòng</button><button class="btn sm" data-act="rejectApp" data-args='[${a.id}]'>Từ chối</button>` : ''}
+          ${a.status === 'pending' ? `<button class="btn sm green" data-act="approveForm" data-args='[${a.id}]'>${IC.check} Duyệt</button><button class="btn sm" data-act="rejectApp" data-args='[${a.id}]'>Từ chối</button>` : ''}
           <button class="btn sm ghost" title="Ghi chú" data-act="noteForm" data-args='["app", ${a.id}]'>${IC.filePen}</button>
           <button class="btn sm ghost" data-act="delApp" data-args='[${a.id}]'>${IC.trash}</button>
         </div></td></tr>`).join('')}
@@ -57,9 +57,9 @@ async function viewRequests() {
     couts.forEach(c => { cc[c.status] = (cc[c.status] || 0) + 1; });
     const shownC = coutFilter === 'all' ? couts : couts.filter(c => c.status === coutFilter);
     const pillC = (f, tx, n) => `<button class="btn sm ${coutFilter === f ? 'pri' : ''}" data-act="coutGo" data-args='["${f}"]'>${tx} (${n})</button>`;
-    const pillsC = `<div class="pill-row" style="padding:12px 14px 0">${pillC('pending', 'Chờ xác nhận', cc.pending)}${pillC('done', 'Đã xác nhận', cc.done)}${pillC('rejected', 'Từ chối', cc.rejected)}${pillC('all', 'Tất cả', couts.length)}</div>`;
+    const pillsC = `<div class="pill-row" style="padding:12px 14px 0">${['pending', 'done', 'rejected'].map(k => pillC(k, nhanTTDon(k)[0], cc[k])).join('')}${pillC('all', 'Tất cả', couts.length)}</div>`;
     const emptyC = !couts.length ? 'Chưa có đơn trả phòng.'
-      : coutFilter === 'pending' ? 'Không có đơn nào chờ xác nhận.' : 'Không có đơn phù hợp.';
+      : coutFilter === 'pending' ? 'Không có đơn nào chờ duyệt.' : 'Không có đơn phù hợp.';
     hd = `${IC.logOut} Đơn trả phòng (${shownC.length})`;
     banner = canXuLyPhongPanel('checkout');
     body = pillsC + (shownC.length ? `<div class="table-wrap"><table><thead><tr><th>Ngày gửi</th><th>Học viên</th><th>Phòng</th><th>Ngày trả</th><th>Lý do</th><th>Trạng thái</th><th></th></tr></thead><tbody>
@@ -72,7 +72,7 @@ async function viewRequests() {
         <td>${REASON_LABEL[c.reason] || 'Khác'}${c.note ? `<div class="muted" style="font-size:12px">${esc(c.note)}</div>` : ''}${noteLine(c.admin_note)}</td>
         <td>${nhanDonTraPhong(c)}</td>
         <td class="num"><div class="rowbtns" style="justify-content:flex-end">
-          ${c.status === 'pending' ? `<button class="btn sm danger" data-act="confirmCout" data-args='[${c.id}]' title="Chốt lịch trả dự kiến — chưa phải trả phòng thật">Đồng ý</button><button class="btn sm" data-act="rejectCout" data-args='[${c.id}]'>Từ chối</button>` : ''}
+          ${c.status === 'pending' ? `<button class="btn sm green" data-act="confirmCout" data-args='[${c.id}]' title="Duyệt lịch trả dự kiến — chưa phải trả phòng thật">Duyệt</button><button class="btn sm" data-act="rejectCout" data-args='[${c.id}]'>Từ chối</button>` : ''}
           <button class="btn sm ghost" title="Ghi chú" data-act="noteForm" data-args='["cout", ${c.id}]'>${IC.filePen}</button>
         </div></td></tr>`).join('')}
     </tbody></table></div>` : `<div class="empty">${emptyC}</div>`);
@@ -219,7 +219,7 @@ function choXacNhanRaHTML() {
 // "Không đến" = khoá hồ sơ với lý do — owner chốt: khoá là vô hiệu hoá tất cả, nhả chỗ, không tính tiền.
 function khongDenForm(id) {
   const s = studentById(id); if (!s) return;
-  if (!confirm(`${s.name} không đến nhận phòng?\n\nHồ sơ sẽ bị KHOÁ (lý do: không đến), chỗ đã đặt được nhả ra. Mở khoá được sau nếu bạn ấy quay lại.`)) return;
+  if (!confirm(`${s.name} không đến nhận phòng?\n\nHồ sơ sẽ bị KHOÁ (lý do: không đến), chỗ đã đặt được nhả ra. Mở khoá được sau nếu học viên quay lại.`)) return;
   return guard(() => API.deleteStudent(id, 'Không đến nhận phòng (dự kiến ' + fmtDate(s.planned_check_in) + ')')).then(async r => {
     if (r === null) return;
     await refreshCache(); toast('Đã khoá hồ sơ — chỗ đã nhả'); viewRequests();
@@ -260,12 +260,14 @@ const noteLine = n => n ? `<div class="sub2" style="color:var(--brand-d);white-s
 // Duyệt đơn chỉ chốt LỊCH (planned_check_out). "Đã trả phòng" chỉ khi hồ sơ có ngày trả THẬT
 // (đã xác nhận). Lịch đã qua mà chưa xác nhận -> "Chờ xác nhận trả" để BQL vào ô Trả phòng chốt.
 function nhanDonTraPhong(c) {
-  if (c.status === 'rejected') return '<span class="badge gray">Từ chối</span>';
-  if (c.status !== 'done') return '<span class="badge amber">Chờ duyệt</span>';
+  if (c.status === 'rejected' || c.status !== 'done') {
+    const [nhan, mau] = nhanTTDon(c.status === 'rejected' ? 'rejected' : 'pending');
+    return `<span class="badge ${mau}">${nhan}</span>`;
+  }
   if (c.student_check_out) return `<span class="badge green">Đã trả phòng · ${fmtDate(c.student_check_out)}</span>`;
   const ngay = String(c.student_planned_check_out || c.desired_date || '').slice(0, 10);
   if (ngay && ngay > today()) {
-    return `<span class="badge blue" title="Đã chốt lịch — tới ${fmtDate(ngay)} BQL xác nhận trả phòng thật">Đã xác nhận · trả ${fmtDate(ngay)}</span>`;
+    return `<span class="badge blue" title="Đã duyệt lịch — tới ${fmtDate(ngay)} Ban Quản lý xác nhận trả phòng thật">Đã duyệt · trả ${fmtDate(ngay)}</span>`;
   }
   return `<span class="badge amber" title="Tới lịch rồi nhưng chưa ai xác nhận học viên đã rời — vào Tổng quan › Trả phòng để chốt">Chờ xác nhận trả${ngay ? ' · ' + fmtDate(ngay) : ''}</span>`;
 }
@@ -353,22 +355,22 @@ function approveForm(id) {
   if (!a) return toast('Không tìm thấy đơn', 'err');
   quenPhongMoc();
   openModal(`
-    <div class="mh"><h3>${IC.plus} Thêm vào phòng: ${esc(a.name)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mh"><h3>${IC.check} Duyệt đơn đăng ký — ${esc(a.name)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <p class="muted">${esc(a.phone)} · ${genderLabel(a.gender)} · ${RENTAL_LABEL[a.rental_type] || 'Thuê ghép'}${a.pref ? ' · NV: ' + esc(a.pref) : ''}</p>
+      <p class="muted">${esc(a.phone)} · ${genderLabel(a.gender)} · ${RENTAL_LABEL[a.rental_type] || 'Thuê ghép'}${a.pref ? ' · Nguyện vọng: ' + esc(a.pref) : ''}</p>
       ${a.wants_washing || a.wants_parking || a.plate ? `<div class="bang-tin">Dịch vụ đăng ký: ${a.wants_washing ? `${IC.washer} Máy giặt ` : ''}${a.wants_parking || a.plate ? `${IC.bike} Gửi xe${a.plate ? ' (' + esc(a.plate) + ')' : ''}` : ''} — sẽ tự thêm khi duyệt.</div>` : ''}
       <div class="grid2">
         <div class="field"><label>Xếp phòng</label><select id="ap_room">${roomOptions('', a.gender)}</select></div>
-        <div class="field"><label>Ngày dự kiến nhận phòng${a.desired_check_in ? ' <span class="opt">(bạn ấy muốn ' + fmtDate(a.desired_check_in) + ')</span>' : ''}</label><input id="ap_date"></div>
+        <div class="field"><label>Ngày dự kiến nhận phòng${a.desired_check_in ? ' <span class="opt">(học viên muốn ' + fmtDate(a.desired_check_in) + ')</span>' : ''}</label><input id="ap_date"></div>
       </div>
       <div class="hint">${IC.info} Duyệt đơn chỉ là <strong>xếp chỗ ở</strong>. <strong>Hợp đồng</strong> nhập ở màn hồ sơ học viên khi ký thật; <strong>tiền cọc</strong> tự đánh dấu đã đóng khi phiếu báo kỳ nhận phòng được đánh dấu đã thu.</div>
       <label class="check" style="margin-top:8px"><input type="checkbox" id="ap_login" checked data-change="onApLoginToggle"> ${IC.key} Tạo tài khoản đăng nhập cho học viên</label>
       <div id="apLogin" style="background:var(--bg2);padding:12px;border-radius:10px;margin-top:8px">
         <div class="field" style="margin:0"><label>Tên đăng nhập <span class="opt">(trống = SĐT)</span></label><input id="ap_user" value="${esc(a.phone || '')}"></div>
-        <div class="hint" style="margin-top:8px">${IC.key} Mật khẩu do máy tự tạo và chỉ hiện <strong>một lần</strong> sau khi lưu — đưa tận tay học viên, lần đầu đăng nhập bạn ấy phải đổi.</div>
+        <div class="hint" style="margin-top:8px">${IC.key} Mật khẩu do máy tự tạo và chỉ hiện <strong>một lần</strong> sau khi lưu — đưa tận tay học viên, lần đầu đăng nhập học viên phải đổi.</div>
       </div>
     </div>
-    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="doApprove" data-args='[${a.id}]'>Xác nhận thêm</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="doApprove" data-args='[${a.id}]'>Duyệt</button></div>`);
   attachDate(el('ap_date'), (a.desired_check_in || '').slice(0, 10) || today(), { choTrong: 1, gt: a.gender });
   noNgayVoiPhong(el('ap_date'), 'ap_room', a.gender);   // BL-107: chỗ trống theo ngày vào, không theo hôm nay
 }
@@ -383,15 +385,16 @@ async function doApprove(id) {
   if (r === null) return; // đã có hồ sơ / người dùng huỷ — modal kia đã chỉ đường
   if (r === null) return; // hủy ở hộp xác nhận quá tải
   await refreshCache(); await luuXongVeLai(veLaiNen);
-  if (r.account) credentialModal(r.account.username, r.account.password);
-  else toast('Đã thêm học viên vào phòng');
+  if (r.account) credentialModal(r.account.username, r.account.password, 'Đã duyệt đơn và tạo tài khoản.');
+  else toast('Đã duyệt đơn — đã tạo hồ sơ học viên');
 }
 // BL-30: hộp tài khoản có nút Sao chép thay alert() (alert không copy được, dễ gõ sai khi gửi HV).
-function credentialModal(username, password) {
+// dauDong: câu mở đầu theo việc vừa làm (duyệt đơn / cấp tài khoản / đặt lại mật khẩu).
+function credentialModal(username, password, dauDong) {
   openModal(`
     <div class="mh"><h3>${IC.key} Tài khoản đăng nhập học viên</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <div class="bang-tin">${IC.checkCircle} Đã thêm học viên & tạo tài khoản. Gửi thông tin này cho học viên — <strong>đóng hộp là không xem lại được</strong> (phải vào Sửa hồ sơ để đặt lại mật khẩu).</div>
+      <div class="bang-tin">${IC.checkCircle} ${esc(dauDong || 'Đã tạo mật khẩu mới.')} Gửi thông tin này cho học viên — <strong>đóng hộp là không xem lại được</strong> (cần cấp lại thì vào hồ sơ học viên, bấm Đặt lại mật khẩu).</div>
       <div class="field"><label>Tên đăng nhập</label>
         <div class="flex" style="gap:6px"><input id="cred_user" value="${esc(username)}" readonly style="flex:1">
         <button type="button" class="btn sm" data-act="copyCred" data-args='["cred_user"]'>${IC.clipboard} Sao chép</button></div></div>
@@ -430,19 +433,19 @@ function confirmCout(id) {
   // BL-117: duyệt đơn = chốt LỊCH DỰ KIẾN. Ngày rời thật, chỉ số công-tơ, tiền, cọc — tất cả ở bước
   // xác nhận trả phòng (Check-out / an ninh bàn giao). Không hỏi công-tơ ở đây nữa: nhập là nhập số đoán.
   openModal(`
-    <div class="mh"><h3>${IC.doorOpen} Duyệt lịch trả phòng: ${esc(cr.student_name || (s && s.name) || '')}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mh"><h3>${IC.doorOpen} Duyệt đơn trả phòng — ${esc(cr.student_name || (s && s.name) || '')}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="field"><label>Ngày dự kiến trả${hasRoom ? ` <span class="opt">· phòng ${esc(roomName)}</span>` : ''}</label><input id="cc_date"></div>
       <div class="hint">${IC.info}<span>Đây mới là <strong>lịch</strong>. Tới ngày, học viên bàn giao xong thì bấm <strong>Xác nhận đã trả</strong> (hoặc xác nhận biên bản an ninh gửi) để ghi ngày rời thật, chốt công-tơ và tính tiền. Học viên vẫn "đang ở" cho tới lúc đó.</span></div>
     </div>
-    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn green" data-act="doConfirmCout" data-args='[${id}]'>Chốt lịch trả</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn green" data-act="doConfirmCout" data-args='[${id}]'>Duyệt</button></div>`);
   attachDate(el('cc_date'), cr.desired_date ? String(cr.desired_date).slice(0, 10) : today());
 }
 async function doConfirmCout(id) {
   const r = await guard(() => API.confirmCheckoutReq(id, { date: el('cc_date').dataset.iso }));
   if (r === null) return;
   await refreshCache(); await luuXongVeLai(veLaiNen);
-  toast(`Đã chốt lịch trả phòng ${fmtDate(r.planned_check_out)} — học viên vẫn đang ở tới khi xác nhận trả`);
+  toast(`Đã duyệt — lịch trả phòng ${fmtDate(r.planned_check_out)}. Học viên vẫn đang ở tới khi xác nhận đã trả`);
 }
 async function rejectCout(id) {
   const ten = ((ST.couts || []).find(c => c.id === id) || {}).student_name || '';
@@ -583,7 +586,7 @@ function suaNgayTraForm(id) {
     <div class="mh"><h3>${IC.calendar} Sửa ngày trả phòng: ${esc(s.name)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="bang-tin">${IC.info} Đang ghi nhận trả phòng ngày <strong>${esc(fmtDate(cu))}</strong>.
-        Đổi ngày sẽ tính lại phiếu của <strong>cả tháng cũ lẫn tháng mới</strong>, và tính lại phần điện của bạn cùng phòng.</div>
+        Đổi ngày sẽ tính lại phiếu của <strong>cả tháng cũ lẫn tháng mới</strong>, và tính lại phần điện của người cùng phòng.</div>
       <div class="field"><label>Ngày rời thực tế ${SAO}</label><input id="sn_date"></div>
       <div class="field"><label>Lý do trả phòng</label><select id="sn_reason">
         ${CHECKOUT_REASONS.map(([v, l]) => `<option value="${v}" ${s.checkout_reason === v ? 'selected' : ''}>${l}</option>`).join('')}
@@ -604,7 +607,7 @@ async function doSuaNgayTra(id) {
   }));
   await refreshCache(); await luuXongVeLai(veLaiNen);
   const n = (r.recalced_roommates || []).length;
-  toast(`Đã đổi ngày trả ${fmtDate(r.cu)} → ${fmtDate(r.moi)}${n ? ` · ${n} bạn cùng phòng được tính lại tiền điện` : ''}`);
+  toast(`Đã đổi ngày trả ${fmtDate(r.cu)} → ${fmtDate(r.moi)}${n ? ` · ${n} người cùng phòng được tính lại tiền điện` : ''}`);
   if (r.canh_bao) alert(r.canh_bao);   // phiếu kỳ này ĐÃ THU — app không tự sửa, phải nói to
 }
 async function doCheckOut(id, hoId) {
@@ -616,7 +619,7 @@ async function doCheckOut(id, hoId) {
   await refreshCache(); await luuXongVeLai(veLaiNen);
   const nRoom = r.recalced_roommates ? r.recalced_roommates.length : 0;
   toast(r.recalced
-    ? `Đã ${hoId ? 'xác nhận biên bản' : 'trả phòng'} · phiếu tháng tính lại ${r.recalced.days_stayed} ngày ở${nRoom ? ` · ${nRoom} bạn cùng phòng cũng được tính lại tiền điện` : ''}`
+    ? `Đã ${hoId ? 'xác nhận biên bản' : 'trả phòng'} · phiếu tháng tính lại ${r.recalced.days_stayed} ngày ở${nRoom ? ` · ${nRoom} người cùng phòng cũng được tính lại tiền điện` : ''}`
     : (hoId ? 'Đã xác nhận biên bản — học viên đã trả phòng' : 'Đã trả phòng'));
   if (r.canh_bao) alert(r.canh_bao);   // phiếu kỳ này ĐÃ THU — app không tự sửa, phải nói to
   if (s && s.deposit_status === 'held') depositSettlePrompt(id, r.refund);

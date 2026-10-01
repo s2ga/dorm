@@ -348,13 +348,13 @@ async function doSetLeader(roomId) {
   const r = await guard(() => API.setLeader(roomId, { student_id: +student_id, date: el('l_date').dataset.iso, note: el('l_note').value.trim() }));
   await refreshCache(); await luuXongVeLai(veLaiNen);
   const n = r && r.recalced ? r.recalced.length : 0;
-  toast(r && r.already ? 'Không có gì thay đổi — vẫn bạn này, vẫn ngày đó'
+  toast(r && r.already ? 'Không có gì thay đổi — vẫn học viên này, vẫn ngày đó'
     : r && r.doi_ngay ? `Đã sửa ngày nhận nhiệm vụ${n ? ` · tính lại ${n} phiếu` : ''}`
       : n ? `Đã cử phòng trưởng · tính lại ${n} phiếu` : 'Đã cử phòng trưởng');
 }
 async function unsetLeader(roomId) {
   const cur = leaderOf(roomId);
-  if (!confirm(`Miễn nhiệm phòng trưởng ${cur ? cur.name : ''}?\n\nTừ hôm nay bạn ấy không còn được miễn tiền nước và phí dịch vụ nữa.`)) return;
+  if (!confirm(`Miễn nhiệm phòng trưởng ${cur ? cur.name : ''}?\n\nTừ hôm nay học viên này không còn được miễn tiền nước và phí dịch vụ nữa.`)) return;
   await guard(() => API.unsetLeader(roomId, today()));
   await refreshCache(); await luuXongVeLai(veLaiNen); toast('Đã miễn nhiệm phòng trưởng');
 }
@@ -801,7 +801,7 @@ async function studentForm(id) {
     const st = el('f_cstatus');
     if (el('f_cdate').dataset.iso && st && ['unsigned', 'none'].includes(st.value)) {
       st.value = 'done';
-      toast('Có ngày ký → đã chuyển tình trạng HĐ sang "Đã ký"');
+      toast('Có ngày ký → đã chuyển tình trạng HĐ sang "Đã ký HĐ"');
     }
   };
   attachDate(el('f_out'), daRoi ? '' : coHienTai, { min: addDays(today(), 1) });
@@ -892,8 +892,8 @@ async function studentDetail(id) {
       <p><strong>Tài khoản:</strong> ${s.login_username ? `<span class="badge blue">${IC.key} ${esc(s.login_username)}</span>` : '<span class="muted">Chưa có</span>'}
         ${s.login_locked ? '<span class="badge red">Đã khoá</span>' : ''}
         ${s.login_locked
-      ? `<button class="btn sm" style="margin-left:8px" disabled title="Tài khoản đang khoá — mở khoá ở Cài đặt › Người dùng › Tài khoản học viên trước, rồi mới đặt lại mật khẩu">Đặt lại MK</button>`
-      : `<button class="btn sm" style="margin-left:8px" data-act="accountForm" data-args='[${s.id}, ${JSON.stringify(s.code || s.phone || "")}]'>${s.login_username ? 'Đặt lại MK' : 'Tạo tài khoản'}</button>`}</p>
+      ? `<button class="btn sm" style="margin-left:8px" disabled title="Tài khoản đang khoá — mở khoá ở Cài đặt › Người dùng › Tài khoản học viên trước, rồi mới đặt lại mật khẩu">Đặt lại mật khẩu</button>`
+      : `<button class="btn sm" style="margin-left:8px" data-act="accountForm" data-args='[${s.id}, ${JSON.stringify(s.code || s.phone || "")}]'>${s.login_username ? 'Đặt lại mật khẩu' : 'Tạo tài khoản'}</button>`}</p>
 
       <div class="panel" style="margin-top:12px"><div class="hd"><h2 style="font-size:14px">${IC.fileText} Hợp đồng</h2></div><div class="pad">
         <p style="margin:0">Số HĐ: ${s.contract_no
@@ -1150,7 +1150,7 @@ function duplicateModal(d) {
   const s = d.existing || {};
   const dangO = s.status === 'in';
   openModal(`
-    <div class="mh"><h3>${IC.alert} Bạn này đã có hồ sơ</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mh"><h3>${IC.alert} Hồ sơ đã tồn tại</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="bang-tin" style="margin:0 0 16px"><span>${esc(d.error)}</span></div>
       <div class="asset-item" style="padding:14px">
@@ -1163,7 +1163,7 @@ function duplicateModal(d) {
       <button class="btn" data-act="modalBack">Đóng</button>
       ${s.id ? (dangO
         ? `<button class="btn" data-close data-act="studentForm" data-args='[${s.id}]'>Xem hồ sơ</button>
-           <button class="btn pri" data-close data-act="transferForm" data-args='[${s.id}]'>${IC.transfer} Chuyển phòng cho bạn ấy</button>`
+           <button class="btn pri" data-close data-act="transferForm" data-args='[${s.id}]'>${IC.transfer} Chuyển phòng</button>`
         : `<button class="btn pri" data-close data-act="checkInForm" data-args='[${s.id}]'>${IC.doorOpen} Nhận phòng lại</button>`) : ''}
     </div>`);
 }
@@ -1342,7 +1342,7 @@ function appForm() {
   openModal(`
     <div class="mh"><h3>${IC.filePen} Tạo đơn đăng ký</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <div class="hint">${IC.info} Đơn tạo ở đây vào danh sách <strong>Đăng ký ở nội trú</strong> ở trạng thái <strong>Chờ duyệt</strong>. Bấm <strong>“Thêm vào phòng”</strong> để duyệt & tạo học viên.</div>
+      <div class="hint">${IC.info} Đơn tạo ở đây vào danh sách <strong>Đơn đăng ký</strong> ở trạng thái <strong>Chờ duyệt</strong>. Bấm <strong>Duyệt</strong> để xếp phòng và tạo hồ sơ học viên.</div>
       <div class="grid2">
         <div class="field"><label>Họ và tên *</label><input id="ap_name" placeholder="Nguyễn Văn A" data-change="onTenChuan"></div>
         <div class="field"><label>SĐT *</label><input id="ap_phone" placeholder="09..."></div>
@@ -1396,7 +1396,7 @@ function accountForm(id, code) {
     <div class="mb">
       <div class="field"><label>Tên đăng nhập <span class="opt">${code ? 'gợi ý sẵn — sửa được' : 'hồ sơ chưa có mã HV lẫn SĐT, phải tự đặt'}</span></label>
         <input id="a_user" value="${esc(code || '')}" placeholder="vd mã học viên hoặc số điện thoại"></div>
-      <div class="hint">${IC.key} Máy tự tạo mật khẩu và hiện <strong>một lần</strong> sau khi lưu — đưa tận tay học viên, lần đầu đăng nhập bạn ấy phải đổi.</div>
+      <div class="hint">${IC.key} Máy tự tạo mật khẩu và hiện <strong>một lần</strong> sau khi lưu — đưa tận tay học viên, lần đầu đăng nhập học viên phải đổi.</div>
     </div>
     <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="saveAccount" data-args='[${id}]'>Tạo / cấp lại mật khẩu</button></div>`);
   setTimeout(() => el('a_user').focus(), 50);
