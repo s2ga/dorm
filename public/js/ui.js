@@ -189,6 +189,15 @@ function modalThay(html) {
   // form thật đã có sẵn giá trị (kỳ tháng, chỉ số điện) -> đóng ra là bị hỏi "có dữ liệu chưa lưu"
   // dù chưa ai gõ gì.
   _formLucMo = _chupForm();
+  // Chụp thêm lần nữa sau tick này: attachDate/attachMonth gọi ngay sau modalThay điền ô ngày (như openModal).
+  setTimeout(() => { if (el('overlay').classList.contains('show')) _formLucMo = _chupForm(); }, 0);
+}
+// Mở lớp chờ NGAY khi bấm (bấm thêm lần nữa không mở thêm lớp), tải xong vẽ nội dung bằng modalThay.
+// Tải hỏng thì gỡ lớp chờ — lỗi đã được guard báo bằng toast.
+async function moModalCho(wide, nap) {
+  openModal(`<div class="mb"><div class="spinner"></div></div>`, wide);
+  try { return await nap(); }
+  catch (e) { if (el('overlay').classList.contains('show')) modalBack(); throw e; }
 }
 // LÙI MỘT LỚP: còn lớp dưới thì vẽ lại lớp đó (vd Sửa phòng -> về Chi tiết phòng), hết thì đóng hẳn.
 // Dùng cho: vuốt mép trái, nút ‹ trên đầu modal, Back của hệ điều hành.
@@ -296,7 +305,7 @@ function modalCuChiLui() {
 // F5 / đóng tab / bấm Back của trình duyệt khi form đang dở -> nhờ trình duyệt hỏi hộ.
 // closeModal chỉ cứu được đường TRONG app; F5 là đường của trình duyệt, phải chặn ở đây.
 window.addEventListener('beforeunload', e => {
-  if (window._dangLuu || !formDangDo()) return;
+  if (window._dangLuu || !(formDangDo() || (typeof caiDatDangDo === 'function' && caiDatDangDo()))) return;
   e.preventDefault(); e.returnValue = '';   // trình duyệt tự hiện hộp "Rời khỏi trang?"
 });
 

@@ -292,7 +292,7 @@ function roomDetail(id) {
       <button class="btn danger" data-act="delRoom" data-args='[${id}]'>${IC.trash} Xoá phòng</button>
       <button class="btn" data-act="leaderForm" data-args='[${id}]'>${IC.star} Phòng trưởng</button>
       <button class="btn" data-act="roomForm" data-args='[${id}]'>${IC.pencil} Sửa phòng</button>
-      <button class="btn pri" data-act="closeModal">Đóng</button>
+      <button class="btn pri" data-act="modalBack">Đóng</button>
     </div>`, true);
   napLichSuPhong(id);
 }
@@ -319,8 +319,9 @@ async function leaderForm(roomId) {
   const inRoom = ST.students.filter(s => s.room_id === roomId && isOccupying(s));
   // Ngày nhận nhiệm vụ đang ghi trong sổ — điền sẵn để sửa được, thay vì mặc định hôm nay.
   let tuNgay = today();
-  try { const l = await API.roomLeader(roomId); if (l && l.current && l.current.from_date) tuNgay = String(l.current.from_date).slice(0, 10); } catch {}
-  openModal(`
+  const l = await moModalCho(false, () => API.roomLeader(roomId).catch(() => null));
+  if (l && l.current && l.current.from_date) tuNgay = String(l.current.from_date).slice(0, 10);
+  modalThay(`
     <div class="mh"><h3>${IC.star} Phòng trưởng: ${esc(r.name || '')}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       ${!inRoom.length ? '<p class="muted">Phòng này chưa có ai ở — chưa cử phòng trưởng được.</p>' : `
@@ -336,7 +337,7 @@ async function leaderForm(roomId) {
     </div>
     <div class="mf">
       ${cur ? `<button class="btn danger" data-act="unsetLeader" data-args='[${roomId}]'>Miễn nhiệm ${esc(cur.name)}</button>` : ''}
-      <button class="btn" data-act="closeModal">Hủy</button>
+      <button class="btn" data-act="modalBack">Hủy</button>
       ${inRoom.length ? `<button class="btn pri" data-act="doSetLeader" data-args='[${roomId}]'>${cur ? 'Lưu' : 'Cử làm phòng trưởng'}</button>` : ''}
     </div>`);
   attachDate(el('l_date'), tuNgay);
@@ -402,7 +403,7 @@ function roomForm(id) {
       </select><div class="muted" style="font-size:11.5px;margin-top:4px">${IC.info} "Thuê nguyên phòng" <strong>không tính vào giường trống</strong> (bán trọn phòng). Phòng an ninh / nhân viên <strong>có</strong> tính, vì đã cho xếp người vào.</div></div>
       <div class="field"><label>Ghi chú <span class="opt">(mỗi dòng một ghi chú)</span></label><textarea id="f_note" rows="3">${esc(r.note || '')}</textarea></div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveRoom" data-args='[${id || 0}]'>Lưu</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="saveRoom" data-args='[${id || 0}]'>Lưu</button></div>`);
   setTimeout(() => el('f_name').focus(), 50);
 }
 async function saveRoom(id) {
@@ -691,7 +692,7 @@ const nhomForm = (ico, ten, noiDung) => `<div class="form-nhom"><h4>${ico || ''}
 async function studentForm(id) {
   if (!id) return;
   quenPhongMoc();
-  const s = await guard(() => API.student(id));
+  const s = await moModalCho(true, () => guard(() => API.student(id)));
   window._svV = s._v || null;   // ghi nhớ hồ sơ này ở phiên bản nào lúc mình MỞ form
   _cccdFront = null; _cccdBack = null; _cccdFrontChanged = false; _cccdBackChanged = false;
   _cccdGoc = { front: null, back: null };
@@ -700,7 +701,7 @@ async function studentForm(id) {
   // (đã xác nhận) thì khoá ô — phiếu đã phát, công-tơ đã chốt.
   const coHienTai = (s.planned_check_out || '').slice(0, 10);
   const daRoi = !!s.check_out_date;
-  openModal(`
+  modalThay(`
     <div class="mh"><h3>Sửa học viên</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       ${nhomForm(IC.user, 'Thông tin cá nhân', `
@@ -778,19 +779,12 @@ async function studentForm(id) {
             Phòng an ninh không cần ký gì.</span></div></div>
         ${/* Tệp scan lưu NGAY khi chọn, khác mọi ô còn lại vốn chờ nút Lưu. */''}
         <div class="field" style="margin:0"><label>File đính kèm <span class="opt">(bản scan HĐ — ảnh hoặc PDF)</span></label>
-          ${s.contract_scan
-    ? (s.contract_scan_ext === 'pdf'
-      ? `<a class="btn sm" href="${s.contract_scan}" target="_blank" rel="noopener">${IC.fileText} Mở bản scan (PDF)</a>`
-      : `<a href="${s.contract_scan}" target="_blank" rel="noopener" title="Bấm để xem cỡ đầy đủ"><img src="${s.contract_scan}" style="max-width:100%;max-height:200px;border-radius:8px;border:1px solid var(--line)"></a>`)
-    : '<p class="muted" style="margin:0 0 6px;font-size:12px">Chưa đính kèm.</p>'}
-          ${s.contract_scan ? ` <button type="button" class="btn sm ghost" data-act="goScanHD" data-args='[${id}]' title="Gỡ bản scan đang có">${IC.trash} Gỡ</button>` : ''}
-          <div style="margin-top:6px"><input type="file" accept="application/pdf,image/png,image/jpeg" id="hd_scan_form" data-change="tepScanHD" data-args='[${id}]'></div>
-          <div class="hint">${IC.info}<span>Chọn tệp là lưu ngay, không cần bấm Lưu. Nhận PDF · PNG · JPG, tối đa ${TEP_TOI_DA_MB}MB.</span></div>
+          <div id="f_scan">${khoiScanHD(s)}</div>
         </div>`)}
 
       <div class="hint">${IC.info}<span>Giảm giá theo % nay chỉnh ở màn <strong>Tiền phòng</strong> — bấm ✎ trên phiếu của học viên. Tiền nằm ở đâu thì sửa ở đó.</span></div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveStudent" data-args='[${id}]'>Lưu</button></div>`, true);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="saveStudent" data-args='[${id}]'>Lưu</button></div>`);
   if (s.cccd_front) { cccdDatGoc('front', s.cccd_front); cccdVeAnh('front', s.cccd_front); }
   if (s.cccd_back) { cccdDatGoc('back', s.cccd_back); cccdVeAnh('back', s.cccd_back); }
   attachDate(el('f_birth'), s.birth_date, { max: today() });
@@ -870,7 +864,7 @@ async function suggestContractNo(studentId) {
 }
 async function studentDetail(id) {
   datManChiTiet(studentDetail, id);   // form con lưu xong quay về đúng hồ sơ này (luuXongVeLai)
-  const s = await guard(() => API.student(id));
+  const s = await moModalCho(true, () => guard(() => API.student(id)));
   let invs = [], stays = null;
   // BL-11: server lọc theo student_id (không kéo 500 dòng nhật ký / toàn bộ hoá đơn mọi kỳ rồi .filter).
   try { invs = await API.invoices({ student_id: id }); } catch {}
@@ -881,7 +875,7 @@ async function studentDetail(id) {
   window._detailStudent = s;   // form xe lấy ngày nhận/trả phòng làm khoảng hiệu lực mặc định
   const vios = s.violations || [];
   const vthr = (ST.settings && +ST.settings.violation_mail_threshold) || 3;
-  openModal(`
+  modalThay(`
     <div class="mh"><h3>${esc(s.name)} <span class="badge ${s.gender === 'female' ? 'sage' : 'blue'}">${genderLabel(s.gender)}</span> ${statusBadge(s)}${s.deleted_at ? ` <span class="badge red">${IC.lock} Đã khoá — ${esc(s.lock_reason || LY_DO_KHOA_TRONG)}</span>` : ''}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       ${s.deleted_at ? `<div class="bang-tin" style="margin-top:0;border-color:var(--red-ink)">${IC.lock} <span>Hồ sơ này <strong>đang bị khoá</strong> từ ${fmtDate(String(s.deleted_at).slice(0, 10))} — bị ẩn khỏi danh sách và tài khoản không đăng nhập được. Dữ liệu vẫn còn nguyên.
@@ -961,7 +955,7 @@ async function studentDetail(id) {
         </div></div><div class="pad">
         ${vios.length >= vthr ? `<div class="bang-tin" style="background:var(--red-bg);border-color:#e3b8ad;color:var(--red-ink)">${IC.alert} Học viên đã vi phạm <strong>${vios.length} lần</strong> (≥ ${vthr})${vios.some(v => v.notified_school) ? ' — đã gửi mail nhà trường' : ' — cần thông báo nhà trường'}.</div>` : ''}
         ${vios.length ? `<div class="table-wrap"><table><thead><tr><th>Ngày</th><th>Loại vi phạm</th><th>Mức độ</th><th class="num">Lần</th><th></th></tr></thead><tbody>
-          ${vios.map(v => `<tr><td>${fmtDate(v.date)}</td><td><strong>${esc(v.type_name)}</strong>${v.note ? `<div class="muted" style="font-size:12px">${esc(v.note)}</div>` : ''}</td><td>${vioSevBadge(v.severity)}</td><td class="num"><span class="badge ${v.level >= vthr ? 'red' : 'gray'}">${v.level}</span></td><td class="num"><button class="btn sm ghost" data-act="delViolation" data-args='[${v.id}, ${s.id}]'>${IC.trash}</button></td></tr>`).join('')}
+          ${vios.map(v => `<tr><td>${fmtDate(v.date)}</td><td><strong>${esc(v.type_name)}</strong>${v.note ? `<div class="muted" style="font-size:12px">${esc(v.note)}</div>` : ''}</td><td>${vioSevBadge(v.severity)}</td><td class="num"><span class="badge ${v.level >= vthr ? 'red' : 'gray'}">${v.level}</span></td><td class="num"><button class="btn sm ghost" data-act="delViolation" data-args='[${v.id}, ${s.id}]' data-mota="${esc(`"${v.type_name || ''}" ngày ${fmtDate(v.date)} của ${s.name || ''}`)}" title="Xóa vi phạm">${IC.trash}</button></td></tr>`).join('')}
         </tbody></table></div>` : '<p class="muted" style="margin:0">Chưa có vi phạm.</p>'}
       </div></div>
 
@@ -982,24 +976,41 @@ async function studentDetail(id) {
     : `<button class="btn green" data-act="checkInForm" data-args='[${s.id}]'>Check-in lại</button>
        ${s.check_out_date ? `<button class="btn" data-act="suaNgayTraForm" data-args='[${s.id}]' title="Nhập nhầm ngày rời thì sửa ở đây">${IC.calendar} Sửa ngày trả</button>` : ''}`}
       ${s.deleted_at ? '' : `<button class="btn danger" data-act="delStudent" data-args='[${s.id}]'>${IC.lock} Khoá hồ sơ</button>`}
-    </div>`, true);
+    </div>`);
   if (!s.contract_no) hienSoHDDuKien(s);
+}
+// Khối đính kèm bản scan HĐ trong form Sửa — gỡ/đính kèm xong chỉ vẽ lại khối này.
+function khoiScanHD(s) {
+  return `${s.contract_scan
+    ? (s.contract_scan_ext === 'pdf'
+      ? `<a class="btn sm" href="${s.contract_scan}" target="_blank" rel="noopener">${IC.fileText} Mở bản scan (PDF)</a>`
+      : `<a href="${s.contract_scan}" target="_blank" rel="noopener" title="Bấm để xem cỡ đầy đủ"><img src="${s.contract_scan}" style="max-width:100%;max-height:200px;border-radius:8px;border:1px solid var(--line)"></a>`)
+    : '<p class="muted" style="margin:0 0 6px;font-size:12px">Chưa đính kèm.</p>'}
+    ${s.contract_scan ? ` <button type="button" class="btn sm ghost" data-act="goScanHD" data-args='[${s.id}]' title="Gỡ bản scan đang có">${IC.trash} Gỡ</button>` : ''}
+    <div style="margin-top:6px"><input type="file" accept="application/pdf,image/png,image/jpeg" id="hd_scan_form" data-change="tepScanHD" data-args='[${s.id}]'></div>
+    <div class="hint">${IC.info}<span>Chọn tệp là lưu ngay, không cần bấm Lưu. Nhận PDF · PNG · JPG, tối đa ${TEP_TOI_DA_MB}MB.</span></div>`;
+}
+// Lấy lại hồ sơ sau khi đổi bản scan: vẽ lại khối đính kèm + cập nhật dấu phiên bản, không thì bấm Lưu
+// báo "hồ sơ đã bị người khác sửa". Các ô khác trong form giữ nguyên chữ đang gõ.
+async function veLaiScanHD(id) {
+  const moi = await guard(() => API.student(id));
+  if (!moi) return;
+  window._svV = moi._v || null;
+  const o = el('f_scan');
+  if (o) o.innerHTML = khoiScanHD(moi);
 }
 // Đính kèm bản scan HĐ: đọc tệp thành data URL rồi gửi thẳng, máy chủ tự kiểm chữ ký tệp và
 // đẩy lên bucket riêng tư. Không giữ ảnh trong hồ sơ dạng data URL.
 function tepScanHD(id) {
   const f = this.files && this.files[0]; if (!f) return;
   if (!tepHopLe(this, f, 'Bản scan hợp đồng')) return;
-  const trongForm = !!el('f_cno');   // f_cno chỉ có ở form Sửa học viên (f_name còn dùng ở form Phòng)
+  const trongForm = !!el('f_scan');
   const r = new FileReader();
   r.onload = async () => {
     await guard(() => API.uploadContractScan(id, r.result));
     toast('Đã đính kèm bản scan hợp đồng');
-    // Đính kèm từ trong form thì KHÔNG nhảy sang thẻ chi tiết — nhảy là mất sạch ô đang nhập dở.
-    // Lấy lại dấu phiên bản vì bản ghi vừa đổi, không thì bấm Lưu báo "hồ sơ đã bị người khác sửa".
     if (!trongForm) return studentDetail(id);
-    const moi = await guard(() => API.student(id));
-    if (moi) window._svV = moi._v || null;
+    await veLaiScanHD(id);
   };
   r.readAsDataURL(f);
 }
@@ -1007,9 +1018,8 @@ async function goScanHD(id) {
   if (!confirm('Gỡ bản scan hợp đồng?\n\nTệp bị xoá khỏi kho, không khôi phục được.')) return;
   await guard(() => API.deleteContractScan(id));
   toast('Đã gỡ bản scan');
-  // Nút này nay nằm trong form Sửa: mở lại form để thấy ngay, đừng nhảy sang thẻ chi tiết làm mất
-  // những ô đang nhập dở.
-  if (el('f_cno')) studentForm(id); else studentDetail(id);
+  if (el('f_scan')) return veLaiScanHD(id);
+  studentDetail(id);
 }
 // Số kế tiếp của dãy pháp nhân — chỉ để tham khảo, số CHÍNH THỨC cấp lúc bấm Xác nhận nhận phòng.
 // Hỏi hụt, hoặc hồ sơ dùng chung HĐ phòng thuê trọn, thì bỏ nhãn đi — không hiện số sai.
@@ -1150,7 +1160,7 @@ function duplicateModal(d) {
       </div>
     </div>
     <div class="mf">
-      <button class="btn" data-act="closeModal">Đóng</button>
+      <button class="btn" data-act="modalBack">Đóng</button>
       ${s.id ? (dangO
         ? `<button class="btn" data-close data-act="studentForm" data-args='[${s.id}]'>Xem hồ sơ</button>
            <button class="btn pri" data-close data-act="transferForm" data-args='[${s.id}]'>${IC.transfer} Chuyển phòng cho bạn ấy</button>`
@@ -1185,7 +1195,7 @@ function transferForm(id) {
       <div class="field"><label>Ghi chú</label><input id="t_note" placeholder="${chuaXep ? 'Ghi chú (tuỳ chọn)...' : 'Lý do chuyển...'}"></div>
       ${s.room_id ? meterField('t_meter', s.room_name, 'chuyển đi') : ''}
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="doTransfer" data-args='[${id}]'>${chuaXep ? 'Xếp phòng' : 'Chuyển'}</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="doTransfer" data-args='[${id}]'>${chuaXep ? 'Xếp phòng' : 'Chuyển'}</button></div>`);
   attachDate(el('t_date'), today(), { choTrong: 1, gt: s.gender });
   noNgayVoiPhong(el('t_date'), 't_room', s.gender);
 }
@@ -1202,7 +1212,7 @@ async function doTransfer(id) {
 /* Hoàn cọc kèm khấu trừ hư hao tài sản + STK */
 async function refundForm(id) {
   // BL-78: số tài khoản hoàn cọc không còn nằm trong danh sách -> lấy từ hồ sơ chi tiết.
-  const s = (await guard(() => API.student(id))) || {};
+  const s = (await moModalCho(true, () => guard(() => API.student(id)))) || {};
   const deposit = +s.deposit_amount || 0;
   const assetRow = a => `<tr>
     <td>${esc(a.name)} <span class="muted" style="font-size:11px">(${esc(a.unit)})</span></td>
@@ -1212,7 +1222,7 @@ async function refundForm(id) {
   </tr>`;
   const person = ST.assets.filter(a => a.category === 'person');
   const fixed = ST.assets.filter(a => a.category === 'fixed');
-  openModal(`
+  modalThay(`
     <div class="mh"><h3>${IC.handCoins} Hoàn cọc: ${esc(s.name || '')}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="hint">Tick số lượng tài sản <strong>hư hao / mất / không vệ sinh</strong> để khấu trừ vào cọc. Có thể sửa đơn giá bồi hoàn.</div>
@@ -1231,7 +1241,7 @@ async function refundForm(id) {
       </div>
       <div class="field"><label>Ngày hoàn</label><input id="r_date"></div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn green" data-act="doRefund" data-args='[${id}, ${deposit}]'>Xác nhận hoàn cọc</button></div>`, true);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn green" data-act="doRefund" data-args='[${id}, ${deposit}]'>Xác nhận hoàn cọc</button></div>`);
   attachDate(el('r_date'), today());
   dedCalc();
 }
@@ -1301,8 +1311,8 @@ async function doKhoaHoSo(id) {
 // Bấm vào hàng để xem CHI TIẾT hồ sơ trước khi quyết định mở khoá (trước đây chỉ có tên/mã/phòng nên
 // không đủ căn cứ để dám mở lại).
 async function showDeletedStudents() {
-  const list = await guard(() => API.students(true));
-  openModal(`
+  const list = await moModalCho(true, () => guard(() => API.students(true)));
+  modalThay(`
     <div class="mh"><h3>${IC.lock} Học viên đã khoá (${list.length})</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       ${list.length ? `<div class="hint" style="margin-top:0">${IC.info} Bấm vào một dòng để xem <strong>chi tiết hồ sơ</strong> (phòng, hợp đồng, cọc, ngày ở, vi phạm…) rồi mở khoá ngay trong đó.</div>
@@ -1319,7 +1329,7 @@ async function showDeletedStudents() {
         </tr>`).join('')}
       </tbody></table></div>` : '<div class="empty">Không có học viên nào bị khoá.</div>'}
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Đóng</button></div>`, true);
+    <div class="mf"><button class="btn" data-act="modalBack">Đóng</button></div>`);
 }
 async function restoreStudentAndReload(id) {
   await guard(() => API.restoreStudent(id));
@@ -1357,7 +1367,7 @@ function appForm() {
       <div class="field"><label>Biển số xe (nếu gửi xe)</label><input id="ap_plate" placeholder="59-..."></div>
       <div class="field"><label>Ghi chú</label><textarea id="ap_note" rows="2"></textarea></div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveApp">Tạo đơn</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="saveApp">Tạo đơn</button></div>`);
   attachDate(el('ap_birth'), '', { max: today() });
   attachDate(el('ap_movein'), '', { min: today() });  // nhận phòng thì từ hôm nay trở đi
 }
@@ -1378,7 +1388,7 @@ async function saveApp() {
     wants_washing: el('ap_wash').checked, wants_parking: el('ap_park').checked, plate: el('ap_plate').value.trim(),
   };
   await guard(() => API.publicApply(body));
-  await refreshCache(); closeModal(); toast('Đã tạo đơn đăng ký (chờ duyệt)'); adminGo('reg');
+  await refreshCache(); await luuXongVeLai(veLaiNen); toast('Đã tạo đơn đăng ký (chờ duyệt)');
 }
 function accountForm(id, code) {
   openModal(`
@@ -1388,7 +1398,7 @@ function accountForm(id, code) {
         <input id="a_user" value="${esc(code || '')}" placeholder="vd mã học viên hoặc số điện thoại"></div>
       <div class="hint">${IC.key} Máy tự tạo mật khẩu và hiện <strong>một lần</strong> sau khi lưu — đưa tận tay học viên, lần đầu đăng nhập bạn ấy phải đổi.</div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveAccount" data-args='[${id}]'>Tạo / cấp lại mật khẩu</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="saveAccount" data-args='[${id}]'>Tạo / cấp lại mật khẩu</button></div>`);
   setTimeout(() => el('a_user').focus(), 50);
 }
 async function saveAccount(id) {
@@ -1408,7 +1418,7 @@ function depositForm(id) {
         <div class="field"><label>Ngày đóng</label><input id="d_date"></div>
       </div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveDeposit" data-args='[${id}]'>Lưu</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="saveDeposit" data-args='[${id}]'>Lưu</button></div>`);
   attachDate(el('d_date'), s.deposit_date || today());
 }
 async function saveDeposit(id) {
@@ -1430,7 +1440,10 @@ async function settleDeposit(id, action) {
 }
 
 /* ---------- QUỸ CỌC ---------- */
+// Hoàn cọc mở từ Quỹ cọc: lưu xong quay về Quỹ cọc để xử lý người kế tiếp.
+function hoanCocTuQuy(id) { datManChiTiet(quyCoc); return refundForm(id); }
 function quyCoc() {
+  datManChiTiet(quyCoc);
   const held = ST.students.filter(s => s.deposit_status === 'held');
   const pending = held.filter(s => liveStatus(s) === 'left');   // đã trả phòng, cọc chưa xử lý
   const staying = held.filter(s => liveStatus(s) !== 'left');
@@ -1442,7 +1455,7 @@ function quyCoc() {
     <td class="num">${money(s.deposit_amount)}</td>
     <td>${fmtDate(s.deposit_date)}</td>
     <td>${statusBadge(s)}</td>
-    <td class="num">${liveStatus(s) === 'left' ? `<button class="btn sm green" data-close data-act="refundForm" data-args='[${s.id}]'>Hoàn cọc</button>` : ''}</td>
+    <td class="num">${liveStatus(s) === 'left' ? `<button class="btn sm green" data-act="hoanCocTuQuy" data-args='[${s.id}]'>Hoàn cọc</button>` : ''}</td>
   </tr>`;
   openModal(`
     <div class="mh"><h3>${IC.lock} Quỹ cọc</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
@@ -1457,7 +1470,7 @@ function quyCoc() {
       <h4 style="margin:6px 0 8px">Đang giữ cọc (${staying.length})</h4>
       ${staying.length ? `<div class="table-wrap"><table><thead><tr><th>Học viên</th><th>Mã pháp nhân</th><th class="num">Cọc</th><th>Ngày đóng</th><th>Trạng thái</th><th></th></tr></thead><tbody>${staying.map(rowFor).join('')}</tbody></table></div>` : '<p class="muted">Chưa có.</p>'}
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Đóng</button></div>`, true);
+    <div class="mf"><button class="btn" data-act="modalBack">Đóng</button></div>`, true);
 }
 
 /* ---------- XE ---------- */

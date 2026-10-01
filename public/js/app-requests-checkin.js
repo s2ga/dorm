@@ -121,7 +121,7 @@ async function viewRequests() {
       <td>${v.notified_school ? '<span class="badge green">Đã báo</span>' : (v.level >= threshold ? '<span class="badge amber">Cần báo</span>' : '<span class="muted">—</span>')}</td>
       <td class="num"><div class="rowbtns" style="justify-content:flex-end">
         ${v.level >= threshold && !v.notified_school ? `<button class="btn sm" data-act="notifySchool" data-args='[${v.student_id}]'>${IC.inbox} Gửi mail</button>` : ''}
-        <button class="btn sm ghost" data-act="delViolation" data-args='[${v.id}]'>${IC.trash}</button>
+        <button class="btn sm ghost" data-act="delViolation" data-args='[${v.id}]' data-mota="${esc(`"${v.type_name || ''}" ngày ${fmtDate(v.date)} của ${v.student_name || ''}`)}" title="Xóa vi phạm">${IC.trash}</button>
       </div></td></tr>`).join('');
     hd = vioFilter === 'canbao'
       ? `${IC.alert} Vi phạm cần báo nhà trường (${soHVCanBao} học viên · ${dsVio.length} lượt)`
@@ -246,7 +246,7 @@ function noteForm(type, id) {
   openModal(`
     <div class="mh"><h3>${IC.filePen} Ghi chú xử lý</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb"><div class="field"><label>Ghi chú nội bộ <span class="opt">(chỉ quản lý thấy)</span></label><textarea id="nf_note" rows="4" placeholder="VD: đã gọi điện, hẹn xử lý...">${esc(cur || '')}</textarea></div></div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveNote" data-args='["${type}", ${id}]'>Lưu ghi chú</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="saveNote" data-args='["${type}", ${id}]'>Lưu ghi chú</button></div>`);
   setTimeout(() => el('nf_note').focus(), 50);
 }
 async function saveNote(type, id) {
@@ -297,7 +297,7 @@ function violationForm(studentId) {
       <div class="field"><label>Ghi chú / diễn giải</label><textarea id="vf_note" rows="2" placeholder="Mô tả cụ thể sự việc..."></textarea></div>
       <div class="hint">${IC.info} Khi học viên vi phạm đủ <strong>${thr} lần</strong>, hệ thống sẽ gửi email cho nhà trường (nếu đã cấu hình SMTP trong Cài đặt).</div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveViolation" data-args='[${studentId || 0}]'>Lưu vi phạm</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="saveViolation" data-args='[${studentId || 0}]'>Lưu vi phạm</button></div>`);
   attachDate(el('vf_date'), today());
 }
 async function saveViolation(studentId) {
@@ -311,17 +311,19 @@ async function saveViolation(studentId) {
   else toast(`Đã ghi nhận vi phạm lần ${r.level}`);
 }
 async function delViolation(id, studentId) {
-  if (!confirm('Xóa vi phạm này?')) return;
+  const moTa = (this && this.dataset && this.dataset.mota) || 'này';
+  if (!confirm(`Xóa vi phạm ${moTa}?`)) return;
   await guard(() => API.deleteViolation(id)); await napLai('students', 'vstats'); toast('Đã xóa vi phạm');
   await luuXongVeLai(veLaiNen);
 }
 async function notifySchool(studentId) {
-  if (!confirm('Gửi email thông báo vi phạm cho nhà trường?')) return;
+  const hv = studentById(studentId);
+  if (!confirm(`Gửi email thông báo vi phạm của ${hv ? hv.name : 'học viên này'} cho nhà trường?`)) return;
   const r = await guard(() => API.notifyViolation(studentId));
   await refreshCache();
   if (r.mail && r.mail.sent) toast('Đã gửi email cho nhà trường');
   else toast('Chưa gửi được email: ' + ((r.mail && r.mail.reason) || 'lỗi'), 'err');
-  if (el('overlay').classList.contains('show')) studentDetail(studentId); else adminGo(ST.view);
+  if (el('overlay').classList.contains('show')) studentDetail(studentId); else veLaiNen();
 }
 async function violationStatsModal() {
   const st = await guard(() => API.violationStats(curMonth().slice(0, 4)));
@@ -343,7 +345,7 @@ async function violationStatsModal() {
         ${st.byType.map(x => `<tr><td>${esc(x.type_name || '—')}</td><td class="num">${x.c}</td></tr>`).join('')}
       </tbody></table></div>` : '<p class="muted">—</p>'}
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Đóng</button></div>`, true);
+    <div class="mf"><button class="btn" data-act="modalBack">Đóng</button></div>`, true);
 }
 
 function approveForm(id) {
@@ -366,7 +368,7 @@ function approveForm(id) {
         <div class="hint" style="margin-top:8px">${IC.key} Mật khẩu do máy tự tạo và chỉ hiện <strong>một lần</strong> sau khi lưu — đưa tận tay học viên, lần đầu đăng nhập bạn ấy phải đổi.</div>
       </div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="doApprove" data-args='[${a.id}]'>Xác nhận thêm</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="doApprove" data-args='[${a.id}]'>Xác nhận thêm</button></div>`);
   attachDate(el('ap_date'), (a.desired_check_in || '').slice(0, 10) || today(), { choTrong: 1, gt: a.gender });
   noNgayVoiPhong(el('ap_date'), 'ap_room', a.gender);   // BL-107: chỗ trống theo ngày vào, không theo hôm nay
 }
@@ -397,15 +399,24 @@ function credentialModal(username, password) {
         <div class="flex" style="gap:6px"><input id="cred_pass" value="${esc(password)}" readonly style="flex:1">
         <button type="button" class="btn sm" data-act="copyCred" data-args='["cred_pass"]'>${IC.clipboard} Sao chép</button></div></div>
     </div>
-    <div class="mf"><button class="btn pri" data-act="copyCredBoth">${IC.clipboard} Sao chép cả hai</button><button class="btn" data-act="closeModal">Đóng</button></div>`);
+    <div class="mf"><button class="btn pri" data-act="copyCredBoth">${IC.clipboard} Sao chép cả hai</button><button class="btn" data-act="modalBack">Đóng</button></div>`);
 }
 function copyCred(inputId) { const inp = el(inputId); if (inp) copyToClipboard(inp.value); }
 function copyCredBoth() { copyToClipboard(`Tên đăng nhập: ${el('cred_user').value}\nMật khẩu: ${el('cred_pass').value}`); }
-async function rejectApp(id) { if (!confirm('Từ chối đơn này?')) return; await guard(() => API.rejectApplication(id)); toast('Đã từ chối'); viewRequests(); }
-async function delApp(id) { if (!confirm('Xóa đơn này?')) return; await guard(() => API.deleteApplication(id)); toast('Đã xóa'); viewRequests(); }
+const tenDon = id => ((ST.applications || []).find(a => a.id === id) || {}).name || '';
+async function rejectApp(id) {
+  if (!confirm(`Từ chối đơn đăng ký${tenDon(id) ? ' của ' + tenDon(id) : ''}?`)) return;
+  await guard(() => API.rejectApplication(id)); toast('Đã từ chối'); viewRequests();
+}
+async function delApp(id) {
+  if (!confirm(`Xóa đơn đăng ký${tenDon(id) ? ' của ' + tenDon(id) : ''}?`)) return;
+  await guard(() => API.deleteApplication(id)); toast('Đã xóa'); viewRequests();
+}
 async function setDamage(id, status) { await guard(() => API.updateDamage(id, { status })); toast('Đã cập nhật'); viewRequests(); }
 async function assignMaint(id) {
-  if (!confirm('Duyệt báo hư hỏng này và chuyển cho bộ phận bảo trì xử lý?')) return;
+  const d = (ST.damage || []).find(x => x.id === id) || {};
+  const moTa = [d.title ? `"${d.title}"` : '', d.room_name ? `phòng ${d.room_name}` : ''].filter(Boolean).join(' — ');
+  if (!confirm(`Duyệt báo hư hỏng${moTa ? ' ' + moTa : ''} và chuyển cho bộ phận bảo trì xử lý?`)) return;
   await guard(() => API.assignMaintenance(id));
   toast('Đã chuyển cho bộ phận bảo trì'); viewRequests();
 }
@@ -424,7 +435,7 @@ function confirmCout(id) {
       <div class="field"><label>Ngày dự kiến trả${hasRoom ? ` <span class="opt">· phòng ${esc(roomName)}</span>` : ''}</label><input id="cc_date"></div>
       <div class="hint">${IC.info}<span>Đây mới là <strong>lịch</strong>. Tới ngày, học viên bàn giao xong thì bấm <strong>Check-out</strong> (hoặc an ninh xác nhận ở cổng Bảo trì) để ghi ngày rời thật, chốt công-tơ và tính tiền. Học viên vẫn "đang ở" cho tới lúc đó.</span></div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn green" data-act="doConfirmCout" data-args='[${id}]'>Chốt lịch trả</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn green" data-act="doConfirmCout" data-args='[${id}]'>Chốt lịch trả</button></div>`);
   attachDate(el('cc_date'), cr.desired_date ? String(cr.desired_date).slice(0, 10) : today());
 }
 async function doConfirmCout(id) {
@@ -433,7 +444,11 @@ async function doConfirmCout(id) {
   await refreshCache(); await luuXongVeLai(veLaiNen);
   toast(`Đã chốt lịch trả phòng ${fmtDate(r.planned_check_out)} — học viên vẫn đang ở tới khi xác nhận trả`);
 }
-async function rejectCout(id) { if (!confirm('Từ chối đơn trả phòng?')) return; await guard(() => API.rejectCheckoutReq(id)); toast('Đã từ chối'); viewRequests(); }
+async function rejectCout(id) {
+  const ten = ((ST.couts || []).find(c => c.id === id) || {}).student_name || '';
+  if (!confirm(`Từ chối đơn trả phòng${ten ? ' của ' + ten : ''}?`)) return;
+  await guard(() => API.rejectCheckoutReq(id)); toast('Đã từ chối'); viewRequests();
+}
 
 /* ---------- CHECK-IN / OUT ---------- */
 /* ---- Biên bản bàn giao của an ninh (BL-121): quản trị xác nhận mới đổi hồ sơ ---- */
@@ -510,7 +525,7 @@ function checkInForm(id, hoId) {
       <div class="hint">${IC.info}<span>Ở <strong>dưới ${shortTermMaxDays()} ngày</strong> (điền ngày dự kiến trả) → ký phiếu bàn giao.
         Số hợp đồng lấy bằng nút ${IC.zap} trong hồ sơ học viên.</span></div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn green" data-act="doCheckIn" data-args='[${id}${bb ? ',' + bb.id : ''}]'${thieuCccd ? ' disabled title="Thiếu ảnh CCCD — bổ sung ảnh trước"' : ''}>Xác nhận check-in</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn green" data-act="doCheckIn" data-args='[${id}${bb ? ',' + bb.id : ''}]'${thieuCccd ? ' disabled title="Thiếu ảnh CCCD — bổ sung ảnh trước"' : ''}>Xác nhận check-in</button></div>`);
   attachDate(el('c_date'), bb ? String(bb.actual_date).slice(0, 10) : today(), { choTrong: 1, gt: s.gender });
   attachDate(el('c_pout'), (s.planned_check_out || '').slice(0, 10));
   noNgayVoiPhong(el('c_date'), 'c_room', s.gender);
@@ -550,7 +565,7 @@ function checkOutForm(id, hoId) {
       ${s.room_id ? meterField('c_meter', s.room_name, 'rời phòng', bb && bb.meter_reading != null ? 'an ninh đã ghi ở biên bản, sửa nếu đọc lại khác' : '') : ''}
       <div class="hint">${IC.info} App sẽ tự xét điều kiện hoàn cọc dựa trên ngày báo và lý do.</div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn danger" data-act="doCheckOut" data-args='[${id}${bb ? ',' + bb.id : ''}]'>Xác nhận check-out</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn danger" data-act="doCheckOut" data-args='[${id}${bb ? ',' + bb.id : ''}]'>Xác nhận check-out</button></div>`);
   attachDate(el('c_notice'), s.checkout_notice_date ? String(s.checkout_notice_date).slice(0, 10) : today());
   // Ngày rời THẬT: lịch không cho bấm sang ngày chưa tới (máy chủ cũng chặn).
   attachDate(el('c_date'), bb ? String(bb.actual_date).slice(0, 10) : today(), { max: today() });
@@ -577,7 +592,7 @@ function suaNgayTraForm(id) {
       ${s.room_id ? meterField('sn_meter', s.room_name, 'rời phòng') : ''}
       <div class="hint">${IC.info}<span>Bỏ trống chỉ số công-tơ nếu không cần chốt lại — phần điện vẫn được chia lại theo ngày mới.</span></div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="doSuaNgayTra" data-args='[${id}]'>Lưu ngày mới</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="doSuaNgayTra" data-args='[${id}]'>Lưu ngày mới</button></div>`);
   attachDate(el('sn_date'), cu, { max: today() }); // ngày rời thật — không nhận ngày chưa tới
 }
 async function doSuaNgayTra(id) {
@@ -648,7 +663,7 @@ function quickPick(type) {
     <div class="mh"><h3>${type === 'in' ? IC.check+' Check-in nhanh' : IC.undo+' Check-out nhanh'}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb"><div class="field"><label>Chọn học viên</label>
       <select id="q_stu">${pool.map(s => `<option value="${s.id}">${esc(s.name)} ${s.code ? '(' + esc(s.code) + ')' : ''}</option>`).join('')}</select></div></div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="quickPickGo" data-args='["${type}"]'>Tiếp tục</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="quickPickGo" data-args='["${type}"]'>Tiếp tục</button></div>`);
 }
 
 /* ---------- TIỀN PHÒNG / HÓA ĐƠN ---------- */

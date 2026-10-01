@@ -202,7 +202,8 @@ async function delInvoice(id) {
   const i = (_invAll || []).find(x => x.id === id) || {};   // BL-30: nêu tên/tổng để tránh xóa nhầm
   const who = [i.student_name, i.room_name].filter(Boolean).join(' · ');
   if (!confirm(`Xóa hóa đơn${who ? ' của ' + who : ''}${i.total != null ? ' (tổng ' + money(i.total) + ')' : ''}?`)) return;
-  await guard(() => API.deleteInvoice(id)); toast('Đã xóa'); viewInvoices();   // hoá đơn không nằm trong ST -> viewInvoices tự nạp lại
+  await guard(() => API.deleteInvoice(id)); toast('Đã xóa');
+  await luuXongVeLai(veLaiNen);   // phiếu không nằm trong ST -> màn Tiền phòng tự nạp lại khi vẽ
 }
 
 // Đánh dấu ĐÃ THU mọi phiếu chưa thu của kỳ đang xem (tiền đã thu hết ngoài đời, app còn "chưa thu").
@@ -239,7 +240,7 @@ function oneInvoiceForm() {
       </div>
       <div class="field"><label>Kỳ (tháng)</label><input id="oi_month"></div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveOneInvoice">Tạo &amp; xem phiếu báo</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="saveOneInvoice">Tạo &amp; xem phiếu báo</button></div>`);
   attachMonth(el('oi_month'), invMonth);
   locHVHoaDon();
 }
@@ -292,7 +293,7 @@ async function renderGenerateForm(month) {
       ${electricTable(rooms, lichSu)}
       <p class="muted" style="font-size:12px;margin-top:10px">Hóa đơn <strong>chưa đóng</strong> sẽ được <strong>tính lại</strong> theo điện & ngày mới; hóa đơn <strong>đã đóng</strong> được giữ nguyên. Phòng có người rời kỳ ${kyDien} mà thiếu chỉ số ngày rời sẽ bị <strong>bỏ qua</strong> — nhập bổ sung ở màn <em>Chỉ số điện</em> rồi chạy lại.</p>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="runGenerate">Lưu số điện & tạo/cập nhật hóa đơn</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="runGenerate">Lưu số điện & tạo/cập nhật hóa đơn</button></div>`);
   // attachMonth phát Event('change') KHÔNG nổi bọt -> data-change (uỷ quyền ở document) không bắt được;
   // phải gắn onchange thẳng vào ô.
   attachMonth(el('g_month'), month);
@@ -410,7 +411,7 @@ async function renderElectricForm(month) {
       ${electricTable(rooms, lichSu)}
       <div id="chot_giua_ky">${chotGiuaKyHTML(month, reads, rooms)}</div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Đóng</button><button class="btn pri" data-act="saveElectric">Lưu chỉ số điện</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Đóng</button><button class="btn pri" data-act="saveElectric">Lưu chỉ số điện</button></div>`);
   attachMonth(el('e_month'), month);
   el('e_month').onchange = () => renderElectricForm(el('e_month').dataset.ym);
 }
@@ -499,7 +500,7 @@ function chotGiuaKyHTML(month, reads, rooms) {
       <td class="num">${esc(String(r.reading))}</td>
       ${(dc => `<td class="num">${dc.cuoi}</td><td class="num">${dc.kwh}</td><td class="num">${dc.tien}</td>`)(
     cgkDoiChieu(r.room_id, String(r.read_date).slice(0, 10), +r.reading))}
-      <td><button class="btn sm" data-act="xoaChotGiuaKy" data-args='[${r.id}]' title="Gỡ lần chốt ghi nhầm">${IC.trash} Gỡ</button></td>
+      <td><button class="btn sm" data-act="xoaChotGiuaKy" data-args='[${r.id}]' data-mota="${esc(`phòng ${r.room_name || ''} ngày ${fmtDate(r.read_date)}${r.student_name ? ' — ' + r.student_name : ''}`)}" title="Gỡ lần chốt ghi nhầm">${IC.trash} Gỡ</button></td>
     </tr>`).join('');
   return `
     <h4 style="margin:18px 0 6px">Chốt giữa kỳ — chỉ số hôm học viên rời phòng</h4>
@@ -588,7 +589,8 @@ async function luuChotGiuaKy(idx, roomId, date, studentId) {
   await veLaiChotGiuaKy(el('e_month').dataset.ym || elecMonth);
 }
 async function xoaChotGiuaKy(id) {
-  if (!confirm('Gỡ lần chốt này? Hóa đơn liên quan sẽ được tính lại.')) return;
+  const moTa = (this && this.dataset && this.dataset.mota) || 'này';
+  if (!confirm(`Gỡ lần chốt ${moTa}? Phiếu báo liên quan sẽ được tính lại.`)) return;
   await guard(() => API.deleteMeterRead(id));
   toast('Đã gỡ lần chốt');
   await veLaiChotGiuaKy(el('e_month').dataset.ym || elecMonth);
@@ -657,7 +659,7 @@ async function runGenerate() {
   openModal(`
     <div class="mh"><h3>${IC.receipt} Xem trước — lập hoá đơn ${monthLabel(month)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">${genTomTat(pv, month, true)}</div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button>
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button>
       <button class="btn pri" data-act="genChot">${IC.check} Lập hoá đơn</button></div>`, true);
 }
 async function genChot() {
@@ -755,7 +757,7 @@ function invoiceForm(id) {
       </div>`;
   })()}
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveInvoice" data-args='[${id || 0}]'>Lưu</button></div>`, true);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="saveInvoice" data-args='[${id || 0}]'>Lưu</button></div>`, true);
   attachMonth(el('i_month'), i.month);
 }
 // BL-101: % giảm nằm ở hồ sơ (PUT students chỉ gửi đúng các cột %), xong tính lại phiếu đang mở.
@@ -935,7 +937,7 @@ async function phieuBao(inv) {
       </div>
     </div></div></div>
     <div class="mf rc-noprint">
-      <button class="btn" data-act="closeModal">Đóng</button>
+      <button class="btn" data-act="modalBack">Đóng</button>
       ${nutThuTien(inv)}
       <button class="btn" data-act="doPrint">${IC.printer} In phiếu</button>
       <button class="btn pri" data-act="downloadPhieuBao" data-args='["phieu-bao-${esc(String(s.code || inv.student_id))}-${inv.month}"]'>${IC.download} Tải phiếu báo</button>
@@ -1052,6 +1054,7 @@ function viewSettings() {
         <div class="field"><label>Hạn đóng tiền — đến ngày</label><input id="set_due_day_to" type="number" min="1" max="31" value="${esc(s.due_day_to ?? 5)}"></div>
       </div>
       <p class="muted" style="font-size:12px;margin:0">${IC.info} Tên KTX, hotline & hạn đóng hiện trên <strong>phiếu báo</strong>. Địa chỉ lấy theo từng cơ sở (mục <strong>Cơ sở</strong>).</p>
+      <button class="btn pri" style="margin-top:12px" data-act="saveSettings">Lưu cài đặt</button>
     </div></div>
     <div class="panel"><div class="hd"><h2>${IC.banknote} Đơn giá & quy tắc tính tiền</h2></div><div class="pad">
       <div class="grid2">
@@ -1139,9 +1142,8 @@ function viewSettings() {
 
     ${grpOpen('coso')}
     <div class="panel"><div class="hd"><h2>${IC.building} Cơ sở ký túc xá</h2><button class="btn sm" data-act="facilityForm">${IC.plus} Thêm cơ sở</button></div>
-      <div class="table-wrap"><table><thead><tr><th>Tên</th><th>Địa chỉ</th><th class="num">Số phòng</th><th></th></tr></thead><tbody>
-        ${ST.facilities.map(f => `<tr><td><strong>${esc(f.name)}</strong></td><td class="muted">${esc(f.address || '')}</td><td class="num">${f.room_count}</td>
-          <td class="num"><div class="rowbtns" style="justify-content:flex-end"><button class="btn sm" data-act="facilityForm" data-args='[${f.id}]'>Sửa</button><button class="btn sm danger" data-act="delFacility" data-args='[${f.id}]'>Xóa</button></div></td></tr>`).join('')}
+      <div class="table-wrap"><table><thead><tr><th>Tên</th><th>Địa chỉ</th><th class="num">Số phòng</th><th></th></tr></thead><tbody id="setFacRows">
+        ${hangCoSo()}
       </tbody></table></div>
     </div>
 
@@ -1165,13 +1167,8 @@ function viewSettings() {
     </div></div>
 
     <div class="panel"><div class="hd"><h2>${IC.armchair} Tài sản / trang thiết bị trong phòng</h2><button class="btn sm" data-act="assetForm">${IC.plus} Thêm tài sản</button></div>
-      <div class="table-wrap"><table><thead><tr><th>Tên tài sản</th><th>Loại</th><th>ĐVT</th><th class="num">SL</th><th class="num">Phí bồi hoàn</th><th></th></tr></thead><tbody>
-        ${ST.assets.map(a => `<tr>
-          <td><strong>${esc(a.name)}</strong></td>
-          <td>${a.category === 'person' ? '<span class="badge blue">Theo người</span>' : '<span class="badge gray">Cố định</span>'}</td>
-          <td>${esc(a.unit)}</td><td class="num">${a.quantity}</td><td class="num">${a.fee ? money(a.fee) : '<span class="muted">—</span>'}</td>
-          <td class="num"><div class="rowbtns" style="justify-content:flex-end"><button class="btn sm" data-act="assetForm" data-args='[${a.id}]'>Sửa</button><button class="btn sm ghost" data-act="delAsset" data-args='[${a.id}]'>${IC.trash}</button></div></td>
-        </tr>`).join('')}
+      <div class="table-wrap"><table><thead><tr><th>Tên tài sản</th><th>Loại</th><th>ĐVT</th><th class="num">SL</th><th class="num">Phí bồi hoàn</th><th></th></tr></thead><tbody id="setAssetRows">
+        ${hangTaiSan()}
       </tbody></table></div>
       <div class="pad muted" style="font-size:12.5px">${IC.bulb} Phí bồi hoàn dùng để khấu trừ vào cọc khi học viên trả phòng (nếu tài sản hư/mất/không vệ sinh).</div>
     </div>
@@ -1202,12 +1199,8 @@ function viewSettings() {
 
     ${grpOpen('vipham')}
     <div class="panel"><div class="hd"><h2>${IC.alert} Loại vi phạm / nhắc nhở</h2><button class="btn sm" data-act="vtypeForm">${IC.plus} Thêm loại</button></div>
-      <div class="table-wrap"><table><thead><tr><th>Tên loại vi phạm</th><th>Mức độ</th><th></th></tr></thead><tbody>
-        ${(ST.vtypes || []).map(t => `<tr>
-          <td><strong>${esc(t.name)}</strong>${t.active === false ? ' <span class="badge gray">Ẩn</span>' : ''}</td>
-          <td>${vioSevBadge(t.severity)}</td>
-          <td class="num"><div class="rowbtns" style="justify-content:flex-end"><button class="btn sm" data-act="vtypeForm" data-args='[${t.id}]'>Sửa</button><button class="btn sm ghost" data-act="delVtype" data-args='[${t.id}]'>${IC.trash}</button></div></td>
-        </tr>`).join('')}
+      <div class="table-wrap"><table><thead><tr><th>Tên loại vi phạm</th><th>Mức độ</th><th></th></tr></thead><tbody id="setVtypeRows">
+        ${hangLoaiVP()}
       </tbody></table></div>
       <div class="pad muted" style="font-size:12.5px">${IC.bulb} Dùng khi ghi nhận vi phạm cho học viên. Đủ số lần quy định (đặt ở nhóm <strong>Email (SMTP)</strong>), hệ thống gửi email nhà trường.</div>
     </div>
@@ -1326,7 +1319,54 @@ function viewSettings() {
   loadStudentAccounts();
   refreshRulesDocStatus();
   loadDataHealth();
+  chupCaiDat();
   syncFilterUrl(); // nhóm đang mở lên URL (?tab=) — deep-link/F5 vào đúng nhóm
+}
+// Mốc giá trị các ô Cài đặt lúc vẽ màn: rời màn khi còn ô gõ dở chưa lưu thì hỏi, như form trong modal.
+let _caiDatMoc = null;
+const _oCaiDat = () => [...document.querySelectorAll('#content [id^="set_"]')].filter(e => e.type !== 'file');
+const _giaTriO = e => (e.type === 'checkbox' ? String(e.checked) : e.value);
+function chupCaiDat() { _caiDatMoc = new Map(_oCaiDat().map(e => [e.id, _giaTriO(e)])); }
+// Lưu xong một nhóm: chỉ dời mốc của các ô vừa lưu — ô gõ dở ở panel khác vẫn tính là chưa lưu.
+function datMocCaiDat(keys) {
+  if (!_caiDatMoc) return;
+  keys.forEach(k => { const e = el('set_' + k); if (e) _caiDatMoc.set(e.id, _giaTriO(e)); });
+}
+function caiDatDangDo() {
+  if (ST.view !== 'settings' || !_caiDatMoc) return false;
+  return _oCaiDat().some(e => _caiDatMoc.has(e.id) && _caiDatMoc.get(e.id) !== _giaTriO(e));
+}
+// Bảng trong Cài đặt: thêm/sửa/xoá xong chỉ vẽ lại đúng bảng đó, không vẽ lại cả màn (mất chữ đang gõ ở panel khác).
+function veLaiBangCaiDat(id, hang) { const o = el(id); if (o) o.innerHTML = hang(); }
+function hangCoSo() {
+  return ST.facilities.map(f => `<tr><td><strong>${esc(f.name)}</strong></td><td class="muted">${esc(f.address || '')}</td><td class="num">${f.room_count}</td>
+    <td class="num"><div class="rowbtns" style="justify-content:flex-end"><button class="btn sm" data-act="facilityForm" data-args='[${f.id}]'>Sửa</button><button class="btn sm danger" data-act="delFacility" data-args='[${f.id}]'>Xóa</button></div></td></tr>`).join('')
+    || '<tr><td colspan="4" class="muted">Chưa có cơ sở nào.</td></tr>';
+}
+function hangTaiSan() {
+  return ST.assets.map(a => `<tr>
+    <td><strong>${esc(a.name)}</strong></td>
+    <td>${a.category === 'person' ? '<span class="badge blue">Theo người</span>' : '<span class="badge gray">Cố định</span>'}</td>
+    <td>${esc(a.unit)}</td><td class="num">${a.quantity}</td><td class="num">${a.fee ? money(a.fee) : '<span class="muted">—</span>'}</td>
+    <td class="num"><div class="rowbtns" style="justify-content:flex-end"><button class="btn sm" data-act="assetForm" data-args='[${a.id}]'>Sửa</button><button class="btn sm ghost" data-act="delAsset" data-args='[${a.id}]' title="Xóa tài sản">${IC.trash}</button></div></td>
+  </tr>`).join('') || '<tr><td colspan="6" class="muted">Chưa có tài sản nào.</td></tr>';
+}
+function hangLoaiVP() {
+  return (ST.vtypes || []).map(t => `<tr>
+    <td><strong>${esc(t.name)}</strong>${t.active === false ? ' <span class="badge gray">Ẩn</span>' : ''}</td>
+    <td>${vioSevBadge(t.severity)}</td>
+    <td class="num"><div class="rowbtns" style="justify-content:flex-end"><button class="btn sm" data-act="vtypeForm" data-args='[${t.id}]'>Sửa</button><button class="btn sm ghost" data-act="delVtype" data-args='[${t.id}]' title="Xóa loại vi phạm">${IC.trash}</button></div></td>
+  </tr>`).join('') || '<tr><td colspan="3" class="muted">Chưa có loại vi phạm nào.</td></tr>';
+}
+// Ảnh trang giới thiệu: tải/xoá xong chỉ nạp lại đúng ô ảnh đó.
+function veLaiAnhGioiThieu(key) {
+  const inp = document.querySelector(`#content input[data-mkey="${key}"]`);
+  const o = inp && inp.closest('.media-slot');
+  if (!o) return;
+  inp.value = '';
+  const img = o.querySelector('.media-thumb img'), rong = o.querySelector('.media-empty');
+  if (rong) rong.style.display = 'none';
+  if (img) { img.style.display = ''; img.src = `/api/public/image/${key}?t=${Date.now()}`; }
 }
 // Menu Cài đặt: đổi nhóm đang hiện, KHÔNG vẽ lại (giữ ảnh đã tải, không chạy lại loadAdminUsers/loadDataHealth).
 function settingsGo(t) {
@@ -1352,7 +1392,16 @@ const ROLE_LABEL = { admin: ['Quản trị viên', 'gray'], staff: ['Nhân viên
 async function loadAdminUsers() {
   const box = el('usrRows'); if (!box) return;
   let users = [];
-  try { users = await API.adminUsers(); } catch (e) { box.innerHTML = `<tr><td colspan="5" class="muted">${esc(e.message)}</td></tr>`; return; }
+  try { users = await API.adminUsers(); }
+  catch (e) {
+    // Một lời gọi nạp cả hai bảng -> hỏng thì báo ở cả hai, không để bảng Chờ duyệt quay spinner mãi.
+    const loi = n => `<tr><td colspan="${n}" class="muted">Không tải được danh sách: ${esc(e.message || 'lỗi kết nối')}
+      <button class="btn sm" style="margin-left:8px" data-act="loadAdminUsers">${IC.refresh} Thử lại</button></td></tr>`;
+    box.innerHTML = loi(5);
+    if (el('pendRows')) el('pendRows').innerHTML = loi(4);
+    if (el('pendCount')) el('pendCount').textContent = '—';
+    return;
+  }
   const me = Auth.user.id;
   // Chờ duyệt tách hẳn sang bảng riêng: nó là VIỆC PHẢI LÀM, còn bảng nhân viên là danh sách để tra
   // cứu. Trộn chung thì người mới nằm lẫn giữa vài chục dòng đã duyệt, dễ bỏ sót — mà họ đang đứng
@@ -1523,7 +1572,7 @@ function duyetTaiKhoanForm(id, mode) {
         <div class="hint" style="font-size:12px">${IC.lock} Email <strong>${esc(u.email || '—')}</strong> sẽ được ghi vào hồ sơ (nếu hồ sơ chưa có), lần sau học viên đăng nhập Microsoft là vào thẳng, khỏi qua đây.</div>
       </div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveApprove" data-args='[${id}]'>${chuyen ? 'Chuyển thành học viên' : 'Duyệt'}</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="saveApprove" data-args='[${id}]'>${chuyen ? 'Chuyển thành học viên' : 'Duyệt'}</button></div>`);
   apFilterHV(); // vẽ danh sách hồ sơ lần đầu (gợi ý lên trước) — modal vừa dựng xong nên el() có DOM
 }
 function apToggle() {
@@ -1604,7 +1653,7 @@ function userForm(id) {
         <div style="margin-top:8px"><button type="button" class="btn sm pri" data-act="linkTenant" data-args='[${id}]'>${IC.home} Gắn hồ sơ đã chọn</button></div>`}
       </div>` : ''}
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveUser" data-args='[${id || 0}]'>Lưu</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="saveUser" data-args='[${id || 0}]'>Lưu</button></div>`);
   if (id && !u.student_id) {
     // Tái dùng bộ chọn hồ sơ của duyetTaiKhoanForm; chỉ hồ sơ CHƯA có tài khoản (login_username rỗng).
     _apHV = (ST.students || []).filter(s => !s.login_username)
@@ -1643,7 +1692,12 @@ async function loadStudentAccounts() {
   const box = el('stuAccRows'); if (!box) return;
   let list = [];
   try { list = await API.studentAccounts(); }
-  catch (e) { box.innerHTML = `<tr><td colspan="6" class="muted">${esc(e.message)}</td></tr>`; return; }
+  catch (e) {
+    box.innerHTML = `<tr><td colspan="6" class="muted">Không tải được danh sách: ${esc(e.message || 'lỗi kết nối')}
+      <button class="btn sm" style="margin-left:8px" data-act="loadStudentAccounts">${IC.refresh} Thử lại</button></td></tr>`;
+    if (el('stuAccCount')) el('stuAccCount').textContent = '—';
+    return;
+  }
   window._stuAccCache = list;
   const cnt = el('stuAccCount'); if (cnt) cnt.textContent = list.length;
   box.innerHTML = list.map(u => {
@@ -1682,7 +1736,7 @@ function stuAccPwForm(id) {
       <p class="muted" style="margin-top:0">Học viên: <strong>${esc(u.student_name || '')}</strong> · Tài khoản: <strong>${esc(u.username)}</strong></p>
       <div class="hint" style="font-size:12px">${IC.key} Máy tự tạo mật khẩu mới và hiện <strong>một lần</strong>. Học viên bị <strong>buộc đổi mật khẩu</strong> ở lần đăng nhập kế, và mọi thiết bị đang đăng nhập bị đá ra ngay.</div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="doStuAccPw" data-args='[${id}]'>Cấp lại mật khẩu</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="doStuAccPw" data-args='[${id}]'>Cấp lại mật khẩu</button></div>`);
 }
 async function doStuAccPw(id) {
   const u = (window._stuAccCache || []).find(x => x.id === id); if (!u) return;
@@ -1712,7 +1766,7 @@ function khoaStuAccForm(id) {
         Muốn ngừng tính tiền thì đó là <strong>"Khoá hồ sơ"</strong> ở màn Học viên, không phải nút này.
         Mở lại bất cứ lúc nào ngay tại bảng này.</div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="khoaStuAcc" data-args='[${id}]'>Khoá đăng nhập</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="khoaStuAcc" data-args='[${id}]'>Khoá đăng nhập</button></div>`);
 }
 async function khoaStuAcc(id) {
   await guard(() => API.lockStudentAccount(id));
@@ -1756,7 +1810,7 @@ function doiVeNhanVienForm(id) {
         Giữ: một tài khoản vào được cả màn quản trị lẫn cổng khách thuê.</div></div>
       ${dangO ? `<div class="hint" style="font-size:12px">${IC.alert} Hồ sơ này <strong>đang ở</strong>. Nếu người đang ở thật là học viên thì gỡ liên kết sẽ lấy mất lối đăng nhập của họ — cân nhắc chọn "Giữ".</div>` : ''}
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="doiVeNhanVien" data-args='[${id}]'>Đổi về nhân viên</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="doiVeNhanVien" data-args='[${id}]'>Đổi về nhân viên</button></div>`);
 }
 async function doiVeNhanVien(id) {
   const body = { role: el('dv_role').value, facility_id: el('dv_facility').value, keep_student: el('dv_keep').value === '1' };
@@ -1773,7 +1827,7 @@ function resetUserPwForm(id) {
       <p class="muted" style="margin-top:0">Tài khoản: <strong>${esc(u ? u.username : '')}</strong></p>
       <div class="field"><label>Mật khẩu mới *</label><input id="u_newpass" type="text" placeholder="Tối thiểu 6 ký tự"></div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="doResetUserPw" data-args='[${id}]'>Đổi mật khẩu</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="doResetUserPw" data-args='[${id}]'>Đổi mật khẩu</button></div>`);
 }
 async function doResetUserPw(id) {
   const pw = el('u_newpass').value.trim();
@@ -1800,14 +1854,15 @@ function uploadIntroMedia(key, input) {
   r.onload = async () => {
     try {
       await guard(() => API.uploadMedia(key, r.result));
-      toast('Đã cập nhật ảnh'); viewSettings();
+      toast('Đã cập nhật ảnh'); veLaiAnhGioiThieu(key);
     } catch (e) { input.value = ''; }
   };
   r.readAsDataURL(f);
 }
 async function removeIntroMedia(key) {
-  if (!confirm('Xóa ảnh này? Trang giới thiệu sẽ hiện ô mẫu.')) return;
-  await guard(() => API.deleteMedia(key)); toast('Đã xóa ảnh'); viewSettings();
+  const nhan = (INTRO_MEDIA.find(m => m[0] === key) || [])[1] || key;
+  if (!confirm(`Xóa ảnh "${nhan}"? Trang giới thiệu sẽ hiện ô mẫu.`)) return;
+  await guard(() => API.deleteMedia(key)); toast('Đã xóa ảnh'); veLaiAnhGioiThieu(key);
 }
 
 /* Nội quy ký túc xá (PDF) — học viên xem ở trang "Phòng của tôi" */
@@ -1816,14 +1871,14 @@ function uploadRulesDoc(input) {
   if (!tepHopLe(input, f, 'Tài liệu', ['application/pdf'])) return;
   const r = new FileReader();
   r.onload = async () => {
-    try { await guard(() => API.uploadDoc('noi-quy', r.result)); toast('Đã cập nhật nội quy'); viewSettings(); }
+    try { await guard(() => API.uploadDoc('noi-quy', r.result)); toast('Đã cập nhật nội quy'); refreshRulesDocStatus(); }
     catch (e) { input.value = ''; }
   };
   r.readAsDataURL(f);
 }
 async function removeRulesDoc() {
   if (!confirm('Xóa file nội quy?\n\nHọc viên sẽ không còn thấy mục "Nội quy ký túc xá" trong trang Phòng của tôi.')) return;
-  await guard(() => API.deleteMedia('noi-quy')); toast('Đã xóa nội quy'); viewSettings();
+  await guard(() => API.deleteMedia('noi-quy')); toast('Đã xóa nội quy'); refreshRulesDocStatus();
 }
 /* ---- Tình trạng dữ liệu ----
    CSDL có tuyến phòng thủ chặn rác (tiền âm, trùng mã, trùng CCCD...). Nhưng ràng buộc CHỈ áp được
@@ -1904,13 +1959,15 @@ async function saveIntro() {
   const body = {};
   INTRO_FIELDS.forEach(([k]) => body[k] = el('set_' + k).value);
   await guard(() => API.updateSettings(body));
+  datMocCaiDat(Object.keys(body));
   await napLai('settings'); toast('Đã lưu nội dung trang giới thiệu'); // BL-24: không re-render, giữ input panel khác
 }
 async function saveImgCaptions() {
   const body = {};
   INTRO_MEDIA.forEach(([key]) => { const inp = el('set_imgcap_' + key); if (inp) body['imgcap_' + key] = inp.value; });
   await guard(() => API.updateSettings(body));
-  await napLai('settings'); toast('Đã lưu nhãn ảnh'); viewSettings();
+  datMocCaiDat(Object.keys(body));
+  await napLai('settings'); toast('Đã lưu nhãn ảnh');
 }
 function vtypeForm(id) {
   const t = id ? (ST.vtypes || []).find(x => x.id === id) : { name: '', severity: 'minor', active: true };
@@ -1924,16 +1981,20 @@ function vtypeForm(id) {
         ${id ? `<div class="field"><label>Trạng thái</label><select id="vt_active"><option value="1" ${t.active !== false ? 'selected' : ''}>Đang dùng</option><option value="0" ${t.active === false ? 'selected' : ''}>Ẩn</option></select></div>` : ''}
       </div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveVtype" data-args='[${id || 0}]'>Lưu</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="saveVtype" data-args='[${id || 0}]'>Lưu</button></div>`);
   setTimeout(() => el('vt_name').focus(), 50);
 }
 async function saveVtype(id) {
   const body = { name: el('vt_name').value.trim(), severity: el('vt_sev').value, active: id ? el('vt_active').value === '1' : true };
   if (!body.name) return toast('Nhập tên loại vi phạm', 'err');
   await guard(() => id ? API.updateVType(id, body) : API.createVType(body));
-  await napLai('vtypes'); closeModal(); toast('Đã lưu loại vi phạm'); viewSettings();
+  await napLai('vtypes'); closeModal(); toast('Đã lưu loại vi phạm'); veLaiBangCaiDat('setVtypeRows', hangLoaiVP);
 }
-async function delVtype(id) { if (!confirm('Xóa loại vi phạm này?')) return; await guard(() => API.deleteVType(id)); await napLai('vtypes'); toast('Đã xóa'); viewSettings(); }
+async function delVtype(id) {
+  const t = (ST.vtypes || []).find(x => x.id === id) || {};
+  if (!confirm(`Xóa loại vi phạm "${t.name || ''}"?`)) return;
+  await guard(() => API.deleteVType(id)); await napLai('vtypes'); toast('Đã xóa'); veLaiBangCaiDat('setVtypeRows', hangLoaiVP);
+}
 async function saveSsoSettings() {
   const body = {
     sso_enabled: el('set_sso_enabled').value,
@@ -1949,6 +2010,7 @@ async function saveSsoSettings() {
     return toast('Bật SSO cần ít nhất Tenant ID + Client ID', 'err');
   }
   await guard(() => API.updateSettings(body));
+  datMocCaiDat([...Object.keys(body), 'sso_client_secret']);
   await napLai('settings'); toast('Đã lưu cấu hình đăng nhập Microsoft'); // BL-24: không re-render, giữ input panel khác
   // Badge "Đang bật/Đang tắt" do máy chủ tính -> vẽ lại riêng nó cho khớp, không re-render cả màn.
   const badge = el('ssoStateBadge');
@@ -1968,6 +2030,7 @@ async function saveMailSettings() {
     smtp_from: el('set_smtp_from').value.trim(),
   };
   await guard(() => API.updateSettings(body));
+  datMocCaiDat(Object.keys(body));
   await napLai('settings'); toast('Đã lưu cấu hình email'); // BL-24: không re-render, giữ input panel khác
 }
 async function testSmtpConnection() {
@@ -2006,20 +2069,25 @@ function assetForm(id) {
         <div class="field"><label>Phí bồi hoàn <span class="opt">(đồng)</span></label><input id="as_fee" type="number" min="0" value="${esc(a.fee)}"></div>
       </div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveAsset" data-args='[${id || 0}]'>Lưu</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="saveAsset" data-args='[${id || 0}]'>Lưu</button></div>`);
   setTimeout(() => el('as_name').focus(), 50);
 }
 async function saveAsset(id) {
   const body = { name: el('as_name').value.trim(), category: el('as_cat').value, unit: el('as_unit').value.trim() || 'Cái', quantity: +el('as_qty').value || 0, fee: +el('as_fee').value || 0 };
   if (!body.name) return toast('Nhập tên tài sản', 'err');
   await guard(() => id ? API.updateAsset(id, body) : API.createAsset(body));
-  await napLai('assets'); closeModal(); toast('Đã lưu tài sản'); viewSettings();
+  await napLai('assets'); closeModal(); toast('Đã lưu tài sản'); veLaiBangCaiDat('setAssetRows', hangTaiSan);
 }
-async function delAsset(id) { if (!confirm('Xóa tài sản này?')) return; await guard(() => API.deleteAsset(id)); await napLai('assets'); toast('Đã xóa'); viewSettings(); }
+async function delAsset(id) {
+  const a = ST.assets.find(x => x.id === id) || {};
+  if (!confirm(`Xóa tài sản "${a.name || ''}"?`)) return;
+  await guard(() => API.deleteAsset(id)); await napLai('assets'); toast('Đã xóa'); veLaiBangCaiDat('setAssetRows', hangTaiSan);
+}
 async function saveBravo() {
   const keys = ['bravo_fee_type', 'bravo_room', 'bravo_electric', 'bravo_water', 'bravo_service', 'bravo_parking', 'bravo_washing', 'bravo_deposit'];
   const body = {}; keys.forEach(k => body[k] = el('set_' + k).value.trim());
   await guard(() => API.updateSettings(body));
+  datMocCaiDat(keys);
   await napLai('settings'); toast('Đã lưu mã Bravo'); // BL-24: không re-render, giữ input panel khác
 }
 // Wifi + số trực: nút Lưu riêng (như saveIntro/saveBravo) để lưu một nhóm mà không đụng panel khác.
@@ -2028,6 +2096,7 @@ async function saveHocVienInfo() {
   ['wifi_ssid', 'wifi_password', 'security_day_phone', 'security_night_phone', 'security_day_from', 'security_day_to']
     .forEach(k => { const inp = el('set_' + k); if (inp) body[k] = inp.value.trim(); });
   await guard(() => API.updateSettings(body));
+  datMocCaiDat(Object.keys(body));
   await napLai('settings'); toast('Đã lưu wifi & số trực');   // BL-24: không re-render, giữ input panel khác
 }
 function feeHint(key) { const h = el('hint_' + key), i = el('set_' + key); if (h && i) h.textContent = money(i.value || 0); }
@@ -2045,6 +2114,7 @@ async function saveSettings() {
     'room_area_A', 'room_area_B', 'room_area_C', 'room_area_D']
     .forEach(k => { const inp = el('set_' + k); if (inp) body[k] = inp.value; });
   await guard(() => API.updateSettings(body));
+  datMocCaiDat(Object.keys(body));
   // BL-24: KHÔNG re-render toàn trang sau khi lưu — giữ input đang gõ ở các panel khác (mọi panel
   // đều nằm trong DOM). Giá trị hiển thị đã là giá trị vừa gõ = giá trị đã lưu, không cần vẽ lại.
   await napLai('settings'); toast('Đã lưu cài đặt');
@@ -2057,19 +2127,19 @@ function facilityForm(id) {
       <div class="field"><label>Tên cơ sở *</label><input id="fc_name" value="${esc(f.name)}" placeholder="VD: Cơ sở 2"></div>
       <div class="field"><label>Địa chỉ</label><input id="fc_addr" value="${esc(f.address || '')}"></div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="saveFacility" data-args='[${id || 0}]'>Lưu</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="saveFacility" data-args='[${id || 0}]'>Lưu</button></div>`);
   setTimeout(() => el('fc_name').focus(), 50);
 }
 async function saveFacility(id) {
   const body = { name: el('fc_name').value.trim(), address: el('fc_addr').value.trim() };
   if (!body.name) return toast('Nhập tên cơ sở', 'err');
   await guard(() => id ? API.updateFacility(id, body) : API.createFacility(body));
-  await refreshCache(); closeModal(); toast('Đã lưu cơ sở'); viewSettings();
+  await refreshCache(); closeModal(); toast('Đã lưu cơ sở'); veLaiBangCaiDat('setFacRows', hangCoSo);
 }
 async function delFacility(id) {
   const f = (ST.facilities || []).find(x => x.id === id) || {};   // BL-30 + BL-35[11a]: nêu tên + cảnh báo dây chuyền
   if (!confirm(`Xóa cơ sở "${f.name || ''}"${f.room_count ? ` — đang có ${f.room_count} phòng, xóa có thể ảnh hưởng dữ liệu liên quan` : ''}?`)) return;
-  await guard(() => API.deleteFacility(id)); await refreshCache(); toast('Đã xóa'); viewSettings();
+  await guard(() => API.deleteFacility(id)); await refreshCache(); toast('Đã xóa'); veLaiBangCaiDat('setFacRows', hangCoSo);
 }
 
 /* ---------- ĐỔI MẬT KHẨU ---------- */
@@ -2080,7 +2150,7 @@ function changePwd() {
       <div class="field"><label>Mật khẩu mới <span class="opt">(tối thiểu 6 ký tự)</span></label><input id="cp_new" type="password"></div>
       <div class="field"><label>Nhập lại mật khẩu mới</label><input id="cp_new2" type="password"></div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="doChangePwd">Đổi mật khẩu</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="doChangePwd">Đổi mật khẩu</button></div>`);
 }
 async function doChangePwd() {
   const n1 = el('cp_new').value, n2 = el('cp_new2').value;

@@ -548,7 +548,7 @@ function adminGo(view, opts) {
   if (!_bootLoaded) return bootLoad(view, { replace: true });
   // Đang điền dở form mà bấm menu khác -> hỏi trước, đừng vứt luôn công sức của người ta.
   // _dangLuu = đang trong luồng lưu (adminGo được gọi lại sau khi lưu xong) -> không hỏi.
-  if (!window._dangLuu && typeof formDangDo === 'function' && formDangDo()) {
+  if (!window._dangLuu && typeof formDangDo === 'function' && (formDangDo() || caiDatDangDo())) {
     if (!confirm('Bạn có dữ liệu chưa lưu.\n\nRời khỏi và bỏ những gì vừa nhập?')) {
       // Người dùng bấm Back rồi lại Huỷ: trình duyệt ĐÃ lùi URL — kéo lại về màn đang đứng.
       // pushState KHÔNG kích hoạt popstate nên không sinh vòng lặp. Giữ cả bộ lọc đang xem (BL-17).

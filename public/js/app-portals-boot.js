@@ -16,7 +16,7 @@ async function renderStudent() {
         <div class="flex" style="gap:10px">
           <button class="notif-bell" id="hvNotifBell" title="Thông báo" aria-haspopup="dialog" aria-expanded="false" data-act="toggleHvNotif">${IC.bell}<span class="notif-dot" id="hvNotifDot" style="display:none"></span></button>
         </div>
-        <div class="toolbar">${laKiemNhiem() ? `<button class="btn sm" data-act="switchPortal" data-args='["work"]'>${IC.arrowLeft} Về cổng làm việc</button>` : ''}${dungMatKhau() ? `<button class="btn sm" data-act="changePwd">${IC.key} Đổi mật khẩu</button>` : ''}<button class="btn sm" data-act="logout">${IC.logOut} Đăng xuất</button></div>
+        <div class="toolbar"><button class="btn sm" data-act="loadStudentPortal">${IC.refresh} Tải lại</button>${laKiemNhiem() ? `<button class="btn sm" data-act="switchPortal" data-args='["work"]'>${IC.arrowLeft} Về cổng làm việc</button>` : ''}${dungMatKhau() ? `<button class="btn sm" data-act="changePwd">${IC.key} Đổi mật khẩu</button>` : ''}<button class="btn sm" data-act="logout">${IC.logOut} Đăng xuất</button></div>
       </div>
       <div class="content" id="content"><div class="spinner"></div></div>
     </div></div>`;
@@ -62,12 +62,16 @@ function myInvoiceDetail(id) {
       </tbody></table></div>
       <p class="muted" style="font-size:12.5px;margin:12px 0 0">${IC.creditCard} Đóng tiền qua mã QR quản lý gửi trên Zalo.</p>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Đóng</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Đóng</button></div>`);
 }
 async function loadStudentPortal() {
   let profile, invs, damage, coutReqs, myVios = [], mates = [], assets = [], chores = [], myLogs = [];
   try { [profile, invs, damage, coutReqs, myVios, mates, assets, chores, myLogs] = await Promise.all([API.meProfile(), API.meInvoices(), API.meDamage(), API.meCheckoutReq(), API.meViolations().catch(() => []), API.meRoommates().catch(() => []), API.meAssets().catch(() => []), API.meChores().catch(() => []), API.meLogs().catch(() => [])]); }
-  catch (e) { el('content').innerHTML = `<div class="bang-tin">${IC.alert} ${esc(e.message)}</div>`; return; }
+  catch (e) {
+    el('content').innerHTML = `<div class="bang-tin">${IC.alert} <span>Chưa tải được trang: ${esc(e.message || 'lỗi kết nối')}
+      <button class="btn sm" data-act="loadStudentPortal" style="margin-left:8px">${IC.refresh} Thử lại</button></span></div>`;
+    return;
+  }
   window._myInvs = invs; // BL-16: để myInvoiceDetail() tra cứu chi tiết khi bấm hàng
   const billNow = invs.filter(i => i.month === curMonth()).reduce((a, i) => a + (+i.total || 0), 0);
   const depTxt = { held: 'Đang giữ', refunded: 'Đã hoàn', forfeited: 'Không hoàn', none: '—' }[profile.deposit_status] || '—';
@@ -166,7 +170,7 @@ function damageForm(cat) {
       <div class="field"><label>Mô tả chi tiết</label><textarea id="dm_desc" rows="3" placeholder="Mô tả thêm nếu cần..."></textarea></div>
       <div class="hint" id="dmHint" style="font-size:12px">${IC.info} Báo hư hỏng thiết bị/cơ sở vật chất trong phòng để quản lý sửa chữa.</div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="submitDamage">Gửi yêu cầu</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="submitDamage">Gửi yêu cầu</button></div>`);
   setTimeout(() => { dmCatHint(); el('dm_title').focus(); }, 50);
 }
 function dmCatHint() {
@@ -193,7 +197,7 @@ function checkoutReqForm() {
       <div class="field"><label>Ghi chú</label><textarea id="co_note" rows="2"></textarea></div>
       <div class="hint">${IC.info} Đơn sẽ được gửi tới quản lý để duyệt. Cần báo trước 1 tháng để được hoàn cọc.</div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn danger" data-act="submitCheckoutReq">Gửi đơn</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn danger" data-act="submitCheckoutReq">Gửi đơn</button></div>`);
   attachDate(el('co_date'), today(), { min: today() });   // BL-35[6]: không cho chọn ngày trả trong quá khứ
 }
 async function submitCheckoutReq() {
@@ -607,7 +611,7 @@ function mgBaoForm() {
         <textarea id="mg_note" rows="3" placeholder="Không bắt buộc"></textarea></div>
       <div class="hint" style="font-size:12px">${IC.info} Học viên vào danh sách máy giặt và bắt đầu tính phí sau khi quản trị viên duyệt.</div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button>
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button>
       <button class="btn pri" data-act="mgBaoGui">Gửi đề nghị</button></div>`);
 }
 async function mgBaoGui() {
@@ -783,7 +787,7 @@ function maintSuaBienForm(vehicleId, bienCu) {
       <div class="field" style="margin:0"><label>Ghi chú <span class="opt">(vì sao khác: đọc nhầm, đổi xe...)</span></label>
         <input id="sb_note" placeholder="VD: Biển trên xe là 564.35, app ghi 564.53"></div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button>
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button>
       <button class="btn pri" data-act="maintSuaBienLuu" data-args='[${vehicleId}]'>Gửi đề nghị</button></div>`);
   setTimeout(() => el('sb_plate') && el('sb_plate').focus(), 50);
 }
@@ -828,7 +832,7 @@ async function bienBanForm(kind, id) {
       <div class="field"><label>Biển số xe đối chiếu <span class="opt">(biển đọc trên xe thật)</span></label><input id="bb_bien" value="${esc(bien)}" placeholder="VD: 59-XB 564.35"></div>
       <div class="field" style="margin:0"><label>Ghi chú</label><textarea id="bb_note" rows="3" placeholder="${laNhan ? 'VD: Phòng sạch, đã giao chìa phòng + chìa tủ' : 'VD: Tường có vết bẩn nhỏ, thiếu 1 móc treo'}"></textarea></div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button>
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button>
       <button class="btn pri" data-act="bienBanLuu" data-args='["${kind}",${id}]'>${IC.check} Gửi biên bản cho quản trị</button></div>`);
   attachDate(el('bb_ngay'), today(), { max: today() });
 }
@@ -861,7 +865,7 @@ function maintDoneForm(id) {
   openModal(`
     <div class="mh"><h3>${IC.check} Hoàn thành công việc</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb"><div class="field"><label>Ghi chú bảo trì (đã làm gì)</label><textarea id="mt_note" rows="3" placeholder="VD: Đã thay vòi nước mới, kiểm tra lại..."></textarea></div></div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="submitMaintDone" data-args='[${id}]'>Xác nhận đã xong</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="submitMaintDone" data-args='[${id}]'>Xác nhận đã xong</button></div>`);
 }
 async function submitMaintDone(id) {
   await guard(() => API.maintenanceTaskStatus(id, 'done', el('mt_note').value.trim()));
@@ -874,7 +878,7 @@ function maintBlockForm(id) {
       <textarea id="mt_reason" rows="3" placeholder="VD: Cần thay linh kiện, đang đặt hàng · Ngoài khả năng, cần thợ ngoài · Chờ học viên có mặt..."></textarea></div>
       <div class="hint" style="font-size:12px">${IC.info} Công việc vẫn nằm trong danh sách "Cần xử lý"; quản lý & học viên sẽ thấy lý do này.</div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn danger" data-act="submitMaintBlock" data-args='[${id}]'>Lưu lý do</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn danger" data-act="submitMaintBlock" data-args='[${id}]'>Lưu lý do</button></div>`);
   setTimeout(() => el('mt_reason').focus(), 50);
 }
 async function submitMaintBlock(id) {
@@ -1007,7 +1011,7 @@ async function loadParkingCheck() {
               <td data-label="Trạng thái">${ttBc(x.status)}${x.handled_note ? `<div class="muted" style="font-size:11px">${esc(x.handled_note)}</div>` : ''}</td>
               <td class="num"><div class="rowbtns" style="justify-content:flex-end;gap:4px">
                 ${x.has_photo ? `<button class="btn sm ghost" title="Xem ảnh" data-act="pkXemAnhBaoCao" data-args='[${x.id}]'>${IC.search}</button>` : ''}
-                ${x.status === 'new' ? `<button class="btn sm ghost" title="Xoá báo cáo gửi nhầm" data-act="pkXoaBaoCao" data-args='[${x.id}]'>${IC.trash}</button>` : ''}
+                ${x.status === 'new' ? `<button class="btn sm ghost" title="Xoá báo cáo gửi nhầm" data-act="pkXoaBaoCao" data-args='[${x.id}]' data-mota="${esc(`biển ${x.plate || '—'}${x.student_name ? ' — ' + x.student_name : ''}`)}">${IC.trash}</button>` : ''}
               </div></td></tr>`).join('')}
           </tbody></table>`
         : '<div class="empty">Chưa gửi báo cáo nào trong ngày.</div>'}</div>
@@ -1044,7 +1048,7 @@ function pkModalAnh(src) {
     <div class="mb" style="text-align:center"><img src="${src}" alt="Ảnh biển số"
       style="max-width:100%;border-radius:10px" data-err="onImgFallback">
       <div style="display:none;padding:24px" class="empty">Không tải được ảnh.</div></div>
-    <div class="mf"><button class="btn" data-act="closeModal">Đóng</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Đóng</button></div>`);
 }
 
 /* ---- Báo cáo về MỘT xe đã đăng ký (vắng nhiều ngày / khác) -> quản trị viên nhận qua chuông + mail ngày ---- */
@@ -1068,7 +1072,7 @@ function pkBaoCaoXeForm(vehicleId) {
         <div id="pk_xem3" style="margin-top:8px"></div></div>
       <div class="hint" style="font-size:12px">${IC.info} Báo cáo hiện ngay trên chuông của quản trị viên và nằm trong mail tổng kết khi chốt ngày.</div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="pkLuuBaoCaoXe" data-args='[${vehicleId}]'>Gửi báo cáo</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="pkLuuBaoCaoXe" data-args='[${vehicleId}]'>Gửi báo cáo</button></div>`);
   setTimeout(() => { const i = el('pk_bc_note'); if (i) i.focus(); }, 60);
 }
 function onPkCam3() { pkDocAnh(this, xong => { el('pk_xem3').innerHTML = xong ? `<img src="${xong}" style="max-width:100%;border-radius:8px">` : ''; }); }
@@ -1079,7 +1083,8 @@ async function pkLuuBaoCaoXe(vehicleId) {
   closeModal(); toast('Đã gửi báo cáo cho quản trị viên'); loadParkingCheck();
 }
 async function pkXoaBaoCao(id) {
-  if (!confirm('Xoá báo cáo này? Chỉ xoá được khi quản trị viên chưa xem.')) return;
+  const moTa = (this && this.dataset && this.dataset.mota) || 'này';
+  if (!confirm(`Xoá báo cáo ${moTa}? Chỉ xoá được khi quản trị viên chưa xem.`)) return;
   await guard(() => API.parkingReportDelete(id));
   toast('Đã xoá báo cáo'); loadParkingCheck();
 }
@@ -1097,7 +1102,7 @@ function pkQuetForm() {
         <input id="pk_bien" placeholder="VD: 508 · 63B4 · 50858" autocomplete="off" data-input="onPkBien"></div>
       <div id="pk_goiy"><div class="muted" style="font-size:13px">Gõ để tìm xe trong bãi.</div></div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Đóng</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Đóng</button></div>`);
   setTimeout(() => { const i = el('pk_bien'); if (i) i.focus(); }, 60);
 }
 function onPkCam() { pkDocAnh(this, xong => { el('pk_xem').innerHTML = xong ? `<img src="${xong}" style="max-width:100%;border-radius:8px">` : ''; }); }
@@ -1493,7 +1498,7 @@ function pkXeLaForm(bienSan) {
         ${pkNutAnh('pk_cam2', 'onPkCam2')}
         <div id="pk_xem2" style="margin-top:8px"></div></div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="pkLuuXeLa">Ghi nhận</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="pkLuuXeLa">Ghi nhận</button></div>`);
   setTimeout(() => { const i = el('pk_la_bien'); if (i && !bienSan) i.focus(); }, 60);
 }
 function onPkCam2() { pkDocAnh(this, xong => { el('pk_xem2').innerHTML = xong ? `<img src="${xong}" style="max-width:100%;border-radius:8px">` : ''; }); }
@@ -1536,7 +1541,7 @@ function pkBaoCaoForm() {
       </div>
       <div id="pk_bc_body" style="margin-top:12px"><div class="spinner"></div></div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Đóng</button></div>`, 'x');
+    <div class="mf"><button class="btn" data-act="modalBack">Đóng</button></div>`, 'x');
   attachDate(el('pk_bc_tu'), pkBcTu, { max: nay });
   attachDate(el('pk_bc_den'), pkBcDen, { max: nay });
   pkBcTai();
@@ -2004,6 +2009,7 @@ function chongBam2Lan(fn) {
   'submitMaintBlock', 'submitMaintDone', 'toggleWashing',
   'toggleMyWashing', 'uploadRulesDoc', 'removeRulesDoc', 'luuChotGiuaKy', 'xoaChotGiuaKy',
   'luuTatCaChotGiuaKy', 'pkGanXeLuu', 'tamTruXacNhanIn', 'tamTruChuyenXuLy',
+  'pkTuChoiBienLuu', 'washReqTuChoiLuu',
 ].forEach(ten => {
   if (typeof window[ten] === 'function') window[ten] = chongBam2Lan(window[ten]);
   else console.warn('[chống bấm 2 lần] không thấy hàm:', ten); // đổi tên hàm mà quên sửa đây -> báo ngay

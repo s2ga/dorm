@@ -134,7 +134,7 @@ async function billOverdueModal() {
   catch (e) {
     return modalThay(`<div class="mh"><h3>${IC.receipt} Chưa lập phiếu thu</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
       <div class="mb"><div class="bang-tin">${IC.alert} <span>Không tải được danh sách phiếu: ${esc(e.message || 'lỗi kết nối')}</span></div></div>
-      <div class="mf"><button class="btn" data-act="closeModal">Đóng</button></div>`);
+      <div class="mf"><button class="btn" data-act="modalBack">Đóng</button></div>`);
   }
   const { kyNay, kyTruoc } = dsChuaLapPhieu(new Set(inv.map(i => i.student_id)), new Set(invT.map(i => i.student_id)));
   const tong = kyNay.length + kyTruoc.length;
@@ -169,7 +169,7 @@ async function billOverdueModal() {
     : `<div class="empty" style="margin-top:10px">${IC.checkCircle} Không sót ai — mọi người cần thu đều đã có phiếu.</div>`}
     </div>
     <div class="mf">${tong ? `<button class="btn pri" data-act="adminGo" data-args='["invoices"]'>${IC.receipt} Sang màn Tiền phòng để lập</button>` : ''}
-      <button class="btn" data-act="closeModal">Đóng</button></div>`);
+      <button class="btn" data-act="modalBack">Đóng</button></div>`);
 }
 
 function residencyModal() {
@@ -188,7 +188,7 @@ function residencyModal() {
         ${row(IC.checkCircle, 'Đã có tạm trú', reg, 'resi_registered', 'on')}
       </div>
     </div>
-    <div class="mf"><button class="btn pri" data-act="tamTruMo">${IC.printer} Danh sách gửi công an</button><button class="btn" data-act="closeModal">Đóng</button></div>`);
+    <div class="mf"><button class="btn pri" data-act="tamTruMo">${IC.printer} Danh sách gửi công an</button><button class="btn" data-act="modalBack">Đóng</button></div>`);
 }
 
 // Tự gom CCCD 2 mặt của HV đang ở CHƯA đăng ký tạm trú, lọc theo THÁNG VÀO Ở -> trang ảnh in gửi công an.
@@ -387,7 +387,7 @@ function contractIssuesModal() {
         ${row(IC.fileText, 'Chưa ký phiếu đăng ký & bàn giao', ho, 'handover_pending', 'warn')}
       </div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Đóng</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Đóng</button></div>`);
 }
 // Popup "Tiền cọc": gộp hoàn cọc + chưa đóng cọc
 function depositModal() {
@@ -403,7 +403,7 @@ function depositModal() {
         ${row(IC.lock, 'Chưa đóng cọc', noDep, actAttr('stuGoAdmin', 'nodeposit'), 'warn')}
       </div>
     </div>
-    <div class="mf"><button class="btn" data-act="closeModal">Đóng</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Đóng</button></div>`);
 }
 async function viewDashboard() {
   el('content').innerHTML = '<div class="spinner"></div>';
