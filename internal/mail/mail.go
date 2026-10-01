@@ -287,7 +287,7 @@ func SendParkingDaily(ctx context.Context, database *db.DB, to []string, d Parki
 	}
 	fmt.Fprintf(&b, "\nXe vắng liên tiếp từ %d ngày: %d\nĐề nghị sửa biển số đang chờ duyệt: %d\n", d.AlertDays, d.VangLau, d.DeNghiBien)
 
-	fmt.Fprintf(&b, "\nXE VẮNG HÔM NAY (%d)\n", len(d.XeVang))
+	fmt.Fprintf(&b, "\nXE VẮNG NGÀY %s (%d)\n", fmtDate(d.Date), len(d.XeVang))
 	if len(d.XeVang) == 0 {
 		b.WriteString("(không có)\n")
 	}

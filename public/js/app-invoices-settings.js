@@ -93,7 +93,7 @@ async function viewInvoices() {
       <span class="muted" style="font-size:12px">Đơn vị: đồng</span>
       <div class="toolbar">
         <div class="search"><span class="i">${IC.search}</span><input id="invs" placeholder="Tìm tên HV / số phòng..." value="${esc(invSearch)}"></div>
-        ${Auth.user && Auth.user.role === 'admin' && all.some(i => i.status !== 'paid') ? `<button class="btn sm" data-act="thuCaKyForm" title="Tiền đã thu hết ngoài đời, chỉ còn cập nhật trên app">${IC.checkCircle} Đã thu cả kỳ</button>` : ''}
+        ${Auth.user && Auth.user.role === 'admin' && all.some(i => i.status !== 'paid') ? `<button class="btn sm" data-act="thuCaKyForm" title="Tiền đã thu đủ, chỉ cập nhật trên app">${IC.checkCircle} Đã thu cả kỳ</button>` : ''}
         ${all.length ? `<button class="btn sm" data-act="exportCSV">${IC.download} Xuất Excel (CSV)</button>` : ''}</div></div>
       ${/* invFilter đã có sẵn logic lọc nhưng CHƯA TỪNG có nút bấm — chỉ vào được bằng ?loc= trên URL. */''}
       <div class="pill-row" style="padding:12px 16px 0;margin:0">
@@ -223,7 +223,7 @@ async function thuCaKyForm() {
 }
 async function doThuCaKy() {
   const ok = el('tck_ok');
-  if (!ok || !ok.checked) { toast('Tick ô xác nhận đã thu đủ trước đã', 'err'); return; }
+  if (!ok || !ok.checked) { toast('Đánh dấu ô xác nhận trước khi tiếp tục', 'err'); return; }
   const r = await guard(() => API.markPaid(invMonth, true));
   closeModalNgay(); toast(`Đã đánh dấu đã thu ${r.updated} phiếu kỳ ${monthLabel(invMonth)}`); viewInvoices();
 }
@@ -468,7 +468,7 @@ function chotGiuaKyHTML(month, reads, rooms) {
   if (rooms) cgkDungMocTruoc(reads, rooms);
   if (reads && reads.loi) {
     return `<h4 style="margin:18px 0 6px">Chốt giữa kỳ — chỉ số hôm học viên rời phòng</h4>
-      <div class="bang-tin">${IC.alert} <span><strong>Không đọc được danh sách chốt giữa kỳ</strong> (${esc(reads.loi)}).
+      <div class="bang-tin" title="${esc(reads.loi)}">${IC.alert} <span><strong>Không đọc được danh sách chốt giữa kỳ.</strong>
       Chưa biết kỳ này có ai rời phòng hay không.
       <button class="btn sm" style="margin-left:6px" data-act="renderElectricForm" data-args='["${month}"]'>${IC.refresh} Thử lại</button></span></div>`;
   }
@@ -506,12 +506,12 @@ function chotGiuaKyHTML(month, reads, rooms) {
     </tr>`).join('');
   return `
     <h4 style="margin:18px 0 6px">Chốt giữa kỳ — chỉ số hôm học viên rời phòng</h4>
-    ${thieu.length ? `<div class="bang-tin">${IC.alert} <strong>${thieu.length} lượt rời phòng CHƯA có chỉ số.</strong> Không nhập thì phần điện của người rời đổ sang người ở lại, và phòng bị bỏ qua khi lập phiếu báo kỳ sau.</div>` : ''}
+    ${thieu.length ? `<div class="bang-tin">${IC.alert} <strong>${thieu.length} lượt rời phòng chưa có chỉ số.</strong> Không nhập thì phần điện của người rời đổ sang người ở lại, và phòng bị bỏ qua khi lập phiếu báo kỳ sau.</div>` : ''}
     <div class="table-wrap" id="chot_cuon" style="max-height:300px;overflow:auto"><table>
       <thead><tr><th>Phòng</th><th>Ngày</th><th>Học viên rời</th><th>Mã pháp nhân</th>
         <th class="num">Chỉ số chốt</th><th class="num">Chỉ số cuối kỳ</th>
-        <th class="num" title="Số điện của chặng từ mốc trước tới lần chốt này — của CẢ PHÒNG, chưa chia theo người">kWh chặng</th>
-        <th class="num" title="kWh chặng × đơn giá — của CẢ PHÒNG, chưa chia theo người">Tiền chặng (đ)</th><th></th></tr></thead>
+        <th class="num" title="Số điện của chặng từ mốc trước tới lần chốt này — của cả phòng, chưa chia theo người">kWh chặng</th>
+        <th class="num" title="kWh chặng × đơn giá — của cả phòng, chưa chia theo người">Tiền chặng (đ)</th><th></th></tr></thead>
       <tbody>${dongThieu}${dongDaCo || ''}${!thieu.length && !daCo.length ? '<tr><td colspan="9" class="muted">Kỳ này không có lượt rời/chuyển phòng nào.</td></tr>' : ''}</tbody>
     </table></div>
     ${thieu.length > 1 ? `<div style="margin-top:8px;text-align:right"><button class="btn pri" data-act="luuTatCaChotGiuaKy">${IC.check} Lưu tất cả ô đã nhập</button></div>` : ''}`;
@@ -587,7 +587,7 @@ async function luuChotGiuaKy(idx, roomId, date, studentId) {
   if (v === '' || isNaN(+v) || +v < 0) return toast('Nhập chỉ số công-tơ (số không âm)', 'err');
   const r = await guard(() => API.saveMeterRead({ room_id: roomId, date, reading: +v, student_id: studentId || undefined }));
   if (inp) inp.value = '';
-  toast(`Đã chốt chỉ số · tính lại ${r.recalculated} phiếu báo của ${r.affected} học viên liên quan`);
+  toast(`Đã chốt chỉ số · tính lại ${r.recalculated} phiếu báo`);
   await veLaiChotGiuaKy(el('e_month').dataset.ym || elecMonth);
 }
 async function xoaChotGiuaKy(id) {
@@ -750,7 +750,7 @@ function invoiceForm(id) {
     const s = id ? studentById(i.student_id) : null;
     if (!s) return '';
     return `<div class="field" style="border-top:1px solid var(--line);padding-top:12px;margin-top:4px">
-        <label>Giảm giá theo % <span class="opt">(lưu ở hồ sơ — tự áp cho MỌI kỳ, đưa về 0 là thôi giảm)</span></label>
+        <label>Giảm giá theo % <span class="opt">(lưu ở hồ sơ — tự áp cho mọi kỳ, đưa về 0 là thôi giảm)</span></label>
         <div class="grid2" style="margin-top:6px">${GIAM_O.map(([k, , nhan]) =>
       `<div class="field" style="margin:0"><label>${nhan} (%)</label><input id="g_${k}" type="number" min="0" max="100" step="1" value="${esc(+s[k] || 0)}"></div>`).join('')}</div>
         ${s.is_leader ? `<div class="hint" style="font-size:12px">${IC.info}<span>Học viên này là <strong>phòng trưởng</strong> — miễn nước + dịch vụ là quy tắc riêng, không nằm trong % ở đây. Muốn bỏ thì miễn nhiệm ở Chi tiết phòng.</span></div>` : ''}
@@ -771,7 +771,7 @@ async function luuGiamPct(invoiceId, sid) {
   await guard(() => API.recalcInvoice(invoiceId));
   await refreshCache();
   await luuXongVeLai(veLaiNen);
-  toast('Đã lưu % giảm vào hồ sơ và tính lại phiếu');
+  toast('Đã lưu giảm giá, tính lại phiếu');
 }
 async function saveInvoice(id) {
   const g = k => +el('i_' + k).value || 0;
@@ -926,7 +926,7 @@ async function phieuBao(inv) {
       <div class="rc-title">PHIẾU BÁO TIỀN PHÒNG — ${monthLabel(inv.month).toUpperCase()}</div>
       <div class="rc-info">
         <div><b>Họ và tên:</b> ${esc(s.name)}</div>
-        <div><b>Phòng:</b> ${esc(inv.room_name || '—')} (Hạng ${esc(room.hang || '')}) &nbsp;&nbsp; <b style="min-width:0">MSHV:</b> ${esc(s.code || '—')} &nbsp;&nbsp; <b style="min-width:0">Lớp:</b> ${esc(s.class_name || '—')}</div>
+        <div><b>Phòng:</b> ${esc(inv.room_name || '—')} (Hạng ${esc(room.hang || '')}) &nbsp;&nbsp; <b style="min-width:0">Mã HV:</b> ${esc(s.code || '—')} &nbsp;&nbsp; <b style="min-width:0">Lớp:</b> ${esc(s.class_name || '—')}</div>
         <div><b>Ngày nhận phòng:</b> ${fmtDate(s.check_in_date)}</div>
       </div>
       <table><thead><tr><th>STT</th><th>Khoản thu</th><th>Đơn giá (đồng)</th><th>Số lượng</th><th class="n">Thành tiền (đồng)</th></tr></thead><tbody>
@@ -1162,9 +1162,8 @@ function viewSettings() {
         <div class="field"><label>Ca ngày bắt đầu <span class="opt">(HH:MM)</span></label><input id="set_security_day_from" value="${esc(s.security_day_from || '06:00')}" placeholder="06:00"></div>
         <div class="field"><label>Ca ngày kết thúc <span class="opt">(HH:MM)</span></label><input id="set_security_day_to" value="${esc(s.security_day_to || '18:00')}" placeholder="18:00"></div>
       </div>
-      <div class="hint" style="font-size:12.5px">${IC.info}<span>Chỉ khai khung giờ ca NGÀY — ca đêm là phần còn lại, nên hai ca không bao giờ chỏi nhau.
-        Cổng học viên tự tô <strong>"Đang trực"</strong> lên ca đúng giờ hiện tại.
-        Số hotline quản lý lấy ở mục <strong>Đơn giá &amp; tính tiền</strong>. Mật khẩu wifi <strong>chỉ gửi cho học viên đang ở</strong>; người đã trả phòng không thấy.</span></div>
+      <div class="hint" style="font-size:12.5px">${IC.info}<span>Chỉ khai giờ ca ngày, ca đêm là phần còn lại nên hai ca không trùng nhau.
+        Số hotline đặt ở mục <strong>Đơn giá &amp; tính tiền</strong>; mật khẩu wifi <strong>chỉ hiện cho học viên đang ở</strong>.</span></div>
       <button class="btn pri" data-act="saveHocVienInfo">Lưu wifi &amp; số trực</button>
     </div></div>
 
@@ -1217,20 +1216,20 @@ function viewSettings() {
         <div class="field"><label>Email nhà trường <span class="opt">(nhận thông báo vi phạm)</span></label><input id="set_school_email" value="${esc(s.school_email || '')}" placeholder="daotao@truong.edu.vn"></div>
       </div>
       <div class="field"><label>Gửi email khi vi phạm đủ <span class="opt">(số lần)</span></label><input id="set_violation_mail_threshold" type="number" min="1" value="${esc(s.violation_mail_threshold || 3)}" style="max-width:120px"></div>
-      <div class="hint">${IC.info} Điền cấu hình SMTP để hệ thống tự gửi email. Gmail: host <strong>smtp.gmail.com</strong> · port <strong>587</strong> · secure <strong>false</strong> · mật khẩu dùng <strong>App Password</strong> (không dùng mật khẩu đăng nhập thường).</div>
+      <div class="hint">${IC.info} Điền cấu hình SMTP để hệ thống tự gửi email. Gmail: máy chủ <strong>smtp.gmail.com</strong>, cổng <strong>587</strong>, bảo mật <strong>STARTTLS</strong>, mật khẩu là <strong>App Password</strong> (không phải mật khẩu đăng nhập Gmail).</div>
       <div class="grid2">
-        <div class="field"><label>SMTP host</label><input id="set_smtp_host" value="${esc(s.smtp_host || '')}" placeholder="smtp.gmail.com"></div>
-        <div class="field"><label>Port</label><input id="set_smtp_port" value="${esc(s.smtp_port || '587')}" placeholder="587"></div>
+        <div class="field"><label>Máy chủ SMTP</label><input id="set_smtp_host" value="${esc(s.smtp_host || '')}" placeholder="smtp.gmail.com"></div>
+        <div class="field"><label>Cổng</label><input id="set_smtp_port" value="${esc(s.smtp_port || '587')}" placeholder="587"></div>
       </div>
       <div class="grid2">
-        <div class="field"><label>Tài khoản (user)</label><input id="set_smtp_user" value="${esc(s.smtp_user || '')}" placeholder="email gửi đi"></div>
+        <div class="field"><label>Tài khoản</label><input id="set_smtp_user" value="${esc(s.smtp_user || '')}" placeholder="email gửi đi"></div>
         <div class="field"><label>Mật khẩu (App Password) ${s.smtp_pass_set ? '<span class="badge green" style="font-size:10px">Đã lưu</span>' : ''}</label><input id="set_smtp_pass" type="password" value="" placeholder="${s.smtp_pass_set ? '•••••• (để trống nếu giữ nguyên)' : 'Nhập App Password'}"></div>
       </div>
       <div class="grid2">
-        <div class="field"><label>Người gửi <span class="opt">(from)</span></label><input id="set_smtp_from" value="${esc(s.smtp_from || '')}" placeholder="Ban Quản lý KTX"></div>
-        <div class="field"><label>Bảo mật (secure)</label><select id="set_smtp_secure"><option value="false" ${s.smtp_secure !== 'true' ? 'selected' : ''}>false — STARTTLS (port 587)</option><option value="true" ${s.smtp_secure === 'true' ? 'selected' : ''}>true — SSL/TLS (port 465)</option></select></div>
+        <div class="field"><label>Tên người gửi</label><input id="set_smtp_from" value="${esc(s.smtp_from || '')}" placeholder="Ban Quản lý KTX"></div>
+        <div class="field"><label>Bảo mật</label><select id="set_smtp_secure"><option value="false" ${s.smtp_secure !== 'true' ? 'selected' : ''}>STARTTLS (cổng 587)</option><option value="true" ${s.smtp_secure === 'true' ? 'selected' : ''}>SSL/TLS (cổng 465)</option></select></div>
       </div>
-      <div class="hint" style="font-size:12px">${IC.lock} Vì bảo mật, mật khẩu SMTP <strong>không bao giờ được trả về</strong>. Để trống ô mật khẩu khi lưu nếu muốn giữ nguyên mật khẩu đã lưu.</div>
+      <div class="hint" style="font-size:12px">${IC.lock} Để trống ô mật khẩu khi lưu là giữ nguyên mật khẩu đã lưu.</div>
       <div class="rowbtns" style="margin-top:6px">
         <button class="btn pri" data-act="saveMailSettings">Lưu cấu hình email</button>
         <button class="btn" id="smtpTestBtn" data-act="testSmtpConnection">${IC.mail} Kiểm tra kết nối</button>
@@ -1242,14 +1241,11 @@ function viewSettings() {
     ${grpOpen('dangnhap')}
     <div class="panel"><div class="hd"><h2>${IC.shield} Đăng nhập bằng tài khoản Microsoft (SSO)</h2>
       <span class="muted" id="ssoStateBadge" style="font-size:12px">${ssoOn ? '<span class="badge green">Đang bật</span>' : '<span class="badge gray">Đang tắt</span>'}</span></div><div class="pad">
-      <div class="hint">${IC.info} Lấy thông số ở <strong>Azure Portal → Microsoft Entra ID → App registrations</strong>.
-        Khi đăng ký ứng dụng phải khai đúng <strong>Redirect URI</strong>:
-        <code>${esc(location.origin)}/api/auth/sso/callback</code> và cấp quyền <code>openid profile email</code>.
-        <strong>Điền đủ Tenant ID + Client ID là SSO tự bật</strong> — nút "Đăng nhập bằng Microsoft" hiện ngay ở màn đăng nhập.
-        Không muốn dùng thì chọn <em>Tắt</em> ở ô bên dưới.</div>
-      <div class="hint" style="font-size:12px">${IC.lock} Nếu máy chủ có biến môi trường <code>AZURE_TENANT_ID</code> / <code>AZURE_CLIENT_ID</code> / <code>AZURE_CLIENT_SECRET</code> thì
-        <strong>ENV được ưu tiên</strong> hơn giá trị điền ở đây (môi trường thật nên giữ bí mật ở ENV, không nằm trong CSDL).
-        ${s.sso_from_env ? '<br><strong>Máy chủ này đang lấy Tenant/Client từ ENV</strong> — ô bên dưới có để trống cũng không sao, giá trị ở ENV mới là cái đang chạy.' : ''}</div>
+      <div class="hint">${IC.info} Lấy thông số ở <strong>Azure Portal → Microsoft Entra ID → App registrations</strong>; Redirect URI khai
+        <code>${esc(location.origin)}/api/auth/sso/callback</code>, quyền <code>openid profile email</code>.
+        Điền đủ Tenant ID và Client ID là nút "Đăng nhập bằng Microsoft" hiện ở màn đăng nhập.</div>
+      <div class="hint" style="font-size:12px" title="AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET">${IC.lock} Cấu hình đặt sẵn trên máy chủ (biến môi trường) được ưu tiên hơn các ô bên dưới.
+        ${s.sso_from_env ? '<strong>Máy chủ này đang dùng Tenant ID và Client ID đặt sẵn</strong> — hai ô đó để trống cũng được.' : ''}</div>
       <div class="grid2">
         <div class="field"><label>Bật đăng nhập Microsoft</label><select id="set_sso_enabled">
           <option value="false" ${s.sso_enabled === 'false' ? 'selected' : ''}>Tắt</option>
@@ -1263,9 +1259,9 @@ function viewSettings() {
         <div class="field"><label>Client ID (Application ID)</label><input id="set_sso_client_id" value="${esc(s.sso_client_id || '')}" placeholder="vd 11111111-2222-3333-..."></div>
       </div>
       <div class="field"><label>Client Secret <span class="opt">(tuỳ chọn)</span> ${s.sso_client_secret_set ? '<span class="badge green" style="font-size:10px">Đã lưu</span>' : ''}</label>
-        <input id="set_sso_client_secret" type="password" value="" placeholder="${s.sso_client_secret_set ? '•••••• (để trống nếu giữ nguyên)' : 'Để trống nếu dùng public client (PKCE)'}"></div>
-      <div class="hint" style="font-size:12px">${IC.lock} Client Secret <strong>không bao giờ được trả về</strong> giao diện. Để trống khi lưu = giữ nguyên cái đã lưu (nếu có).
-        <br>${IC.info} <strong>Có thể bỏ trống hẳn</strong> — chỉ cần Tenant ID + Client ID — nếu app trên Azure bật <strong>"Allow public client flows"</strong>. Khi đó đăng nhập dựa trên <strong>PKCE</strong> thay cho secret (app server nên dùng secret; chỉ bỏ khi bạn hiểu đánh đổi bảo mật).</div>
+        <input id="set_sso_client_secret" type="password" value="" placeholder="${s.sso_client_secret_set ? '•••••• (để trống nếu giữ nguyên)' : 'Để trống nếu app bật public client flows'}"></div>
+      <div class="hint" style="font-size:12px">${IC.lock} Để trống khi lưu là giữ nguyên secret đã lưu.
+        Có thể bỏ hẳn secret nếu app trên Azure bật <strong>"Allow public client flows"</strong>, nhưng kém an toàn hơn.</div>
       <div class="rowbtns" style="margin-top:6px"><button class="btn pri" data-act="saveSsoSettings">Lưu cấu hình Microsoft</button></div>
     </div></div>
     </div>
@@ -1273,25 +1269,21 @@ function viewSettings() {
     ${grpOpen('nguoidung')}
     <div class="panel" id="pendingPanel"><div class="hd"><h2>${IC.clock} Chờ duyệt (<span id="pendCount">…</span>)</h2>
       <span class="muted" style="font-size:12px">Người mới đăng nhập Microsoft lần đầu</span></div>
-      <div class="pad hint" style="margin:0 14px 10px">${IC.info} <strong>Không cần tạo tài khoản tay.</strong> Người mới — nhân viên hay học viên — cứ bấm
-        <em>“Đăng nhập bằng tài khoản Microsoft”</em> ở màn đăng nhập. App chưa biết họ là ai nên xếp vào đây,
-        chưa vào được gì. Bấm <strong>Duyệt</strong> rồi chọn: <strong>nhân viên</strong> (gán vai + cơ sở) hay
-        <strong>học viên</strong> (ghép vào hồ sơ có sẵn, chưa có thì tạo hồ sơ mới). Duyệt xong họ rời khỏi bảng này,
-        sang bảng nhân viên hoặc bảng tài khoản học viên bên dưới.
-        <br>${IC.bulb} <strong>Học viên khỏi phải qua đây</strong> nếu hồ sơ đã điền <strong>Email công ty</strong>
-        (màn Học viên → Sửa hồ sơ): email trùng thì lần đầu đăng nhập là vào thẳng.</div>
+      <div class="pad hint" style="margin:0 14px 10px">${IC.info} Người mới bấm <em>“Đăng nhập bằng tài khoản Microsoft”</em> lần đầu sẽ nằm ở đây; bấm <strong>Duyệt</strong>
+        rồi chọn <strong>nhân viên</strong> (gán vai, cơ sở) hoặc <strong>học viên</strong> (ghép hồ sơ, chưa có thì tạo mới).
+        Học viên có <strong>Email công ty</strong> trong hồ sơ thì vào thẳng, không qua bảng này.</div>
       <div class="table-wrap"><table><thead><tr><th>Tên đăng nhập / Email</th><th>Họ tên</th><th>Đăng nhập lần đầu</th><th></th></tr></thead>
         <tbody id="pendRows"><tr><td colspan="4"><div class="spinner"></div></td></tr></tbody></table></div>
     </div>
 
     <div class="panel" id="usersPanel"><div class="hd"><h2>${IC.shield} Nhân viên & phân quyền</h2>
       <span class="muted" style="font-size:12px">Đăng nhập bằng Microsoft — không tạo tay</span></div>
-      <div class="pad hint" style="margin:0 14px 10px">${IC.lock} Tài khoản <strong>quản trị khởi tạo</strong> (bootstrap) vẫn dùng mật khẩu — đường vào dự phòng khi SSO trục trặc.
-        Tài khoản học viên KHÔNG nằm ở bảng này, xem bảng <em>“Tài khoản học viên”</em> bên dưới.</div>
+      <div class="pad hint" style="margin:0 14px 10px">${IC.lock} Tài khoản <strong>quản trị khởi tạo</strong> vẫn đăng nhập bằng mật khẩu, để vào được khi Microsoft trục trặc.
+        Tài khoản học viên nằm ở bảng <em>“Tài khoản học viên”</em> bên dưới.</div>
       <div class="table-wrap"><table><thead><tr><th>Tên đăng nhập</th><th>Họ tên</th><th>Vai trò</th><th>Cơ sở</th><th></th></tr></thead>
         <tbody id="usrRows"><tr><td colspan="5"><div class="spinner"></div></td></tr></tbody></table></div>
-      <div class="pad muted" style="font-size:12.5px">${IC.bulb} <strong>Quản trị viên</strong> có toàn quyền (kể cả Điều hành, Doanh thu, Nhật ký, Cài đặt). <strong>Nhân viên</strong> chỉ thao tác nghiệp vụ (Học viên, Phòng, Xe, Nhận/trả phòng, Tiền phòng, Tiếp nhận & Hỗ trợ) và đều được ghi vào Nhật ký.
-        Muốn chặn một người, đổi vai hoặc xoá tài khoản ở đây — mọi phiên đang mở của họ bị đá ra ngay.</div>
+      <div class="pad muted" style="font-size:12.5px">${IC.bulb} <strong>Quản trị viên</strong> có toàn quyền; <strong>nhân viên</strong> chỉ làm nghiệp vụ (Học viên, Phòng, Xe, Nhận/trả phòng, Tiền phòng, Tiếp nhận &amp; Hỗ trợ), mọi thao tác đều ghi vào Nhật ký.
+        Đổi vai hoặc khoá tài khoản ở đây thì người đó bị đăng xuất ngay.</div>
     </div>
 
     <div class="panel" id="stuAccPanel"><div class="hd"><h2>${IC.users} Tài khoản học viên (<span id="stuAccCount">…</span>)</h2>
@@ -1299,9 +1291,8 @@ function viewSettings() {
     </div>
       <div class="table-wrap"><table><thead><tr><th>Tên đăng nhập</th><th>Học viên</th><th>Phòng</th><th>Mã pháp nhân</th><th>Trạng thái</th><th></th></tr></thead>
         <tbody id="stuAccRows"><tr><td colspan="6"><div class="spinner"></div></td></tr></tbody></table></div>
-      <div class="pad muted" style="font-size:12.5px">${IC.bulb} Học viên cũng là người dùng đăng nhập được. Ở đây chỉ <strong>đặt lại mật khẩu</strong> và
-        <strong>thu hồi phiên</strong> (đá mọi thiết bị đang đăng nhập). <strong>Tạo</strong> tài khoản làm ở
-        <a href="#" data-act="adminGo" data-args='["students"]'>hồ sơ học viên</a>; đổi vai / xoá không cho phép từ đây để không nâng nhầm quyền.</div>
+      <div class="pad muted" style="font-size:12.5px">${IC.bulb} Ở đây đặt lại mật khẩu, thu hồi phiên, khoá hoặc đổi về tài khoản nhân viên.
+        <strong>Tạo</strong> tài khoản làm ở <a href="#" data-act="adminGo" data-args='["students"]'>hồ sơ học viên</a>.</div>
     </div>
 
     <div class="panel"><div class="hd"><h2>${IC.key} Tài khoản của bạn</h2></div><div class="pad">
@@ -1396,7 +1387,7 @@ async function loadAdminUsers() {
   try { users = await API.adminUsers(); }
   catch (e) {
     // Một lời gọi nạp cả hai bảng -> hỏng thì báo ở cả hai, không để bảng Chờ duyệt quay spinner mãi.
-    const loi = n => `<tr><td colspan="${n}" class="muted">Không tải được danh sách: ${esc(e.message || 'lỗi kết nối')}
+    const loi = n => `<tr><td colspan="${n}" class="muted" title="${esc(e.message || '')}">Không tải được danh sách.
       <button class="btn sm" style="margin-left:8px" data-act="loadAdminUsers">${IC.refresh} Thử lại</button></td></tr>`;
     box.innerHTML = loi(5);
     if (el('pendRows')) el('pendRows').innerHTML = loi(4);
@@ -1433,7 +1424,7 @@ async function loadAdminUsers() {
       <td class="num"><div class="rowbtns" style="justify-content:flex-end">
         <button class="btn sm" data-act="userForm" data-args='[${u.id}]'>Sửa</button>
         ${u.auth_provider === 'sso' ? '' : `<button class="btn sm" title="Chỉ áp dụng cho tài khoản còn dùng mật khẩu" data-act="resetUserPwForm" data-args='[${u.id}]'>${IC.key} Mật khẩu</button>`}
-        ${u.id === me ? '' : `<button class="btn sm ghost" title="Khoá tài khoản — chặn đăng nhập, KHÔNG xoá dữ liệu" data-act="delUserRow" data-args='[${u.id}]' data-uname="${esc(u.username)}">${IC.lock} Khoá</button>`}
+        ${u.id === me ? '' : `<button class="btn sm ghost" title="Khoá tài khoản — chặn đăng nhập, không xoá dữ liệu" data-act="delUserRow" data-args='[${u.id}]' data-uname="${esc(u.username)}">${IC.lock} Khoá</button>`}
       </div></td>
     </tr>`;
   }).join('') || '<tr><td colspan="5" class="muted">Chưa có tài khoản.</td></tr>';
@@ -1606,19 +1597,16 @@ async function saveApprove(id) {
     const a = e.data.account || {};
     khongSSO = !!e.data.khong_sso;
     const chiTiet = khongSSO
-      ? `\n\n• Hồ sơ tiếp tục dùng tài khoản "${a.username}" như cũ.\n`
-      + `• Tài khoản đang duyệt bị KHOÁ (bản thừa).\n`
-      + `• Email của bản thừa được ghi vào hồ sơ (nếu trống) — lần sau đăng nhập Microsoft là vào thẳng.`
-      : `\n\n• Sau khi gộp: vẫn CHỈ MỘT tài khoản "${a.username}", đăng nhập được cả bằng Microsoft`
-      + `${a.co_mat_khau ? ' lẫn mật khẩu cũ' : ''}.\n`
-      + `• Khoá tài khoản đó là chặn cả hai lối vào.\n`
-      + `• Bản chờ duyệt này sẽ bị gỡ.`;
-    if (!(await xacNhan(`${e.data.error}${chiTiet}`, { dongY: 'Gộp tài khoản' }))) return;
+      ? `\n\nHồ sơ tiếp tục dùng tài khoản "${a.username}"; tài khoản đang duyệt bị khoá vì thừa. `
+      + `Email của nó được ghi vào hồ sơ (nếu hồ sơ chưa có) để lần sau đăng nhập Microsoft là vào thẳng.`
+      : `\n\nSau khi gộp chỉ còn tài khoản "${a.username}", đăng nhập được bằng Microsoft`
+      + `${a.co_mat_khau ? ' lẫn mật khẩu cũ' : ''}; khoá tài khoản đó là chặn cả hai cách. Bản chờ duyệt này sẽ bị gỡ.`;
+    if (!(await xacNhan(`${e.data.error}${chiTiet}`, { dongY: khongSSO ? 'Khoá bản thừa' : 'Gộp tài khoản' }))) return;
     r = await guard(() => API.approveUserAsStudent(id, { ...body, merge: true }));
   }
   closeModal();
   toast(r && r.merged_into
-    ? (khongSSO ? `Đã khoá bản thừa — hồ sơ dùng tài khoản "${r.username}" như cũ` : `Đã gộp vào tài khoản "${r.username}" — đăng nhập được cả hai cách`)
+    ? (khongSSO ? 'Đã khoá bản thừa' : `Đã gộp vào tài khoản "${r.username}"`)
     : 'Đã duyệt — tài khoản học viên');
   await napLai('students'); // hồ sơ mới -> danh sách học viên phải nạp lại
   loadAdminUsers(); loadStudentAccounts();
@@ -1666,9 +1654,9 @@ function userForm(id) {
 // Gắn/gỡ hồ sơ kiêm nhiệm — endpoint riêng, KHÔNG đi chung saveUser (thiếu field ≠ gỡ, tránh vết V2-71).
 async function linkTenant(id) {
   const sid = +((el('ap_hvid') || {}).value || 0);
-  if (!sid) return toast('Chọn một hồ sơ trong danh sách trước đã', 'err');
+  if (!sid) return toast('Chọn một hồ sơ trong danh sách', 'err');
   await guard(() => API.linkStudent(id, sid));
-  closeModal(); toast('Đã gắn hồ sơ — tài khoản này chuyển được sang cổng học viên');
+  closeModal(); toast('Đã gắn hồ sơ học viên');
   await napLai('students'); // login_username của hồ sơ vừa gắn đổi -> danh sách chọn phải tươi
   loadAdminUsers();
 }
@@ -1694,7 +1682,7 @@ async function loadStudentAccounts() {
   let list = [];
   try { list = await API.studentAccounts(); }
   catch (e) {
-    box.innerHTML = `<tr><td colspan="6" class="muted">Không tải được danh sách: ${esc(e.message || 'lỗi kết nối')}
+    box.innerHTML = `<tr><td colspan="6" class="muted" title="${esc(e.message || '')}">Không tải được danh sách.
       <button class="btn sm" style="margin-left:8px" data-act="loadStudentAccounts">${IC.refresh} Thử lại</button></td></tr>`;
     if (el('stuAccCount')) el('stuAccCount').textContent = '—';
     return;
@@ -1713,7 +1701,7 @@ async function loadStudentAccounts() {
       <td>${u.student_id ? `<div class="flex stu-name" data-act="studentDetail" data-args='[${u.student_id}]' role="button" tabindex="0" title="Xem chi tiết học viên"><div><strong>${esc(u.student_name || u.full_name || '—')}</strong>${u.student_code ? `<div class="muted" style="font-size:11px">${esc(u.student_code)}</div>` : ''}</div><span class="row-chev" aria-hidden="true">${IC.chevronRight}</span></div>` : `${esc(u.student_name || u.full_name || '—')}${u.student_code ? `<div class="muted" style="font-size:11px">${esc(u.student_code)}</div>` : ''}`}</td>
       <td>${esc(u.room_name || '—')}</td>
       <td>${legalEntityCell(u.student_gender)}</td>
-      <td>${u.locked ? '<span class="badge red" title="Tài khoản đang KHOÁ — không đăng nhập được. Hồ sơ và tiền phòng không đổi.">Đã khoá</span> ' : ''}${dsxoa ? '<span class="badge red" title="Hồ sơ học viên đã bị khoá — tài khoản này cũng không đăng nhập được">Hồ sơ đã khoá</span>'
+      <td>${u.locked ? '<span class="badge red" title="Tài khoản đang khoá — không đăng nhập được. Hồ sơ và tiền phòng không đổi.">Đã khoá</span> ' : ''}${dsxoa ? '<span class="badge red" title="Hồ sơ học viên đã bị khoá — tài khoản này cũng không đăng nhập được">Hồ sơ đã khoá</span>'
         : dangO ? '<span class="badge green">Đang ở</span>' : '<span class="badge gray">Đã trả phòng</span>'}</td>
       <td class="num"><div class="rowbtns" style="justify-content:flex-end">
         ${u.locked ? (dsxoa
@@ -1764,7 +1752,7 @@ function khoaStuAccForm(id) {
     <div class="mb">
       <p class="muted" style="margin-top:0">Học viên: <strong>${esc(u.student_name || '')}</strong> · Tài khoản: <strong>${esc(u.username)}</strong></p>
       <div class="bang-tin">${IC.lock} Sau khi khoá: học viên <strong>không đăng nhập được</strong> bằng mật khẩu lẫn Microsoft, mọi thiết bị đang mở bị đá ra ngay.</div>
-      <div class="hint" style="font-size:12px">${IC.info} <strong>Hồ sơ và tiền phòng KHÔNG đổi</strong> — vẫn đang ở, vẫn tính tiền, vẫn lập phiếu báo như thường.
+      <div class="hint" style="font-size:12px">${IC.info} <strong>Hồ sơ và tiền phòng không đổi</strong> — vẫn đang ở, vẫn tính tiền, vẫn lập phiếu báo như thường.
         Muốn ngừng tính tiền thì đó là <strong>"Khoá hồ sơ"</strong> ở màn Học viên, không phải nút này.
         Mở lại bất cứ lúc nào ngay tại bảng này.</div>
     </div>
@@ -1894,19 +1882,24 @@ function dataHealthBlock() {
 async function loadDataHealth() {
   const box = el('dataHealth'); if (!box) return;
   box.innerHTML = '<span class="muted">Đang kiểm tra...</span>';
-  let d; try { d = await API.dataHealth(); } catch (e) { box.innerHTML = `<span class="muted">Không kiểm tra được: ${esc(e.message)}</span>`; return; }
+  let d;
+  try { d = await API.dataHealth(); }
+  catch (e) {
+    box.innerHTML = `<span class="muted" title="${esc(e.message || '')}">Không kiểm tra được dữ liệu.
+      <button class="btn sm" style="margin-left:6px" data-act="loadDataHealth">${IC.refresh} Thử lại</button></span>`;
+    return;
+  }
 
   if (d.sach) {
     box.innerHTML = `<div class="bang-tin" style="margin:0">${IC.checkCircle}<span><strong>Dữ liệu sạch.</strong>
-      Toàn bộ ràng buộc bảo vệ đang hoạt động — không rác nào lọt vào được, kể cả gọi thẳng API.</span></div>`;
+      Mọi ràng buộc bảo vệ đang hoạt động — dữ liệu sai không lưu vào được.</span></div>`;
     return;
   }
   const loi = d.checks.filter(c => c.so_luong > 0);
   box.innerHTML = `
-    ${d.guards.length ? `<div class="bang-tin" style="margin:0 0 16px;border-color:var(--red);background:var(--red-bg)">${IC.alert}<span>
-      <strong>${d.guards.length} ràng buộc bảo vệ đang TẮT</strong> vì dữ liệu bên dưới còn vi phạm:
-      ${d.guards.map(g => `<code>${esc(g.ten)}</code>`).join(' · ')}.
-      Sửa xong các mục bên dưới thì ràng buộc <strong>tự bật lại</strong>.</span></div>` : ''}
+    ${d.guards.length ? `<div class="bang-tin" style="margin:0 0 16px;border-color:var(--red);background:var(--red-bg)" title="${esc(d.guards.map(g => g.ten).join(', '))}">${IC.alert}<span>
+      <strong>${d.guards.length} ràng buộc bảo vệ đang tắt</strong> vì dữ liệu bên dưới còn sai.
+      Sửa xong các mục bên dưới thì chúng <strong>tự bật lại</strong>.</span></div>` : ''}
     ${loi.map(c => `
       <div style="margin-bottom:18px">
         <h4 class="asset-h" style="color:var(--red-ink)">${IC.alert} ${esc(c.ten)} — ${c.so_luong} chỗ</h4>
@@ -2045,7 +2038,7 @@ async function testSmtpConnection() {
     smtp_pass: el('set_smtp_pass').value, // để trống -> server dùng mật khẩu đã lưu
   };
   if (btn) { btn.disabled = true; }
-  if (out) { out.className = 'muted'; out.style.fontSize = '12.5px'; out.textContent = 'Đang kiểm tra...'; }
+  if (out) { out.className = 'muted'; out.style.fontSize = '12.5px'; out.textContent = 'Đang kiểm tra...'; out.title = ''; }
   try {
     const r = await API.testSmtp(body);
     if (out) {
@@ -2053,7 +2046,7 @@ async function testSmtpConnection() {
       else { out.style.color = 'var(--red)'; out.textContent = '✖ ' + (r.reason || 'Không kết nối được'); }
     }
   } catch (e) {
-    if (out) { out.style.color = 'var(--red)'; out.textContent = '✖ ' + e.message; }
+    if (out) { out.style.color = 'var(--red)'; out.textContent = '✖ Không kiểm tra được — xem lại máy chủ, cổng, tài khoản và mật khẩu.'; out.title = e.message || ''; }
   } finally { if (btn) btn.disabled = false; }
 }
 function assetForm(id) {

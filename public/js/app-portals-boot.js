@@ -136,7 +136,7 @@ async function loadStudentPortal() {
     </div></div>
 
     <div class="panel" id="pnTraPhong"><div class="hd"><h2>${IC.logOut} Đơn trả phòng</h2>${!pendingCout && profile.status === 'in' && !notMovedIn ? '<button class="btn sm danger" data-act="checkoutReqForm">Xin trả phòng</button>' : ''}</div><div class="pad">
-      ${pendingCout ? `<div class="bang-tin">${IC.hourglass} Bạn đã gửi đơn trả phòng ngày <strong>${fmtDate(pendingCout.desired_date)}</strong> — đang chờ Ban Quản lý duyệt.</div>` :
+      ${pendingCout ? `<div class="bang-tin">${IC.hourglass} Đã gửi đơn trả phòng, ngày muốn trả <strong>${fmtDate(pendingCout.desired_date)}</strong> — đang chờ Ban Quản lý duyệt.</div>` :
       notMovedIn ? '<p class="muted" style="margin:0">Bạn chưa tới ngày nhận phòng nên chưa thể gửi đơn trả phòng.</p>' :
       profile.status !== 'in' ? '<p class="muted" style="margin:0">Bạn đã trả phòng.</p>' :
       `<p class="muted" style="margin:0">Cần báo trước 1 tháng để được hoàn cọc (trừ trường hợp xuất cảnh đột xuất).</p>`}
@@ -252,7 +252,7 @@ function myWifiBlock(profile) {
 }
 async function copyWifi(mk) {
   try { await navigator.clipboard.writeText(mk); toast('Đã chép mật khẩu wifi'); }
-  catch (e) { toast('Trình duyệt không cho chép tự động — bạn chép tay giúp nhé', 'err'); }
+  catch (e) { toast('Không chép tự động được — hãy chép tay', 'err'); }
 }
 
 /* Panel "Liên hệ khi cần" — đặt NGAY ĐẦU trang, trên cả hồ sơ cá nhân. Số an ninh ca đêm là thứ
@@ -782,7 +782,7 @@ function maintSuaBienForm(vehicleId, bienCu) {
     <div class="mh"><h3>${IC.pencil} Đề nghị sửa biển số</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="bang-tin">${IC.info} <span>Biển đang lưu trên app: <strong>${esc(bienCu) || '(trống)'}</strong>.
-        Nhập biển ĐỌC ĐƯỢC TRÊN XE THẬT. Ban Quản lý duyệt xong hồ sơ xe mới đổi; duyệt hay từ chối đều hiện trên dòng xe.</span></div>
+        Nhập biển số <strong>đọc được trên xe thật</strong>. Ban Quản lý duyệt xong hồ sơ xe mới đổi; duyệt hay từ chối đều hiện trên dòng xe.</span></div>
       <div class="field"><label>Biển số thật ${SAO}</label>
         <input id="sb_plate" value="${esc(bienCu)}" placeholder="59-XB 564.35" autocapitalize="characters"></div>
       <div class="field" style="margin:0"><label>Ghi chú <span class="opt">(vì sao khác: đọc nhầm, đổi xe...)</span></label>
@@ -908,7 +908,11 @@ async function loadParkingCheck() {
   const body = el('maintBody'); if (!body) return;
   let d;
   try { d = await API.parkingList(pkNgay); }
-  catch (e) { body.innerHTML = `<div class="bang-tin">${IC.alert} ${esc(e.message)}</div>`; return; }
+  catch (e) {
+    body.innerHTML = `<div class="bang-tin" title="${esc(e.message || '')}">${IC.alert} <span>Không tải được danh sách xe.
+      <button class="btn sm" style="margin-left:6px" data-act="loadParkingCheck">${IC.refresh} Thử lại</button></span></div>`;
+    return;
+  }
   pkNgay = d.date; pkData = d;
   const s = d.summary, laHomNay = d.date === d.hom_nay;
   const conLai = s.chua_danh;
@@ -1001,7 +1005,7 @@ async function loadParkingCheck() {
           </tbody></table>`
         : `<div class="empty">${pkTab === 'da_tra' ? 'Không có xe nào đã trả hoặc hết hiệu lực.' : 'Ngày này không có xe nào đang đăng ký gửi.'}</div>`}</div>
     </div>
-    <div class="panel"><div class="hd"><h2>${IC.flag} Báo cáo đã gửi hôm nay (${bc.length})</h2></div>
+    <div class="panel"><div class="hd"><h2>${IC.flag} Báo cáo đã gửi ${laHomNay ? 'hôm nay' : 'ngày ' + fmtDate(d.date)} (${bc.length})</h2></div>
       <div class="table-wrap card-tbl">${bc.length
         ? `<table><thead><tr><th>Loại</th><th>Biển số</th><th>Nội dung</th><th>Người gửi</th><th>Trạng thái</th><th></th></tr></thead><tbody>
             ${bc.map(x => `<tr>

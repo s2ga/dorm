@@ -265,7 +265,7 @@ async function renderPublicRegister() {
           <div class="price-sub">Ký túc xá nhận học viên từ ${info.age_min || 17} đến ${info.age_max || 39} tuổi.</div></div>
       </div>
       <div class="field"><label>Ngày muốn nhận phòng ${SAO}</label><input id="a_movein" required>
-        <div class="muted" style="font-size:12.5px;margin-top:4px">${IC.info} Ban Quản lý xếp phòng theo ngày này. Chọn từ hôm nay trở đi; chưa chắc ngày nào thì cứ chọn tạm rồi báo lại sau.</div>
+        <div class="muted" style="font-size:12.5px;margin-top:4px">${IC.info} Ban Quản lý xếp phòng theo ngày này. Chọn từ hôm nay trở đi; chưa chắc thì chọn ngày dự kiến và báo lại sau.</div>
       </div>
       <div class="muted" style="font-size:12.5px;margin:2px 0 7px">${IC.info} <strong>Chưa khai giảng?</strong> Nhiều bạn thuê phòng trước khi vào học — nếu chưa có mã học viên / lớp, bạn cứ <strong>bỏ trống 2 ô dưới</strong>. Khi nào có, báo Ban Quản lý cập nhật sau.</div>
       <div class="grid2">

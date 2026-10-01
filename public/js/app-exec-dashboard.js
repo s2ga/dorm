@@ -126,15 +126,19 @@ function dsChuaLapPhieu(coPhieuKyNay, coPhieuKyTruoc) {
 }
 
 async function billOverdueModal() {
-  openModal(`<div class="mh"><h3>${IC.receipt} Chưa lập phiếu báo</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
-    <div class="mb"><div class="spinner"></div></div>`, true);
+  openModal(`<div class="mb"><div class="spinner"></div></div>`, true);
+  return napChuaLapPhieu();
+}
+async function napChuaLapPhieu() {
+  const dau = `<div class="mh"><h3>${IC.receipt} Chưa lập phiếu báo</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>`;
+  modalThay(`${dau}<div class="mb"><div class="spinner"></div></div>`);
   const M = curMonth(), Mt = _thangTruoc(M);
   let inv, invT;
   try { [inv, invT] = await Promise.all([API.invoices(M), API.invoices(Mt)]); }
   catch (e) {
-    return modalThay(`<div class="mh"><h3>${IC.receipt} Chưa lập phiếu báo</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
-      <div class="mb"><div class="bang-tin">${IC.alert} <span>Không tải được danh sách phiếu: ${esc(e.message || 'lỗi kết nối')}</span></div></div>
-      <div class="mf"><button class="btn" data-act="modalBack">Đóng</button></div>`);
+    return modalThay(`${dau}
+      <div class="mb"><div class="bang-tin" title="${esc(e.message || '')}">${IC.alert} <span>Không tải được danh sách phiếu báo.</span></div></div>
+      <div class="mf"><button class="btn pri" data-act="napChuaLapPhieu">${IC.refresh} Thử lại</button><button class="btn" data-act="modalBack">Đóng</button></div>`);
   }
   const { kyNay, kyTruoc } = dsChuaLapPhieu(new Set(inv.map(i => i.student_id)), new Set(invT.map(i => i.student_id)));
   const tong = kyNay.length + kyTruoc.length;
