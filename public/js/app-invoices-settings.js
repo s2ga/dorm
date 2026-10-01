@@ -626,14 +626,18 @@ function genDong(ico, nhan, so, mau, act) {
 }
 function genTomTat(r, month, xemTruoc) {
   const thieu = r.skipped_missing || 0;
+  const kyDien = prevKy(month), dauKyDien = `01/${kyDien.slice(5)}/${kyDien.slice(0, 4)}`;
+  const bam = loai => (r[loai + '_list'] || []).length ? ` data-act="genXemDs" data-args='["${loai}"]'` : '';
   return `
-    <p class="muted" style="margin:0 0 12px">Kỳ <strong>${monthLabel(month)}</strong> · ${r.total} học viên có phát sinh trong kỳ.
-      Tiền điện của phiếu này là kỳ <strong>${monthLabel(prevKy(month))}</strong>.</p>
+    <p class="muted" style="margin:0 0 12px">Kỳ <strong>${monthLabel(month)}</strong> · ${r.total} học viên có phát sinh: đang ở,
+      sắp vào trong kỳ, và đã trả phòng từ ${dauKyDien}. Tiền điện của phiếu này là kỳ <strong>${monthLabel(kyDien)}</strong>,
+      nên người trả phòng trong kỳ đó vẫn có phiếu.</p>
     <div class="gen-list">
-      ${genDong(IC.plus, 'Tạo mới', r.created, 'ic-green')}
+      ${genDong(IC.plus, 'Tạo mới', r.created, 'ic-green', bam('created'))}
       ${genDong(IC.pencil, 'Có thay đổi', r.updated, 'ic-amber', (r.changes || []).length ? ` data-act="genXemThayDoi"` : '')}
-      ${genDong(IC.check, 'Không đổi', r.unchanged, 'ic-gray')}
-      ${genDong(IC.lock, 'Bỏ qua — đã thu', r.skipped, 'ic-gray')}
+      ${genDong(IC.check, 'Không đổi', r.unchanged, 'ic-gray', bam('unchanged'))}
+      ${genDong(IC.lock, 'Bỏ qua — đã thu', r.skipped, 'ic-gray', bam('skipped'))}
+      ${genDong(IC.info, 'Không lập phiếu — tổng 0 đồng', r.zero, 'ic-gray', bam('zero'))}
       ${genDong(IC.trash, 'Dọn phiếu rỗng của người đã rời', r.cleaned, 'ic-gray')}
       ${genDong(IC.alert, `Bị bỏ qua — phòng thiếu chỉ số điện kỳ ${monthLabel(prevKy(month))}`, thieu, 'ic-red')}
     </div>
@@ -668,6 +672,33 @@ async function genChot() {
     <div class="mh"><h3>${IC.checkCircle} Đã lập hoá đơn ${monthLabel(month)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">${genTomTat(r, month, false)}</div>
     <div class="mf"><button class="btn pri" data-act="closeModal">Xong</button></div>`);
+}
+// Danh sách tên sau mỗi dòng tổng kết. Tình trạng (đang ở / sắp vào / đã trả) lấy từ hồ sơ đang nạp.
+const GEN_DS = {
+  created: [IC.plus, 'phiếu tạo mới'], unchanged: [IC.check, 'phiếu không đổi'],
+  skipped: [IC.lock, 'phiếu đã thu — bỏ qua'], zero: [IC.info, 'học viên không lập phiếu — tổng 0 đồng'],
+};
+function genXemDs(loai) {
+  const ds = ((_genKq && _genKq[loai + '_list']) || []).slice().sort((a, b) =>
+    String(a.room || '').localeCompare(String(b.room || ''), 'vi', { numeric: true }) || String(a.name || '').localeCompare(String(b.name || ''), 'vi'));
+  if (!ds.length || !GEN_DS[loai]) return;
+  const [ico, nhan] = GEN_DS[loai];
+  const dem = {};
+  const dong = ds.map(x => {
+    const s = studentById(x.student_id);
+    if (s) dem[liveStatus(s)] = (dem[liveStatus(s)] || 0) + 1;
+    return `<tr><td data-label="Học viên"><strong>${esc(x.name || '—')}</strong></td><td data-label="Phòng">${esc(x.room || '—')}</td>
+      <td data-label="Tình trạng">${s ? statusBadge(s) : '<span class="muted">—</span>'}</td><td class="num" data-label="Tổng">${money(x.total)}</td></tr>`;
+  }).join('');
+  const tomTat = Object.keys(STATUS_INFO).filter(k => dem[k]).map(k => `${dem[k]} ${STATUS_INFO[k][0].toLowerCase()}`).join(' · ');
+  openModal(`
+    <div class="mh"><h3>${ico} ${ds.length} ${nhan}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mb">
+      ${tomTat ? `<p class="muted" style="margin:0 0 12px">${tomTat}</p>` : ''}
+      <div class="table-wrap card-tbl"><table><thead><tr><th>Học viên</th><th>Phòng</th><th>Tình trạng</th><th class="num">Tổng</th></tr></thead>
+        <tbody>${dong}</tbody></table></div>
+    </div>
+    <div class="mf"><button class="btn" data-act="modalBack">← Quay lại</button></div>`, true);
 }
 // Bảng trước/sau: chỉ liệt kê khoản THẬT SỰ lệch, khỏi bắt người đọc tự dò 13 cột giống nhau.
 function genXemThayDoi() {

@@ -478,6 +478,8 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 	var created, updated, khongDoi, skipped, skippedThieu, daDon, totalStudents int
 	var warnings []string
 	thayDoi := []gin.H{} // phiếu tính ra KHÁC bản đang lưu — kèm từng khoản trước/sau
+	// Danh sách tên cho từng dòng tổng kết, để màn xem trước bấm vào được.
+	dsTaoMoi, dsKhongDoi, dsDaThu, dsRong := []gin.H{}, []gin.H{}, []gin.H{}, []gin.H{}
 	txErr := h.DB.WithTx(ctx, func(tx pgx.Tx) error {
 		// Lưu chỉ số điện VÀO KỲ M-1 (số đầu = số cuối kỳ M-2 nếu không nhập). invoices.routes.js:133-146
 		for _, r := range body.Readings {
@@ -895,8 +897,12 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 				continue
 			}
 			dup, hasDup := existing[s.id]
+			dongDs := func(tong float64) gin.H {
+				return gin.H{"student_id": s.id, "name": s.ten, "room": roomsCache[roomIDOr0(s.roomID)].name, "total": tong}
+			}
 			if hasDup && dup.status == "paid" {
 				skipped++ // đã đóng -> khóa, không sửa
+				dsDaThu = append(dsDaThu, dongDs(dup.cu["total"]))
 				continue
 			}
 			var room *billing.Room
@@ -941,6 +947,8 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 						return err
 					}
 					daDon++
+				} else {
+					dsRong = append(dsRong, dongDs(0))
 				}
 				continue
 			}
@@ -953,6 +961,8 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 						return err
 					}
 					daDon++
+				} else {
+					dsRong = append(dsRong, dongDs(0))
 				}
 				continue
 			}
@@ -985,6 +995,7 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 				khac := invoiceKhacNhau(dup.cu, moi)
 				if len(khac) == 0 && !dup.daXoa {
 					khongDoi++
+					dsKhongDoi = append(dsKhongDoi, dongDs(float64(total)))
 					continue // tính ra y hệt -> khỏi ghi đè, khỏi làm nhiễu danh sách "đã cập nhật"
 				}
 				thayDoi = append(thayDoi, gin.H{
@@ -1014,6 +1025,7 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 					return err
 				}
 				created++
+				dsTaoMoi = append(dsTaoMoi, dongDs(float64(inv.Total)))
 			}
 		}
 		if preview {
@@ -1030,7 +1042,8 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 	}
 	ket := gin.H{"created": created, "updated": updated, "unchanged": khongDoi, "skipped": skipped,
 		"skipped_missing": skippedThieu, "cleaned": daDon, "warnings": warnings, "total": totalStudents,
-		"changes": thayDoi}
+		"changes": thayDoi, "zero": len(dsRong),
+		"created_list": dsTaoMoi, "unchanged_list": dsKhongDoi, "skipped_list": dsDaThu, "zero_list": dsRong}
 	if preview {
 		ket["preview"] = true
 	}
