@@ -40,7 +40,7 @@ const ok = (ten, dk, them = '') => {
   const bien = await page.evaluate(() => notifItems().map(i => ({ n: i.n, tx: i.tx, act: i.act })));
   const co = re => bien.find(i => re.test(i.tx));
   ok('Người cần xác nhận nhận phòng và trả phòng là HAI dòng riêng',
-    !!co(/xác nhận NHẬN phòng/) && !!co(/xác nhận TRẢ phòng/), JSON.stringify(bien.map(b => b.tx)));
+    !!co(/xác nhận nhận phòng/) && !!co(/xác nhận trả phòng/), JSON.stringify(bien.map(b => b.tx)));
   ok('Chuông không còn dòng biên bản đếm riêng (đã gộp vào số người)', !co(/biên bản/), JSON.stringify(bien.map(b => b.tx)));
   // Một con số cho một khái niệm: chuông = badge menu = hàm đếm chung (thẻ Tổng quan cũng gọi hàm này).
   const dongBo = await page.evaluate(() => {
@@ -48,7 +48,7 @@ const ok = (ten, dk, them = '') => {
     const badge = id => { const b = el(id); return b && b.style.display !== 'none' ? +b.textContent : 0; };
     const dong = re => (notifItems().find(i => re.test(i.tx)) || { n: 0 }).n;
     return { hamVao: nguoiCanXuLyPhong('checkin').tong, hamRa: nguoiCanXuLyPhong('checkout').tong,
-      badgeVao: badge('navReg'), badgeRa: badge('navCheckout'), chuongVao: dong(/xác nhận NHẬN phòng/), chuongRa: dong(/xác nhận TRẢ phòng/) };
+      badgeVao: badge('navReg'), badgeRa: badge('navCheckout'), chuongVao: dong(/xác nhận nhận phòng/), chuongRa: dong(/xác nhận trả phòng/) };
   });
   ok('Nhận phòng: chuông = badge menu = hàm đếm chung',
     dongBo.chuongVao === dongBo.hamVao && dongBo.badgeVao === dongBo.hamVao, JSON.stringify(dongBo));
@@ -56,10 +56,10 @@ const ok = (ten, dk, them = '') => {
     dongBo.chuongRa === dongBo.hamRa && dongBo.badgeRa === dongBo.hamRa, JSON.stringify(dongBo));
   ok('Badge menu KHÔNG cộng đơn đăng ký / đơn trả phòng',
     dongBo.badgeVao === dongBo.hamVao && dongBo.badgeRa === dongBo.hamRa, JSON.stringify(dongBo));
-  ok('Dòng người nhận phòng trỏ về màn Đăng ký', /nhanPhongGo/.test((co(/xác nhận NHẬN phòng/) || {}).act || ''));
-  ok('Dòng người trả phòng trỏ về màn Trả phòng', /traPhongGo/.test((co(/xác nhận TRẢ phòng/) || {}).act || ''));
+  ok('Dòng người nhận phòng trỏ về màn Đăng ký', /nhanPhongGo/.test((co(/xác nhận nhận phòng/) || {}).act || ''));
+  ok('Dòng người trả phòng trỏ về màn Trả phòng', /traPhongGo/.test((co(/xác nhận trả phòng/) || {}).act || ''));
   ok('Dòng đơn đăng ký cuộn tới panel đơn', /nhanPhongGo".*"don"/.test((co(/đơn đăng ký chờ duyệt/) || {}).act || ''));
-  ok('Dòng đơn trả phòng cuộn tới panel đơn', /traPhongGo".*"don"/.test((co(/đơn xin trả phòng/) || {}).act || ''));
+  ok('Dòng đơn trả phòng cuộn tới panel đơn', /traPhongGo".*"don"/.test((co(/đơn trả phòng chờ duyệt/) || {}).act || ''));
   ok('Dòng vi phạm trỏ tới bộ lọc "cần báo"', /viPhamGo/.test((co(/cần báo nhà trường/) || {}).act || ''));
 
   // ── Đơn đăng ký: xem "Từ chối" trước, rồi bấm chuông -> phải quay về "Chờ duyệt" ───────────────
@@ -69,7 +69,7 @@ const ok = (ten, dk, them = '') => {
   ok('Chuông "đơn đăng ký chờ duyệt" ép bộ lọc về Chờ duyệt', await page.evaluate(() => regFilter) === 'pending');
   await page.evaluate(() => traPhongGo());
   await cho(2000);
-  ok('Chuông "đơn xin trả phòng" ép bộ lọc về Chờ xác nhận', await page.evaluate(() => coutFilter) === 'pending');
+  ok('Chuông "đơn trả phòng chờ duyệt" ép bộ lọc về Chờ xác nhận', await page.evaluate(() => coutFilter) === 'pending');
   await page.evaluate(() => baoTriGo());
   await cho(2000);
   ok('Chuông "báo hư hỏng" ép bộ lọc về Chưa xong', await page.evaluate(() => dmgFilter) === 'open');

@@ -167,7 +167,7 @@ const ok = (ten, dk, them = '') => {
           sau === '30x100' && n3 === 2, `${sau} · số lần nạp gốc: ${n3}`);
 
         await page.evaluate(() => _ttGoc.set('giu-thu', { bm: null, goc: 0, etag: '' }));
-        await page.evaluate(() => tamTruSheet());
+        await page.evaluate(() => viewTamTru());
         await page.waitForTimeout(800);
         ok('Mở lại trang in thì bỏ hết ảnh gốc đang giữ', await page.evaluate(() => _ttGoc.size) === 0,
           String(await page.evaluate(() => _ttGoc.size)));

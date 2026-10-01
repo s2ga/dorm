@@ -1,4 +1,4 @@
-// BL-112: Cần xử lý phải có ô "Lập phiếu thu", bấm ra danh sách ĐÚNG NGƯỜI,
+// BL-112: Cần xử lý phải có ô "Lập phiếu báo", bấm ra danh sách ĐÚNG NGƯỜI,
 // và người đã trả phòng trong kỳ cũng phải nằm trong đó.
 const { chromium } = require('playwright');
 
@@ -20,8 +20,8 @@ const ok = (t, d, x = '') => { if (d) console.log('  [OK] ' + t); else { fail++;
   await page.goto('/tong-quan');
   await page.waitForTimeout(3200);
 
-  const o = page.locator('.todo-grid .todo', { hasText: 'Lập phiếu thu' });
-  ok('Cần xử lý có ô "Lập phiếu thu"', await o.count() > 0);
+  const o = page.locator('.todo-grid .todo', { hasText: 'Lập phiếu báo' });
+  ok('Cần xử lý có ô "Lập phiếu báo"', await o.count() > 0);
   if (!await o.count()) { await ctx.close(); await browser.close(); process.exit(1); }
 
   const soTren = (await o.locator('.n').textContent() || '').trim();
@@ -42,7 +42,7 @@ const ok = (t, d, x = '') => { if (d) console.log('  [OK] ' + t); else { fail++;
   await page.waitForTimeout(2200);
 
   const mh = await page.locator('#modal .mh h3').textContent();
-  ok('Bấm vào ra modal "Chưa lập phiếu thu"', /Chưa lập phiếu thu/.test(mh || ''), mh);
+  ok('Bấm vào ra modal "Chưa lập phiếu báo"', /Chưa lập phiếu báo/.test(mh || ''), mh);
 
   if (mong.n > 0) {
     const hang = await page.locator('#modal tbody tr').count();
@@ -65,6 +65,6 @@ const ok = (t, d, x = '') => { if (d) console.log('  [OK] ' + t); else { fail++;
 
   ok('Không có lỗi JS', loi.length === 0, loi.slice(0, 2).join(' | '));
   await ctx.close(); await browser.close();
-  console.log(fail ? `\n==> ${fail} lỗi` : '\n==> Ô nhắc lập phiếu thu chạy đúng');
+  console.log(fail ? `\n==> ${fail} lỗi` : '\n==> Ô nhắc lập phiếu báo chạy đúng');
   process.exit(fail ? 1 : 0);
 })();

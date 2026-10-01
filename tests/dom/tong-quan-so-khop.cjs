@@ -89,14 +89,14 @@ const soTrong = s => { const m = String(s || '').match(/\((\d+)\)/); return m ? 
     await page.evaluate(() => closeModal());
   } else console.log('  [BỎ QUA] Hợp đồng = 0');
 
-  // ── Lập phiếu thu → modal, số dòng == số ô ────────────────────────────────────────
-  if (so['Lập phiếu thu'] > 0) {
-    await bam('Lập phiếu thu');
+  // ── Lập phiếu báo → modal, số dòng == số ô ────────────────────────────────────────
+  if (so['Lập phiếu báo'] > 0) {
+    await bam('Lập phiếu báo');
     await page.waitForTimeout(1500);
     const hang = await page.locator('#modal tbody tr').count();
-    ok('Lập phiếu thu → modal liệt kê đúng số người', hang === so['Lập phiếu thu'], `${hang} vs ${so['Lập phiếu thu']}`);
+    ok('Lập phiếu báo → modal liệt kê đúng số người', hang === so['Lập phiếu báo'], `${hang} vs ${so['Lập phiếu báo']}`);
     await page.evaluate(() => closeModal());
-  } else console.log('  [BỎ QUA] Lập phiếu thu = 0');
+  } else console.log('  [BỎ QUA] Lập phiếu báo = 0');
 
   // ── KPI Học viên đang ở → màn Học viên lọc "Đang ở" ──────────────────────────────
   await page.locator('.kpis .kpi', { hasText: 'Học viên đang ở' }).click();
