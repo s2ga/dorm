@@ -100,11 +100,11 @@ func (h *Handlers) studentsValidateCccd(c *gin.Context, sent, cur map[string]int
 		}
 		v := studentsJSString(rv)
 		if studentsIsCccdKey(v) && (cur == nil || v != studentsJSString(cur[f])) {
-			badRequest(c, "Ảnh CCCD không hợp lệ — chỉ nhận ảnh tải lên từ máy")
+			badRequest(c, "Ảnh CCCD không hợp lệ — chọn lại ảnh JPG, PNG, WEBP hoặc GIF.")
 			return false
 		}
 		if h.Store != nil && strings.HasPrefix(v, "data:image/") && storage.ParseDataUrl(v) == nil {
-			badRequest(c, "Ảnh CCCD không hợp lệ (chỉ nhận JPG/PNG/WEBP/GIF)")
+			badRequest(c, "Ảnh CCCD không hợp lệ — chọn lại ảnh JPG, PNG, WEBP hoặc GIF.")
 			return false
 		}
 	}
@@ -581,7 +581,7 @@ func studentsRejectUnknown(keys, allowed []string) string {
 	if len(extra) == 0 {
 		return ""
 	}
-	return "Trường không hợp lệ: " + strings.Join(extra, ", ") + ". Chỉ chấp nhận: " + strings.Join(allowed, ", ")
+	return "Dữ liệu gửi lên có ô không nhận ra — tải lại trang rồi thử lại."
 }
 
 // studentsBlockOrConfirm: lỗi CHẶN -> 400; cảnh báo chưa xác nhận -> 409 needs_confirm. room-rules.js:69-80
@@ -718,7 +718,7 @@ func studentsFindDuplicate(ctx context.Context, q db.Querier, code, idCard strin
 	dangO := studentsJSString(d["status"]) == "in"
 	idPart := `trùng CCCD "` + studentsJSString(d["id_card"]) + `"`
 	if trungMa {
-		idPart = `trùng mã HV "` + dcode + `"`
+		idPart = `trùng mã học viên "` + dcode + `"`
 	}
 	msg := name + " đã có hồ sơ trong hệ thống (" + idPart + ")"
 	if dangO {
@@ -727,12 +727,12 @@ func studentsFindDuplicate(ctx context.Context, q db.Querier, code, idCard strin
 			rn = "chưa xếp"
 		}
 		msg += " — đang ở phòng " + rn + "." +
-			` Nếu bạn ấy ĐỔI PHÒNG, hãy dùng chức năng "Chuyển phòng" trên hồ sơ cũ — tạo hồ sơ mới sẽ khiến bạn ấy bị tính tiền 2 lần.`
+			` Nếu học viên đổi phòng, dùng "Chuyển phòng" trên hồ sơ cũ — tạo hồ sơ mới sẽ khiến học viên bị tính tiền 2 lần.`
 	} else {
 		co := studentsJSString(d["check_out_date"])
 		coStr := ""
 		if co != "" {
-			coStr = " ngày " + studentsSlice10(co)
+			coStr = " ngày " + timeutil.NgayVN(studentsSlice10(co))
 		}
 		msg += " — đã trả phòng" + coStr + "." +
 			` Nếu học viên quay lại ở, dùng "Nhận phòng lại" trên hồ sơ cũ thay vì tạo mới.`
@@ -921,7 +921,7 @@ func (h *Handlers) UploadContractScan(c *gin.Context) {
 		p = storage.ParsePdfDataUrl(body.Data)
 	}
 	if p == nil {
-		badRequest(c, "Chỉ nhận ảnh (JPG, PNG, WEBP, GIF) hoặc PDF — và tệp phải đúng chữ ký, không chỉ đúng đuôi.")
+		badRequest(c, "Chỉ nhận ảnh (JPG, PNG, WEBP, GIF) hoặc tệp PDF — chọn lại.")
 		return
 	}
 	ctx := c.Request.Context()
@@ -1234,14 +1234,14 @@ func (h *Handlers) CreateStudent(c *gin.Context) {
 	if pv := b["phone"]; pv != nil {
 		ps := studentsJSString(pv)
 		if strings.TrimSpace(ps) != "" && !valid.IsValidPhone(ps) {
-			badRequest(c, `Số điện thoại không hợp lệ: "`+ps+`" (cần 8–15 chữ số)`)
+			badRequest(c, "Số điện thoại không hợp lệ (cần 8–15 chữ số).")
 			return
 		}
 	}
 	if pv := b["parent_phone"]; pv != nil {
 		ps := studentsJSString(pv)
 		if strings.TrimSpace(ps) != "" && !valid.IsValidPhone(ps) {
-			badRequest(c, `SĐT phụ huynh không hợp lệ: "`+ps+`" (cần 8–15 chữ số)`)
+			badRequest(c, "Số điện thoại phụ huynh không hợp lệ (cần 8–15 chữ số).")
 			return
 		}
 	}
@@ -1249,7 +1249,7 @@ func (h *Handlers) CreateStudent(c *gin.Context) {
 		if v, ok := b[k]; ok && v != nil {
 			s := studentsJSString(v)
 			if s != "" && !valid.IsValidYmd(s) {
-				badRequest(c, "Ngày không hợp lệ ("+k+")")
+				badRequest(c, valid.Nhan(k)+" không hợp lệ — chọn lại từ lịch.")
 				return
 			}
 		}
@@ -1325,7 +1325,7 @@ func (h *Handlers) CreateStudent(c *gin.Context) {
 		}
 		uname = strings.TrimSpace(uname)
 		if uname == "" {
-			badRequest(c, "Cần tên đăng nhập (hoặc mã HV) để tạo tài khoản")
+			badRequest(c, "Nhập tên đăng nhập (hoặc mã học viên) để tạo tài khoản.")
 			return
 		}
 		// Không gửi khoá login_password = máy tự sinh, trả về MỘT LẦN cho nhân viên đưa học viên.
@@ -1557,7 +1557,7 @@ func (h *Handlers) UpdateStudent(c *gin.Context) {
 		if v, ok := raw[k]; ok && v != nil {
 			s := studentsJSString(v)
 			if s != "" && !valid.IsValidYmd(s) {
-				badRequest(c, "Ngày không hợp lệ ("+k+")")
+				badRequest(c, valid.Nhan(k)+" không hợp lệ — chọn lại từ lịch.")
 				return
 			}
 		}
@@ -1602,12 +1602,12 @@ func (h *Handlers) UpdateStudent(c *gin.Context) {
 	coMoi := studentsSlice10(coM)
 	if coThat != "" {
 		if coMoi != coThat {
-			badRequest(c, "Học viên đã trả phòng ngày "+coThat+". Ngày đã qua không sửa được ở đây.")
+			badRequest(c, "Học viên đã trả phòng ngày "+timeutil.NgayVN(coThat)+". Ngày đã qua không sửa được ở đây.")
 			return
 		}
 	} else if coMoi != lichCu {
 		if coMoi != "" && coMoi <= homNay {
-			badRequest(c, "Ngày trả phòng phải sau hôm nay ("+homNay+"). Trả phòng hôm nay hoặc đã trả rồi thì dùng nút Trả phòng.")
+			badRequest(c, "Ngày trả phòng phải sau hôm nay ("+timeutil.NgayVN(homNay)+"). Trả phòng hôm nay hoặc đã trả rồi thì dùng nút Trả phòng.")
 			return
 		}
 		if coMoi != "" {
@@ -1625,7 +1625,7 @@ func (h *Handlers) UpdateStudent(c *gin.Context) {
 	if pv := b["phone"]; pv != nil {
 		ps := studentsJSString(pv)
 		if strings.TrimSpace(ps) != "" && !valid.IsValidPhone(ps) {
-			badRequest(c, `Số điện thoại không hợp lệ: "`+ps+`" (cần 8–15 chữ số)`)
+			badRequest(c, "Số điện thoại không hợp lệ (cần 8–15 chữ số).")
 			return
 		}
 	}
@@ -1716,8 +1716,8 @@ func (h *Handlers) UpdateStudent(c *gin.Context) {
 		}
 		conflict(c, gin.H{
 			"conflict": true,
-			"error": `Hồ sơ "` + conName + `" vừa được người khác sửa sau khi bạn mở form.` + "\n\n" +
-				"Lưu bây giờ sẽ đè mất thay đổi của họ. Hãy đóng form, mở lại để xem bản mới nhất rồi sửa tiếp.",
+			"error": `Hồ sơ "` + conName + `" vừa được người khác sửa sau khi bạn mở ra.` + "\n\n" +
+				"Lưu bây giờ sẽ đè mất thay đổi của họ. Đóng hộp này, mở lại để xem bản mới nhất rồi sửa tiếp.",
 		})
 		return
 	}
@@ -2254,7 +2254,7 @@ func (h *Handlers) canhBaoPhieuDaThu(ctx context.Context, sid int, thang string)
 	if that == int(days) {
 		return ""
 	}
-	return fmt.Sprintf(`Phiếu kỳ %s ĐÃ THU với %.0f ngày ở (tổng %.0f đ) trong khi ngày ở thật là %d ngày — app không tự sửa phiếu đã thu. Mở khoá phiếu về "Chưa thu" rồi bấm Tính lại; phần chênh xử lý hoàn lại hoặc trừ kỳ sau.`, thang, days, tong, that)
+	return fmt.Sprintf(`Phiếu %s đã thu với %.0f ngày ở (tổng %.0f đ) trong khi ngày ở thật là %d ngày — app không tự sửa phiếu đã thu. Mở khoá phiếu về "Chưa thu" rồi bấm Tính lại; phần chênh xử lý hoàn lại hoặc trừ kỳ sau.`, timeutil.ThangVN(thang), days, tong, that)
 }
 
 // UpdateCheckoutDate: PUT /:id/checkout-date (admin,staff). Sửa ngày trả của hồ sơ ĐÃ rời —
@@ -2330,8 +2330,8 @@ func (h *Handlers) UpdateCheckoutDate(c *gin.Context) {
 		return
 	}
 	if last != nil && d < last.FromDate {
-		badRequest(c, "Ngày trả phòng ("+d+") không thể trước ngày bắt đầu lượt ở cuối ("+last.FromDate+
-			") — học viên đã chuyển phòng ngày đó. Chọn ngày ≥ ngày chuyển, hoặc sửa lại lịch sử chuyển phòng trước.")
+		badRequest(c, "Ngày trả phòng ("+timeutil.NgayVN(d)+") không thể trước ngày bắt đầu lượt ở cuối ("+timeutil.NgayVN(last.FromDate)+
+			") — học viên đã chuyển phòng ngày đó. Chọn từ ngày chuyển trở đi, hoặc sửa lại lịch sử chuyển phòng trước.")
 		return
 	}
 	roomID := intPtrFromDB(cur["room_id"])
@@ -2693,7 +2693,7 @@ func (h *Handlers) StudentDeposit(c *gin.Context) {
 			return
 		}
 		if row == nil {
-			badRequest(c, "Chỉ gỡ được hồ sơ đang ở trạng thái ĐANG GIỮ cọc. Cọc đã hoàn / không hoàn thì dùng màn tất toán.")
+			badRequest(c, "Chỉ gỡ được hồ sơ đang giữ cọc. Cọc đã hoàn hoặc không hoàn thì dùng màn tất toán.")
 			return
 		}
 		c.JSON(http.StatusOK, row)
@@ -2806,7 +2806,7 @@ func (h *Handlers) StudentDepositSettle(c *gin.Context) {
 				return
 			}
 			if a == nil {
-				badRequest(c, "Tài sản không tồn tại (id="+studentsJSString(assetVal)+")")
+				badRequest(c, "Một mục hư hao trỏ tới tài sản đã bị xoá — chọn lại.")
 				return
 			}
 			fee, _ := studentsNumberJS(a["fee"])

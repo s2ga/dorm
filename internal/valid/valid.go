@@ -98,9 +98,10 @@ var SettingTime = map[string]bool{"security_day_from": true, "security_day_to": 
 
 // CheckSetting trả chuỗi lỗi nếu sai, "" nếu hợp lệ. server/valid.js:54-64
 func CheckSetting(key, raw string) string {
+	nhan := `"` + Nhan(key) + `"`
 	if SettingTime[key] {
 		if !reHourMin.MatchString(strings.TrimSpace(raw)) {
-			return `"` + key + `" phải là giờ dạng HH:MM (đang nhận: "` + raw + `")`
+			return nhan + ` phải là giờ, ví dụ 06:00 (đang nhập: "` + raw + `")`
 		}
 		return ""
 	}
@@ -110,17 +111,17 @@ func CheckSetting(key, raw string) string {
 	}
 	s := strings.TrimSpace(raw)
 	if s == "" || !reNum.MatchString(s) {
-		return `"` + key + `" phải là số (đang nhận: "` + raw + `")`
+		return nhan + ` phải là số (đang nhập: "` + raw + `")`
 	}
 	n, err := strconv.ParseFloat(s, 64)
 	if err != nil {
-		return `"` + key + `" phải là số`
+		return nhan + ` phải là số`
 	}
 	if n < spec.min {
-		return `"` + key + `" không được nhỏ hơn ` + trimFloat(spec.min) + ` (đang nhận: ` + trimFloat(n) + `)`
+		return nhan + ` không được nhỏ hơn ` + trimFloat(spec.min) + ` (đang nhập: ` + trimFloat(n) + `)`
 	}
 	if n > spec.max {
-		return `"` + key + `" không được lớn hơn ` + trimFloat(spec.max) + ` (đang nhận: ` + trimFloat(n) + `)`
+		return nhan + ` không được lớn hơn ` + trimFloat(spec.max) + ` (đang nhập: ` + trimFloat(n) + `)`
 	}
 	return ""
 }
@@ -190,7 +191,7 @@ func KhongChoHTML(get func(string) (string, bool), keys []string) string {
 	for _, k := range keys {
 		v, ok := get(k)
 		if ok && CoTheLaHTML(v) {
-			return `Trường "` + k + `" chứa mã HTML — nhập lại bằng chữ thường, bỏ các dấu < > và &...;`
+			return `Ô "` + Nhan(k) + `" chứa ký hiệu của mã HTML (< > &) — bỏ các ký hiệu đó rồi gửi lại.`
 		}
 	}
 	return ""
@@ -206,7 +207,7 @@ func TooLong(get func(string) (string, bool), limits []TooLongField) string {
 		}
 		n := len([]rune(v))
 		if n > f.Max {
-			return `Trường "` + f.Key + `" quá dài (tối đa ` + strconv.Itoa(f.Max) + ` ký tự, đang nhận ` + strconv.Itoa(n) + `)`
+			return `Ô "` + Nhan(f.Key) + `" quá dài (tối đa ` + strconv.Itoa(f.Max) + ` ký tự, đang có ` + strconv.Itoa(n) + `)`
 		}
 	}
 	return ""

@@ -43,7 +43,7 @@ module.exports = {
     const i1 = (await t.db.query(`SELECT days_stayed, total, status FROM invoices WHERE id=$1`, [inv])).rows[0];
     t.ok('Phiếu đã thu giữ nguyên (không ghi đè tiền đã cầm)', +i1.days_stayed === 30 && i1.status === 'paid', JSON.stringify(i1));
     t.ok('Phản hồi check-out có CẢNH BÁO nêu rõ chênh lệch',
-      /ĐÃ THU/.test(co.json.canh_bao || '') && /30 ngày/.test(co.json.canh_bao || ''),
+      /đã thu/i.test(co.json.canh_bao || '') && /30 ngày/.test(co.json.canh_bao || ''),
       JSON.stringify(co.json.canh_bao));
 
     // ── Data-health chỉ mặt phiếu đã-thu-lệch-ngày-ở ─────────────────────────────────────

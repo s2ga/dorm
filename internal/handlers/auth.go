@@ -78,7 +78,7 @@ func (h *Handlers) Login(c *gin.Context) {
 
 	user, err := h.loadLoginUser(c, trimSpace(username))
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi máy chủ"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": loiMayChu})
 		return
 	}
 
@@ -145,7 +145,7 @@ func (h *Handlers) Login(c *gin.Context) {
 	loginLog(h, c, &user.ID, user.Username, user.Role, "đăng nhập thành công")
 	token, err := h.Auth.SignToken(user.ID, user.Username, user.Role, user.StudentID, user.TokenEpoch)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi máy chủ"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": loiMayChu})
 		return
 	}
 	h.Auth.SetAuthCookie(c, token)
@@ -264,7 +264,7 @@ func (h *Handlers) ChangePassword(c *gin.Context) {
 	var curHash *string
 	if err := h.pool().QueryRow(c.Request.Context(),
 		"SELECT password_hash FROM users WHERE id = $1", u.ID).Scan(&curHash); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi máy chủ"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": loiMayChu})
 		return
 	}
 	if curHash != nil && bcrypt.CompareHashAndPassword([]byte(*curHash), []byte(body.NewPassword)) == nil {
@@ -273,12 +273,12 @@ func (h *Handlers) ChangePassword(c *gin.Context) {
 	}
 	newHash, err := bcrypt.GenerateFromPassword([]byte(body.NewPassword), 10)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi máy chủ"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": loiMayChu})
 		return
 	}
 	if _, err := h.pool().Exec(c.Request.Context(),
 		"UPDATE users SET password_hash = $1, must_change_password = false WHERE id = $2", string(newHash), u.ID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi máy chủ"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": loiMayChu})
 		return
 	}
 	_ = h.Auth.RevokeTokens(c.Request.Context(), u.ID)

@@ -24,7 +24,7 @@ func (h *Handlers) ListMeterReads(c *gin.Context) {
 	u := auth.CurrentUser(c)
 	month := c.Query("month")
 	if month == "" || !valid.IsValidYmd(month+"-01") {
-		badRequest(c, "Kỳ không hợp lệ (cần YYYY-MM)")
+		badRequest(c, loiKy)
 		return
 	}
 	ctx := c.Request.Context()
@@ -96,7 +96,7 @@ func (h *Handlers) ElectricSegments(c *gin.Context) {
 	roomID := queryIntDefault(c, "room_id", 0)
 	month := c.Query("month")
 	if roomID <= 0 || month == "" || !valid.IsValidYmd(month+"-01") {
-		badRequest(c, "Cần room_id và month (YYYY-MM)")
+		badRequest(c, "Thiếu phòng hoặc kỳ.")
 		return
 	}
 	ctx := c.Request.Context()
@@ -200,12 +200,12 @@ func (h *Handlers) SaveMeterRead(c *gin.Context) {
 	u := auth.CurrentUser(c)
 	var b meterReadBody
 	if err := c.ShouldBindJSON(&b); err != nil {
-		badRequest(c, "Dữ liệu gửi lên không hợp lệ")
+		badRequest(c, "Dữ liệu chốt chỉ số không đọc được — tải lại trang rồi nhập lại.")
 		return
 	}
 	ridNum, okR := jsNum(b.RoomID)
 	if !okR || ridNum <= 0 {
-		badRequest(c, "Thiếu phòng")
+		badRequest(c, "Chọn phòng.")
 		return
 	}
 	roomID := int(ridNum)

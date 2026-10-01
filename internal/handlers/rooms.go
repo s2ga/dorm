@@ -176,7 +176,7 @@ func (h *Handlers) ListRooms(c *gin.Context) {
 	moc := "CURRENT_DATE"
 	if d := c.Query("date"); d != "" {
 		if !valid.IsValidYmd(d) {
-			badRequest(c, "Ngày không hợp lệ (cần dạng YYYY-MM-DD)")
+			badRequest(c, loiNgay)
 			return
 		}
 		params = append(params, d)
@@ -210,7 +210,7 @@ func (h *Handlers) RoomsCalendar(c *gin.Context) {
 	u := auth.CurrentUser(c)
 	tu, den := c.Query("tu"), c.Query("den")
 	if !valid.IsValidYmd(tu) || !valid.IsValidYmd(den) {
-		badRequest(c, "Ngày không hợp lệ (cần dạng YYYY-MM-DD)")
+		badRequest(c, loiNgay)
 		return
 	}
 	t1, _ := time.Parse("2006-01-02", tu)
@@ -589,7 +589,7 @@ func (h *Handlers) SetRoomLeader(c *gin.Context) {
 	_ = c.ShouldBindJSON(&body)
 	sidNum, ok := jsNum(body.StudentID)
 	if !ok || sidNum == 0 {
-		badRequest(c, "Chọn học viên làm phòng trưởng")
+		badRequest(c, "Chọn học viên làm phòng trưởng.")
 		return
 	}
 	if body.Date != nil && *body.Date != "" && !valid.IsValidYmd(*body.Date) {

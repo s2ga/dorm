@@ -69,7 +69,7 @@ func (h *Handlers) CreateFacility(c *gin.Context) {
 func (h *Handlers) UpdateFacility(c *gin.Context) {
 	id, ok := paramInt(c, "id")
 	if !ok {
-		notFound(c, "Không tìm thấy cơ sở (hoặc đã bị xoá)")
+		notFound(c, "Không tìm thấy cơ sở")
 		return
 	}
 	var b facilityBody
@@ -100,7 +100,7 @@ func (h *Handlers) UpdateFacility(c *gin.Context) {
 		return
 	}
 	if row == nil {
-		notFound(c, "Không tìm thấy cơ sở (hoặc đã bị xoá)")
+		notFound(c, "Không tìm thấy cơ sở")
 		return
 	}
 	c.JSON(http.StatusOK, row)
@@ -110,7 +110,7 @@ func (h *Handlers) UpdateFacility(c *gin.Context) {
 func (h *Handlers) DeleteFacility(c *gin.Context) {
 	id, ok := paramInt(c, "id")
 	if !ok {
-		badRequest(c, "id không hợp lệ")
+		badRequest(c, "Mã cơ sở không hợp lệ")
 		return
 	}
 	ctx := c.Request.Context()

@@ -48,7 +48,7 @@ func (h *Handlers) SSOExchangeParams(c *gin.Context) {
 		State string `json:"state"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil || strings.TrimSpace(body.State) == "" {
-		badRequest(c, "Thiếu state")
+		badRequest(c, "Phiên đăng nhập Microsoft không hợp lệ — thử lại.")
 		return
 	}
 	ssoCookie, _ := c.Cookie(sso.StateCookie)
@@ -340,7 +340,7 @@ func (h *Handlers) SSOVerify(c *gin.Context) {
 		IDToken string `json:"id_token"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil || strings.TrimSpace(body.IDToken) == "" {
-		badRequest(c, "Thiếu id_token")
+		badRequest(c, "Phiên đăng nhập Microsoft không hợp lệ — thử lại.")
 		return
 	}
 	identity, err := h.SSO.VerifyIDToken(ctx, body.IDToken, "") // nonce đã kiểm phía trình duyệt
@@ -359,11 +359,11 @@ func (h *Handlers) SSOVerify(c *gin.Context) {
 		return
 	}
 	if e != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Không tạo/khôi phục được tài khoản: " + e.Error()})
+		loiCoGhiLog(c, http.StatusInternalServerError, "Không tạo/khôi phục được tài khoản — thử lại sau; nếu vẫn lỗi, báo quản trị.", e)
 		return
 	}
 	if user == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Tài khoản không hợp lệ."})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Không xác định được tài khoản Microsoft — thử đăng nhập lại."})
 		return
 	}
 	loginLog(h, c, &user.ID, user.Username, user.Role, "đăng nhập Microsoft")

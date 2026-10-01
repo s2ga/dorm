@@ -46,7 +46,7 @@ func (h *Handlers) MaintWashingRequest(c *gin.Context) {
 	}
 	_ = c.ShouldBindJSON(&b)
 	if b.StudentID <= 0 {
-		badRequest(c, "Chưa chọn học viên")
+		badRequest(c, "Chọn học viên.")
 		return
 	}
 	ngay := strings.TrimSpace(b.SeenDate)
@@ -54,11 +54,11 @@ func (h *Handlers) MaintWashingRequest(c *gin.Context) {
 		ngay = timeutil.Today()
 	}
 	if !valid.IsValidYmd(ngay) {
-		badRequest(c, "Ngày không hợp lệ (cần dạng YYYY-MM-DD)")
+		badRequest(c, loiNgay)
 		return
 	}
 	if ngay > timeutil.Today() {
-		badRequest(c, "Ngày gửi đề nghị không thể ở tương lai")
+		badRequest(c, "Ngày gửi đề nghị không thể ở tương lai.")
 		return
 	}
 	ctx := c.Request.Context()
@@ -197,7 +197,7 @@ func (h *Handlers) washingRequestQuyetDinh(c *gin.Context, duyet bool) {
 		return
 	}
 	if status != washReqChoDuyet {
-		conflict(c, gin.H{"error": "Đề nghị này đã được xử lý rồi (" + status + ")."})
+		conflict(c, gin.H{"error": "Đề nghị này " + nhanTT(nhanTTDeNghi, status) + " — tải lại danh sách."})
 		return
 	}
 

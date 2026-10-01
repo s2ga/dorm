@@ -94,15 +94,15 @@ func (h *Handlers) MaintReportCreate(c *gin.Context) {
 	u := auth.CurrentUser(c)
 	var b hoCreateBody
 	if err := c.ShouldBindJSON(&b); err != nil {
-		badRequest(c, "Dữ liệu biên bản không hợp lệ")
+		badRequest(c, "Dữ liệu biên bản không đọc được — tải lại trang rồi lập lại.")
 		return
 	}
 	if b.Kind != "checkin" && b.Kind != "checkout" {
-		badRequest(c, `Loại biên bản không hợp lệ: "`+b.Kind+`". Chỉ nhận: checkin, checkout.`)
+		badRequest(c, "Loại biên bản không hợp lệ — chỉ nhận: nhận phòng, trả phòng.")
 		return
 	}
 	if b.StudentID <= 0 {
-		badRequest(c, "Thiếu học viên")
+		badRequest(c, "Chọn học viên.")
 		return
 	}
 	today := timeutil.Today()
@@ -111,7 +111,7 @@ func (h *Handlers) MaintReportCreate(c *gin.Context) {
 		d = today
 	}
 	if !valid.IsValidYmd(d) {
-		badRequest(c, `Ngày bàn giao không hợp lệ: "`+b.Date+`"`)
+		badRequest(c, "Ngày bàn giao không hợp lệ — chọn lại từ lịch.")
 		return
 	}
 	if d > today {
@@ -119,7 +119,7 @@ func (h *Handlers) MaintReportCreate(c *gin.Context) {
 		return
 	}
 	if !hoCleanliness[b.Cleanliness] {
-		badRequest(c, `Mức vệ sinh không hợp lệ: "`+b.Cleanliness+`". Chỉ nhận: sach, ban_nhe, ban_nang.`)
+		badRequest(c, "Mức vệ sinh không hợp lệ — chỉ nhận: sạch, bẩn nhẹ, bẩn nặng.")
 		return
 	}
 	if b.KeysCount != nil && (*b.KeysCount < 0 || *b.KeysCount > 50) {
@@ -128,12 +128,12 @@ func (h *Handlers) MaintReportCreate(c *gin.Context) {
 	}
 	note := strings.TrimSpace(b.Note)
 	if len([]rune(note)) > 1000 {
-		badRequest(c, "Ghi chú dài quá 1000 ký tự")
+		badRequest(c, "Ghi chú quá dài (tối đa 1000 ký tự).")
 		return
 	}
 	plates := strings.TrimSpace(b.Plates)
 	if len([]rune(plates)) > 200 {
-		badRequest(c, "Biển số đối chiếu dài quá 200 ký tự")
+		badRequest(c, "Biển số đối chiếu quá dài (tối đa 200 ký tự).")
 		return
 	}
 	ctx := c.Request.Context()
@@ -188,7 +188,7 @@ func (h *Handlers) MaintReportCreate(c *gin.Context) {
 	hasMeter, reading, finite := studentsMeterVal(b.MeterReading)
 	if roomID != nil {
 		if !hasMeter {
-			badRequest(c, "Cần ghi số điện công-tơ lúc bàn giao.")
+			badRequest(c, "Nhập chỉ số công-tơ lúc bàn giao.")
 			return
 		}
 		if !finite || reading < 0 {
@@ -223,7 +223,7 @@ func (h *Handlers) MaintReportCreate(c *gin.Context) {
 			"SELECT name, COALESCE(unit,''), COALESCE(fee,0) FROM assets WHERE id=$1 AND deleted_at IS NULL", ln.AssetID).
 			Scan(&aName, &aUnit, &fee); e != nil {
 			if errors.Is(e, pgx.ErrNoRows) {
-				badRequest(c, "Tài sản không tồn tại (id="+itoa(ln.AssetID)+")")
+				badRequest(c, "Một mục hư hao trỏ tới tài sản đã bị xoá — chọn lại.")
 				return
 			}
 			serverErr(c, e)
@@ -274,12 +274,12 @@ func (h *Handlers) HandoverReportsList(c *gin.Context) {
 		cond = append(cond, "hr.status = $"+itoa(len(params)))
 	case "all":
 	default:
-		badRequest(c, `Trạng thái không hợp lệ: "`+st+`". Chỉ nhận: pending, approved, returned, all.`)
+		badRequest(c, "Trạng thái không hợp lệ — chỉ nhận: chờ xác nhận, đã xác nhận, đã trả lại, tất cả.")
 		return
 	}
 	if m := c.Query("month"); m != "" {
 		if !maintIsMonth(m) {
-			badRequest(c, "Tháng không hợp lệ (YYYY-MM)")
+			badRequest(c, loiKy)
 			return
 		}
 		params = append(params, m)
@@ -587,7 +587,7 @@ func (h *Handlers) HandoverReportReturn(c *gin.Context) {
 		return
 	}
 	if ct.RowsAffected() == 0 {
-		conflict(c, gin.H{"error": "Biên bản vừa được xử lý bởi thao tác khác — tải lại để xem trạng thái mới nhất."})
+		conflict(c, gin.H{"error": "Biên bản này vừa được người khác xử lý — tải lại danh sách."})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})

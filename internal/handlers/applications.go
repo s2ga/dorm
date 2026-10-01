@@ -459,8 +459,7 @@ func (h *Handlers) ApproveApplication(c *gin.Context) {
 				tail = " — đang ở phòng " + room + "."
 			}
 			msg := dupName + " đã có hồ sơ (" + lyDo + ")" + tail +
-				" Duyệt đơn này sẽ tạo hồ sơ thứ hai và bạn ấy bị tính tiền 2 lần. Nếu đúng là người khác" +
-				" (vd trùng SĐT người nhà), gửi lại kèm xác nhận; nếu không, xử lý trên hồ sơ cũ rồi Từ chối đơn này."
+				" Duyệt đơn này sẽ tạo hồ sơ thứ hai và học viên bị tính tiền 2 lần — xử lý trên hồ sơ cũ rồi từ chối đơn này."
 			conflict(c, gin.H{"duplicate": true, "existing": dupExisting, "error": msg})
 			return
 		}
@@ -483,7 +482,7 @@ func (h *Handlers) ApproveApplication(c *gin.Context) {
 	if jsTruthy(b.CreateLogin) {
 		uname = strings.TrimSpace(applicationsFirstNonEmpty(applicationsDeref(b.LoginUsername), appPhone, appCode))
 		if uname == "" {
-			badRequest(c, "Cần tên đăng nhập")
+			badRequest(c, "Nhập tên đăng nhập.")
 			return
 		}
 		if b.LoginPassword == nil {
@@ -568,7 +567,7 @@ func (h *Handlers) ApproveApplication(c *gin.Context) {
 			return e
 		}
 		if lockedStatus != "pending" {
-			return &applicationsErr{409, "Đơn đã được xử lý (có thể một người khác vừa duyệt)."}
+			return &applicationsErr{409, "Đơn này vừa được người khác xử lý — tải lại danh sách."}
 		}
 		// M-6: khoá tư vấn theo SĐT/mã + kiểm trùng LẠI trong transaction. applications.routes.js:149-161
 		if !confirmDuplicate {
@@ -589,7 +588,7 @@ func (h *Handlers) ApproveApplication(c *gin.Context) {
 						OR (regexp_replace($2,'\D','','g') <> '' AND regexp_replace(s.phone,'\D','','g') = regexp_replace($2,'\D','','g'))
 					  ) LIMIT 1`, appCode, appPhone).Scan(&dupName)
 				if e == nil {
-					return &applicationsErr{409, dupName + " vừa được tạo hồ sơ (trùng mã HV/SĐT) bởi thao tác khác — không tạo hồ sơ thứ hai."}
+					return &applicationsErr{409, dupName + " vừa được người khác tạo hồ sơ (trùng mã học viên hoặc SĐT) — không tạo hồ sơ thứ hai."}
 				} else if !errors.Is(e, pgx.ErrNoRows) {
 					return e
 				}
@@ -655,7 +654,7 @@ func (h *Handlers) ApproveApplication(c *gin.Context) {
 				return
 			case strings.Contains(pe.ConstraintName, "vehicles_plate"):
 				conflict(c, gin.H{"error": `Biển số "` + strings.TrimSpace(applicationsStr(app, "plate")) +
-					`" đang gắn cho xe khác. Gỡ xe cũ ở màn Xe rồi duyệt lại đơn này.`})
+					`" đang gắn cho xe khác. Gỡ xe cũ ở Dịch vụ › Gửi xe rồi duyệt lại đơn này.`})
 				return
 			}
 		}
@@ -699,7 +698,7 @@ func (h *Handlers) RejectApplication(c *gin.Context) {
 		return
 	}
 	if status == "approved" {
-		badRequest(c, "Đơn đã được duyệt và học viên đã vào ở — không thể từ chối. Nếu người này không ở nữa, dùng nút Trả phòng / Khoá hồ sơ trên hồ sơ học viên.")
+		badRequest(c, "Đơn đã duyệt và học viên đã vào ở — không từ chối được. Nếu người này không ở nữa, dùng Trả phòng hoặc Khoá hồ sơ trên hồ sơ học viên.")
 		return
 	}
 	if status == "rejected" {
@@ -714,7 +713,7 @@ func (h *Handlers) RejectApplication(c *gin.Context) {
 		return
 	}
 	if ct.RowsAffected() == 0 {
-		conflict(c, gin.H{"error": "Đơn vừa được xử lý bởi thao tác khác (duyệt/từ chối) — tải lại để xem trạng thái mới nhất."})
+		conflict(c, gin.H{"error": "Đơn này vừa được người khác xử lý — tải lại danh sách."})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
@@ -742,7 +741,7 @@ func (h *Handlers) DeleteApplication(c *gin.Context) {
 		return
 	}
 	if status == "approved" {
-		badRequest(c, "Đơn đã duyệt và học viên đã vào ở — không xoá đơn (hồ sơ gốc cần giữ). Nếu người này không ở nữa, dùng nút Trả phòng / Khoá hồ sơ trên hồ sơ học viên.")
+		badRequest(c, "Đơn đã duyệt và học viên đã vào ở — không xoá được đơn vì hồ sơ gốc cần giữ. Nếu người này không ở nữa, dùng Trả phòng hoặc Khoá hồ sơ trên hồ sơ học viên.")
 		return
 	}
 	// BLK-4: xoá mềm NGUYÊN TỬ — chỉ khi CHƯA duyệt. applications.routes.js:230
@@ -753,7 +752,7 @@ func (h *Handlers) DeleteApplication(c *gin.Context) {
 		return
 	}
 	if ct.RowsAffected() == 0 {
-		conflict(c, gin.H{"error": "Đơn vừa được duyệt bởi thao tác khác — không xoá được (hồ sơ học viên đang ở cần giữ). Tải lại để xem."})
+		conflict(c, gin.H{"error": "Đơn này vừa được người khác duyệt — không xoá được vì hồ sơ học viên cần giữ. Tải lại danh sách."})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})

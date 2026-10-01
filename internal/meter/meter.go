@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"ktx/internal/billing"
 	"ktx/internal/db"
+	"ktx/internal/timeutil"
 )
 
 func numStr(f float64) string { return strconv.FormatFloat(f, 'f', -1, 64) }
@@ -31,7 +32,7 @@ func CheckRead(ctx context.Context, q db.Querier, roomID int, date string, readi
 		return "Chỉ số " + numStr(reading) + " nhỏ hơn chỉ số đầu tháng (" + numStr(rs) + ") — công-tơ không quay ngược được", nil
 	}
 	if hasER && re > 0 && reading > re {
-		return "Chỉ số " + numStr(reading) + " lớn hơn chỉ số cuối tháng đã ghi (" + numStr(re) + ")", nil
+		return "Chỉ số " + numStr(reading) + " lớn hơn chỉ số cuối tháng đã ghi (" + numStr(re) + ") — kiểm lại số hoặc sửa chỉ số cuối tháng.", nil
 	}
 
 	prevDate, prevReading, hasPrev, err := oneRead(ctx, q, roomID, date, "<", "DESC")
@@ -39,14 +40,14 @@ func CheckRead(ctx context.Context, q db.Querier, roomID int, date string, readi
 		return "", err
 	}
 	if hasPrev && reading < prevReading {
-		return "Chỉ số " + numStr(reading) + " nhỏ hơn lần chốt ngày " + prevDate + " (" + numStr(prevReading) + ")", nil
+		return "Chỉ số " + numStr(reading) + " nhỏ hơn lần chốt ngày " + timeutil.NgayVN(prevDate) + " (" + numStr(prevReading) + ")", nil
 	}
 	nextDate, nextReading, hasNext, err := oneRead(ctx, q, roomID, date, ">", "ASC")
 	if err != nil {
 		return "", err
 	}
 	if hasNext && reading > nextReading {
-		return "Chỉ số " + numStr(reading) + " lớn hơn lần chốt ngày " + nextDate + " (" + numStr(nextReading) + ")", nil
+		return "Chỉ số " + numStr(reading) + " lớn hơn lần chốt ngày " + timeutil.NgayVN(nextDate) + " (" + numStr(nextReading) + ")", nil
 	}
 	return "", nil
 }

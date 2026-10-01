@@ -104,7 +104,7 @@ func violationsRejectUnknown(raw map[string]json.RawMessage, allowed []string) s
 	if len(extra) == 0 {
 		return ""
 	}
-	return "Trường không hợp lệ: " + strings.Join(extra, ", ") + ". Chỉ chấp nhận: " + strings.Join(allowed, ", ")
+	return "Dữ liệu gửi lên có ô không nhận ra — tải lại trang rồi thử lại."
 }
 
 // violationsBlockByStudent: chặn thao tác lên HV NGOÀI cơ sở người dùng. violations.routes.js:10-16
@@ -248,7 +248,7 @@ func (h *Handlers) UpdateViolationType(c *gin.Context) {
 		return
 	}
 	if row == nil {
-		notFound(c, "Không tìm thấy")
+		notFound(c, "Không tìm thấy loại vi phạm này")
 		return
 	}
 	c.JSON(http.StatusOK, row)
@@ -591,11 +591,11 @@ func (h *Handlers) CreateViolation(c *gin.Context) {
 		date = today
 	}
 	if !valid.IsValidYmd(date) {
-		badRequest(c, `Ngày vi phạm không hợp lệ: "`+dateStr+`"`)
+		badRequest(c, "Ngày vi phạm không hợp lệ — chọn lại từ lịch.")
 		return
 	}
 	if date > today {
-		badRequest(c, "Ngày vi phạm không thể ở tương lai")
+		badRequest(c, "Ngày vi phạm không thể ở tương lai.")
 		return
 	}
 	notePtr := violationsBodyStr(raw, "note")
@@ -714,7 +714,7 @@ func (h *Handlers) UpdateViolation(c *gin.Context) {
 	// V2-07: status chỉ 'open'|'resolved'.
 	statusPtr := violationsBodyStr(raw, "status")
 	if statusPtr != nil && *statusPtr != "open" && *statusPtr != "resolved" {
-		badRequest(c, `Trạng thái không hợp lệ: "`+*statusPtr+`" (chỉ 'open' hoặc 'resolved')`)
+		badRequest(c, "Trạng thái không hợp lệ — chỉ nhận: chưa xử lý, đã xử lý.")
 		return
 	}
 	// V2-08: chỉ đổi field CÓ gửi (CASE/COALESCE).
@@ -745,7 +745,7 @@ func (h *Handlers) UpdateViolation(c *gin.Context) {
 		return
 	}
 	if row == nil {
-		notFound(c, "Không tìm thấy")
+		notFound(c, "Không tìm thấy vi phạm này")
 		return
 	}
 	c.JSON(http.StatusOK, row)
@@ -831,7 +831,7 @@ func (h *Handlers) NotifyStudentSchool(c *gin.Context) {
 	}
 	threshold := violationsThreshold(settings)
 	if cnt < threshold { // skipped 'under-threshold'
-		badRequest(c, "Chưa đủ ngưỡng gửi mail (mới "+itoa(cnt)+"/"+itoa(threshold)+" vi phạm)")
+		badRequest(c, "Chưa đủ ngưỡng gửi email (mới "+itoa(cnt)+"/"+itoa(threshold)+" vi phạm)")
 		return
 	}
 	// force=true: bỏ qua 'already-notified'. Gửi mail thật; sent -> đánh cờ. violations.routes.js:55-60

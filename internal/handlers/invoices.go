@@ -156,10 +156,10 @@ func invoiceBadMoney(b map[string]json.RawMessage) string {
 		}
 		n, fin := jsNum(raw)
 		if !fin {
-			return `"` + k + `" phải là số (đang nhận: "` + invoiceRawDisp(raw) + `")`
+			return `"` + valid.Nhan(k) + `" phải là số (đang nhập: "` + invoiceRawDisp(raw) + `")`
 		}
 		if n < 0 {
-			return `"` + k + `" không được âm (đang nhận: ` + numDisp(n) + `)`
+			return `"` + valid.Nhan(k) + `" không được âm (đang nhập: ` + numDisp(n) + `)`
 		}
 	}
 	return ""
@@ -176,7 +176,7 @@ func invoiceBadDays(daysRaw json.RawMessage, month string) string {
 	d, fin := jsNum(daysRaw)
 	dim := billing.DaysInMonth(month)
 	if fin && d > float64(dim) {
-		return "Số ngày ở (" + numDisp(d) + ") vượt số ngày của tháng " + month + " (" + itoa(dim) + " ngày)."
+		return "Số ngày ở (" + numDisp(d) + ") vượt số ngày của " + timeutil.ThangVN(month) + " (" + itoa(dim) + " ngày)."
 	}
 	return ""
 }
@@ -371,7 +371,7 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 	preview := invoiceTruthy(body.Preview) // xem trước: tính rồi ROLLBACK, không ghi gì
 	// isValidMonth chứ không chỉ "!month" (invoices.routes.js:101).
 	if !valid.IsValidMonth(body.Month) {
-		badRequest(c, "Kỳ (tháng) không hợp lệ — chọn dạng YYYY-MM.")
+		badRequest(c, loiKy)
 		return
 	}
 	// Đa cơ sở: quản lý cơ sở chỉ ghi chỉ số cho phòng CƠ SỞ MÌNH. invoices.routes.js:103-108
@@ -381,7 +381,7 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 		for _, r := range body.Readings {
 			ids = append(ids, invoiceIntID(r.RoomID))
 		}
-		rows, err := h.pool().Query(ctx, "SELECT id, facility_id FROM rooms WHERE id = ANY($1)", ids)
+		rows, err := h.pool().Query(ctx, "SELECT id, facility_id, name FROM rooms WHERE id = ANY($1)", ids)
 		if err != nil {
 			serverErr(c)
 			return
@@ -390,13 +390,14 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 		for rows.Next() {
 			var id int
 			var rf *int
-			if err := rows.Scan(&id, &rf); err != nil {
+			var ten string
+			if err := rows.Scan(&id, &rf, &ten); err != nil {
 				rows.Close()
 				serverErr(c)
 				return
 			}
 			if !(rf != nil && fid != nil && *rf == *fid) {
-				outside = append(outside, itoa(id))
+				outside = append(outside, ten)
 			}
 		}
 		rows.Close()
@@ -405,7 +406,7 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 			return
 		}
 		if len(outside) > 0 {
-			forbidden(c, "Có phòng không thuộc cơ sở bạn phụ trách (phòng #"+strings.Join(outside, ", #")+") — không lưu.")
+			forbidden(c, "Có phòng không thuộc cơ sở bạn phụ trách (phòng "+strings.Join(outside, ", ")+") — không lưu.")
 			return
 		}
 	}
@@ -1060,12 +1061,12 @@ func (h *Handlers) GenerateOneInvoice(c *gin.Context) {
 	}
 	_ = c.ShouldBindJSON(&gb)
 	if !invoiceTruthy(gb.StudentID) {
-		badRequest(c, "Thiếu học viên")
+		badRequest(c, "Chọn học viên.")
 		return
 	}
 	monthStr := invoiceStr(gb.Month)
 	if !valid.IsValidMonth(monthStr) {
-		badRequest(c, "Kỳ (tháng) không hợp lệ — chọn dạng YYYY-MM.")
+		badRequest(c, loiKy)
 		return
 	}
 	sid := invoiceIntID(gb.StudentID)
@@ -1144,7 +1145,7 @@ func (h *Handlers) GenerateOneInvoice(c *gin.Context) {
 		serverErr(c)
 		return
 	} else if len(thieu) > 0 {
-		badRequest(c, "Chưa lập phiếu — điện kỳ "+pmonth+" còn thiếu dữ liệu:\n"+strings.Join(thieu, "\n"))
+		badRequest(c, "Chưa lập phiếu — điện "+timeutil.ThangVN(pmonth)+" còn thiếu dữ liệu:\n"+strings.Join(thieu, "\n"))
 		return
 	}
 	kwh := 0.0
@@ -1297,12 +1298,12 @@ func (h *Handlers) CreateInvoice(c *gin.Context) {
 	var b map[string]json.RawMessage
 	_ = c.ShouldBindJSON(&b)
 	if !invoiceTruthy(b["student_id"]) || !invoiceTruthy(b["month"]) {
-		badRequest(c, "Thiếu học viên hoặc kỳ")
+		badRequest(c, "Chọn học viên và kỳ.")
 		return
 	}
 	monthStr := invoiceStr(b["month"])
 	if !valid.IsValidMonth(monthStr) {
-		badRequest(c, `Kỳ không hợp lệ: "`+monthStr+`". Định dạng đúng: YYYY-MM (tháng 01–12).`)
+		badRequest(c, loiKy)
 		return
 	}
 	if e := invoiceBadMoney(b); e != "" {
@@ -1505,7 +1506,7 @@ func (h *Handlers) MarkPaidInvoices(c *gin.Context) {
 	_ = c.ShouldBindJSON(&body)
 	month := invoiceStrOr(body["month"])
 	if !invoiceMonthFormat(month) {
-		badRequest(c, "Phải chọn đúng một kỳ (dạng YYYY-MM). Không cho phép đánh dấu đã thu cho toàn bộ các kỳ.")
+		badRequest(c, "Phải chọn đúng một kỳ — không đánh dấu đã thu cho mọi kỳ cùng lúc.")
 		return
 	}
 	if string(body["confirm"]) != "true" { // req.body.confirm !== true (chỉ boolean true)
@@ -1515,7 +1516,7 @@ func (h *Handlers) MarkPaidInvoices(c *gin.Context) {
 			return
 		}
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":        `Thao tác này sẽ đánh dấu ĐÃ THU cho ` + itoa(n) + ` phiếu của kỳ ` + month + ` và KHÔNG hoàn tác được. Gửi lại kèm "confirm": true nếu chắc chắn.`,
+			"error":        `Thao tác này sẽ đánh dấu đã thu cho ` + itoa(n) + ` phiếu ` + timeutil.ThangVN(month) + ` và không hoàn tác được — cần xác nhận trước khi làm.`,
 			"would_update": n,
 			"month":        month,
 		})
@@ -1560,11 +1561,7 @@ func (h *Handlers) InvoiceStatus(c *gin.Context) {
 	// TP-24: trạng thái LẠ -> báo lỗi rõ (invoices.routes.js:441-442)
 	okStatus := body.Status != nil && (*body.Status == "pending" || *body.Status == "sent" || *body.Status == "paid")
 	if !okStatus {
-		disp := "undefined"
-		if body.Status != nil {
-			disp = *body.Status
-		}
-		badRequest(c, `Trạng thái không hợp lệ: "`+disp+`" (chỉ 'pending', 'sent', 'paid').`)
+		badRequest(c, "Trạng thái không hợp lệ — chỉ nhận: chưa thu, đã gửi, đã thu.")
 		return
 	}
 	status := *body.Status

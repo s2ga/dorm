@@ -210,7 +210,7 @@ func (h *Handlers) MaintTaskStatus(c *gin.Context) {
 	_ = c.ShouldBindJSON(&b)
 	// Trạng thái LẠ -> BÁO LỖI, đừng lặng lẽ ép về 'processing'. maintenance.routes.js:152-153
 	if !maintInStatus(b.Status) {
-		badRequest(c, `Trạng thái không hợp lệ: "`+b.Status+`". Chỉ nhận: `+strings.Join(maintTaskStatus, ", ")+".")
+		badRequest(c, "Trạng thái không hợp lệ — chỉ nhận: mới, đang xử lý, chưa xử lý được, đã xử lý.")
 		return
 	}
 	status := b.Status
@@ -227,7 +227,7 @@ func (h *Handlers) MaintTaskStatus(c *gin.Context) {
 		WHERE d.id=$1 AND d.category='damage' AND d.assigned_at IS NOT NULL`, id).Scan(&fid)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			notFound(c, "Không tìm thấy công việc") // maintenance.routes.js:161
+			notFound(c, "Không tìm thấy việc sửa chữa này") // maintenance.routes.js:161
 			return
 		}
 		serverErr(c)
@@ -255,7 +255,7 @@ func (h *Handlers) MaintTaskStatus(c *gin.Context) {
 		return
 	}
 	if row == nil {
-		notFound(c, "Không tìm thấy công việc") // maintenance.routes.js:173
+		notFound(c, "Không tìm thấy việc sửa chữa này") // maintenance.routes.js:173
 		return
 	}
 	c.JSON(http.StatusOK, row)

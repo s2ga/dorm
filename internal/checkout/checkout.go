@@ -10,6 +10,7 @@ import (
 	"ktx/internal/invoicecalc"
 	"ktx/internal/roomleaders"
 	"ktx/internal/roomstays"
+	"ktx/internal/timeutil"
 )
 
 func slice10(s string) string {
@@ -22,14 +23,15 @@ func slice10(s string) string {
 // BadCheckoutDate: chặn ngày trả phi lý. "" nếu hợp lệ. server/checkout.js:21-28
 func BadCheckoutDate(ctx context.Context, q db.Querier, studentID int, date, checkInDate string) (string, error) {
 	if checkInDate != "" && date < slice10(checkInDate) {
-		return "Ngày trả phòng (" + date + ") không thể trước ngày nhận phòng (" + slice10(checkInDate) + ").", nil
+		return "Ngày trả phòng (" + timeutil.NgayVN(date) + ") không thể trước ngày nhận phòng (" + timeutil.NgayVN(slice10(checkInDate)) + ").", nil
 	}
 	open, err := roomstays.OpenStayOf(ctx, q, studentID)
 	if err != nil {
 		return "", err
 	}
 	if open != nil && date < open.FromDate {
-		return "Ngày trả phòng (" + date + ") không thể trước ngày bắt đầu lượt ở hiện tại (" + open.FromDate + ") — học viên đã chuyển phòng ngày đó, chọn ngày ≥ ngày chuyển.", nil
+		return "Ngày trả phòng (" + timeutil.NgayVN(date) + ") không thể trước ngày bắt đầu lượt ở hiện tại (" + timeutil.NgayVN(open.FromDate) +
+			") — học viên đã chuyển phòng ngày đó, chọn từ ngày chuyển trở đi.", nil
 	}
 	return "", nil
 }

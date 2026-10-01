@@ -138,7 +138,7 @@ func (h *Handlers) parkingGhiBaoCao(c *gin.Context, b parkingReportBody) {
 		}
 		norm = vehicleChuanBien(plate)
 		if norm == "" {
-			badRequest(c, `Biển số không hợp lệ: "`+plate+`"`)
+			badRequest(c, `Biển số "`+plate+`" không hợp lệ — ví dụ đúng: 59-X1 123.45.`)
 			return
 		}
 		cond := []string{"v.deleted_at IS NULL", "s.deleted_at IS NULL", parkingSQLNorm + " = $1"}
@@ -160,7 +160,7 @@ func (h *Handlers) parkingGhiBaoCao(c *gin.Context, b parkingReportBody) {
 		}
 		if daDangKy != nil {
 			conflict(c, gin.H{
-				"error":      "Biển số này ĐÃ đăng ký gửi xe — điểm danh ở danh sách thay vì ghi xe lạ.",
+				"error":      "Biển số này đã đăng ký gửi xe — điểm danh ở danh sách thay vì ghi xe lạ.",
 				"registered": daDangKy,
 			})
 			return
@@ -449,7 +449,7 @@ func (h *Handlers) AdminParkingReportAssign(c *gin.Context) {
 	_ = c.ShouldBindJSON(&b)
 	sid, ok := vehicleNum(b.StudentID)
 	if !ok {
-		badRequest(c, "Chọn học viên là chủ xe")
+		badRequest(c, "Chọn học viên là chủ xe.")
 		return
 	}
 	ctx := c.Request.Context()
@@ -472,7 +472,7 @@ func (h *Handlers) AdminParkingReportAssign(c *gin.Context) {
 		return
 	}
 	if kind != parkingBaoCaoXeLa {
-		badRequest(c, "Chỉ báo cáo XE LẠ mới cần ghi vào danh sách gửi xe.")
+		badRequest(c, "Chỉ báo cáo xe lạ mới cần ghi vào danh sách gửi xe.")
 		return
 	}
 	if vehID != nil {

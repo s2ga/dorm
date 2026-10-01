@@ -68,7 +68,7 @@ func sanitizeSettings(s map[string]string, isAdmin bool) gin.H {
 func (h *Handlers) GetSettings(c *gin.Context) {
 	s, err := h.DB.GetSettings(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi máy chủ"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": loiMayChu})
 		return
 	}
 	u := auth.CurrentUser(c)
@@ -132,7 +132,7 @@ func settingVal(raw json.RawMessage) string {
 func (h *Handlers) UpdateSettings(c *gin.Context) {
 	var body map[string]json.RawMessage
 	if err := c.ShouldBindJSON(&body); err != nil {
-		badRequest(c, "Dữ liệu không hợp lệ")
+		badRequest(c, "Dữ liệu cài đặt không đọc được — tải lại trang rồi lưu lại.")
 		return
 	}
 	// V2-18: khoá lạ -> báo lỗi rõ (không âm thầm "đã lưu" mà không lưu gì).
@@ -143,7 +143,7 @@ func (h *Handlers) UpdateSettings(c *gin.Context) {
 		}
 	}
 	if len(unknown) > 0 {
-		badRequest(c, "Tên cài đặt không hợp lệ: "+strings.Join(unknown, ", "))
+		badRequest(c, "Có mục cài đặt không nhận ra — tải lại trang rồi lưu lại.")
 		return
 	}
 	// Kiểm KIỂU trước khi ghi.

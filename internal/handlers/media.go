@@ -30,7 +30,7 @@ func mediaInList(k string, lists ...[]string) bool {
 
 func (h *Handlers) storeOr501(c *gin.Context) bool {
 	if h.Store == nil {
-		c.JSON(http.StatusNotImplemented, gin.H{"error": "Chức năng đang chuyển đổi"})
+		c.JSON(http.StatusNotImplemented, gin.H{"error": "Chức năng tạm ngưng — liên hệ quản trị."})
 		return false
 	}
 	return true
@@ -74,7 +74,7 @@ func (h *Handlers) UploadDoc(c *gin.Context) {
 	}
 	key := c.Param("key")
 	if !mediaInList(key, docKeys) {
-		badRequest(c, "Khóa tài liệu không hợp lệ")
+		badRequest(c, "Không xác định được tài liệu — tải lại trang.")
 		return
 	}
 	var body struct {
@@ -82,16 +82,16 @@ func (h *Handlers) UploadDoc(c *gin.Context) {
 	}
 	_ = c.ShouldBindJSON(&body)
 	if !strings.HasPrefix(body.Data, "data:application/pdf;base64,") {
-		badRequest(c, "Chỉ nhận file PDF")
+		badRequest(c, "Chỉ nhận tệp PDF.")
 		return
 	}
 	// Chuỗi base64 phồng ~4/3 so với tệp gốc: 34MB chuỗi ≈ 25MB tệp (owner chốt 12/08/2026).
 	if len(body.Data) > 34*1024*1024 {
-		badRequest(c, "File PDF quá lớn (tối đa 25MB). Vui lòng nén lại rồi tải lên.")
+		badRequest(c, "Tệp PDF quá lớn (tối đa 25 MB) — nén lại rồi tải lên.")
 		return
 	}
 	if storage.ParsePdfDataUrl(body.Data) == nil {
-		badRequest(c, "Tệp không phải PDF thật (sai chữ ký file)")
+		badRequest(c, "Tệp không phải PDF — chọn lại.")
 		return
 	}
 	ctx := c.Request.Context()
@@ -116,7 +116,7 @@ func (h *Handlers) UploadMedia(c *gin.Context) {
 	}
 	key := c.Param("key")
 	if !mediaInList(key, mediaKeys) {
-		badRequest(c, "Khóa ảnh không hợp lệ")
+		badRequest(c, "Không xác định được ảnh — tải lại trang.")
 		return
 	}
 	var body struct {
@@ -124,16 +124,16 @@ func (h *Handlers) UploadMedia(c *gin.Context) {
 	}
 	_ = c.ShouldBindJSON(&body)
 	if !reImagePrefix.MatchString(body.Data) {
-		badRequest(c, "Ảnh không hợp lệ")
+		badRequest(c, "Ảnh không đọc được — chọn ảnh khác.")
 		return
 	}
 	if len(body.Data) > 34*1024*1024 {
-		badRequest(c, "Ảnh quá lớn (tối đa 25MB)")
+		badRequest(c, "Ảnh quá lớn (tối đa 25 MB).")
 		return
 	}
 	p := storage.ParseDataUrl(body.Data)
 	if p == nil {
-		badRequest(c, "Tệp không phải ảnh thật (sai chữ ký file) — chỉ nhận JPG, PNG, WEBP, GIF.")
+		badRequest(c, "Tệp không phải ảnh — chỉ nhận JPG, PNG, WEBP, GIF.")
 		return
 	}
 	ctx := c.Request.Context()
@@ -163,7 +163,7 @@ func (h *Handlers) DeleteMedia(c *gin.Context) {
 	}
 	key := c.Param("key")
 	if !mediaInList(key, mediaKeys, docKeys) {
-		badRequest(c, "Khóa không hợp lệ")
+		badRequest(c, "Không xác định được ảnh hoặc tài liệu — tải lại trang.")
 		return
 	}
 	ctx := c.Request.Context()

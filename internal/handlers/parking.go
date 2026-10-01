@@ -47,7 +47,7 @@ func parkingNgay(raw string) (string, string) {
 		return "", `Ngày điểm danh không hợp lệ: "` + raw + `"`
 	}
 	if d > timeutil.Today() {
-		return "", "Không điểm danh cho ngày ở tương lai."
+		return "", "Ngày điểm danh không thể ở tương lai."
 	}
 	return d, ""
 }
@@ -229,7 +229,7 @@ func (h *Handlers) ParkingMark(c *gin.Context) {
 		return
 	}
 	if b.VehicleID <= 0 {
-		badRequest(c, "Thiếu xe cần điểm danh")
+		badRequest(c, "Chọn xe cần điểm danh.")
 		return
 	}
 	ctx := c.Request.Context()

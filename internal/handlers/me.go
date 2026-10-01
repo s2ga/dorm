@@ -524,7 +524,7 @@ func (h *Handlers) MeCheckoutRequestCreate(c *gin.Context) {
 	}
 	var one int
 	if h.pool().QueryRow(ctx, `SELECT 1 FROM checkout_requests WHERE student_id=$1 AND status='pending'`, sid).Scan(&one) == nil {
-		badRequest(c, "Bạn đã có đơn trả phòng đang chờ duyệt")
+		badRequest(c, "Đã có đơn trả phòng đang chờ duyệt.")
 		return
 	}
 	reason := "other"

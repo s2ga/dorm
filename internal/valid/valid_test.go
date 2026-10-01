@@ -204,8 +204,8 @@ func TestKhongChoHTMLChiXetTruongDuocKhai(t *testing.T) {
 		t.Errorf("không xét note thì phải sạch, lỗi: %s", e)
 	}
 	e := KhongChoHTML(get, []string{"name", "note"})
-	if e == "" || !strings.Contains(e, "note") {
-		t.Errorf("phải chặn và nêu đúng tên trường, được %q", e)
+	if e == "" || !strings.Contains(e, "Ghi chú") {
+		t.Errorf("phải chặn và nêu đúng tên ô, được %q", e)
 	}
 	// Trường không có trong body = không đụng tới, không được báo lỗi.
 	if e := KhongChoHTML(get, []string{"khong_ton_tai"}); e != "" {

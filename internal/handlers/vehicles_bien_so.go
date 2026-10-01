@@ -50,16 +50,16 @@ func (h *Handlers) MaintDeNghiSuaBien(c *gin.Context) {
 	_ = c.ShouldBindJSON(&b)
 	moi := bienChuanHienThi(b.Plate)
 	if moi == "" {
-		badRequest(c, "Biển số không được để trống")
+		badRequest(c, "Nhập biển số.")
 		return
 	}
 	if len([]rune(moi)) > 20 {
-		badRequest(c, "Biển số dài quá 20 ký tự")
+		badRequest(c, "Biển số quá dài (tối đa 20 ký tự).")
 		return
 	}
 	normMoi := vehicleChuanBien(moi)
 	if normMoi == "" {
-		badRequest(c, `Biển số không hợp lệ: "`+moi+`"`)
+		badRequest(c, `Biển số "`+moi+`" không hợp lệ — ví dụ đúng: 59-X1 123.45.`)
 		return
 	}
 	ctx := c.Request.Context()
@@ -201,7 +201,7 @@ func (h *Handlers) plateRequestQuyetDinh(c *gin.Context, duyet bool) {
 		return
 	}
 	if status != plateReqChoDuyet {
-		conflict(c, gin.H{"error": "Đề nghị này đã được xử lý rồi (" + status + ")."})
+		conflict(c, gin.H{"error": "Đề nghị này " + nhanTT(nhanTTDeNghi, status) + " — tải lại danh sách."})
 		return
 	}
 
@@ -233,7 +233,7 @@ func (h *Handlers) plateRequestQuyetDinh(c *gin.Context, duyet bool) {
 	})
 	if err != nil {
 		if vehicleIsDup(err) {
-			badRequest(c, "Biển số này đã tồn tại trên một xe khác")
+			badRequest(c, "Biển số này đã gắn cho một xe khác.")
 			return
 		}
 		serverErr(c, err)

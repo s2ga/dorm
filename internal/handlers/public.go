@@ -289,7 +289,7 @@ type publicApplyBody struct {
 // PublicApply: POST /api/public/apply — gửi đơn đăng ký (kèm upload CCCD lên S3). public.routes.js:129-225
 func (h *Handlers) PublicApply(c *gin.Context) {
 	if h.Store == nil {
-		c.JSON(http.StatusNotImplemented, gin.H{"error": "Chức năng đang chuyển đổi"})
+		c.JSON(http.StatusNotImplemented, gin.H{"error": "Chức năng tạm ngưng — liên hệ quản trị."})
 		return
 	}
 	var b publicApplyBody
@@ -307,7 +307,7 @@ func (h *Handlers) PublicApply(c *gin.Context) {
 		return
 	}
 	if !valid.IsValidPhone(b.Phone) {
-		badRequest(c, "Số điện thoại không hợp lệ (chỉ chữ số, 8–15 số)")
+		badRequest(c, "Số điện thoại không hợp lệ (cần 8–15 chữ số).")
 		return
 	}
 	if !valid.IsValidGender(b.Gender) {
@@ -345,7 +345,7 @@ func (h *Handlers) PublicApply(c *gin.Context) {
 		return
 	}
 	if coNgaySinh && b.BirthDate > today {
-		badRequest(c, "Ngày sinh không thể ở tương lai — vui lòng chọn lại.")
+		badRequest(c, "Ngày sinh không thể ở tương lai.")
 		return
 	}
 	var birthDate interface{}

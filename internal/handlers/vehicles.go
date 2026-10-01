@@ -72,7 +72,7 @@ func vehicleKhoangNgay(from, to *string) string {
 		return ""
 	}
 	if *to < *from {
-		return "Ngày ngừng (" + *to + ") trước ngày bắt đầu (" + *from + ")"
+		return "Ngày ngừng (" + timeutil.NgayVN(*to) + ") trước ngày bắt đầu (" + timeutil.NgayVN(*from) + ")"
 	}
 	return ""
 }
@@ -260,7 +260,7 @@ func (h *Handlers) vehicleTao(ctx context.Context, q db.Querier, u *auth.User, i
 		in.StudentID, strings.TrimSpace(in.Plate), in.VehicleType, in.Sticker, in.Note, from, to)
 	if err != nil {
 		if vehicleIsDup(err) { // vehicles.routes.js:84
-			return nil, http.StatusBadRequest, "Biển số này đã tồn tại"
+			return nil, http.StatusBadRequest, "Biển số này đã gắn cho một xe khác."
 		}
 		return nil, http.StatusInternalServerError, ""
 	}
@@ -278,7 +278,7 @@ func (h *Handlers) CreateVehicle(c *gin.Context) {
 	_ = c.ShouldBindJSON(&b)
 	sid, ok := vehicleNum(b.StudentID)
 	if !ok {
-		badRequest(c, "Thiếu học viên")
+		badRequest(c, "Chọn học viên.")
 		return
 	}
 	row, st, loi := h.vehicleTao(c.Request.Context(), h.pool(), u, vehicleTaoIn{
@@ -320,7 +320,7 @@ func (h *Handlers) UpdateVehicle(c *gin.Context) {
 	_ = c.ShouldBindJSON(&b)
 	// Chỉ đổi field CÓ gửi lên (COALESCE/CASE) — tránh ghi đè biển số/mã dán về rỗng (V2-25). vehicles.routes.js:93
 	if b.Plate != nil && strings.TrimSpace(*b.Plate) == "" {
-		badRequest(c, "Biển số không được để trống")
+		badRequest(c, "Nhập biển số.")
 		return
 	}
 	ctx := c.Request.Context()
@@ -386,7 +386,7 @@ func (h *Handlers) UpdateVehicle(c *gin.Context) {
 		pPlate, pType, pSticker, pNote, id, coFrom, from, coTo, to)
 	if err != nil {
 		if vehicleIsDup(err) { // vehicles.routes.js:117
-			badRequest(c, "Biển số này đã tồn tại")
+			badRequest(c, "Biển số này đã gắn cho một xe khác.")
 			return
 		}
 		serverErr(c)

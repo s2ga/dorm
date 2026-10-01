@@ -30,7 +30,7 @@ var adminKiemTraList = []adminKiemTra{
 	{
 		ma: "ma_hv_trung", ten: "Học viên trùng mã",
 		viSao:   "Một người có 2 hồ sơ → nhận 2 phiếu → bị thu tiền 2 lần.",
-		cachSua: `Giữ 1 hồ sơ, xoá hồ sơ thừa. Nếu bạn ấy chuyển phòng, dùng nút "Chuyển phòng" trên hồ sơ giữ lại.`,
+		cachSua: `Giữ 1 hồ sơ, xoá hồ sơ thừa. Nếu học viên chuyển phòng, dùng nút "Chuyển phòng" trên hồ sơ giữ lại.`,
 		sql: `SELECT s.code AS khoa, string_agg(s.name || ' (#' || s.id || COALESCE(' · ' || r.name, '') || ')', ' + ' ORDER BY s.id) AS chi_tiet
             FROM students s LEFT JOIN rooms r ON r.id = s.room_id
            WHERE s.deleted_at IS NULL AND COALESCE(btrim(s.code),'') <> ''
@@ -38,7 +38,7 @@ var adminKiemTraList = []adminKiemTra{
 	},
 	{
 		ma: "ngay_ra_truoc_ngay_vao", ten: "Ngày trả phòng trước ngày nhận phòng",
-		viSao:   "Thường là gõ nhầm NĂM. Số ngày ở tính ra 0 → phiếu sai.",
+		viSao:   "Thường là gõ nhầm năm. Số ngày ở tính ra 0 → phiếu sai.",
 		cachSua: "Mở hồ sơ, sửa lại năm cho đúng.",
 		sql: `SELECT name AS khoa, 'vào ' || check_in_date || ' · ra ' || check_out_date || ' (#' || id || ')' AS chi_tiet
             FROM students WHERE deleted_at IS NULL AND check_out_date < check_in_date ORDER BY check_out_date - check_in_date`,
@@ -84,7 +84,7 @@ var adminKiemTraList = []adminKiemTra{
 	},
 	{
 		ma: "ngay_tra_lech_luot_o", ten: "Ngày trả trên hồ sơ lệch với lượt ở",
-		viSao:   "Hai nơi nói hai ngày khác nhau → số ngày ở và tiền điện tính theo ngày SAI.",
+		viSao:   "Hai nơi nói hai ngày khác nhau → số ngày ở và tiền điện tính theo ngày sai.",
 		cachSua: `Mở hồ sơ → "Nhận phòng lại" rồi "Trả phòng" với đúng ngày trả.`,
 		sql: `SELECT s.name AS khoa, 'hồ sơ trả ' || s.check_out_date || ' · lượt ở đóng ' || x.to_max || ' (#' || s.id || ')' AS chi_tiet
             FROM students s JOIN LATERAL (SELECT MAX(rs.to_date) AS to_max FROM room_stays rs WHERE rs.student_id = s.id) x ON true
@@ -94,7 +94,7 @@ var adminKiemTraList = []adminKiemTra{
            ORDER BY s.check_out_date`,
 	},
 	{
-		ma: "da_thu_lech_ngay_o", ten: "Phiếu ĐÃ THU lệch với ngày ở thật",
+		ma: "da_thu_lech_ngay_o", ten: "Phiếu đã thu lệch với ngày ở thật",
 		viSao:   "Thu nguyên giá xong người rời sớm/muộn hơn — phiếu đã thu bị chốt nên không tự tính lại, phần chênh nằm im không ai xử.",
 		cachSua: `Mở phiếu → "Chưa thu" (mở khoá) → Tính lại → xử phần chênh (hoàn/trừ kỳ sau) → đánh dấu Đã thu lại.`,
 		sql: `SELECT s.name AS khoa, 'kỳ ' || i.month || ': phiếu đã thu ' || i.days_stayed || ' ngày (' || i.total || 'đ) · ở thật ' || tt.ngay || ' ngày (#' || i.id || ')' AS chi_tiet
@@ -108,7 +108,7 @@ var adminKiemTraList = []adminKiemTra{
            ORDER BY i.month DESC, s.name`,
 	},
 	{
-		ma: "phieu_sau_khi_roi", ten: "Còn phiếu của kỳ SAU ngày trả phòng",
+		ma: "phieu_sau_khi_roi", ten: "Còn phiếu của kỳ sau ngày trả phòng",
 		viSao:   "Phiếu rác: người đã rời mà kỳ sau vẫn có phiếu — thường do ngày trả ghi thẳng vào hồ sơ, không qua nút Trả phòng nên không ai dọn.",
 		cachSua: "Mở màn Tiền phòng đúng kỳ đó, xoá phiếu (phiếu đã thu thì đối chiếu lại trước).",
 		sql: `SELECT s.name AS khoa, 'trả ' || s.check_out_date || ' nhưng còn phiếu kỳ ' || i.month || ' (' || i.total || 'đ, #' || i.id || ')' AS chi_tiet
@@ -118,7 +118,7 @@ var adminKiemTraList = []adminKiemTra{
            ORDER BY i.month, s.name`,
 	},
 	{
-		ma: "da_tra_ngay_tuong_lai", ten: "Ghi ĐÃ TRẢ PHÒNG nhưng ngày trả còn ở tương lai",
+		ma: "da_tra_ngay_tuong_lai", ten: "Ghi đã trả phòng nhưng ngày trả còn ở tương lai",
 		viSao:   "Người vẫn đang ở mà hồ sơ ghi đã đi: tiền phòng cắt sớm, lượt ở đóng trước ngày, tài khoản bị khoá oan.",
 		cachSua: `Là bấm Trả phòng nhầm ngày chưa tới. Đưa hồ sơ về "đang ở" rồi đặt lại ở ô ngày dự kiến trả.`,
 		sql: `SELECT s.name AS khoa,
@@ -147,7 +147,7 @@ var adminKiemTraList = []adminKiemTra{
 	{
 		ma: "hv_con_mat_khau_khoi_tao", ten: "Tài khoản học viên còn mật khẩu khởi tạo",
 		viSao:   "Mật khẩu do máy cấp mà học viên chưa đổi — tài khoản cũ đặt 123456 nằm hết ở đây.",
-		cachSua: `Màn Cài đặt → Tài khoản học viên → nút "MK" để cấp lại mật khẩu mới, đưa tận tay học viên.`,
+		cachSua: `Cài đặt → Người dùng → bảng Tài khoản học viên → nút "Mật khẩu" để cấp lại mật khẩu mới, đưa tận tay học viên.`,
 		sql: `SELECT u.username AS khoa, COALESCE(s.name,'(chưa gắn hồ sơ)') || COALESCE(' · phòng ' || r.name, '')
                 || ' · tạo ' || to_char(u.created_at, 'DD/MM/YYYY') AS chi_tiet
             FROM users u
@@ -316,7 +316,7 @@ func adminBodyStr(body map[string]json.RawMessage, key string) string {
 func (h *Handlers) adminCheckFacilityExists(ctx context.Context, id int) (*int, bool, string) {
 	var one int
 	if h.pool().QueryRow(ctx, "SELECT 1 FROM facilities WHERE id=$1 AND deleted_at IS NULL", id).Scan(&one) != nil {
-		return nil, false, "Cơ sở không tồn tại (hoặc đã bị xoá)"
+		return nil, false, "Không tìm thấy cơ sở"
 	}
 	v := id
 	return &v, true, ""
@@ -455,7 +455,7 @@ func (h *Handlers) AdminRevokeStudentSession(c *gin.Context) {
 		return
 	}
 	if role != "student" {
-		forbidden(c, "Chỉ áp dụng cho tài khoản học viên")
+		forbidden(c, "Chỉ áp dụng cho tài khoản học viên.")
 		return
 	}
 	if err := h.Auth.RevokeTokens(ctx, id); err != nil {
@@ -565,7 +565,7 @@ func (h *Handlers) CreateUser(c *gin.Context) {
 	username := strings.TrimSpace(adminBodyStr(body, "username"))
 	password := strings.TrimSpace(adminBodyStr(body, "password"))
 	if username == "" {
-		badRequest(c, "Nhập tên đăng nhập")
+		badRequest(c, "Nhập tên đăng nhập.")
 		return
 	}
 	// role: absent/null/'' -> 'staff'; ngược lại giữ nguyên để kiểm. admin.routes.js:127
@@ -575,7 +575,7 @@ func (h *Handlers) CreateUser(c *gin.Context) {
 		role = "staff"
 	}
 	if !adminValidRoles[role] {
-		badRequest(c, `Vai trò không hợp lệ: "`+rawRole+`". Chỉ nhận: nhân viên, bảo trì, thư ký, quản trị.`)
+		badRequest(c, "Vai trò không hợp lệ — chỉ nhận: nhân viên, an ninh / bảo trì, thư ký, giáo viên ProSkills, quản trị viên.")
 		return
 	}
 	fullNameRaw := adminBodyStr(body, "full_name")
@@ -636,7 +636,7 @@ func (h *Handlers) UpdateUser(c *gin.Context) {
 	rawRole := adminBodyStr(body, "role")
 	hasRole := rawRole != ""
 	if hasRole && !adminValidRoles[rawRole] {
-		badRequest(c, `Vai trò không hợp lệ: "`+rawRole+`".`)
+		badRequest(c, "Vai trò không hợp lệ.")
 		return
 	}
 	ctx := c.Request.Context()
@@ -729,11 +729,11 @@ type adminTaiKhoanCu struct {
 // Vẫn giữ đúng một tài khoản cho một hồ sơ: khoá tài khoản đó là đóng cả hai lối vào.
 func (h *Handlers) adminGopTaiKhoan(c *gin.Context, ctx context.Context, choID, sid int, tenHV string, cu adminTaiKhoanCu, dongY bool) bool {
 	if cu.BiKhoa {
-		badRequest(c, `Hồ sơ "`+tenHV+`" gắn với tài khoản "`+cu.Username+`" đang bị KHOÁ. Mở khoá tài khoản đó trước rồi duyệt lại.`)
+		badRequest(c, `Hồ sơ "`+tenHV+`" gắn với tài khoản "`+cu.Username+`" đang bị khoá. Mở khoá tài khoản đó trước rồi duyệt lại.`)
 		return true
 	}
 	if cu.Role != "student" {
-		badRequest(c, `Hồ sơ "`+tenHV+`" đang gắn với tài khoản "`+cu.Username+`" vai `+cu.Role+` — không gộp đăng nhập học viên vào tài khoản quản trị/nhân viên.`)
+		badRequest(c, `Hồ sơ "`+tenHV+`" đang gắn với tài khoản "`+cu.Username+`" vai `+nhanTT(nhanVai, cu.Role)+` — không gộp đăng nhập học viên vào tài khoản quản trị/nhân viên.`)
 		return true
 	}
 	var choSubject, choEmail, choTen, choUsername string
@@ -747,7 +747,7 @@ func (h *Handlers) adminGopTaiKhoan(c *gin.Context, ctx context.Context, choID, 
 	// để dồn sang — việc đúng là KHOÁ bản thừa, hồ sơ tiếp tục dùng tài khoản sẵn có (hỏi trước).
 	khongSSO := choSubject == ""
 	if !khongSSO && cu.SsoSubject != "" && cu.SsoSubject != choSubject {
-		badRequest(c, `Tài khoản "`+cu.Username+`" đã liên kết một tài khoản Microsoft KHÁC. Gỡ liên kết cũ trước, không thể gắn hai danh tính vào một hồ sơ.`)
+		badRequest(c, `Tài khoản "`+cu.Username+`" đã liên kết một tài khoản Microsoft khác. Gỡ liên kết cũ trước, không thể gắn hai danh tính vào một hồ sơ.`)
 		return true
 	}
 	if !dongY {
@@ -883,7 +883,7 @@ func (h *Handlers) ApproveUserAsStudent(c *gin.Context) {
 			valid.TenChuan(body.NewStudent.Name), strings.TrimSpace(body.NewStudent.Code), gioiTinh,
 			strings.TrimSpace(body.NewStudent.Phone), strings.TrimSpace(body.NewStudent.ClassName),
 			strings.ToLower(strings.TrimSpace(userEmail))).Scan(&studentID); e != nil {
-			badRequest(c, "Không tạo được hồ sơ học viên (mã hoặc email đã tồn tại?): "+e.Error())
+			loiCoGhiLog(c, http.StatusBadRequest, "Không tạo được hồ sơ học viên — mã học viên hoặc email có thể đã có người dùng.", e)
 			return
 		}
 	} else {
@@ -1031,7 +1031,7 @@ func (h *Handlers) AdminStudentToStaff(c *gin.Context) {
 		role = "staff"
 	}
 	if role == "admin" || !adminValidRoles[role] {
-		badRequest(c, `Vai trò không hợp lệ: "`+role+`". Chỉ nhận: nhân viên, an ninh/bảo trì, thư ký. Muốn lên quản trị thì đổi tiếp ở màn Tài khoản.`)
+		badRequest(c, "Vai trò không hợp lệ — chỉ nhận: nhân viên, an ninh / bảo trì, thư ký, giáo viên ProSkills. Muốn lên quản trị viên thì đổi tiếp ở bảng Nhân viên & phân quyền.")
 		return
 	}
 	ctx := c.Request.Context()
@@ -1043,7 +1043,7 @@ func (h *Handlers) AdminStudentToStaff(c *gin.Context) {
 		return
 	}
 	if curRole != "student" {
-		badRequest(c, "Chỉ áp dụng cho tài khoản học viên. Tài khoản nhân viên đổi vai ở màn Tài khoản.")
+		badRequest(c, "Chỉ áp dụng cho tài khoản học viên. Tài khoản nhân viên đổi vai ở bảng Nhân viên & phân quyền.")
 		return
 	}
 	facVal, ok2, errMsg := h.adminParseFacilityID(ctx, body.FacilityID)
@@ -1118,7 +1118,7 @@ func (h *Handlers) DeleteUser(c *gin.Context) {
 	}
 	u := auth.CurrentUser(c)
 	if u != nil && id == u.ID {
-		badRequest(c, "Không thể tự khoá chính mình")
+		badRequest(c, "Không thể tự khoá chính mình.")
 		return
 	}
 	ctx := c.Request.Context()
@@ -1130,7 +1130,7 @@ func (h *Handlers) DeleteUser(c *gin.Context) {
 	var targetRole string
 	targetFound := h.pool().QueryRow(ctx, "SELECT role FROM users WHERE id=$1", id).Scan(&targetRole) == nil
 	if targetFound && targetRole == "admin" && admins <= 1 {
-		badRequest(c, "Phải còn ít nhất 1 quản trị viên")
+		badRequest(c, "Phải còn ít nhất 1 quản trị viên — không thể khoá người cuối cùng.")
 		return
 	}
 	// KHOÁ tài khoản (không xoá dữ liệu): chặn đăng nhập (login lọc deleted_at IS NULL) + đá mọi phiên.

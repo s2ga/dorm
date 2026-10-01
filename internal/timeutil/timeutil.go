@@ -3,6 +3,7 @@
 package timeutil
 
 import (
+	"strings"
 	"time"
 	_ "time/tzdata" // nhúng CSDL múi giờ vào binary: LoadLocation chạy cả trên Windows / container tối giản
 )
@@ -23,3 +24,19 @@ func Now() time.Time { return time.Now().In(Loc) }
 
 // Today trả "YYYY-MM-DD" theo giờ VN — thay cho new Date().toISOString().slice(0,10) của Node.
 func Today() string { return Now().Format("2006-01-02") }
+
+// NgayVN: "YYYY-MM-DD…" -> "dd/mm/yyyy" cho câu hiển thị; chuỗi sai dạng trả nguyên.
+func NgayVN(iso string) string {
+	if len(iso) < 10 || iso[4] != '-' || iso[7] != '-' {
+		return iso
+	}
+	return iso[8:10] + "/" + iso[5:7] + "/" + iso[0:4]
+}
+
+// ThangVN: "YYYY-MM" -> "tháng 6/2026" cho câu hiển thị; chuỗi sai dạng trả nguyên.
+func ThangVN(ym string) string {
+	if len(ym) < 7 || ym[4] != '-' {
+		return ym
+	}
+	return "tháng " + strings.TrimPrefix(ym[5:7], "0") + "/" + ym[0:4]
+}

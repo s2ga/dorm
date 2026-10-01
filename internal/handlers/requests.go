@@ -151,7 +151,7 @@ func (h *Handlers) UpdateDamageReport(c *gin.Context) {
 	// Trạng thái: chỉ đổi khi CÓ gửi và HỢP LỆ. Không gửi -> GIỮ nguyên. requests.routes.js:63-65
 	hasStatus := b.Status != nil && *b.Status != ""
 	if hasStatus && !requestsHasStatus(*b.Status) {
-		badRequest(c, `Trạng thái không hợp lệ: "`+*b.Status+`". Chỉ nhận: `+strings.Join(requestsTaskStatus, ", ")+`.`)
+		badRequest(c, "Trạng thái không hợp lệ — chỉ nhận: mới, đang xử lý, chưa xử lý được, đã xử lý.")
 		return
 	}
 	hasNote := b.AdminNote != nil // requests.routes.js:66
@@ -180,7 +180,7 @@ func (h *Handlers) UpdateDamageReport(c *gin.Context) {
 		return
 	}
 	if row == nil {
-		notFound(c, "Không tìm thấy báo cáo") // requests.routes.js:75
+		notFound(c, "Không tìm thấy mục báo hư hỏng / góp ý này") // requests.routes.js:75
 		return
 	}
 	c.JSON(http.StatusOK, row)
@@ -329,7 +329,7 @@ func (h *Handlers) ConfirmCheckout(c *gin.Context) {
 		date = timeutil.Today()
 	}
 	if !valid.IsValidYmd(date) {
-		badRequest(c, `Ngày trả phòng không hợp lệ: "`+date+`"`)
+		badRequest(c, "Ngày trả phòng không hợp lệ — chọn lại từ lịch.")
 		return
 	}
 	// noticeDate = created_at (UTC) cắt 10 ký tự. requests.routes.js:120
@@ -400,7 +400,7 @@ func (h *Handlers) ConfirmCheckout(c *gin.Context) {
 		return
 	}
 	if ct.RowsAffected() == 0 {
-		conflict(c, gin.H{"error": "Đơn đã được xử lý bởi thao tác khác — tải lại để xem trạng thái mới nhất."})
+		conflict(c, gin.H{"error": "Đơn này vừa được người khác xử lý — tải lại danh sách."})
 		return
 	}
 	// BL-117: duyệt đơn CHỈ chốt lịch dự kiến. Không đổi status, không chốt công-tơ, không đóng lượt ở,
@@ -463,7 +463,7 @@ func (h *Handlers) ApproveCheckout(c *gin.Context) {
 			serverErr(c)
 			return
 		}
-		msg := "Đơn không còn chờ duyệt (hiện: " + cur + ") — tải lại để xem trạng thái mới nhất."
+		msg := "Đơn không còn chờ duyệt (hiện " + nhanTT(nhanTTDonTra, cur) + ") — tải lại để xem trạng thái mới nhất."
 		if cur == "rejected" {
 			msg = "Đơn này đã bị từ chối — không thể duyệt."
 		}
@@ -518,7 +518,7 @@ func (h *Handlers) HandoverCheckout(c *gin.Context) {
 		return
 	}
 	if crStatus != "approved" {
-		msg := "Đơn phải được DUYỆT trước khi bàn giao (hiện: " + crStatus + ")."
+		msg := "Đơn phải được duyệt trước khi bàn giao (hiện " + nhanTT(nhanTTDonTra, crStatus) + ")."
 		switch crStatus {
 		case "handed_over", "billed", "done":
 			msg = "Đơn này đã bàn giao rồi — không bàn giao lại."
@@ -556,7 +556,7 @@ func (h *Handlers) HandoverCheckout(c *gin.Context) {
 		date = timeutil.Today()
 	}
 	if !valid.IsValidYmd(date) {
-		badRequest(c, `Ngày trả phòng không hợp lệ: "`+date+`"`)
+		badRequest(c, "Ngày trả phòng không hợp lệ — chọn lại từ lịch.")
 		return
 	}
 	if date > timeutil.Today() {
@@ -581,7 +581,7 @@ func (h *Handlers) HandoverCheckout(c *gin.Context) {
 	hasMeter, reading, finite := requestsMeterVal(body.MeterReading)
 	if roomID != nil {
 		if !hasMeter {
-			badRequest(c, "Cần ghi số điện chốt lúc bàn giao.")
+			badRequest(c, "Nhập chỉ số công-tơ lúc bàn giao.")
 			return
 		}
 		if !finite {
@@ -615,7 +615,7 @@ func (h *Handlers) HandoverCheckout(c *gin.Context) {
 		if e := h.pool().QueryRow(ctx, "SELECT name, fee FROM assets WHERE id=$1 AND deleted_at IS NULL", line.AssetID).
 			Scan(&name, &fee); e != nil {
 			if errors.Is(e, pgx.ErrNoRows) {
-				badRequest(c, "Tài sản không tồn tại (id="+itoa(line.AssetID)+")")
+				badRequest(c, "Một mục hư hao trỏ tới tài sản đã bị xoá — chọn lại.")
 				return
 			}
 			serverErr(c)
@@ -644,7 +644,7 @@ func (h *Handlers) HandoverCheckout(c *gin.Context) {
 		return
 	}
 	if ct.RowsAffected() == 0 {
-		conflict(c, gin.H{"error": "Đơn vừa được xử lý bởi thao tác khác — tải lại để xem trạng thái mới nhất."})
+		conflict(c, gin.H{"error": "Đơn này vừa được người khác xử lý — tải lại danh sách."})
 		return
 	}
 
@@ -755,7 +755,7 @@ func (h *Handlers) BillCheckout(c *gin.Context) {
 		return
 	}
 	if crStatus != "handed_over" {
-		msg := "Đơn phải ở bước ĐÃ BÀN GIAO mới lập phiếu được (hiện: " + crStatus + ")."
+		msg := "Đơn phải ở bước đã bàn giao mới lập phiếu được (hiện " + nhanTT(nhanTTDonTra, crStatus) + ")."
 		if crStatus == "billed" || crStatus == "done" {
 			msg = "Đơn này đã lập phiếu rồi."
 		}
@@ -819,7 +819,7 @@ func (h *Handlers) BillCheckout(c *gin.Context) {
 		return
 	}
 	if hasDup && dStatus == "paid" {
-		badRequest(c, `Phiếu kỳ `+month+` đã thu tiền — không lập lại được, nên đơn trả phòng đang dừng ở bước `+
+		badRequest(c, `Phiếu `+timeutil.ThangVN(month)+` đã thu tiền — không lập lại được, nên đơn trả phòng đang dừng ở bước `+
 			`"đã bàn giao" và chưa hoàn cọc được. Mở màn Tiền phòng, chuyển phiếu #`+itoa(dID)+` về "chưa thu" `+
 			`rồi bấm lập phiếu lại (thao tác này được ghi nhật ký).`)
 		return
@@ -860,7 +860,7 @@ func (h *Handlers) BillCheckout(c *gin.Context) {
 		if can {
 			var one int
 			if h.pool().QueryRow(ctx, "SELECT 1 FROM meter_reads WHERE room_id=$1 AND read_date=$2", *roomID, coStr).Scan(&one) != nil {
-				badRequest(c, "Chưa có chỉ số công-tơ ngày trả phòng ("+coStr+"). Nhập chỉ số chốt hôm bàn giao (màn Điện) rồi lập phiếu lại.")
+				badRequest(c, "Chưa có chỉ số công-tơ ngày trả phòng ("+timeutil.NgayVN(coStr)+"). Nhập chỉ số chốt hôm bàn giao (Tiền phòng › Chỉ số điện) rồi lập phiếu lại.")
 				return
 			}
 		}
@@ -870,7 +870,7 @@ func (h *Handlers) BillCheckout(c *gin.Context) {
 		serverErr(c)
 		return
 	} else if len(thieu) > 0 {
-		badRequest(c, "Chưa lập phiếu — điện kỳ "+invoicecalc.PrevMonthOf(month)+" còn thiếu dữ liệu:\n"+strings.Join(thieu, "\n"))
+		badRequest(c, "Chưa lập phiếu — điện "+timeutil.ThangVN(invoicecalc.PrevMonthOf(month))+" còn thiếu dữ liệu:\n"+strings.Join(thieu, "\n"))
 		return
 	}
 	// Điện lùi MỘT KỲ + phần kỳ này tới ngày rời. Kwh hiển thị = khối kỳ trước của phòng hiện tại.
@@ -979,7 +979,7 @@ func (h *Handlers) BillCheckout(c *gin.Context) {
 		return
 	}
 	if ct.RowsAffected() == 0 {
-		conflict(c, gin.H{"error": "Đơn vừa được xử lý bởi thao tác khác — tải lại để xem trạng thái mới nhất."})
+		conflict(c, gin.H{"error": "Đơn này vừa được người khác xử lý — tải lại danh sách."})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true, "invoice_id": invID, "total": total})
@@ -1018,7 +1018,7 @@ func (h *Handlers) RefundDoneCheckout(c *gin.Context) {
 			serverErr(c)
 			return
 		}
-		msg := "Đơn phải ĐÃ LẬP PHIẾU mới đánh dấu hoàn cọc được (hiện: " + cur + ")."
+		msg := "Đơn phải đã lập phiếu mới đánh dấu hoàn cọc được (hiện " + nhanTT(nhanTTDonTra, cur) + ")."
 		if cur == "done" {
 			msg = "Đơn này đã hoàn tất rồi."
 		}
@@ -1044,7 +1044,7 @@ func (h *Handlers) AdminCreateCheckout(c *gin.Context) {
 	}
 	_ = c.ShouldBindJSON(&b)
 	if b.StudentID <= 0 {
-		badRequest(c, "Thiếu học viên")
+		badRequest(c, "Chọn học viên.")
 		return
 	}
 	if b.DesiredDate != "" && !valid.IsValidYmd(b.DesiredDate) {
@@ -1072,7 +1072,7 @@ func (h *Handlers) AdminCreateCheckout(c *gin.Context) {
 	// Không tạo nếu HV đã có đơn đang xử lý (chưa done/rejected).
 	var one int
 	if h.pool().QueryRow(ctx, "SELECT 1 FROM checkout_requests WHERE student_id=$1 AND status NOT IN ('done','rejected') LIMIT 1", b.StudentID).Scan(&one) == nil {
-		badRequest(c, "Học viên đã có đơn trả phòng đang xử lý.")
+		badRequest(c, "Học viên đã có đơn trả phòng đang chờ duyệt.")
 		return
 	}
 	reason := "other"
@@ -1159,11 +1159,11 @@ func (h *Handlers) RejectCheckout(c *gin.Context) {
 			serverErr(c)
 			return
 		}
-		xuLy := "đã từ chối"
+		msg := "Đơn này đã bị từ chối trước đó."
 		if cur == "done" {
-			xuLy = "đã duyệt — học viên đã trả phòng"
+			msg = "Đơn đã duyệt và học viên đã trả phòng — không từ chối được."
 		}
-		conflict(c, gin.H{"error": "Đơn này đã được xử lý (" + xuLy + ") — không thể từ chối."})
+		conflict(c, gin.H{"error": msg})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})

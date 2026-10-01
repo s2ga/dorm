@@ -118,7 +118,7 @@ func (h *Handlers) CreateAsset(c *gin.Context) {
 func (h *Handlers) UpdateAsset(c *gin.Context) {
 	id, ok := paramInt(c, "id")
 	if !ok {
-		notFound(c, "Không tìm thấy tài sản (hoặc đã bị xoá)")
+		notFound(c, "Không tìm thấy tài sản")
 		return
 	}
 	var b assetBody
@@ -161,7 +161,7 @@ func (h *Handlers) UpdateAsset(c *gin.Context) {
 		return
 	}
 	if row == nil {
-		notFound(c, "Không tìm thấy tài sản (hoặc đã bị xoá)")
+		notFound(c, "Không tìm thấy tài sản")
 		return
 	}
 	c.JSON(http.StatusOK, row)
@@ -171,14 +171,14 @@ func (h *Handlers) UpdateAsset(c *gin.Context) {
 func (h *Handlers) DeleteAsset(c *gin.Context) {
 	id, ok := paramInt(c, "id")
 	if !ok {
-		notFound(c, "Không tìm thấy tài sản (hoặc đã bị xoá)")
+		notFound(c, "Không tìm thấy tài sản")
 		return
 	}
 	var name string
 	err := h.pool().QueryRow(c.Request.Context(),
 		"UPDATE assets SET deleted_at=now() WHERE id=$1 AND deleted_at IS NULL RETURNING name", id).Scan(&name)
 	if err != nil {
-		notFound(c, "Không tìm thấy tài sản (hoặc đã bị xoá)")
+		notFound(c, "Không tìm thấy tài sản")
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true, "deleted": name})

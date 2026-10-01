@@ -29,16 +29,23 @@ func serverErr(c *gin.Context, cause ...error) {
 		extra = " | " + cause[0].Error()
 	}
 	log.Printf("[500] %s %s (%s:%d)%s", c.Request.Method, c.Request.URL.Path, filepath.Base(file), line, extra)
-	c.JSON(http.StatusInternalServerError, gin.H{"error": "Lỗi máy chủ"})
+	c.JSON(http.StatusInternalServerError, gin.H{"error": loiMayChu})
 }
 func conflict(c *gin.Context, body gin.H)     { c.JSON(http.StatusConflict, body) }
+
+// loiCoGhiLog: trả câu lỗi cho người dùng; chi tiết kỹ thuật (cause) chỉ ghi log máy chủ.
+func loiCoGhiLog(c *gin.Context, ma int, cau string, cause error) {
+	_, file, line, _ := runtime.Caller(1)
+	log.Printf("[%d] %s %s (%s:%d) | %v", ma, c.Request.Method, c.Request.URL.Path, filepath.Base(file), line, cause)
+	c.JSON(ma, gin.H{"error": cau})
+}
 
 // bindJSONLoi: phân loại lỗi đọc body JSON — quá lớn (413) hay hỏng/sai kiểu (400). Không nuốt lỗi
 // rồi chạy tiếp với thân rỗng, vì người gửi sẽ nhận thông điệp sai chỗ ("Vui lòng nhập họ tên").
 func bindJSONLoi(err error) (int, string) {
 	var qua *http.MaxBytesError
 	if errors.As(err, &qua) {
-		return http.StatusRequestEntityTooLarge, "Dữ liệu gửi lên quá lớn — ảnh CCCD quá nặng. Chụp lại ảnh nhẹ hơn rồi gửi lại."
+		return http.StatusRequestEntityTooLarge, "Dữ liệu gửi lên quá lớn (thường do ảnh) — giảm dung lượng ảnh rồi gửi lại."
 	}
 	return http.StatusBadRequest, "Dữ liệu gửi lên không đọc được. Tải lại trang rồi gửi lại."
 }

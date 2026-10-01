@@ -47,7 +47,7 @@ func electricFacilityFilter(c *gin.Context, u *auth.User, cond *[]string, params
 func (h *Handlers) ListElectric(c *gin.Context) {
 	month := c.Query("month")
 	if !valid.IsValidMonth(month) {
-		badRequest(c, "Thiếu hoặc sai kỳ (tháng) — dạng YYYY-MM.")
+		badRequest(c, loiKy)
 		return
 	}
 	pm := prevMonth(month)
@@ -93,7 +93,7 @@ func (h *Handlers) ElectricHistory(c *gin.Context) {
 	}
 	base, err := time.ParseInLocation("2006-01", month, time.UTC)
 	if err != nil {
-		badRequest(c, "Kỳ không hợp lệ")
+		badRequest(c, loiKy)
 		return
 	}
 	months := make([]string, 0, n)
@@ -187,7 +187,7 @@ func (h *Handlers) SaveElectricBulk(c *gin.Context) {
 	}
 	bindErr := c.ShouldBindJSON(&body)
 	if bindErr != nil || !valid.IsValidMonth(body.Month) || body.Readings == nil {
-		badRequest(c, "Thiếu hoặc sai dữ liệu (kỳ YYYY-MM + danh sách chỉ số).")
+		badRequest(c, "Thiếu kỳ hoặc danh sách chỉ số — chọn lại tháng rồi lưu.")
 		return
 	}
 	ctx := c.Request.Context()
@@ -201,7 +201,7 @@ func (h *Handlers) SaveElectricBulk(c *gin.Context) {
 			n, _ := jsNum(r.RoomID)
 			ids = append(ids, int(n))
 		}
-		rows, err := h.pool().Query(ctx, "SELECT id, facility_id FROM rooms WHERE id = ANY($1)", ids)
+		rows, err := h.pool().Query(ctx, "SELECT id, facility_id, name FROM rooms WHERE id = ANY($1)", ids)
 		if err != nil {
 			serverErr(c)
 			return
@@ -210,13 +210,14 @@ func (h *Handlers) SaveElectricBulk(c *gin.Context) {
 		for rows.Next() {
 			var id int
 			var rf *int
-			if err := rows.Scan(&id, &rf); err != nil {
+			var ten string
+			if err := rows.Scan(&id, &rf, &ten); err != nil {
 				rows.Close()
 				serverErr(c)
 				return
 			}
 			if !(rf != nil && fid != nil && *rf == *fid) {
-				outside = append(outside, "#"+itoa(id))
+				outside = append(outside, ten)
 			}
 		}
 		rows.Close()
@@ -263,7 +264,7 @@ func (h *Handlers) SaveElectricBulk(c *gin.Context) {
 			continue
 		}
 		if end < start {
-			loi = append(loi, "phòng #"+itoa(rid)+": chỉ số cuối ("+numDisp(end)+") NHỎ HƠN đầu kỳ ("+numDisp(start)+") — công-tơ mới thay? kiểm lại")
+			loi = append(loi, "phòng #"+itoa(rid)+": chỉ số cuối ("+numDisp(end)+") nhỏ hơn đầu kỳ ("+numDisp(start)+") — công-tơ mới thay? Kiểm lại.")
 			continue
 		}
 		chuan = append(chuan, chuanItem{roomID: rid, start: start, end: end, kwh: end - start})
