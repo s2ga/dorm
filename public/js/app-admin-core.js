@@ -344,13 +344,15 @@ function _escDrawer(e) { if (e.key === 'Escape' && document.querySelector('.side
    nên đổi URL không cần thêm gì ở server. '/' = Tổng quan (mặc định). */
 const VIEW_PATHS = {
   dashboard: '/', exec: '/dieu-hanh', students: '/hoc-vien', rooms: '/phong', services: '/dich-vu',
-  hoso: '/ho-so',
+  hoso: '/ho-so', tamtru: '/tam-tru',
   checkin: '/check-in', invoices: '/tien-phong', revenue: '/doanh-thu', reg: '/dang-ky-noi-tru',
   checkout: '/tra-phong', repair: '/bao-hong', violations: '/vi-pham', feedback: '/gop-y',
   audit: '/lich-su', settings: '/cai-dat',
 };
 const PATH_VIEWS = Object.fromEntries(Object.entries(VIEW_PATHS).map(([v, p]) => [p, v]));
 const pathForView = v => VIEW_PATHS[v] || '/';
+// Màn con không có mục menu riêng -> sáng mục menu cha.
+const NAV_CHA = { tamtru: 'dashboard' };
 // Đường dẫn hiện tại -> tên view (null nếu không phải màn quản trị nào, vd /dang-ky công khai).
 function viewFromPath(pathname) {
   const p = (pathname || '/').replace(/\/+$/, '') || '/';
@@ -475,6 +477,19 @@ const FILTERS = {
       return p;
     },
   },
+  // Tạm trú: tháng vào ở đang xem. Không có tham số = tháng gần nhất có người; 'tat-ca' = tất cả tháng.
+  tamtru: {
+    read: q => {
+      const t = q.get('thang') || '';
+      _tamTruThang = /^\d{4}-\d{2}$/.test(t) ? t : t === 'tat-ca' ? '' : null;
+    },
+    write: () => {
+      const p = new URLSearchParams();
+      if (_tamTruThang) p.set('thang', _tamTruThang);
+      else if (_tamTruThang === '') p.set('thang', 'tat-ca');
+      return p;
+    },
+  },
 };
 // URL hiện tại (đường dẫn đã chuẩn hoá + query) — để so sánh idempotent trước khi ghi history.
 function curUrl() {
@@ -548,7 +563,8 @@ function adminGo(view, opts) {
   if (ADMIN_ONLY_VIEWS.includes(view) && Auth.user.role !== 'admin') view = 'dashboard';
   const prev = ST.view;
   ST.view = view; closeSide();
-  document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('active', b.dataset.v === view));
+  const menuSang = NAV_CHA[view] || view;
+  document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('active', b.dataset.v === menuSang));
   // Quên khai tiêu đề cho một màn thì trước đây ném TypeError ngay đây -> bấm menu KHÔNG RA GÌ CẢ.
   const tieuDe = AdminTitles[view] || [view, ''];
   el('pgTitle').textContent = tieuDe[0];
@@ -567,7 +583,7 @@ function adminGo(view, opts) {
     history.pushState({ view, d: navDepth() + 1 }, '', target);      // điều hướng thường -> sâu thêm 1 bước
   }
   updateBackBtn();  // BL-58: hiện/ẩn nút Quay lại theo độ sâu điều hướng
-  const _vp = ({ exec: viewExec, dashboard: viewDashboard, students: viewStudents, rooms: viewRooms, services: viewServices, hoso: viewHoSo, checkin: viewCheckin, invoices: viewInvoices, revenue: viewRevenue, reg: viewRequests, checkout: viewRequests, repair: viewRequests, violations: viewRequests, feedback: viewRequests, audit: viewAudit, settings: viewSettings }[view])();
+  const _vp = ({ exec: viewExec, dashboard: viewDashboard, tamtru: viewTamTru, students: viewStudents, rooms: viewRooms, services: viewServices, hoso: viewHoSo, checkin: viewCheckin, invoices: viewInvoices, revenue: viewRevenue, reg: viewRequests, checkout: viewRequests, repair: viewRequests, violations: viewRequests, feedback: viewRequests, audit: viewAudit, settings: viewSettings }[view])();
   // Đổi màn -> trượt vào. fromPop = đến từ Back (kể cả cử chỉ vuốt) nên vào từ TRÁI; còn lại là đi tiếp.
   if (view !== prev) navHieuUng(opts.fromPop ? 'trai' : 'phai');
   // BL-21: màn async reject (lỗi tải) -> khối lỗi + Thử lại thay vì kẹt spinner. (Các màn tự bắt lỗi nội bộ thì không reject.)
@@ -576,7 +592,7 @@ function adminGo(view, opts) {
 // Vẽ lại màn NỀN đang đứng (không đụng lịch sử/URL/hiệu ứng chuyển màn) — dùng sau khi lưu:
 // modal chi tiết còn mở thì danh sách phía sau vẫn phải tươi, đóng ra không thấy số cũ.
 function veLaiNen() {
-  const fn = ({ exec: viewExec, dashboard: viewDashboard, students: viewStudents, rooms: viewRooms,
+  const fn = ({ exec: viewExec, dashboard: viewDashboard, tamtru: viewTamTru, students: viewStudents, rooms: viewRooms,
     services: viewServices, hoso: viewHoSo, checkin: viewCheckin, invoices: viewInvoices,
     revenue: viewRevenue, reg: viewRequests, checkout: viewRequests, repair: viewRequests,
     violations: viewRequests, feedback: viewRequests, audit: viewAudit, settings: viewSettings })[ST.view];

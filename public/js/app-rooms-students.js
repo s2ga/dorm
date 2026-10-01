@@ -419,7 +419,8 @@ async function delRoom(id) {
   if (!confirm(`Xoá phòng ${r ? r.name : ''}?\n\n(Có thể khôi phục lại trong mục "Đã xóa")`)) return;
   await guard(() => API.deleteRoom(id)); await napLai('rooms', 'students');
   closeModal();   // khi xoá từ card Chi tiết phòng: đóng card lại, không để nó đứng đó tả phòng vừa xoá
-  toast('Đã xóa phòng'); viewRooms();
+  // Chi tiết phòng mở được từ nhiều màn (Học viên, Tổng quan…) -> vẽ lại đúng màn đang đứng.
+  toast('Đã xóa phòng'); veLaiNen();
 }
 async function restoreRoom(id) { await guard(() => API.restoreRoom(id)); await napLai('rooms', 'students'); toast('Đã khôi phục phòng'); viewRooms(); }
 const roomFloorOf = n => { const m = String(n || '').match(/\d/); return m ? m[0] : '—'; };

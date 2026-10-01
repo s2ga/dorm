@@ -576,6 +576,9 @@ button.bang-tin.canh-bao:focus-visible{outline:2px solid var(--amber-ink);outlin
 .intro-hero-bg .ph-ico .ic-svg{color:rgba(216,194,144,.4)}
 .intro-hero::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(18,15,10,.12),rgba(18,15,10,.82))}
 .intro-hero-in{position:relative;z-index:2;padding:50px 46px}
+.intro-login{position:absolute;top:18px;right:20px;z-index:3;display:inline-flex;align-items:center;gap:6px;padding:8px 15px;border:1px solid rgba(246,241,231,.5);border-radius:999px;background:rgba(18,15,10,.35);color:#f6f1e7;font-size:14px;font-weight:600;text-decoration:none}
+.intro-login:hover,.intro-login:focus-visible{background:rgba(18,15,10,.6);border-color:var(--gold-line)}
+.intro-login .ic-svg{width:16px;height:16px}
 .intro-brand{display:flex;align-items:center;gap:11px;font-family:var(--serif);font-size:22px;font-weight:600;color:#f6f1e7;margin-bottom:22px}
 .intro-brand .ic-svg{width:26px;height:26px;color:var(--gold-line)}
 .intro-hero h1{font-family:var(--serif);font-size:clamp(34px,5vw,52px);line-height:1.08;margin:0 0 14px;font-weight:600;letter-spacing:.005em}

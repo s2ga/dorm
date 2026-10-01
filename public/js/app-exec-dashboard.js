@@ -195,10 +195,10 @@ function residencyModal() {
 // Ảnh lấy qua proxy /api/students/:id/cccd/... (cookie phiên admin tự gửi -> ảnh hiện khi in).
 // Bản in theo mẫu hồ sơ tạm trú: CHỈ lưới ảnh thẻ, mỗi hàng 2 người (trước–sau · trước–sau), viền đứt.
 let _tamTruThang = null;   // null = chưa chọn -> tháng gần nhất có người; '' = tất cả tháng
-function tamTruMo() { _tamTruThang = null; tamTruSheet(); }
-function tamTruChonThang() { _tamTruThang = this.value; tamTruSheet(); }
-function tamTruSheet() {
-  closeModal();
+function tamTruMo() { closeModal(); _tamTruThang = null; adminGo('tamtru'); }
+function tamTruChonThang() { _tamTruThang = this.value; viewTamTru(); }
+// Màn riêng (/tam-tru): có tiêu đề, nút Quay lại, F5 giữ tháng đang xem; lưu hồ sơ xong vẽ lại đúng màn này.
+function viewTamTru() {
   _ttGoc.clear();   // vẽ lại trang = đọc lại ảnh đang lưu, không xoay tiếp từ bản cũ trong bộ nhớ
   const all = ST.students.filter(s => isOccupying(s) && s.residency_status === 'unregistered')
     .sort((a, b) => String(a.room_name || '').localeCompare(String(b.room_name || ''), 'vi') || String(a.name).localeCompare(String(b.name), 'vi'));
@@ -269,6 +269,7 @@ function tamTruSheet() {
     ${ready.length ? `<div class="tt-grid">${ready.map(pair).join('')}</div>` : `<div class="empty" style="padding:36px;text-align:center;color:#888">${all.length ? `Tháng ${nhanThang(_tamTruThang)} không có ai đủ ảnh CCCD 2 mặt để in — chọn tháng khác hoặc "Tất cả tháng".` : 'Không có học viên nào đang chờ đăng ký tạm trú.'}</div>`}
   </div></div>`;
   tamTruDanhDauDoc();
+  syncFilterUrl();
 }
 // Ảnh cao hơn rộng = chụp dọc -> viền cam + nút xoay hiện sẵn (bản in chỉ nhận thẻ nằm ngang).
 function tamTruDanhDauDoc() {

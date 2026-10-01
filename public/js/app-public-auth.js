@@ -137,6 +137,7 @@ async function renderPublicRegister() {
   <div class="intro">
     <header class="intro-hero">
       <figure class="intro-hero-bg ph-img"><img src="/api/public/image/hero" alt="" data-err="onImgRemove"><span class="ph-ico">${IC.building}</span></figure>
+      <a class="intro-login" href="/">${IC.user} Đăng nhập</a>
       <div class="intro-hero-in">
         <div class="intro-brand">${IC.home} <span>${dorm}</span></div>
         <h1>${T('intro_hero_title', 'Không gian nội trú\nan tâm & nề nếp').replace(/\n/g, '<br>')}</h1>
@@ -208,7 +209,8 @@ async function renderPublicRegister() {
 
     <section class="intro-sec" id="dangky">
       <div class="intro-head"><span class="eyebrow">Đăng ký</span><h2>Đăng ký ở nội trú</h2>
-        <p>Điền thông tin bên dưới, ban quản lý sẽ liên hệ xếp phòng cho bạn — không cần tài khoản.</p></div>
+        <p>Điền thông tin bên dưới, Ban Quản lý sẽ liên hệ xếp phòng cho bạn — không cần tài khoản.
+          Đã có tài khoản? <a href="/">Đăng nhập</a></p></div>
       <div class="intro-form"><div id="pubBody"><div class="spinner"></div></div></div>
     </section>
 
@@ -309,7 +311,8 @@ async function renderPublicRegister() {
       el('pubBody').innerHTML = `<div style="text-align:center;padding:20px">
         <div style="font-size:48px">${IC.checkCircle}</div>
         <h2 style="margin:12px 0 6px">Đã gửi đăng ký!</h2>
-        <p class="muted">Cảm ơn ${esc(body.name)}. Quản lý ký túc xá sẽ liên hệ với bạn qua số <strong>${esc(body.phone)}</strong> để xếp phòng.</p>
+        <p class="muted">Cảm ơn ${esc(body.name)}. Ban Quản lý sẽ liên hệ với bạn qua số <strong>${esc(body.phone)}</strong> để xếp phòng.</p>
+        <p style="margin-top:14px"><a class="btn" href="/">${IC.user} Về trang đăng nhập</a></p>
       </div>`;
     } catch (err) { toast(err.message, 'err'); btn.disabled = false; btn.textContent = 'Gửi đăng ký'; }
   });
@@ -474,6 +477,7 @@ function renderForceChangePw() {
 const AdminTitles = {
   exec: ['Điều hành', 'Báo cáo lãnh đạo — KPI & biểu đồ'],
   dashboard: ['Tổng quan', 'Bảng điều khiển ký túc xá'],
+  tamtru: ['Tạm trú', 'Ảnh CCCD gửi công an'],
   students: ['Học viên', 'Hồ sơ, hợp đồng, tạm trú'],
   rooms: ['Phòng', 'Danh sách phòng theo tầng / hạng / giới tính'],
   vehicles: ['Xe', 'Danh sách xe học viên gửi'],
