@@ -735,7 +735,7 @@ func studentsFindDuplicate(ctx context.Context, q db.Querier, code, idCard strin
 			coStr = " ngày " + studentsSlice10(co)
 		}
 		msg += " — đã trả phòng" + coStr + "." +
-			` Nếu bạn ấy quay lại ở, hãy dùng "Check-in" trên hồ sơ cũ thay vì tạo mới.`
+			` Nếu học viên quay lại ở, dùng "Nhận phòng lại" trên hồ sơ cũ thay vì tạo mới.`
 	}
 	return d, msg, nil
 }
@@ -1607,7 +1607,7 @@ func (h *Handlers) UpdateStudent(c *gin.Context) {
 		}
 	} else if coMoi != lichCu {
 		if coMoi != "" && coMoi <= homNay {
-			badRequest(c, "Ngày trả phòng phải sau hôm nay ("+homNay+"). Trả phòng hôm nay hoặc đã trả rồi thì dùng nút Check-out.")
+			badRequest(c, "Ngày trả phòng phải sau hôm nay ("+homNay+"). Trả phòng hôm nay hoặc đã trả rồi thì dùng nút Trả phòng.")
 			return
 		}
 		if coMoi != "" {
@@ -1983,7 +1983,7 @@ func (h *Handlers) StudentCheckin(c *gin.Context) {
 	// BL-117: đây là BƯỚC XÁC NHẬN — ngày thật, lượt ở, nhật ký cùng một hàm với an ninh bàn giao.
 	note := studentsStrOr(b["note"])
 	if note == "" {
-		note = "Check-in"
+		note = "Nhận phòng"
 	}
 	if err := h.xacNhanNhanPhong(ctx, id, roomIDPtr, d, note, "admin"); err != nil {
 		serverErr(c)
@@ -2111,7 +2111,7 @@ func (h *Handlers) traPhong(ctx context.Context, u *auth.User, id int, in traPho
 			if co != "" {
 				coStr = " ngày " + co
 			}
-			return nil, http.StatusConflict, "Học viên đã trả phòng" + coStr + ". Rời sớm/muộn hơn ngày đã ghi thì mở hồ sơ bấm \"Sửa ngày trả\" — không cần check-in lại."
+			return nil, http.StatusConflict, "Học viên đã trả phòng" + coStr + ". Rời sớm/muộn hơn ngày đã ghi thì mở hồ sơ bấm \"Sửa ngày trả\" — không cần nhận phòng lại."
 		}
 	}
 	badDate, err := checkout.BadCheckoutDate(ctx, h.pool(), id, d, studentsJSString(ci["check_in_date"]))
@@ -2183,7 +2183,7 @@ func (h *Handlers) traPhong(ctx context.Context, u *auth.User, id int, in traPho
 	}
 	note := in.Note
 	if note == "" {
-		note = "Check-out"
+		note = "Trả phòng"
 		// Đã có lịch trả trước đó (đơn duyệt / lần chốt trước) mà ngày khác -> nhật ký phải nói rõ là ĐỔI
 		// lịch, hồ sơ hiện ngày mới nhất còn vết cũ nằm ở đây.
 		if cu := studentsSlice10(studentsJSString(ci["check_out_date"])); cu != "" && cu != d {
@@ -2308,7 +2308,7 @@ func (h *Handlers) UpdateCheckoutDate(c *gin.Context) {
 		return
 	}
 	if studentsJSString(cur["status"]) != "out" {
-		conflict(c, gin.H{"error": "Học viên chưa trả phòng. Dùng nút Check-out để trả phòng lần đầu."})
+		conflict(c, gin.H{"error": "Học viên chưa trả phòng. Dùng nút Trả phòng trước."})
 		return
 	}
 	cuStr := studentsSlice10(studentsJSString(cur["check_out_date"]))
@@ -2856,7 +2856,7 @@ func (h *Handlers) StudentDepositSettle(c *gin.Context) {
 		return
 	}
 	if !studentsJSTruthy(stu["check_out_date"]) {
-		badRequest(c, "Học viên chưa trả phòng — tất toán cọc sau khi check-out.")
+		badRequest(c, "Học viên chưa trả phòng — tất toán cọc sau khi trả phòng.")
 		return
 	}
 	if deduction < 0 { // Number.isFinite(deduction) luôn đúng ở đây (đã ép về số hữu hạn)

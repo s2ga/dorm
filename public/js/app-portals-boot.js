@@ -150,7 +150,7 @@ async function loadStudentPortal() {
         ${myLogs.map(l => `<tr><td>${fmtDate(l.date)}</td>
           <td data-label="Hoạt động">${l.type === 'in' ? '<span class="badge green">Nhận phòng</span>' : '<span class="badge red">Trả phòng</span>'}</td>
           <td data-label="Nguồn">${l.source === 'self' ? '<span class="badge blue">Bạn tự thao tác</span>' : '<span class="badge gray">Quản lý</span>'}</td>
-          <td class="muted" data-label="Ghi chú">${esc(l.note || '')}</td></tr>`).join('')}
+          <td class="muted" data-label="Ghi chú">${esc(ghiChuRaVao(l.note))}</td></tr>`).join('')}
       </tbody></table>` : '<div class="empty">Chưa có lịch sử ra / vào.</div>'}
     </div></div>`;
 

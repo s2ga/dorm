@@ -6,6 +6,8 @@ const path = require('path');
 const GOC = path.join(__dirname, '..', '..');
 const CAM = [
   { ten: 'Chứng từ tiền hàng tháng gọi là "phiếu báo" — không dùng "hoá đơn"/"phiếu thu"', re: /h[oó][aá] đơn|phiếu thu/i },
+  // ghiChuRaVao và PATH_VIEWS['/check-in'] cố ý chứa chữ cũ: đổi ghi chú bản ghi cũ khi hiển thị, nhận dấu trang cũ.
+  { ten: 'Vào/rời phòng gọi là "Nhận phòng"/"Trả phòng" — không dùng "Check-in"/"Check-out"', re: /check-(in|out)\b/i, boQua: /ghiChuRaVao|PATH_VIEWS\[/ },
 ];
 
 // JS: bỏ chú thích dòng, khối đầu dòng, ${/* … */''} trong template, và "// …" cuối dòng.
@@ -42,7 +44,10 @@ module.exports = {
     for (const luat of CAM) {
       const gap = [];
       for (const { tep, chu } of nguon) {
-        chu.split('\n').forEach((d, i) => { const m = d.match(luat.re); if (m) gap.push(`${tep} «${m[0]}» …${d.trim().slice(0, 70)}`); });
+        chu.split('\n').forEach(d => {
+          const m = d.match(luat.re);
+          if (m && !(luat.boQua && luat.boQua.test(d))) gap.push(`${tep} «${m[0]}» …${d.trim().slice(0, 70)}`);
+        });
       }
       t.eq(luat.ten, gap.length, 0, gap.slice(0, 8).join(' | '));
     }

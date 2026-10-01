@@ -523,7 +523,7 @@ function viewStudents() {
         <td data-label="Cọc">${depositBadge(s)}${s.deposit_status === 'none' && isOccupying(s) ? ` <button class="btn sm ghost" style="white-space:nowrap" title="Ghi nhận đóng cọc" data-act="depositForm" data-args='[${s.id}]'>＋ Thu cọc</button>` : ''}</td>
         ${hasXC ? `<td class="muted" data-label="Dự kiến XC" style="font-size:12px;white-space:nowrap">${xcOf(s) ? fmtDate(xcOf(s)) : '—'}</td>` : ''}
         <td class="num"><div class="rowbtns" style="justify-content:flex-end">
-          ${isOccupying(s) ? `<button class="btn sm danger" data-act="checkOutForm" data-args='[${s.id}]'>Check-out</button>` : `<button class="btn sm" title="Nhận lại học viên đã trả phòng" data-act="checkInForm" data-args='[${s.id}]'>Check-in</button>`}
+          ${isOccupying(s) ? `<button class="btn sm danger" data-act="checkOutForm" data-args='[${s.id}]'>Trả phòng</button>` : `<button class="btn sm" title="Nhận lại học viên đã trả phòng" data-act="checkInForm" data-args='[${s.id}]'>Nhận phòng</button>`}
         </div></td></tr>`; }).join('')}
       <tr class="no-result" style="display:none"><td colspan="${nCols}"><div class="empty">Không tìm thấy học viên phù hợp.</div></td></tr>
       </tbody></table>` : `<div class="empty">Không có học viên phù hợp.</div>`}
@@ -751,7 +751,7 @@ async function studentForm(id) {
         ${/* Ngày trả đã tới/đã qua thì KHOÁ — phiếu tháng đó đã phát, công-tơ đã chốt. Hiện dạng ô chỉ
               đọc chứ không phải input readonly: input trông y hệt ô nhập được, bấm không ra lịch. */''}
         <div class="grid2" style="margin:0">
-          <div class="field" style="margin:0"><label>${s.check_in_date ? 'Ngày vào (đã xác nhận)' : 'Ngày dự kiến vào <span class="opt">(chưa xác nhận — bấm Check-in khi bạn ấy tới)</span>'}</label><input id="f_in"></div>
+          <div class="field" style="margin:0"><label>${s.check_in_date ? 'Ngày vào (đã xác nhận)' : 'Ngày dự kiến vào <span class="opt">(chưa xác nhận — bấm Nhận phòng khi học viên tới)</span>'}</label><input id="f_in"></div>
           <div class="field" style="margin:0"><label>Ngày trả phòng ${daRoi ? '' : '<span class="opt">(báo trước)</span>'}</label>
             ${daRoi
     ? `<div class="ro-in">${esc(fmtDate(s.check_out_date))}
@@ -972,8 +972,8 @@ async function studentDetail(id) {
       <button class="btn" data-act="studentForm" data-args='[${s.id}]'>${IC.pencil} Sửa</button>
       ${isOccupying(s) ? `<button class="btn" data-act="transferForm" data-args='[${s.id}]'>${IC.transfer} Chuyển phòng</button>` : ''}
       ${isOccupying(s)
-    ? `<button class="btn danger" data-act="checkOutForm" data-args='[${s.id}]'>Check-out</button>`
-    : `<button class="btn green" data-act="checkInForm" data-args='[${s.id}]'>Check-in lại</button>
+    ? `<button class="btn danger" data-act="checkOutForm" data-args='[${s.id}]'>Trả phòng</button>`
+    : `<button class="btn green" data-act="checkInForm" data-args='[${s.id}]'>Nhận phòng lại</button>
        ${s.check_out_date ? `<button class="btn" data-act="suaNgayTraForm" data-args='[${s.id}]' title="Nhập nhầm ngày rời thì sửa ở đây">${IC.calendar} Sửa ngày trả</button>` : ''}`}
       ${s.deleted_at ? '' : `<button class="btn danger" data-act="delStudent" data-args='[${s.id}]'>${IC.lock} Khoá hồ sơ</button>`}
     </div>`);
@@ -1033,7 +1033,7 @@ async function hienSoHDDuKien(s) {
 }
 // Lịch sử ở đọc từ room_stays — nguồn sự thật về ở/rời (thứ tính tiền dùng). Nhật ký chỉ bổ sung
 // ghi chú; mốc không có nhật ký được gắn nhãn "ghi từ hồ sơ" thay vì im lặng bỏ trống.
-const LSO_TU_HO_SO = '<span class="badge gray" title="Mốc này ghi thẳng vào hồ sơ, không qua nút Check-in/Check-out nên không có nhật ký thao tác">ghi từ hồ sơ</span>';
+const LSO_TU_HO_SO = '<span class="badge gray" title="Mốc này ghi thẳng vào hồ sơ, không qua nút Nhận phòng/Trả phòng nên không có nhật ký thao tác">ghi từ hồ sơ</span>';
 // `=== null` chứ không `== null`: màn PHÒNG không trả log_ra, undefined lọt vào là mọi dòng đều bị
 // dán "ghi từ hồ sơ" — nhãn kiểm toán dán lên tất cả thì thành nói dối.
 const lsoMoc = (ngay, log) => `${fmtDate(ngay)}${log === null ? ' ' + LSO_TU_HO_SO : (log ? `<div class="sub2">${esc(log)}</div>` : '')}`;
@@ -1164,7 +1164,7 @@ function duplicateModal(d) {
       ${s.id ? (dangO
         ? `<button class="btn" data-close data-act="studentForm" data-args='[${s.id}]'>Xem hồ sơ</button>
            <button class="btn pri" data-close data-act="transferForm" data-args='[${s.id}]'>${IC.transfer} Chuyển phòng cho bạn ấy</button>`
-        : `<button class="btn pri" data-close data-act="checkInForm" data-args='[${s.id}]'>${IC.doorOpen} Check-in lại cho bạn ấy</button>`) : ''}
+        : `<button class="btn pri" data-close data-act="checkInForm" data-args='[${s.id}]'>${IC.doorOpen} Nhận phòng lại</button>`) : ''}
     </div>`);
 }
 

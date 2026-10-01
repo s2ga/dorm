@@ -6,7 +6,7 @@ const PASS = process.env.TEST_ADMIN_PASS;
 if (!PASS) { console.error('Thiếu TEST_ADMIN_PASS.'); process.exit(2); }
 
 const MAN = [['/hoc-vien', 'Học viên'], ['/phong', 'Phòng'], ['/tien-phong', 'Tiền phòng'],
-  ['/ho-so', 'Hồ sơ lưu trữ'], ['/check-in', 'Check-in/out'], ['/dich-vu', 'Dịch vụ'],
+  ['/ho-so', 'Hồ sơ lưu trữ'], ['/nhan-tra-phong', 'Nhận/trả phòng'], ['/dich-vu', 'Dịch vụ'],
   ['/dang-ky-noi-tru', 'Đăng ký'], ['/tra-phong', 'Trả phòng'], ['/bao-hong', 'Báo hư hỏng'],
   ['/vi-pham', 'Vi phạm'], ['/lich-su', 'Lịch sử']];
 

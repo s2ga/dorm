@@ -16,7 +16,7 @@ function renderAdmin() {
           <button data-v="services"><span class="ico">${IC.sparkles}</span><span class="lbl">Dịch vụ</span></button>
           <button data-v="hoso"><span class="ico">${IC.fileText}</span><span class="lbl">Hồ sơ lưu trữ</span></button>
           <div class="grp">Vận hành</div>
-          <button data-v="checkin"><span class="ico">${IC.key}</span><span class="lbl">Check-in / out</span></button>
+          <button data-v="checkin"><span class="ico">${IC.key}</span><span class="lbl">Nhận / trả phòng</span></button>
           <button data-v="invoices"><span class="ico">${IC.wallet}</span><span class="lbl">Tiền phòng</span></button>
           ${isAdmin ? `<button data-v="revenue"><span class="ico">${IC.trendingUp}</span><span class="lbl">Dự báo doanh thu</span></button>` : ''}
           <div class="grp">Tiếp nhận & Hỗ trợ</div>
@@ -345,11 +345,12 @@ function _escDrawer(e) { if (e.key === 'Escape' && document.querySelector('.side
 const VIEW_PATHS = {
   dashboard: '/', exec: '/dieu-hanh', students: '/hoc-vien', rooms: '/phong', services: '/dich-vu',
   hoso: '/ho-so', tamtru: '/tam-tru',
-  checkin: '/check-in', invoices: '/tien-phong', revenue: '/doanh-thu', reg: '/dang-ky-noi-tru',
+  checkin: '/nhan-tra-phong', invoices: '/tien-phong', revenue: '/doanh-thu', reg: '/dang-ky-noi-tru',
   checkout: '/tra-phong', repair: '/bao-hong', violations: '/vi-pham', feedback: '/gop-y',
   audit: '/lich-su', settings: '/cai-dat',
 };
 const PATH_VIEWS = Object.fromEntries(Object.entries(VIEW_PATHS).map(([v, p]) => [p, v]));
+PATH_VIEWS['/check-in'] = 'checkin';   // đường dẫn cũ: dấu trang đã lưu vẫn mở đúng màn, URL tự đổi sang đường mới
 const pathForView = v => VIEW_PATHS[v] || '/';
 // Màn con không có mục menu riêng -> sáng mục menu cha.
 const NAV_CHA = { tamtru: 'dashboard' };

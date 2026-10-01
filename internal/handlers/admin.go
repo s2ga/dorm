@@ -64,7 +64,7 @@ var adminKiemTraList = []adminKiemTra{
 	{
 		ma: "da_tra_con_luot_mo", ten: "Đã trả phòng nhưng lượt ở vẫn mở",
 		viSao:   "Tiền điện vẫn chia cho người đã rời → người ở lại đóng thiếu, người rời bị tính oan.",
-		cachSua: `Mở hồ sơ → "Check-in lại" rồi "Check-out" với đúng ngày trả để app đóng lượt ở.`,
+		cachSua: `Mở hồ sơ → "Nhận phòng lại" rồi "Trả phòng" với đúng ngày trả để app đóng lượt ở.`,
 		sql: `SELECT s.name AS khoa, 'trả ' || s.check_out_date || ' nhưng lượt ở phòng ' || COALESCE(r.name,'?') || ' chưa đóng (#' || s.id || ')' AS chi_tiet
             FROM students s JOIN room_stays rs ON rs.student_id = s.id AND rs.to_date IS NULL
             LEFT JOIN rooms r ON r.id = rs.room_id
@@ -85,7 +85,7 @@ var adminKiemTraList = []adminKiemTra{
 	{
 		ma: "ngay_tra_lech_luot_o", ten: "Ngày trả trên hồ sơ lệch với lượt ở",
 		viSao:   "Hai nơi nói hai ngày khác nhau → số ngày ở và tiền điện tính theo ngày SAI.",
-		cachSua: `Mở hồ sơ → "Check-in lại" rồi "Check-out" với đúng ngày trả.`,
+		cachSua: `Mở hồ sơ → "Nhận phòng lại" rồi "Trả phòng" với đúng ngày trả.`,
 		sql: `SELECT s.name AS khoa, 'hồ sơ trả ' || s.check_out_date || ' · lượt ở đóng ' || x.to_max || ' (#' || s.id || ')' AS chi_tiet
             FROM students s JOIN LATERAL (SELECT MAX(rs.to_date) AS to_max FROM room_stays rs WHERE rs.student_id = s.id) x ON true
            WHERE s.deleted_at IS NULL AND s.check_out_date IS NOT NULL AND s.check_out_date <= CURRENT_DATE
@@ -109,7 +109,7 @@ var adminKiemTraList = []adminKiemTra{
 	},
 	{
 		ma: "phieu_sau_khi_roi", ten: "Còn phiếu của kỳ SAU ngày trả phòng",
-		viSao:   "Phiếu rác: người đã rời mà kỳ sau vẫn có phiếu — thường do ngày trả ghi thẳng vào hồ sơ, không qua nút Check-out nên không ai dọn.",
+		viSao:   "Phiếu rác: người đã rời mà kỳ sau vẫn có phiếu — thường do ngày trả ghi thẳng vào hồ sơ, không qua nút Trả phòng nên không ai dọn.",
 		cachSua: "Mở màn Tiền phòng đúng kỳ đó, xoá phiếu (phiếu đã thu thì đối chiếu lại trước).",
 		sql: `SELECT s.name AS khoa, 'trả ' || s.check_out_date || ' nhưng còn phiếu kỳ ' || i.month || ' (' || i.total || 'đ, #' || i.id || ')' AS chi_tiet
             FROM invoices i JOIN students s ON s.id = i.student_id
@@ -120,7 +120,7 @@ var adminKiemTraList = []adminKiemTra{
 	{
 		ma: "da_tra_ngay_tuong_lai", ten: "Ghi ĐÃ TRẢ PHÒNG nhưng ngày trả còn ở tương lai",
 		viSao:   "Người vẫn đang ở mà hồ sơ ghi đã đi: tiền phòng cắt sớm, lượt ở đóng trước ngày, tài khoản bị khoá oan.",
-		cachSua: `Là bấm Check-out nhầm ngày chưa tới. Đưa hồ sơ về "đang ở" rồi đặt lại ở ô ngày dự kiến trả.`,
+		cachSua: `Là bấm Trả phòng nhầm ngày chưa tới. Đưa hồ sơ về "đang ở" rồi đặt lại ở ô ngày dự kiến trả.`,
 		sql: `SELECT s.name AS khoa,
                 'ghi đã trả ' || s.check_out_date || COALESCE(' · phòng ' || r.name, '') || ' (#' || s.id || ')' AS chi_tiet
             FROM students s LEFT JOIN rooms r ON r.id = s.room_id

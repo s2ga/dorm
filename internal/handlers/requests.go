@@ -407,7 +407,7 @@ func (h *Handlers) ConfirmCheckout(c *gin.Context) {
 	// không dọn phiếu, không mời tất toán cọc — tất cả để dành cho bước xác nhận trả phòng thật
 	// (Check-out của BQL hoặc an ninh bàn giao). Ai còn nhập chỉ số ở bước này là nhập số đoán.
 	if hasMeter {
-		badRequest(c, "Chỉ số công-tơ chốt lúc bàn giao thật (Check-out / an ninh), không nhập ở bước duyệt lịch.")
+		badRequest(c, "Chỉ số công-tơ chốt lúc trả phòng thật (Xác nhận đã trả / biên bản an ninh), không nhập ở bước duyệt lịch.")
 		return
 	}
 	var reasonArg interface{}

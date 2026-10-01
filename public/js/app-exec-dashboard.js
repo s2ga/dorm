@@ -506,10 +506,10 @@ function logsTable(logs) {
   if (!logs.length) return `<div class="empty">Chưa có hoạt động nào.</div>`;
   return `<table><thead><tr><th>Ngày</th><th>Học viên</th><th>Hoạt động</th><th>Phòng</th><th>Nguồn</th><th>Ghi chú</th></tr></thead><tbody>
     ${logs.map(l => `<tr><td>${fmtDate(l.date)}${String(l.date).slice(0, 10) > today() ? ' <span class="badge blue" style="font-size:10px">sắp tới</span>' : ''}</td><td><a href="#" data-act="studentDetail" data-args='[${l.student_id}]'>${esc(l.student_name)}</a></td>
-      <td>${l.type === 'in' ? '<span class="badge green">Check-in</span>' : '<span class="badge red">Check-out</span>'}</td>
+      <td>${l.type === 'in' ? '<span class="badge green">Nhận phòng</span>' : '<span class="badge red">Trả phòng</span>'}</td>
       <td>${l.room_id ? `<a href="#" data-act="roomDetail" data-args='[${l.room_id}]'>${esc(l.room_name || '—')}</a>` : esc(l.room_name || '—')}</td>
       <td>${l.source === 'self' ? '<span class="badge blue">Học viên</span>' : '<span class="badge gray">Quản lý</span>'}</td>
-      <td class="muted">${esc(l.note || '')}</td></tr>`).join('')}
+      <td class="muted">${esc(ghiChuRaVao(l.note))}</td></tr>`).join('')}
   </tbody></table>`;
 }
 

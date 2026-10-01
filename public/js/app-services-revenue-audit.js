@@ -423,7 +423,7 @@ const AUDIT_RES = {
   admin: 'Tài khoản', logs: 'Nhật ký ra/vào', reports: 'Báo cáo', me: 'Học viên (tự thao tác)',
 };
 const AUDIT_SUB = {
-  checkin: 'Check-in', checkout: 'Check-out', transfer: 'Chuyển phòng', approve: 'Duyệt đơn',
+  checkin: 'Nhận phòng', checkout: 'Trả phòng', transfer: 'Chuyển phòng', approve: 'Duyệt đơn',
   reject: 'Từ chối', confirm: 'Xác nhận trả phòng', notify: 'Gửi mail nhà trường', restore: 'Khôi phục',
   generate: 'Lập phiếu báo hàng loạt', 'generate-one': 'Lập phiếu báo 1 học viên', bulk: 'Lưu chỉ số điện',
   'mark-paid': 'Đánh dấu đã thu', status: 'Đổi trạng thái', recalc: 'Tính lại phiếu báo',

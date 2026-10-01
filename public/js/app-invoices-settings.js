@@ -1288,7 +1288,7 @@ function viewSettings() {
         Tài khoản học viên KHÔNG nằm ở bảng này, xem bảng <em>“Tài khoản học viên”</em> bên dưới.</div>
       <div class="table-wrap"><table><thead><tr><th>Tên đăng nhập</th><th>Họ tên</th><th>Vai trò</th><th>Cơ sở</th><th></th></tr></thead>
         <tbody id="usrRows"><tr><td colspan="5"><div class="spinner"></div></td></tr></tbody></table></div>
-      <div class="pad muted" style="font-size:12.5px">${IC.bulb} <strong>Quản trị viên</strong> có toàn quyền (kể cả Điều hành, Doanh thu, Nhật ký, Cài đặt). <strong>Nhân viên</strong> chỉ thao tác nghiệp vụ (Học viên, Phòng, Xe, Check-in/out, Tiền phòng, Tiếp nhận & Hỗ trợ) và đều được ghi vào Nhật ký.
+      <div class="pad muted" style="font-size:12.5px">${IC.bulb} <strong>Quản trị viên</strong> có toàn quyền (kể cả Điều hành, Doanh thu, Nhật ký, Cài đặt). <strong>Nhân viên</strong> chỉ thao tác nghiệp vụ (Học viên, Phòng, Xe, Nhận/trả phòng, Tiền phòng, Tiếp nhận & Hỗ trợ) và đều được ghi vào Nhật ký.
         Muốn chặn một người, đổi vai hoặc xoá tài khoản ở đây — mọi phiên đang mở của họ bị đá ra ngay.</div>
     </div>
 
@@ -1567,7 +1567,7 @@ function duyetTaiKhoanForm(id, mode) {
             <div class="field"><label>Số điện thoại</label><input id="ap_phone" placeholder="09..."></div>
           </div>
           <div class="field"><label>Lớp</label><input id="ap_class" placeholder="Esu684"></div>
-          <div class="hint" style="font-size:12px">${IC.info} Hồ sơ mới để <strong>trống phòng và ngày vào</strong> — duyệt tài khoản không phải là check-in. Xếp phòng ở màn Học viên sau, lúc đó mới phát sinh tiền.</div>
+          <div class="hint" style="font-size:12px">${IC.info} Hồ sơ mới để <strong>trống phòng và ngày vào</strong> — duyệt tài khoản không phải là nhận phòng. Xếp phòng ở màn Học viên sau, lúc đó mới phát sinh tiền.</div>
         </div>
         <div class="hint" style="font-size:12px">${IC.lock} Email <strong>${esc(u.email || '—')}</strong> sẽ được ghi vào hồ sơ (nếu hồ sơ chưa có), lần sau học viên đăng nhập Microsoft là vào thẳng, khỏi qua đây.</div>
       </div>

@@ -8,6 +8,8 @@ const esc = s => (s == null ? '' : String(s)).replace(/[&<>"']/g, c => ({ '&': '
 // moneyN: ô tiền trong bảng — không kèm đơn vị, đơn vị ghi một lần ở tiêu đề cột hoặc "Đơn vị: đồng".
 const moneyN = n => (Number(n) || 0).toLocaleString('vi-VN');
 const money = n => moneyN(n) + ' đ';
+// Ghi chú nhật ký ra/vào: bản ghi cũ lưu chữ "Check-in"/"Check-out" — hiện theo thuật ngữ hiện hành.
+const ghiChuRaVao = n => ({ 'Check-in': 'Nhận phòng', 'Check-out': 'Trả phòng' }[n] || n || '');
 // Số kWh: 2 số lẻ, cắt số 0 thừa ở đuôi. Chốt 2 chứ không hơn vì hệ thống tài chính bên đối tác
 // chỉ nhận tới 2 số lẻ — ghi khác nhau là hai bên lệch số.
 const kwh = n => (Number(n) || 0).toLocaleString('vi-VN', { maximumFractionDigits: 2 });

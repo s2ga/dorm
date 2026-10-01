@@ -100,6 +100,10 @@ const cho = async (page, dk, ms = 15000) => {
   }
   ok('Không request ghi nào lọt ra máy chủ thật (đều bị chặn)', daGhi.every(x => /^(PUT|DELETE) /.test(x)), daGhi.join(', '));
 
+  await page.goto('/check-in'); await cho(page, x => x.title === 'Nhận / trả phòng');
+  t = await trang(page);
+  ok('Dấu trang cũ /check-in → mở màn "Nhận / trả phòng", URL đổi sang /nhan-tra-phong', t.title === 'Nhận / trả phòng' && t.path === '/nhan-tra-phong', JSON.stringify(t));
+
   // ── 3. Trang đăng ký công khai có đường về Đăng nhập ──────────────────────
   const khach = await browser.newContext({ baseURL: BASE, viewport: { width: 390, height: 800 } });
   const p2 = await khach.newPage();

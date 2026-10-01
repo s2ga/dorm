@@ -648,7 +648,7 @@ func (h *Handlers) ApproveApplication(c *gin.Context) {
 			switch {
 			case strings.Contains(pe.ConstraintName, "students_code"):
 				conflict(c, gin.H{"error": `Mã học viên "` + appCode + `" đã có hồ sơ khác dùng. Sửa mã trên đơn, ` +
-					"hoặc xử lý ngay trên hồ sơ cũ (Chuyển phòng / Check-in lại) rồi Từ chối đơn này."})
+					"hoặc xử lý ngay trên hồ sơ cũ (Chuyển phòng / Nhận phòng lại) rồi Từ chối đơn này."})
 				return
 			case strings.Contains(pe.ConstraintName, "students_id_card"):
 				conflict(c, gin.H{"error": "Số CCCD này đã có hồ sơ khác dùng. Kiểm lại hồ sơ cũ rồi Từ chối đơn này."})
@@ -699,7 +699,7 @@ func (h *Handlers) RejectApplication(c *gin.Context) {
 		return
 	}
 	if status == "approved" {
-		badRequest(c, "Đơn đã được duyệt và học viên đã vào ở — không thể từ chối. Nếu người này không ở nữa, dùng chức năng Check-out / Xoá học viên.")
+		badRequest(c, "Đơn đã được duyệt và học viên đã vào ở — không thể từ chối. Nếu người này không ở nữa, dùng nút Trả phòng / Khoá hồ sơ trên hồ sơ học viên.")
 		return
 	}
 	if status == "rejected" {
@@ -742,7 +742,7 @@ func (h *Handlers) DeleteApplication(c *gin.Context) {
 		return
 	}
 	if status == "approved" {
-		badRequest(c, "Đơn đã duyệt và học viên đã vào ở — không xoá đơn (hồ sơ gốc cần giữ). Nếu người này không ở nữa, dùng Check-out / Xoá học viên.")
+		badRequest(c, "Đơn đã duyệt và học viên đã vào ở — không xoá đơn (hồ sơ gốc cần giữ). Nếu người này không ở nữa, dùng nút Trả phòng / Khoá hồ sơ trên hồ sơ học viên.")
 		return
 	}
 	// BLK-4: xoá mềm NGUYÊN TỬ — chỉ khi CHƯA duyệt. applications.routes.js:230
