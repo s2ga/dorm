@@ -213,14 +213,14 @@ async function pkDuyetBien(id) {
 function pkTuChoiBienForm(id) {
   openModal(`
     <div class="mh"><h3>${IC.undo} Từ chối đề nghị sửa biển</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
-    <div class="mb"><div class="field" style="margin:0"><label>Lý do (an ninh sẽ thấy trên dòng xe) *</label>
+    <div class="mb"><div class="field" style="margin:0"><label>Lý do (an ninh sẽ thấy trên dòng xe) ${SAO}</label>
       <textarea id="pk_tc_note" rows="3" placeholder="VD: Đã đối chiếu cà vẹt, biển trên hồ sơ đúng"></textarea></div></div>
     <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn danger" data-act="pkTuChoiBienLuu" data-args='[${id}]'>Từ chối</button></div>`);
   setTimeout(() => el('pk_tc_note') && el('pk_tc_note').focus(), 50);
 }
 async function pkTuChoiBienLuu(id) {
   const note = el('pk_tc_note').value.trim();
-  if (!note) return toast('Nhập lý do từ chối', 'err');
+  if (!note) return loiTaiO('pk_tc_note', 'Nhập lý do từ chối');
   await guard(() => API.rejectPlateRequest(id, note));
   closeModal(); toast('Đã từ chối đề nghị'); viewServices();
 }
@@ -238,12 +238,12 @@ function pkGanXeForm(id) {
   openModal(`
     <div class="mh"><h3>${IC.bike} Ghi xe lạ vào danh sách gửi xe</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <div class="field"><label>Chủ xe *</label><select id="pg_stu">
+      <div class="field"><label>Chủ xe ${SAO}</label><select id="pg_stu">
         <option value="">— Chọn học viên đang ở —</option>
         ${dsHV.map(x => `<option value="${x.id}">${x.room_name ? esc(x.room_name) + ' — ' : ''}${esc(x.name)}${x.code ? ' (' + esc(x.code) + ')' : ''}</option>`).join('')}
       </select></div>
       <div class="grid2">
-        <div class="field"><label>Biển số *</label><input id="pg_plate" value="${esc(bc.plate || '')}" placeholder="63-B4 508.58"></div>
+        <div class="field"><label>Biển số ${SAO}</label><input id="pg_plate" value="${esc(bc.plate || '')}" placeholder="63-B4 508.58"></div>
         <div class="field"><label>Loại xe</label><input id="pg_type" placeholder="Xe số / Xe ga..."></div>
       </div>
       <div class="grid2">
@@ -258,9 +258,9 @@ function pkGanXeForm(id) {
 }
 async function pkGanXeLuu(id) {
   const sid = +((el('pg_stu') || {}).value || 0);
-  if (!sid) return toast('Chọn chủ xe', 'err');
+  if (!sid) return loiTaiO('pg_stu', 'Chọn chủ xe');
   const plate = el('pg_plate').value.trim();
-  if (!plate) return toast('Nhập biển số', 'err');
+  if (!plate) return loiTaiO('pg_plate', 'Nhập biển số');
   await guard(() => API.parkingReportAssign(id, {
     student_id: sid, plate, vehicle_type: el('pg_type').value.trim(),
     sticker: el('pg_sticker').value.trim(), note: el('pg_note').value.trim(),

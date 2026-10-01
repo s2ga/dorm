@@ -450,6 +450,8 @@ select[size] option{padding:8px 9px;border-radius:8px}
 /* Lỗi chọn tệp: nằm lại ngay dưới ô, không trôi mất như toast. */
 .tep-loi{margin-top:6px;padding:7px 10px;border-radius:8px;font-size:12.5px;line-height:1.45;
   background:var(--red-bg);color:var(--red-ink);border:1px solid var(--red)}
+.co-loi input,.co-loi select,.co-loi textarea{border-color:var(--red)}
+.loi-o{margin-top:6px;font-size:12.5px;line-height:1.45;color:var(--red-ink)}
 /* Sửa ảnh CCCD (xoay/cắt): khung xem + vùng chọn kéo được. Vùng ngoài bị làm tối bằng bóng đổ
    khổng lồ, nên khung phải overflow:hidden và 4 mốc góc nằm hẳn bên trong. */
 .anh-khung{position:relative;display:inline-block;overflow:hidden;line-height:0;touch-action:none;background:var(--bg2);user-select:none}

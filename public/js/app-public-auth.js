@@ -253,7 +253,7 @@ async function renderPublicRegister() {
     <footer class="intro-foot">${dorm}${info.address ? ` · ${esc(info.address)}` : ''}</footer>
   </div>`;
   el('pubBody').innerHTML = `
-    <form id="applyForm">
+    <form id="applyForm" novalidate>
       <div class="grid2">
         <div class="field"><label>Họ tên ${SAO}</label><input id="a_name" required data-change="onTenChuan"></div>
         <div class="field"><label>Số điện thoại ${SAO}</label><input id="a_phone" type="tel" autocomplete="tel" inputmode="tel" required></div>
@@ -261,7 +261,7 @@ async function renderPublicRegister() {
       ${info.facilities && info.facilities.length ? `<div class="field"><label>Cơ sở đăng ký ${SAO}</label><select id="a_facility">${info.facilities.map(f => `<option value="${f.id}">${esc(f.name)}${f.address ? ' — ' + esc(f.address) : ''}</option>`).join('')}</select></div>` : ''}
       <div class="grid2">
         <div class="field"><label>Giới tính ${SAO}</label><select id="a_gender"><option value="female">Nữ</option><option value="male">Nam</option></select></div>
-        <div class="field"><label>Ngày sinh *</label><input id="a_birth">
+        <div class="field"><label>Ngày sinh ${SAO}</label><input id="a_birth">
           <div class="price-sub">Ký túc xá nhận học viên từ ${info.age_min || 17} đến ${info.age_max || 39} tuổi.</div></div>
       </div>
       <div class="field"><label>Ngày muốn nhận phòng ${SAO}</label><input id="a_movein" required>
@@ -294,24 +294,21 @@ async function renderPublicRegister() {
   attachDate(el('a_movein'), '', { min: today() });  // nhận phòng thì từ hôm nay trở đi
   el('applyForm').addEventListener('submit', async e => {
     e.preventDefault();
-    // Ô ngày là input đọc-chỉ có lịch riêng nên `required` của trình duyệt không bắt được -> chặn ở đây.
+    // Mọi lỗi nhập báo ngay tại ô (form có novalidate: không dùng bong bóng của trình duyệt).
+    if (!el('a_name').value.trim()) return loiTaiO('a_name', 'Nhập họ tên');
+    if (!el('a_phone').value.trim()) return loiTaiO('a_phone', 'Nhập số điện thoại');
     const ngaySinh = el('a_birth').dataset.iso || '';
-    if (!ngaySinh) { toast('Chọn ngày sinh', 'err'); el('a_birth').focus(); return; }
+    if (!ngaySinh) return loiTaiO('a_birth', 'Chọn ngày sinh');
     const tuoi = soTuoi(ngaySinh);
     const tMin = info.age_min || 17, tMax = info.age_max || 39;
-    if (tuoi < tMin || tuoi > tMax) {
-      toast(`Ký túc xá nhận học viên từ ${tMin} đến ${tMax} tuổi — ngày sinh này ra ${tuoi} tuổi`, 'err');
-      el('a_birth').focus(); return;
-    }
+    if (tuoi < tMin || tuoi > tMax) return loiTaiO('a_birth', `Ký túc xá nhận học viên từ ${tMin} đến ${tMax} tuổi — ngày sinh này ra ${tuoi} tuổi`);
     const ngayVao = el('a_movein').dataset.iso || '';
-    if (!ngayVao) { toast('Chọn ngày muốn nhận phòng', 'err'); el('a_movein').focus(); return; }
-    if (ngayVao < today()) { toast('Ngày muốn nhận phòng đã qua — chọn lại', 'err'); el('a_movein').focus(); return; }
+    if (!ngayVao) return loiTaiO('a_movein', 'Chọn ngày muốn nhận phòng');
+    if (ngayVao < today()) return loiTaiO('a_movein', 'Ngày muốn nhận phòng đã qua — chọn lại');
     // Đủ 2 mặt CCCD là bắt buộc (owner chốt 12/09/2026) — thiếu thì không lập được hồ sơ tạm trú.
     const thieuMat = [!window._pubCccd.front ? 'mặt trước' : null, !window._pubCccd.back ? 'mặt sau' : null].filter(Boolean);
     if (thieuMat.length) {
-      toast('Còn thiếu ảnh CCCD ' + thieuMat.join(' và ') + ' — bắt buộc đủ 2 mặt', 'err');
-      el(window._pubCccd.front ? 'a_cccd_back' : 'a_cccd_front').focus();
-      return;
+      return loiTaiO(window._pubCccd.front ? 'a_cccd_back' : 'a_cccd_front', 'Còn thiếu ảnh CCCD ' + thieuMat.join(' và ') + ' — bắt buộc đủ 2 mặt');
     }
     // e.submitter có thể null (gửi form bằng lệnh, không qua nút bấm) -> tra ngược nút Gửi.
     // Đây là form học viên LẠ tự đăng ký: văng lỗi ở đây là mất đơn mà không ai biết.
@@ -395,8 +392,8 @@ async function renderLogin() {
             <button type="button" class="auth-alt" id="lgAlt" data-act="lgMoNoiBo"><span class="q">Chưa có tài khoản Microsoft?</span><u>Đăng nhập bằng tài khoản do Ban Quản lý cấp</u></button>
           </div>
           <form id="loginForm">
-            <div class="field"><label>Tài khoản</label><input id="lg_user" autocomplete="username" placeholder="Tên đăng nhập"></div>
-            <div class="field"><label>Mật khẩu</label><input id="lg_pass" type="password" autocomplete="current-password" placeholder="Mật khẩu"></div>
+            <div class="field"><label>Tên đăng nhập</label><input id="lg_user" autocomplete="username"></div>
+            <div class="field"><label>Mật khẩu</label><input id="lg_pass" type="password" autocomplete="current-password"></div>
             <button class="btn pri lg auth-btn" type="submit">Đăng nhập →</button>
             <p class="muted" style="font-size:13px;margin:10px 0 0;text-align:center">Quên mật khẩu? Liên hệ Ban Quản lý để được cấp lại.</p>
           </form>
@@ -472,7 +469,7 @@ function renderForceChangePw() {
           <form id="fcpForm">
             <div class="field"><label>Mật khẩu mới</label><input id="fcp_new" type="password" autocomplete="new-password" placeholder="Tối thiểu 6 ký tự" autofocus></div>
             <div class="field"><label>Nhập lại mật khẩu mới</label><input id="fcp_new2" type="password" autocomplete="new-password" placeholder="Nhập lại"></div>
-            <button class="btn pri lg auth-btn" type="submit">Cập nhật mật khẩu →</button>
+            <button class="btn pri lg auth-btn" type="submit">Đổi mật khẩu</button>
           </form>
           <div class="auth-or"><span>hoặc</span></div>
           <button class="btn" style="width:100%" data-act="logout">${IC.logOut} Đăng xuất</button>
@@ -482,15 +479,15 @@ function renderForceChangePw() {
   el('fcpForm').addEventListener('submit', async e => {
     e.preventDefault();
     const n1 = el('fcp_new').value, n2 = el('fcp_new2').value;
-    if (n1.length < 6) return toast('Mật khẩu mới tối thiểu 6 ký tự', 'err');
-    if (n1 !== n2) return toast('Hai mật khẩu mới không khớp', 'err');
-    const btn = e.submitter; btn.disabled = true; btn.textContent = 'Đang cập nhật...';
+    if (n1.length < 6) return loiTaiO('fcp_new', 'Mật khẩu mới tối thiểu 6 ký tự');
+    if (n1 !== n2) return loiTaiO('fcp_new2', 'Nhập lại mật khẩu không khớp');
+    const btn = e.submitter; btn.disabled = true; btn.textContent = 'Đang đổi...';
     try {
       await API.changePassword(n1);
       Auth.user = { ...Auth.user, must_change_password: false };
-      toast('Đã đổi mật khẩu, chào mừng bạn!');
+      toast('Đã đổi mật khẩu');
       boot();
-    } catch (err) { toast(err.message, 'err'); btn.disabled = false; btn.textContent = 'Cập nhật mật khẩu →'; }
+    } catch (err) { toast(err.message, 'err'); btn.disabled = false; btn.textContent = 'Đổi mật khẩu'; }
   });
 }
 

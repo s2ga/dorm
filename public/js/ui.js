@@ -571,6 +571,19 @@ function enhanceColFilters(root) {
     }
   });
 }
+// Báo lỗi ngay tại ô (viền đỏ + dòng chữ dưới ô) và đưa con trỏ tới ô; gõ hoặc chọn lại là tự gỡ. Không thấy ô thì về toast.
+function loiTaiO(id, cau) {
+  const o = typeof id === 'string' ? el(id) : id;
+  if (!o) return toast(cau, 'err');
+  const f = o.closest('.field') || o.parentElement;
+  f.classList.add('co-loi');
+  let d = f.querySelector('.loi-o');
+  if (!d) { d = document.createElement('div'); d.className = 'loi-o'; d.setAttribute('role', 'alert'); f.appendChild(d); }
+  d.textContent = cau;
+  const go = () => { f.classList.remove('co-loi'); d.remove(); o.removeEventListener('input', go); o.removeEventListener('change', go); };
+  o.addEventListener('input', go); o.addEventListener('change', go);
+  o.scrollIntoView({ block: 'center' }); o.focus({ preventScroll: true });
+}
 // Trần một tệp gửi lên: 25MB (owner chốt 12/08/2026). Body máy chủ để 36MB vì base64 phồng ~4/3.
 const TEP_TOI_DA_MB = 25;
 const TEP_NHAN = ['application/pdf', 'image/png', 'image/jpeg'];

@@ -333,7 +333,7 @@ async function leaderForm(roomId) {
     <div class="mh"><h3>${IC.star} Phòng trưởng: ${esc(r.name || '')}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       ${!inRoom.length ? '<p class="muted">Phòng này chưa có ai ở — chưa cử phòng trưởng được.</p>' : `
-      <div class="field"><label>Chọn phòng trưởng</label><select id="l_stu">
+      <div class="field"><label>Chọn phòng trưởng ${SAO}</label><select id="l_stu">
         ${inRoom.map(s => `<option value="${s.id}" ${cur && cur.id === s.id ? 'selected' : ''}>${esc(s.name)}${cur && cur.id === s.id ? ' — đang làm' : ''}</option>`).join('')}
       </select></div>
       <div class="field"><label>Nhận nhiệm vụ từ ngày</label><input id="l_date"></div>
@@ -352,7 +352,7 @@ async function leaderForm(roomId) {
 }
 async function doSetLeader(roomId) {
   const student_id = el('l_stu').value;
-  if (!student_id) return toast('Chọn học viên', 'err');
+  if (!student_id) return loiTaiO('l_stu', 'Chọn học viên làm phòng trưởng');
   const r = await guard(() => API.setLeader(roomId, { student_id: +student_id, date: el('l_date').dataset.iso, note: el('l_note').value.trim() }));
   await refreshCache(); await luuXongVeLai(veLaiNen);
   const n = r && r.recalced ? r.recalced.length : 0;
@@ -379,7 +379,7 @@ function roomForm(id) {
     <div class="mh"><h3>${id ? 'Sửa phòng' : 'Thêm phòng'}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="grid2">
-        <div class="field"><label>Tên / số phòng *</label><input id="f_name" value="${esc(r.name)}" placeholder="VD: 104" data-input="onFloorDisp"></div>
+        <div class="field"><label>Tên / số phòng ${SAO}</label><input id="f_name" value="${esc(r.name)}" placeholder="VD: 104" data-input="onFloorDisp"></div>
         <div class="field"><label>Cơ sở</label><select id="f_fac">${facilityOptions(r.facility_id)}</select></div>
       </div>
       <div class="grid2">
@@ -417,7 +417,7 @@ function roomForm(id) {
 async function saveRoom(id) {
   const body = { name: el('f_name').value.trim(), facility_id: +el('f_fac').value || null,
     gender: el('f_gender').value, hang: el('f_hang').value, capacity: +el('f_cap').value || 0, monthly_fee: +el('f_mfee').value || 0, note: el('f_note').value.trim(), room_type: el('f_rtype').value };
-  if (!body.name) return toast('Nhập tên phòng', 'err');
+  if (!body.name) return loiTaiO('f_name', 'Nhập tên phòng');
   await guard(() => id ? API.updateRoom(id, body) : API.createRoom(body));
   await napLai('rooms', 'students'); await luuXongVeLai(veLaiNen); toast('Đã lưu phòng');
 }
@@ -844,7 +844,7 @@ async function saveStudent(id) {
     // note + uses_washing KHÔNG gửi: máy giặt do màn Dịch vụ quản, ghi chú đã bỏ khỏi form.
     // Không gửi field = máy chủ giữ nguyên giá trị cũ, không phải xoá trắng.
   };
-  if (!body.name) return toast('Nhập họ tên', 'err');
+  if (!body.name) return loiTaiO('f_name', 'Nhập họ tên');
   // Chỉ gửi mặt ảnh NÀO vừa chọn — không gửi = giữ nguyên ảnh cũ trên máy chủ.
   if (_cccdFrontChanged) body.cccd_front = _cccdFront;
   if (_cccdBackChanged) body.cccd_back = _cccdBack;
@@ -1111,7 +1111,7 @@ function vehicleForm(vid, studentId) {
   openModal(`
     <div class="mh"><h3>${vid ? 'Sửa xe' : 'Thêm xe'}${s.name ? ': ' + esc(s.name) : ''}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      ${chonHV ? `<div class="field"><label>Chủ xe *</label><select id="v_stu" data-change="onVehicleStudent">
+      ${chonHV ? `<div class="field"><label>Chủ xe ${SAO}</label><select id="v_stu" data-change="onVehicleStudent">
         ${dsHV.map(x => `<option value="${x.id}">${esc(x.name)}${x.code ? ' (' + esc(x.code) + ')' : ''}${x.room_name ? ' — ' + esc(x.room_name) : ''}</option>`).join('')}
       </select></div>` : ''}
       <div class="grid2">
@@ -1136,7 +1136,7 @@ function vehicleForm(vid, studentId) {
 }
 async function saveVehicle(vid, studentId) {
   const sid = studentId || +((el('v_stu') || {}).value || 0);
-  if (!sid) return toast('Chọn chủ xe', 'err');
+  if (!sid) return loiTaiO('v_stu', 'Chọn chủ xe');
   const from = el('v_from').dataset.iso || null, to = el('v_to').dataset.iso || null;
   if (from && to && to < from) return toast('Ngày ngừng gửi trước ngày bắt đầu', 'err');
   const body = {
@@ -1199,7 +1199,7 @@ function transferForm(id) {
     <div class="mb">
       ${chuaXep ? '' : `<p class="muted">Phòng hiện tại: <span class="hd-ref" data-act="roomDetail" data-args='[${s.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng — ai đang ở"><strong>${esc(s.room_name || '—')}</strong></span></p>`}
       <div class="grid2">
-        <div class="field"><label>${chuaXep ? 'Xếp vào phòng' : 'Phòng mới'}</label><select id="t_room">${roomOptions('', s.gender)}</select></div>
+        <div class="field"><label>${chuaXep ? 'Xếp vào phòng' : 'Phòng mới'} ${SAO}</label><select id="t_room">${roomOptions('', s.gender)}</select></div>
         <div class="field"><label>Ngày ${chuaXep ? 'xếp' : 'chuyển'}</label><input id="t_date"></div>
       </div>
       <div class="field"><label>Ghi chú</label><input id="t_note" placeholder="${chuaXep ? 'Ghi chú (tuỳ chọn)...' : 'Lý do chuyển...'}"></div>
@@ -1210,7 +1210,7 @@ function transferForm(id) {
   noNgayVoiPhong(el('t_date'), 't_room', s.gender);
 }
 async function doTransfer(id) {
-  const room_id = el('t_room').value; if (!room_id) return toast('Chọn phòng mới', 'err');
+  const room_id = el('t_room').value; if (!room_id) return loiTaiO('t_room', 'Chọn phòng');
   const meter = el('t_meter') ? el('t_meter').value.trim() : '';
   const moved = await guard(() => withOverloadConfirm(ok =>
     API.transfer(id, { room_id, date: el('t_date').dataset.iso, note: el('t_note').value.trim(), meter_reading: meter || undefined, confirm_overload: ok })));
@@ -1354,8 +1354,8 @@ function appForm() {
     <div class="mb">
       <div class="hint">${IC.info} Đơn tạo ở đây vào danh sách <strong>Đơn đăng ký</strong> ở trạng thái <strong>Chờ duyệt</strong>. Bấm <strong>Duyệt</strong> để xếp phòng và tạo hồ sơ học viên.</div>
       <div class="grid2">
-        <div class="field"><label>Họ và tên *</label><input id="ap_name" placeholder="Nguyễn Văn A" data-change="onTenChuan"></div>
-        <div class="field"><label>SĐT *</label><input id="ap_phone" placeholder="09..."></div>
+        <div class="field"><label>Họ và tên ${SAO}</label><input id="ap_name" placeholder="Nguyễn Văn A" data-change="onTenChuan"></div>
+        <div class="field"><label>SĐT ${SAO}</label><input id="ap_phone" placeholder="09..."></div>
       </div>
       <div class="grid2">
         <div class="field"><label>Giới tính</label><select id="ap_gender"><option value="female">Nữ</option><option value="male">Nam</option></select></div>
@@ -1367,7 +1367,7 @@ function appForm() {
       </div>
       <div class="grid2">
         <div class="field"><label>Cơ sở</label><select id="ap_fac">${facOpts}</select></div>
-        <div class="field"><label>Ngày muốn nhận phòng *</label><input id="ap_movein" placeholder="dd/mm/yyyy" readonly></div>
+        <div class="field"><label>Ngày muốn nhận phòng ${SAO}</label><input id="ap_movein" placeholder="dd/mm/yyyy" readonly></div>
       </div>
       <div class="field"><label>Nguyện vọng phòng</label><input id="ap_pref" placeholder="VD: tầng thấp, gần thang máy..."></div>
       <div class="grid2">
@@ -1383,11 +1383,11 @@ function appForm() {
 }
 async function saveApp() {
   const name = el('ap_name').value.trim(), phone = el('ap_phone').value.trim();
-  if (!name) return toast('Nhập họ tên', 'err');
-  if (!phone) return toast('Nhập số điện thoại', 'err');
+  if (!name) return loiTaiO('ap_name', 'Nhập họ tên');
+  if (!phone) return loiTaiO('ap_phone', 'Nhập số điện thoại');
   const ngayVao = el('ap_movein').dataset.iso || '';
-  if (!ngayVao) { toast('Chọn ngày muốn nhận phòng', 'err'); el('ap_movein').focus(); return; }
-  if (ngayVao < today()) { toast('Ngày muốn nhận phòng đã qua — chọn lại', 'err'); el('ap_movein').focus(); return; }
+  if (!ngayVao) return loiTaiO('ap_movein', 'Chọn ngày muốn nhận phòng');
+  if (ngayVao < today()) return loiTaiO('ap_movein', 'Ngày muốn nhận phòng đã qua — chọn lại');
   const body = {
     name, phone, gender: el('ap_gender').value, birth_date: el('ap_birth').dataset.iso || null,
     desired_check_in: ngayVao,

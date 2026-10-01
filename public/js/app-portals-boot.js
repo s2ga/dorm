@@ -161,12 +161,12 @@ function damageForm(cat) {
   openModal(`
     <div class="mh"><h3>${tieuDe}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <div class="field"><label>Loại yêu cầu *</label><select id="dm_cat" data-change="dmCatHint">
+      <div class="field"><label>Loại yêu cầu ${SAO}</label><select id="dm_cat" data-change="dmCatHint">
         <option value="damage"${sel('damage')}>Báo hư hỏng trong phòng</option>
         <option value="violation"${sel('violation')}>Báo cáo vi phạm</option>
         <option value="other"${sel('other')}>Khác (cần hỗ trợ trong quá trình ở)</option>
       </select></div>
-      <div class="field"><label>Nội dung *</label><input id="dm_title" placeholder="Nêu ngắn gọn nội dung..."></div>
+      <div class="field"><label>Nội dung ${SAO}</label><input id="dm_title" placeholder="Nêu ngắn gọn nội dung..."></div>
       <div class="field"><label>Mô tả chi tiết</label><textarea id="dm_desc" rows="3" placeholder="Mô tả thêm nếu cần..."></textarea></div>
       <div class="hint" id="dmHint" style="font-size:12px">${IC.info} Báo hư hỏng thiết bị/cơ sở vật chất trong phòng để quản lý sửa chữa.</div>
     </div>
@@ -182,7 +182,7 @@ function dmCatHint() {
   el('dm_title').placeholder = c === 'other' ? 'Bạn cần hỗ trợ việc gì?' : (c === 'violation' ? 'Vi phạm gì? Ai/phòng nào?' : 'Hư hỏng gì?');
 }
 async function submitDamage() {
-  const title = el('dm_title').value.trim(); if (!title) return toast('Nhập nội dung yêu cầu', 'err');
+  const title = el('dm_title').value.trim(); if (!title) return loiTaiO('dm_title', 'Nhập nội dung yêu cầu');
   await guard(() => API.createMeDamage({ category: el('dm_cat').value, title, description: el('dm_desc').value.trim() }));
   closeModal(); toast('Đã gửi yêu cầu hỗ trợ'); loadStudentPortal();
 }
@@ -190,7 +190,7 @@ function checkoutReqForm() {
   openModal(`
     <div class="mh"><h3>${IC.logOut} Gửi đơn trả phòng</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <div class="field"><label>Ngày dự kiến trả phòng</label><input id="co_date"></div>
+      <div class="field"><label>Ngày dự kiến trả phòng ${SAO}</label><input id="co_date"></div>
       <div class="field"><label>Lý do</label><select id="co_reason">
         ${CHECKOUT_REASONS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}
       </select></div>
@@ -202,7 +202,7 @@ function checkoutReqForm() {
 }
 async function submitCheckoutReq() {
   const d = el('co_date').dataset.iso;
-  if (!d) return toast('Chọn ngày dự kiến trả phòng', 'err');
+  if (!d) return loiTaiO('co_date', 'Chọn ngày dự kiến trả phòng');
   await guard(() => API.createMeCheckoutReq({ desired_date: d, reason: el('co_reason').value, note: el('co_note').value.trim() }));
   closeModal(); toast('Đã gửi đơn trả phòng'); loadStudentPortal();
 }
@@ -845,7 +845,7 @@ function onBbHuHao() {
 }
 async function bienBanLuu(kind, id) {
   const ngay = el('bb_ngay').dataset.iso;
-  if (!ngay) return toast('Chọn ngày bàn giao thật', 'err');
+  if (!ngay) return loiTaiO('bb_ngay', 'Chọn ngày bàn giao thật');
   const dien = el('bb_dien') ? el('bb_dien').value.trim() : '';
   if (el('bb_dien') && !dien) return toast('Ghi số điện công-tơ', 'err');
   const damages = [];
@@ -875,7 +875,7 @@ async function submitMaintDone(id) {
 function maintBlockForm(id) {
   openModal(`
     <div class="mh"><h3>${IC.alert} Chưa xử lý được</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
-    <div class="mb"><div class="field"><label>Lý do chưa xử lý được *</label>
+    <div class="mb"><div class="field"><label>Lý do chưa xử lý được ${SAO}</label>
       <textarea id="mt_reason" rows="3" placeholder="VD: Cần thay linh kiện, đang đặt hàng · Ngoài khả năng, cần thợ ngoài · Chờ học viên có mặt..."></textarea></div>
       <div class="hint" style="font-size:12px">${IC.info} Công việc vẫn nằm trong danh sách "Cần xử lý"; quản lý & học viên sẽ thấy lý do này.</div>
     </div>
@@ -883,7 +883,7 @@ function maintBlockForm(id) {
   setTimeout(() => el('mt_reason').focus(), 50);
 }
 async function submitMaintBlock(id) {
-  const reason = el('mt_reason').value.trim(); if (!reason) return toast('Nhập lý do chưa xử lý được', 'err');
+  const reason = el('mt_reason').value.trim(); if (!reason) return loiTaiO('mt_reason', 'Nhập lý do chưa xử lý được');
   await guard(() => API.maintenanceTaskStatus(id, 'blocked', reason));
   closeModal(); toast('Đã ghi nhận lý do'); loadMaintenance();
 }
@@ -1083,7 +1083,7 @@ function pkBaoCaoXeForm(vehicleId) {
 function onPkCam3() { pkDocAnh(this, xong => { el('pk_xem3').innerHTML = xong ? `<img src="${xong}" style="max-width:100%;border-radius:8px">` : ''; }); }
 async function pkLuuBaoCaoXe(vehicleId) {
   const kind = el('pk_bc_loai').value, note = el('pk_bc_note').value.trim();
-  if (kind === 'other' && !note) return toast('Nhập nội dung báo cáo', 'err');
+  if (kind === 'other' && !note) return loiTaiO('pk_bc_note', 'Nhập nội dung báo cáo');
   await guard(() => API.parkingReportCreate({ date: pkNgay, kind, vehicle_id: vehicleId, note, photo: pkAnh || undefined }));
   closeModal(); toast('Đã gửi báo cáo cho Ban Quản lý'); loadParkingCheck();
 }
@@ -1496,7 +1496,7 @@ function pkXeLaForm(bienSan) {
   openModal(`
     <div class="mh"><h3>${IC.alert} Ghi nhận xe lạ</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <div class="field"><label>Biển số *</label><input id="pk_la_bien" value="${esc(bienSan || '')}" placeholder="VD: 63-B4 508.58"></div>
+      <div class="field"><label>Biển số ${SAO}</label><input id="pk_la_bien" value="${esc(bienSan || '')}" placeholder="VD: 63-B4 508.58"></div>
       <div class="field"><label>Ghi chú <span class="opt">(loại xe, màu, chỗ đậu, đã nhắc ai...)</span></label>
         <textarea id="pk_la_note" rows="3" placeholder="VD: Xe Wave đỏ đậu sát cổng, không có mã dán"></textarea></div>
       <div class="field"><label>Ảnh biển số <span class="opt">(không bắt buộc)</span></label>
@@ -1509,7 +1509,7 @@ function pkXeLaForm(bienSan) {
 function onPkCam2() { pkDocAnh(this, xong => { el('pk_xem2').innerHTML = xong ? `<img src="${xong}" style="max-width:100%;border-radius:8px">` : ''; }); }
 async function pkLuuXeLa() {
   const plate = el('pk_la_bien').value.trim();
-  if (!plate) return toast('Nhập biển số', 'err');
+  if (!plate) return loiTaiO('pk_la_bien', 'Nhập biển số');
   try {
     await API.parkingStranger({ plate, date: pkNgay, note: el('pk_la_note').value.trim(), photo: pkAnh || undefined });
   } catch (e) {

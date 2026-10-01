@@ -234,7 +234,7 @@ function oneInvoiceForm() {
     <div class="mh"><h3>${IC.plus} Lập phiếu báo cho 1 học viên</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="hint">${IC.info} Dùng khi có học viên mới vào giữa tháng. Hệ thống <strong>tự tính</strong> theo phòng, số ngày ở và chỉ số điện đã lưu — không ảnh hưởng phiếu báo của người khác (phiếu đã thu được giữ nguyên).</div>
-      <div class="field"><label>Học viên *</label>
+      <div class="field"><label>Học viên ${SAO}</label>
         <div class="search"><span class="i">${IC.search}</span><input id="oi_q" placeholder="Tìm tên, mã HV hoặc số phòng..." autocomplete="off" data-input="locHVHoaDon"></div>
         <select id="oi_stu" size="7" style="margin-top:8px"></select>
         <div class="muted" id="oi_dem" style="font-size:12px;margin-top:6px"></div>
@@ -260,8 +260,8 @@ function locHVHoaDon() {
 }
 async function saveOneInvoice() {
   const student_id = +el('oi_stu').value, month = el('oi_month').dataset.ym;
-  if (!student_id) return toast('Chọn học viên', 'err');
-  if (!month) return toast('Chọn kỳ', 'err');
+  if (!student_id) return loiTaiO('oi_stu', 'Chọn học viên');
+  if (!month) return loiTaiO('oi_month', 'Chọn kỳ');
   const r = await guard(() => API.generateOneInvoice({ student_id, month }));
   closeModal(); invMonth = month; invFilter = 'all';
   toast(r.created ? 'Đã lập phiếu báo cho học viên' : 'Đã cập nhật phiếu báo');
@@ -584,7 +584,7 @@ function doLaiChiSoDangGo(m) {
 async function luuChotGiuaKy(idx, roomId, date, studentId) {
   const inp = el(`mr_${idx}`);
   const v = inp ? inp.value.trim() : '';
-  if (v === '' || isNaN(+v) || +v < 0) return toast('Nhập chỉ số công-tơ (số không âm)', 'err');
+  if (v === '' || isNaN(+v) || +v < 0) return loiTaiO(inp, 'Nhập chỉ số công-tơ (số không âm)');
   const r = await guard(() => API.saveMeterRead({ room_id: roomId, date, reading: +v, student_id: studentId || undefined }));
   if (inp) inp.value = '';
   toast(`Đã chốt chỉ số · tính lại ${r.recalculated} phiếu báo`);
@@ -653,7 +653,7 @@ function genTomTat(r, month, xemTruoc) {
       phiếu <strong>đã thu</strong> không bị đụng, học viên vào giữa tháng được lập bù.</span></div>` : ''}`;
 }
 async function runGenerate() {
-  const month = el('g_month').dataset.ym; if (!month) return toast('Chọn kỳ', 'err');
+  const month = el('g_month').dataset.ym; if (!month) return loiTaiO('g_month', 'Chọn kỳ');
   if (badElectricRooms().length) return toast('Có phòng "số cuối < số đầu" — sửa lại chỉ số điện trước khi lập phiếu báo', 'err');
   const readings = readElectricInputs();
   const pv = await guard(() => API.generateInvoices({ month, readings, preview: true }));   // dry-run, không lưu
@@ -736,7 +736,7 @@ function invoiceForm(id) {
     <div class="mh"><h3>${id ? 'Sửa phiếu báo' : 'Thêm phiếu báo lẻ'}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="grid2">
-        <div class="field"><label>Học viên *</label><select id="i_stu" ${id ? 'disabled' : ''}>${opts}</select></div>
+        <div class="field"><label>Học viên ${SAO}</label><select id="i_stu" ${id ? 'disabled' : ''}>${opts}</select></div>
         <div class="field"><label>Kỳ</label><input id="i_month"></div>
       </div>
       <div class="grid2">${f('Số ngày ở', 'days_stayed')}${f(tenKhoan('room_charge'), 'room_charge')}</div>
@@ -779,7 +779,7 @@ async function saveInvoice(id) {
     room_charge: g('room_charge'), electric_charge: g('electric_charge'), water_charge: g('water_charge'),
     service_charge: g('service_charge'), washing_charge: g('washing_charge'), parking_charge: g('parking_charge'),
     other_charge: g('other_charge'), deposit_charge: g('deposit_charge'), other_note: el('i_other_note').value.trim() };
-  if (!body.student_id) return toast('Chọn học viên', 'err');
+  if (!body.student_id) return loiTaiO('i_stu', 'Chọn học viên');
   await guard(() => id ? API.updateInvoice(id, body) : API.createInvoice(body));
   invMonth = body.month; await luuXongVeLai(veLaiNen); toast('Đã lưu phiếu báo');
 }
@@ -1526,7 +1526,7 @@ function duyetTaiKhoanForm(id, mode) {
         <br><strong>${esc(u.full_name || '—')}</strong> · ${esc(u.email || u.username)}</div>`
     : `<div class="bang-tin">${IC.info} Tài khoản này do <strong>đăng nhập Microsoft</strong> tự tạo — app chưa biết là ai.
         <br><strong>${esc(u.full_name || '—')}</strong> · ${esc(u.email || u.username)}</div>`}
-      <div class="field" ${chuyen ? 'hidden' : ''}><label>Người này là *</label><select id="ap_kind" data-change="apToggle">
+      <div class="field" ${chuyen ? 'hidden' : ''}><label>Người này là ${SAO}</label><select id="ap_kind" data-change="apToggle">
         <option value="staff">Nhân viên</option>
         <option value="student" ${chuyen ? 'selected' : ''}>Học viên</option>
       </select></div>
@@ -1551,7 +1551,7 @@ function duyetTaiKhoanForm(id, mode) {
           <div class="sub2" id="ap_hvcount" style="margin-top:4px"></div></div>
         <div id="ap_new">
           <div class="grid2">
-            <div class="field"><label>Họ tên *</label><input id="ap_name" value="${esc(u.full_name || '')}" placeholder="Nguyễn Văn A" data-change="onTenChuan"></div>
+            <div class="field"><label>Họ tên ${SAO}</label><input id="ap_name" value="${esc(u.full_name || '')}" placeholder="Nguyễn Văn A" data-change="onTenChuan"></div>
             <div class="field"><label>Mã học viên</label><input id="ap_code" placeholder="TXTS-S25..."></div>
           </div>
           <div class="grid2">
@@ -1587,7 +1587,7 @@ async function saveApprove(id) {
       phone: el('ap_phone').value.trim(), class_name: el('ap_class').value.trim(),
     },
   };
-  if (!sid && !body.new_student.name) return toast('Nhập họ tên để tạo hồ sơ học viên', 'err');
+  if (!sid && !body.new_student.name) return loiTaiO('ap_name', 'Nhập họ tên để tạo hồ sơ học viên');
   // 409 needs_merge: hồ sơ đã có tài khoản — hỏi rồi gộp hai lối đăng nhập làm một (có Microsoft),
   // hoặc khoá bản thừa (khong_sso: tài khoản đang duyệt không có gì để gộp).
   let r, khongSSO = false;
@@ -1618,14 +1618,14 @@ function userForm(id) {
   openModal(`
     <div class="mh"><h3>${id ? 'Sửa tài khoản' : 'Thêm nhân viên'}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <div class="field"><label>Tên đăng nhập *</label><input id="u_username" value="${esc(u.username)}" ${id ? 'disabled' : ''} placeholder="vd: nhanvien01"></div>
+      <div class="field"><label>Tên đăng nhập ${SAO}</label><input id="u_username" value="${esc(u.username)}" ${id ? 'disabled' : ''} placeholder="vd: nhanvien01"></div>
       <div class="field"><label>Họ tên</label><input id="u_full" value="${esc(u.full_name || '')}" placeholder="Nguyễn Văn A"></div>
       <div class="field"><label>Vai trò</label><select id="u_role">${roleOpt('staff', 'Nhân viên — thao tác nghiệp vụ')}${roleOpt('maintenance', 'An ninh / Bảo trì — bàn giao phòng, bãi xe, sửa chữa')}${roleOpt('secretary', 'Thư ký — chỉ xem hồ sơ lưu trữ')}${roleOpt('teacher', 'Giáo viên ProSkills — chỉ xem trực nhật & vi phạm')}${roleOpt('admin', 'Quản trị viên — toàn quyền')}</select></div>
       <div class="field"><label>Cơ sở phụ trách</label><select id="u_facility">
         <option value="">Tất cả cơ sở (điều hành)</option>
         ${(ST.facilities || []).map(f => `<option value="${f.id}" ${u.facility_id === f.id ? 'selected' : ''}>${esc(f.name)}</option>`).join('')}
       </select><div class="sub2" style="margin-top:4px">Để "Tất cả cơ sở" = điều hành, thấy &amp; quản lý mọi cơ sở. Chọn một cơ sở = chỉ thấy dữ liệu cơ sở đó.</div></div>
-      ${id ? '' : `<div class="field"><label>Mật khẩu *</label><input id="u_pass" type="text" placeholder="Tối thiểu 6 ký tự"></div>`}
+      ${id ? '' : `<div class="field"><label>Mật khẩu ${SAO}</label><input id="u_pass" type="text" placeholder="Tối thiểu 6 ký tự"></div>`}
       ${id === Auth.user.id ? `<div class="bang-tin">${IC.info} Bạn không thể tự hạ quyền chính mình.</div>` : ''}
       ${id && u.role !== 'admin' && id !== Auth.user.id ? `<div class="field" style="border-top:1px solid var(--line);padding-top:12px;margin-top:4px"><label>Lỡ tạo nhầm vai?</label>
         <div class="sub2" style="margin-bottom:6px">Người này thật ra là <strong>học viên</strong>: bấm nút dưới để ghép hồ sơ học viên — vai nhân viên bị gỡ, không cần tạo lại tài khoản.</div>
@@ -1815,7 +1815,7 @@ function resetUserPwForm(id) {
     <div class="mh"><h3>Đặt lại mật khẩu</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <p class="muted" style="margin-top:0">Tài khoản: <strong>${esc(u ? u.username : '')}</strong></p>
-      <div class="field"><label>Mật khẩu mới *</label><input id="u_newpass" type="text" placeholder="Tối thiểu 6 ký tự"></div>
+      <div class="field"><label>Mật khẩu mới ${SAO}</label><input id="u_newpass" type="text" placeholder="Tối thiểu 6 ký tự"></div>
     </div>
     <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="doResetUserPw" data-args='[${id}]'>Đổi mật khẩu</button></div>`);
 }
@@ -1970,7 +1970,7 @@ function vtypeForm(id) {
   openModal(`
     <div class="mh"><h3>${id ? 'Sửa loại vi phạm' : 'Thêm loại vi phạm'}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <div class="field"><label>Tên loại vi phạm *</label><input id="vt_name" value="${esc(t.name)}" placeholder="VD: Về trễ giờ quy định"></div>
+      <div class="field"><label>Tên loại vi phạm ${SAO}</label><input id="vt_name" value="${esc(t.name)}" placeholder="VD: Về trễ giờ quy định"></div>
       <div class="grid2">
         <div class="field"><label>Mức độ</label><select id="vt_sev">${sevOpt('minor', 'Nhẹ')}${sevOpt('major', 'Nặng')}${sevOpt('severe', 'Nghiêm trọng')}</select></div>
         ${id ? `<div class="field"><label>Trạng thái</label><select id="vt_active"><option value="1" ${t.active !== false ? 'selected' : ''}>Đang dùng</option><option value="0" ${t.active === false ? 'selected' : ''}>Ẩn</option></select></div>` : ''}
@@ -1981,7 +1981,7 @@ function vtypeForm(id) {
 }
 async function saveVtype(id) {
   const body = { name: el('vt_name').value.trim(), severity: el('vt_sev').value, active: id ? el('vt_active').value === '1' : true };
-  if (!body.name) return toast('Nhập tên loại vi phạm', 'err');
+  if (!body.name) return loiTaiO('vt_name', 'Nhập tên loại vi phạm');
   await guard(() => id ? API.updateVType(id, body) : API.createVType(body));
   await napLai('vtypes'); closeModal(); toast('Đã lưu loại vi phạm'); veLaiBangCaiDat('setVtypeRows', hangLoaiVP);
 }
@@ -2054,7 +2054,7 @@ function assetForm(id) {
   openModal(`
     <div class="mh"><h3>${id ? 'Sửa tài sản' : 'Thêm tài sản'}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <div class="field"><label>Tên tài sản *</label><input id="as_name" value="${esc(a.name)}" placeholder="VD: Remote máy lạnh"></div>
+      <div class="field"><label>Tên tài sản ${SAO}</label><input id="as_name" value="${esc(a.name)}" placeholder="VD: Remote máy lạnh"></div>
       <div class="grid2">
         <div class="field"><label>Loại</label><select id="as_cat"><option value="person" ${a.category === 'person' ? 'selected' : ''}>Theo người</option><option value="fixed" ${a.category === 'fixed' ? 'selected' : ''}>Cố định trong phòng</option></select></div>
         <div class="field"><label>Đơn vị tính</label><input id="as_unit" value="${esc(a.unit)}" placeholder="Cái / Lần..."></div>
@@ -2069,7 +2069,7 @@ function assetForm(id) {
 }
 async function saveAsset(id) {
   const body = { name: el('as_name').value.trim(), category: el('as_cat').value, unit: el('as_unit').value.trim() || 'Cái', quantity: +el('as_qty').value || 0, fee: +el('as_fee').value || 0 };
-  if (!body.name) return toast('Nhập tên tài sản', 'err');
+  if (!body.name) return loiTaiO('as_name', 'Nhập tên tài sản');
   await guard(() => id ? API.updateAsset(id, body) : API.createAsset(body));
   await napLai('assets'); closeModal(); toast('Đã lưu tài sản'); veLaiBangCaiDat('setAssetRows', hangTaiSan);
 }
@@ -2119,7 +2119,7 @@ function facilityForm(id) {
   openModal(`
     <div class="mh"><h3>${id ? 'Sửa cơ sở' : 'Thêm cơ sở'}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <div class="field"><label>Tên cơ sở *</label><input id="fc_name" value="${esc(f.name)}" placeholder="VD: Cơ sở 2"></div>
+      <div class="field"><label>Tên cơ sở ${SAO}</label><input id="fc_name" value="${esc(f.name)}" placeholder="VD: Cơ sở 2"></div>
       <div class="field"><label>Địa chỉ</label><input id="fc_addr" value="${esc(f.address || '')}"></div>
     </div>
     <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="saveFacility" data-args='[${id || 0}]'>Lưu</button></div>`);
@@ -2127,7 +2127,7 @@ function facilityForm(id) {
 }
 async function saveFacility(id) {
   const body = { name: el('fc_name').value.trim(), address: el('fc_addr').value.trim() };
-  if (!body.name) return toast('Nhập tên cơ sở', 'err');
+  if (!body.name) return loiTaiO('fc_name', 'Nhập tên cơ sở');
   await guard(() => id ? API.updateFacility(id, body) : API.createFacility(body));
   await refreshCache(); closeModal(); toast('Đã lưu cơ sở'); veLaiBangCaiDat('setFacRows', hangCoSo);
 }
@@ -2149,8 +2149,8 @@ function changePwd() {
 }
 async function doChangePwd() {
   const n1 = el('cp_new').value, n2 = el('cp_new2').value;
-  if (n1.length < 6) return toast('Mật khẩu mới tối thiểu 6 ký tự', 'err');
-  if (n1 !== n2) return toast('Nhập lại mật khẩu không khớp', 'err');
+  if (n1.length < 6) return loiTaiO('cp_new', 'Mật khẩu mới tối thiểu 6 ký tự');
+  if (n1 !== n2) return loiTaiO('cp_new2', 'Nhập lại mật khẩu không khớp');
   await guard(() => API.changePassword(n1));
   closeModal(); toast('Đã đổi mật khẩu');
 }

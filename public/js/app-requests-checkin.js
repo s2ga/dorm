@@ -294,9 +294,9 @@ function violationForm(studentId) {
   openModal(`
     <div class="mh"><h3>${IC.alert} Ghi nhận vi phạm</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <div class="field"><label>Học viên *</label><select id="vf_stu" ${studentId ? 'disabled' : ''}>${sOpts}</select></div>
+      <div class="field"><label>Học viên ${SAO}</label><select id="vf_stu" ${studentId ? 'disabled' : ''}>${sOpts}</select></div>
       <div class="grid2">
-        <div class="field"><label>Loại vi phạm *</label><select id="vf_type">${tOpts || '<option value="">(Chưa có loại — thêm trong Cài đặt)</option>'}</select></div>
+        <div class="field"><label>Loại vi phạm ${SAO}</label><select id="vf_type">${tOpts || '<option value="">(Chưa có loại — thêm trong Cài đặt)</option>'}</select></div>
         <div class="field"><label>Ngày</label><input id="vf_date"></div>
       </div>
       <div class="field"><label>Ghi chú / diễn giải</label><textarea id="vf_note" rows="2" placeholder="Mô tả cụ thể sự việc..."></textarea></div>
@@ -308,8 +308,8 @@ function violationForm(studentId) {
 async function saveViolation(studentId) {
   const sid = studentId || +el('vf_stu').value;
   const type_id = +el('vf_type').value || null;
-  if (!sid) return toast('Chọn học viên', 'err');
-  if (!type_id) return toast('Chọn loại vi phạm (thêm trong Cài đặt nếu chưa có)', 'err');
+  if (!sid) return loiTaiO('vf_stu', 'Chọn học viên');
+  if (!type_id) return loiTaiO('vf_type', 'Chọn loại vi phạm (thêm trong Cài đặt nếu chưa có)');
   const r = await guard(() => API.createViolation({ student_id: sid, type_id, date: el('vf_date').dataset.iso, note: el('vf_note').value.trim() }));
   await refreshCache(); await luuXongVeLai(veLaiNen);
   if (r.mail && r.mail.queued) toast(`Đã ghi vi phạm lần ${r.level} · đang gửi mail nhà trường…`);
