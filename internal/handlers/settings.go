@@ -97,6 +97,7 @@ var settingsAllowed = []string{
 	"room_area_A", "room_area_B", "room_area_C", "room_area_D",
 	"security_day_phone", "security_night_phone", "security_day_from", "security_day_to",
 	"parking_absent_alert_days", "parking_close_alert_time", "parking_report_email",
+	"giam_sat_email",
 	"wifi_ssid", "wifi_password",
 	"bravo_fee_type", "bravo_room", "bravo_water", "bravo_service", "bravo_electric", "bravo_parking", "bravo_washing", "bravo_other", "bravo_deposit",
 	"school_name", "school_email", "violation_mail_threshold",
@@ -166,10 +167,14 @@ func (h *Handlers) UpdateSettings(c *gin.Context) {
 		}
 	}
 	// Danh sách email (phẩy / chấm phẩy): từng địa chỉ phải hợp lệ, không nuốt im địa chỉ hỏng.
-	if raw, ok := body["parking_report_email"]; ok {
+	for _, key := range []string{"parking_report_email", "giam_sat_email"} {
+		raw, ok := body[key]
+		if !ok {
+			continue
+		}
 		for _, p := range strings.FieldsFunc(settingVal(raw), func(r rune) bool { return r == ',' || r == ';' || r == ' ' || r == '\n' }) {
 			if !valid.IsValidEmail(p) {
-				errs = append(errs, `"parking_report_email" có địa chỉ không hợp lệ: "`+p+`"`)
+				errs = append(errs, `"`+key+`" có địa chỉ không hợp lệ: "`+p+`"`)
 			}
 		}
 	}

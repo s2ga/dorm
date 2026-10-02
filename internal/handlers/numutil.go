@@ -7,7 +7,7 @@ import (
 )
 
 // jsNum: mô phỏng Number(v) của JS cho json.RawMessage.
-// Trả (số, hợp lệ). null/absent -> (0,false); "" -> (0,true) (Number('')=0); chuỗi phi số -> (0,false) (NaN).
+// Trả (số, hợp lệ). null/absent -> (0,false); "" -> (0,true) (Number(”)=0); chuỗi phi số -> (0,false) (NaN).
 func jsNum(raw json.RawMessage) (float64, bool) {
 	if len(raw) == 0 || string(raw) == "null" {
 		return 0, false

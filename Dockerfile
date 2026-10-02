@@ -20,6 +20,10 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} \
       -X ktx/internal/buildinfo.Commit=${COMMIT} \
       -X ktx/internal/buildinfo.BuiltAt=${BUILT_AT}" -o /out/ktx ./cmd/server
 
+# Công cụ giám sát đi cùng ảnh để CronJob dùng lại đúng ảnh này. ENTRYPOINT không đổi.
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} \
+    go build -trimpath -ldflags="-s -w" -o /out/ktx-giamsat ./cmd/giam-sat
+
 FROM scratch
 
 # Bó chứng chỉ gốc cho HTTPS tới Supabase Storage và Microsoft. Tệp văn bản, không phụ thuộc kiến trúc.
@@ -30,6 +34,7 @@ COPY --from=build --chmod=777 /tmp /tmp
 
 WORKDIR /app
 COPY --from=build /out/ktx /app/ktx
+COPY --from=build /out/ktx-giamsat /app/ktx-giamsat
 COPY public ./public
 COPY server/schema.sql ./server/schema.sql
 COPY server/migrations ./server/migrations

@@ -72,6 +72,51 @@ secret:
   S3_ACCESS_KEY: ""
   S3_SECRET_KEY: ""
 
+# ---- Giám sát theo lịch (CronJob chạy /app/ktx-giamsat, chỉ gọi API ĐỌC) ----
+# Chi tiết từng lượt quét: k8s/README.md. Bật lên thì PHẢI có token, xem giamSat.token.
+giamSat:
+  enabled: false
+  # Địa chỉ môi trường cần quét. Bỏ trống -> lấy https://<host đầu tiên của ingress>.
+  # Quét từ trong cụm là quét chính mình: cụm sập thì lượt p1 cũng không chạy, nên vẫn cần
+  # một phép ping /api/health từ dịch vụ uptime bên ngoài.
+  url: ""
+  # Token (vai admin) hạn 30 NGÀY. Hết hạn thì lượt p1 báo "Phiên giám sát không còn hiệu lực".
+  #   TOKEN=$(curl -s -c - -H 'Content-Type: application/json' \
+  #     -d '{"username":"...","password":"..."}' https://MAY_CHU/api/auth/login | awk '/ktx_token/{print $7}')
+  # Cách an toàn: kubectl create secret generic ktx-giamsat --from-literal=KTX_TOKEN="$TOKEN"
+  # rồi đặt existingSecret -> token không lọt vào values, không vào git, không vào lịch sử Helm.
+  existingSecret: ""
+  token: ""
+  lich:
+    p1: "*/20 * * * *"     # sống còn: app, CSDL, đăng nhập
+    p2: "0 10,16 * * *"    # trong ngày: SLA đơn, điện lùi/tăng vọt, phiếu thu âm
+    p3: "30 6 * * *"       # đầu ngày: toàn vẹn dữ liệu (đổi "0 2 * * *" nếu muốn quét đêm)
+    tuan: "0 8 * * 1"      # tổng kết tuần
+  # Ngưỡng nghiệp vụ — tham số, KHÔNG ghi cứng trong mã.
+  nguong:
+    slaNhan: "12h"         # hạn tiếp nhận đơn hỗ trợ
+    slaXong: "24h"         # hạn hoàn thành đơn hỗ trợ
+    vot: "200"             # % trung bình các kỳ trước thì coi là điện tăng vọt
+    soThangTB: "3"         # số kỳ trước dùng để lấy trung bình
+  dinhDang: "text"         # "json" nếu đẩy log sang hệ thống thu gom
+  # Gửi mail cho quản trị: khong · co-canh-bao · luon. SMTP lấy từ Cài đặt TRONG CSDL (màn Cài đặt),
+  # không phải từ chart. Người nhận: Cài đặt giam_sat_email; trống thì email các tài khoản admin.
+  # Lượt tuần để "luon" vì im lặng dễ bị hiểu là lịch chưa chạy.
+  mail:
+    p1: "co-canh-bao"
+    p2: "co-canh-bao"
+    p3: "co-canh-bao"
+    tuan: "luon"
+  luuLichSu:
+    thanhCong: 3
+    thatBai: 7
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      memory: 128Mi
+
 resources:
   requests:
     cpu: 50m

@@ -52,14 +52,14 @@ func capsFromSettings(s map[string]string) map[string]int {
 }
 
 type roomBody struct {
-	Name       *string         `json:"name"`
-	Gender     *string         `json:"gender"`
-	Hang       *string         `json:"hang"`
-	Note       *string         `json:"note"`
-	RoomType   *string         `json:"room_type"`
-	Capacity   json.RawMessage `json:"capacity"`
-	MonthlyFee json.RawMessage `json:"monthly_fee"`
-	FacilityID json.RawMessage `json:"facility_id"`
+	Name        *string         `json:"name"`
+	Gender      *string         `json:"gender"`
+	Hang        *string         `json:"hang"`
+	Note        *string         `json:"note"`
+	RoomType    *string         `json:"room_type"`
+	Capacity    json.RawMessage `json:"capacity"`
+	MonthlyFee  json.RawMessage `json:"monthly_fee"`
+	FacilityID  json.RawMessage `json:"facility_id"`
 	facilitySet bool
 }
 

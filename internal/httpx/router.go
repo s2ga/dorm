@@ -178,6 +178,7 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	// Admin
 	adm := api.Group("/admin", a.RequireAuth(), a.RequireRole("admin"))
 	adm.GET("/data-health", h.DataHealth)
+	adm.POST("/giam-sat/mail", h.GiamSatMail) // cmd/giam-sat đẩy báo cáo lên, máy chủ gửi mail
 	adm.GET("/audit", h.ListAudit)
 	adm.GET("/pending-count", h.AdminPendingCount)
 	adm.GET("/student-accounts", h.AdminStudentAccounts)

@@ -1,0 +1,102 @@
+{{/* Giám sát hệ thống và toàn vẹn dữ liệu: 4 lượt quét theo lịch, chạy /app/ktx-giamsat có sẵn
+     trong ảnh app (cmd/giam-sat). Công cụ CHỈ gọi API đọc, không ghi gì vào CSDL.
+     Mã thoát 1 = có cảnh báo -> Job mang trạng thái Failed, cố ý, để alerting của cụm thấy. */}}
+{{- if .Values.giamSat.enabled }}
+{{- if and (not .Values.giamSat.existingSecret) (not .Values.giamSat.token) }}
+{{- fail "giamSat.enabled=true thì phải có giamSat.existingSecret hoặc giamSat.token (token tài khoản giám sát)" }}
+{{- end }}
+{{- $goc := .Values.giamSat.url }}
+{{- if and (not $goc) .Values.ingress.enabled .Values.ingress.hosts }}
+{{- $goc = printf "https://%s" (index .Values.ingress.hosts 0).host }}
+{{- end }}
+{{- if not $goc }}
+{{- fail "giamSat.url trống mà ingress cũng không có host — không biết phải quét địa chỉ nào" }}
+{{- end }}
+{{- $ten := include "ktx.fullname" . }}
+{{- $anh := printf "%s:%s" .Values.image.repository (.Values.image.tag | default .Chart.AppVersion) }}
+{{- $biMat := .Values.giamSat.existingSecret | default (printf "%s-giamsat" $ten) }}
+{{- $ng := .Values.giamSat.nguong }}
+{{- $m := .Values.giamSat.mail }}
+{{- $luots := list
+      (dict "ma" "p1" "lich" .Values.giamSat.lich.p1 "hanHen" 120 "mail" $m.p1)
+      (dict "ma" "p2" "lich" .Values.giamSat.lich.p2 "hanHen" 300 "mail" $m.p2)
+      (dict "ma" "p3" "lich" .Values.giamSat.lich.p3 "hanHen" 600 "mail" $m.p3)
+      (dict "ma" "tuan" "lich" .Values.giamSat.lich.tuan "hanHen" 600 "mail" $m.tuan) }}
+{{- range $l := $luots }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $ten }}-giamsat-{{ $l.ma }}
+  labels:
+    {{- include "ktx.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: giam-sat
+spec:
+  schedule: {{ $l.lich | quote }}
+  timeZone: {{ $.Values.config.TZ | default "Asia/Ho_Chi_Minh" | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: {{ $.Values.giamSat.luuLichSu.thanhCong }}
+  failedJobsHistoryLimit: {{ $.Values.giamSat.luuLichSu.thatBai }}
+  jobTemplate:
+    spec:
+      {{/* backoffLimit 0: "thất bại" ở đây nghĩa là CÓ CẢNH BÁO, chạy lại không làm nó hết. */}}
+      backoffLimit: 0
+      activeDeadlineSeconds: {{ $l.hanHen }}
+      template:
+        metadata:
+          labels:
+            {{- include "ktx.selectorLabels" $ | nindent 12 }}
+            app.kubernetes.io/component: giam-sat
+        spec:
+          restartPolicy: Never
+          {{- with $.Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            {{- toYaml $.Values.podSecurityContext | nindent 12 }}
+          containers:
+            - name: giam-sat
+              image: {{ $anh | quote }}
+              imagePullPolicy: {{ $.Values.image.pullPolicy }}
+              command:
+                - /app/ktx-giamsat
+                - -muc
+                - {{ $l.ma | quote }}
+                - -sla-nhan
+                - {{ $ng.slaNhan | quote }}
+                - -sla-xong
+                - {{ $ng.slaXong | quote }}
+                - -nguong-vot
+                - {{ $ng.vot | quote }}
+                - -so-thang-tb
+                - {{ $ng.soThangTB | quote }}
+                - -dinh-dang
+                - {{ $.Values.giamSat.dinhDang | quote }}
+                - -mail
+                - {{ $l.mail | quote }}
+              env:
+                - name: KTX_URL
+                  value: {{ $goc | quote }}
+              envFrom:
+                - secretRef:
+                    name: {{ $biMat }}
+              resources:
+                {{- toYaml $.Values.giamSat.resources | nindent 16 }}
+              securityContext:
+                {{- toYaml $.Values.containerSecurityContext | nindent 16 }}
+{{- end }}
+{{- if not .Values.giamSat.existingSecret }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $ten }}-giamsat
+  labels:
+    {{- include "ktx.labels" . | nindent 4 }}
+    app.kubernetes.io/component: giam-sat
+type: Opaque
+stringData:
+  KTX_TOKEN: {{ .Values.giamSat.token | quote }}
+{{- end }}
+{{- end }}

@@ -17,9 +17,10 @@ func itoa(n int) string            { return strconv.Itoa(n) }
 
 // Helper phản hồi chuẩn — shape lỗi luôn {"error":"..."} khớp hợp đồng frontend (public/js/api.js:39).
 
-func badRequest(c *gin.Context, msg string)  { c.JSON(http.StatusBadRequest, gin.H{"error": msg}) }
-func notFound(c *gin.Context, msg string)     { c.JSON(http.StatusNotFound, gin.H{"error": msg}) }
-func forbidden(c *gin.Context, msg string)    { c.JSON(http.StatusForbidden, gin.H{"error": msg}) }
+func badRequest(c *gin.Context, msg string) { c.JSON(http.StatusBadRequest, gin.H{"error": msg}) }
+func notFound(c *gin.Context, msg string)   { c.JSON(http.StatusNotFound, gin.H{"error": msg}) }
+func forbidden(c *gin.Context, msg string)  { c.JSON(http.StatusForbidden, gin.H{"error": msg}) }
+
 // serverErr: 500 cho client + LOG ra stderr (nơi gọi + nguyên nhân nếu truyền). cause tuỳ chọn nên
 // 383 chỗ gọi cũ `serverErr(c)` vẫn biên dịch; chỗ nào có err thì `serverErr(c, err)` để log lý do thật.
 func serverErr(c *gin.Context, cause ...error) {
@@ -31,7 +32,7 @@ func serverErr(c *gin.Context, cause ...error) {
 	log.Printf("[500] %s %s (%s:%d)%s", c.Request.Method, c.Request.URL.Path, filepath.Base(file), line, extra)
 	c.JSON(http.StatusInternalServerError, gin.H{"error": loiMayChu})
 }
-func conflict(c *gin.Context, body gin.H)     { c.JSON(http.StatusConflict, body) }
+func conflict(c *gin.Context, body gin.H) { c.JSON(http.StatusConflict, body) }
 
 // loiCoGhiLog: trả câu lỗi cho người dùng; chi tiết kỹ thuật (cause) chỉ ghi log máy chủ.
 func loiCoGhiLog(c *gin.Context, ma int, cau string, cause error) {
