@@ -1335,10 +1335,14 @@ func (h *Handlers) CreateInvoice(c *gin.Context) {
 		"washing_charge": invoiceNumOr0(b["washing_charge"]), "parking_charge": invoiceNumOr0(b["parking_charge"]),
 		"other_charge": invoiceNumOr0(b["other_charge"]), "deposit_charge": invoiceNumOr0(b["deposit_charge"]),
 	}) // body không có discount -> 0
+	donGia := 0.0
+	if fees, e := h.DB.GetSettings(ctx); e == nil {
+		donGia = billing.Fees(fees).Num("electric_unit")
+	}
 	// vals: $1..$15 (invoices.routes.js:354-356)
 	vals := []interface{}{
 		sid, roomID, monthStr, invoiceNumOr0(b["days_stayed"]), invoiceNumOr0(b["room_charge"]),
-		invoiceNumOr0(b["electric_kwh"]), invoiceNumOr0(b["electric_charge"]), invoiceNumOr0(b["water_charge"]),
+		invoiceSoKwh(b, false, 0, 0, donGia), invoiceNumOr0(b["electric_charge"]), invoiceNumOr0(b["water_charge"]),
 		invoiceNumOr0(b["service_charge"]), invoiceNumOr0(b["washing_charge"]), invoiceNumOr0(b["parking_charge"]),
 		invoiceNumOr0(b["other_charge"]), invoiceStrOr(b["other_note"]), invoiceNumOr0(b["deposit_charge"]), total,
 	}
@@ -1394,6 +1398,22 @@ func (h *Handlers) CreateInvoice(c *gin.Context) {
 	c.JSON(http.StatusCreated, row)
 }
 
+// invoiceSoKwh: form phiếu không có ô kWh. Gửi rõ electric_kwh thì dùng đúng số đó; thiếu thì giữ số cũ
+// khi tiền điện không đổi, đổi tiền (hoặc phiếu mới) thì suy kWh từ tiền như billing làm khi không có phần chia.
+func invoiceSoKwh(b map[string]json.RawMessage, coCu bool, kwhCu, tienCu, donGia float64) float64 {
+	if _, gui := b["electric_kwh"]; gui {
+		return invoiceNumOr0(b["electric_kwh"])
+	}
+	tien := invoiceNumOr0(b["electric_charge"])
+	if coCu && math.Abs(tien-tienCu) < 0.5 {
+		return kwhCu
+	}
+	if donGia <= 0 {
+		return 0
+	}
+	return math.Round(tien/donGia*100) / 100
+}
+
 // UpdateInvoice: PUT /api/invoices/:id (admin,staff). invoices.routes.js:382-414.
 func (h *Handlers) UpdateInvoice(c *gin.Context) {
 	u := auth.CurrentUser(c)
@@ -1414,9 +1434,11 @@ func (h *Handlers) UpdateInvoice(c *gin.Context) {
 	}
 	// KHÓA hoá đơn đã thu (invoices.routes.js:388-390)
 	var curStatus, curMonth string
-	var curLeaderDisc, curRoomDisc, curFeeDisc float64
-	err := h.pool().QueryRow(ctx, "SELECT status, leader_discount, room_discount, fee_discount, month FROM invoices WHERE id=$1 AND deleted_at IS NULL", id).
-		Scan(&curStatus, &curLeaderDisc, &curRoomDisc, &curFeeDisc, &curMonth)
+	var curLeaderDisc, curRoomDisc, curFeeDisc, curTienDien, curKwh float64
+	err := h.pool().QueryRow(ctx, `SELECT status, leader_discount, room_discount, fee_discount, month,
+	       COALESCE(electric_charge,0)::float8, COALESCE(electric_kwh,0)::float8
+	  FROM invoices WHERE id=$1 AND deleted_at IS NULL`, id).
+		Scan(&curStatus, &curLeaderDisc, &curRoomDisc, &curFeeDisc, &curMonth, &curTienDien, &curKwh)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			notFound(c, "Không tìm thấy phiếu báo")
@@ -1449,11 +1471,15 @@ func (h *Handlers) UpdateInvoice(c *gin.Context) {
 		badRequest(c, "Tổng tiền âm ("+numDisp(float64(total))+"đ): tổng 7 khoản phí ("+numDisp(float64(total)+giam)+"đ) nhỏ hơn khoản giảm ("+numDisp(giam)+"đ). Kiểm lại các khoản.")
 		return
 	}
+	donGia := 0.0
+	if fees, e := h.DB.GetSettings(ctx); e == nil {
+		donGia = billing.Fees(fees).Num("electric_unit")
+	}
 	rows, err := h.pool().Query(ctx,
 		`UPDATE invoices SET days_stayed=$1, room_charge=$2, electric_kwh=$3, electric_charge=$4,
 		   water_charge=$5, service_charge=$6, washing_charge=$7, parking_charge=$8, other_charge=$9,
 		   other_note=$10, deposit_charge=$11, total=$12, note=$13 WHERE id=$14 RETURNING *`,
-		invoiceNumOr0(b["days_stayed"]), invoiceNumOr0(b["room_charge"]), invoiceNumOr0(b["electric_kwh"]), invoiceNumOr0(b["electric_charge"]),
+		invoiceNumOr0(b["days_stayed"]), invoiceNumOr0(b["room_charge"]), invoiceSoKwh(b, true, curKwh, curTienDien, donGia), invoiceNumOr0(b["electric_charge"]),
 		invoiceNumOr0(b["water_charge"]), invoiceNumOr0(b["service_charge"]), invoiceNumOr0(b["washing_charge"]), invoiceNumOr0(b["parking_charge"]),
 		invoiceNumOr0(b["other_charge"]), invoiceStrOr(b["other_note"]), invoiceNumOr0(b["deposit_charge"]), total, invoiceStrOr(b["note"]), id)
 	if err != nil {

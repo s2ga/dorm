@@ -144,20 +144,41 @@ func TestTienCoc_ThanhVienPhongTronKhongCoCoc(t *testing.T) {
 // phòng là tự phá bất biến cọc = tiền phòng đang thu.
 func TestTienCoc_PhongMienTienPhongThiKhongCoCoc(t *testing.T) {
 	for _, loai := range []string{"security", "staff"} {
-		got := ComputeInvoice(ComputeInput{
-			Student:   Student{ID: 5, CheckInDate: "2026-08-01", DepositStatus: "none", RentalType: "phong"},
-			Room:      &Room{Hang: "A", RoomType: loai},
-			Month:     "2026-08",
-			Fees:      feesCoc(),
-			Occupants: 1,
-		})
-		if got.RoomCharge != 0 {
-			t.Fatalf("phòng %q: tiền phòng = %d, phải = 0", loai, got.RoomCharge)
+		// Thuê ghép là ca thường gặp nhất ở phòng nhân viên — bản cũ chỉ chặn 'phong' nên lọt cọc 1.200.000.
+		for _, thue := range []string{"phong", "ghep", ""} {
+			for _, dauTien := range []bool{false, true} {
+				ky := "2026-08"
+				if dauTien {
+					ky = "2026-10" // vào từ kỳ trước mà chưa có phiếu nào -> cọc đòi ở phiếu đầu tiên
+				}
+				got := ComputeInvoice(ComputeInput{
+					Student: Student{ID: 5, CheckInDate: "2026-08-01", DepositStatus: "none", RentalType: thue,
+						PhieuDauTien: dauTien},
+					Room:      &Room{Hang: "A", RoomType: loai},
+					Month:     ky,
+					Fees:      feesCoc(),
+					Occupants: 1,
+				})
+				if got.RoomCharge != 0 {
+					t.Fatalf("phòng %q, thuê %q, kỳ %s: tiền phòng = %d, phải = 0", loai, thue, ky, got.RoomCharge)
+				}
+				if got.DepositCharge != 0 {
+					t.Errorf("phòng %q, thuê %q, kỳ %s: cọc = %d, phải = 0 — phòng không thu tiền phòng thì không giữ cọc",
+						loai, thue, ky, got.DepositCharge)
+				}
+			}
 		}
-		if got.DepositCharge != 0 {
-			t.Errorf("phòng %q: cọc = %d, phải = 0 — không thu tiền phòng thì cọc theo giá phòng là vô lý",
-				loai, got.DepositCharge)
-		}
+	}
+	// Đối chứng: cùng hồ sơ ở phòng cho thuê thì VẪN phải thu cọc — chặn nhầm cả phòng thường là mất tiền.
+	got := ComputeInvoice(ComputeInput{
+		Student:   Student{ID: 5, CheckInDate: "2026-08-01", DepositStatus: "none", RentalType: "ghep"},
+		Room:      &Room{Hang: "A", RoomType: "shared"},
+		Month:     "2026-08",
+		Fees:      feesCoc(),
+		Occupants: 1,
+	})
+	if got.DepositCharge != 1200000 {
+		t.Errorf("phòng thuê ghép thường: cọc = %d, phải = 1200000", got.DepositCharge)
 	}
 }
 

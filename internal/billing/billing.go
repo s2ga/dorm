@@ -560,11 +560,11 @@ func TienCoc(st Student, month string, fees Fees, room *Room, np *NguyenPhong) i
 	if np != nil && !np.DungHoaDon {
 		return 0
 	}
+	// Phòng an ninh / nhân viên không thu tiền phòng thì không có gì để giữ cọc — thuê ghép hay trọn như nhau.
+	if room != nil && MienTienPhong(room.RoomType) {
+		return 0
+	}
 	if np != nil || st.RentalType == "phong" {
-		// Phòng an ninh / nhân viên không thu tiền phòng thì cũng không có gì để cọc trọn giá phòng.
-		if room != nil && MienTienPhong(room.RoomType) {
-			return 0
-		}
 		hang := ""
 		if room != nil {
 			hang = room.Hang
