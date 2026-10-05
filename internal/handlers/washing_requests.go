@@ -24,10 +24,15 @@ const (
 	washReqTran     = 200
 )
 
-// washingFromSQL: biểu thức cho UPDATE — bật thì giữ ngày cũ (nếu có) hoặc lấy hôm nay, tắt thì xoá ngày.
-// Dùng ở MỌI chỗ ghi uses_washing để "ngày đăng ký" không phụ thuộc vào đường nào bật cờ.
+// washingFromSQL / washingToSQL: cặp biểu thức cho UPDATE ở mọi chỗ bật/tắt uses_washing NGAY (quản trị,
+// an ninh được duyệt). Cờ không đổi thì giữ nguyên hai ngày — lưu hồ sơ không được xoá mất hủy có hẹn;
+// bật thì tính từ hôm nay, tắt thì thôi ngay.
 func washingFromSQL(co string) string {
-	return "CASE WHEN " + co + "::boolean THEN COALESCE(washing_from, CURRENT_DATE) ELSE NULL END"
+	return "CASE WHEN " + co + "::boolean IS NOT DISTINCT FROM uses_washing THEN washing_from WHEN " + co + "::boolean THEN CURRENT_DATE ELSE NULL END"
+}
+
+func washingToSQL(co string) string {
+	return "CASE WHEN " + co + "::boolean IS NOT DISTINCT FROM uses_washing THEN washing_to ELSE NULL END"
 }
 
 // washingFromMoiSQL: bản dùng cho INSERT — hàng mới chưa có ngày cũ để giữ.
@@ -215,11 +220,10 @@ func (h *Handlers) washingRequestQuyetDinh(c *gin.Context, duyet bool) {
 		return
 	}
 
-	// Duyệt = vào danh sách máy giặt. Ngày đăng ký là HÔM NAY, ngày an ninh gửi vẫn nằm ở đề nghị.
-	// Phí máy giặt tính theo kỳ của phiếu, KHÔNG cắt theo ngày đăng ký.
+	// Đường an ninh áp NGAY (khác đường học viên tự gửi): tính phí từ hôm nay nên kỳ này có phí.
 	err = h.DB.WithTx(ctx, func(tx pgx.Tx) error {
 		if _, e := tx.Exec(ctx,
-			`UPDATE students SET uses_washing=true, washing_from=COALESCE(washing_from, CURRENT_DATE)
+			`UPDATE students SET washing_from=`+washingFromSQL("true")+`, washing_to=`+washingToSQL("true")+`, uses_washing=true
 			  WHERE id=$1 AND deleted_at IS NULL`, hvID); e != nil {
 			return e
 		}

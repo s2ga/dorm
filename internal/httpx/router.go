@@ -133,6 +133,12 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	wq.POST("/:id/approve", h.ApproveWashingRequest)
 	wq.POST("/:id/reject", h.RejectWashingRequest)
 
+	// Đề nghị đăng ký / hủy máy giặt, gửi xe do học viên tự gửi: quản trị duyệt, áp từ kỳ sau.
+	svr := api.Group("/service-requests", a.RequireAuth(), a.RequireRole("admin", "staff"))
+	svr.GET("", h.ListServiceRequests)
+	svr.POST("/:id/approve", h.ApproveServiceRequest)
+	svr.POST("/:id/reject", h.RejectServiceRequest)
+
 	// Cổng học viên (me) — mở theo liên kết hồ sơ (student_id), không theo vai:
 	// tài khoản nhân viên kiêm khách thuê phòng cũng vào được.
 	me := api.Group("/me", a.RequireAuth(), a.RequireStudentLink())
@@ -140,7 +146,9 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	me.GET("/roommates", h.MeRoommates)
 	me.GET("/assets", h.MeAssets)
 	me.GET("/chores", h.MeChores)
-	me.POST("/washing", h.MeWashing)
+	me.POST("/washing", h.MeWashing) // đã đóng: trả câu báo gửi đề nghị thay vì ghi thẳng
+	me.GET("/services", h.MeServices)
+	me.POST("/service-requests", h.MeServiceRequest)
 	me.GET("/invoices", h.MeInvoices)
 	me.GET("/logs", h.MeLogs)
 	me.GET("/violations", h.MeViolations)

@@ -1680,7 +1680,8 @@ func (h *Handlers) UpdateStudent(c *gin.Context) {
 	cols := `code=$1, name=$2, gender=$3, phone=$4, id_card=$5, birth_date=$6, class_name=$7, room_id=$8,
       check_in_date=CASE WHEN check_in_date IS NULL THEN NULL ELSE $9::date END,
       planned_check_in=CASE WHEN check_in_date IS NULL THEN $9::date ELSE planned_check_in END,
-      note=$10, uses_washing=$11, washing_from=` + washingFromSQL("$11") + `, rental_type=$12, residency_status=$13,
+      note=$10, washing_from=` + washingFromSQL("$11") + `, washing_to=` + washingToSQL("$11") + `, uses_washing=$11,
+      rental_type=$12, residency_status=$13,
       contract_no=$14, contract_date=$15, contract_status=$16,
       class_start_date=$17, expected_departure=$18, parent_phone=$19, room_fee_discount_pct=$20,
       water_discount_pct=$21, electric_discount_pct=$22, service_discount_pct=$23,
@@ -1880,7 +1881,7 @@ func (h *Handlers) StudentWashing(c *gin.Context) {
 	_, b := studentsReadBody(c)
 	on := studentsJSTruthy(b["on"])
 	rows, err := h.pool().Query(c.Request.Context(),
-		"UPDATE students SET uses_washing=$1, washing_from="+washingFromSQL("$1")+" WHERE id=$2 AND deleted_at IS NULL RETURNING id", on, id)
+		"UPDATE students SET washing_from="+washingFromSQL("$1")+", washing_to="+washingToSQL("$1")+", uses_washing=$1 WHERE id=$2 AND deleted_at IS NULL RETURNING id", on, id)
 	if err != nil {
 		serverErr(c)
 		return

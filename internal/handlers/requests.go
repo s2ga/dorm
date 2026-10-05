@@ -799,6 +799,12 @@ func (h *Handlers) BillCheckout(c *gin.Context) {
 		return
 	}
 	month := co.Time.Format("2006-01") // kỳ = tháng trả phòng (YYYY-MM)
+	// Máy giặt theo khoảng dùng giao với KỲ này (cùng luật gửi xe), không theo cờ của hôm nay.
+	if err := h.pool().QueryRow(ctx, "SELECT "+billing.GiatTrongKySQL("", "$2", "$3")+" FROM students WHERE id=$1",
+		sid, billing.FirstDay(month), billing.LastDay(month)).Scan(&uw); err != nil {
+		serverErr(c)
+		return
+	}
 
 	fees, err := h.DB.GetSettings(ctx)
 	if err != nil {

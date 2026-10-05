@@ -51,7 +51,8 @@ CREATE TABLE IF NOT EXISTS students (
 );
 ALTER TABLE students ADD COLUMN IF NOT EXISTS gender TEXT DEFAULT 'male';
 ALTER TABLE students ADD COLUMN IF NOT EXISTS uses_washing BOOLEAN DEFAULT false;
-ALTER TABLE students ADD COLUMN IF NOT EXISTS washing_from DATE;  -- ngày vào danh sách máy giặt (chỉ để hiển thị, KHÔNG dùng tính tiền)
+ALTER TABLE students ADD COLUMN IF NOT EXISTS washing_from DATE;  -- bắt đầu tính phí máy giặt; NULL = dữ liệu cũ, tính như trước
+ALTER TABLE students ADD COLUMN IF NOT EXISTS washing_to   DATE;  -- hủy có hẹn: còn tính phí tới hết ngày này
 ALTER TABLE students ADD COLUMN IF NOT EXISTS uses_parking BOOLEAN DEFAULT false;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS deposit_amount NUMERIC(12,0) DEFAULT 0;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS deposit_status TEXT DEFAULT 'none';
@@ -379,6 +380,7 @@ ALTER TABLE vehicles     ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 -- số xe CỦA THÁNG ĐÓ, không lấy số xe hôm nay (V2-23, đúng lỗi TC-10 đã học ở chỗ khác).
 ALTER TABLE vehicles     ADD COLUMN IF NOT EXISTS from_date DATE;
 ALTER TABLE vehicles     ADD COLUMN IF NOT EXISTS to_date   DATE;
+ALTER TABLE vehicles     ADD COLUMN IF NOT EXISTS bill_from DATE;  -- bắt đầu TÍNH PHÍ khi khác ngày bắt đầu gửi; NULL = từ from_date
 -- Backfill: xe cũ tính từ ngày tạo; xe đã xoá thì tới ngày xoá.
 UPDATE vehicles SET from_date = created_at::date WHERE from_date IS NULL;
 UPDATE vehicles SET to_date = deleted_at::date WHERE to_date IS NULL AND deleted_at IS NOT NULL;
@@ -612,6 +614,28 @@ CREATE TABLE IF NOT EXISTS washing_requests (
 -- Một học viên chỉ có MỘT báo cáo đang chờ.
 CREATE UNIQUE INDEX IF NOT EXISTS uq_washing_request_pending ON washing_requests (student_id) WHERE status = 'pending';
 CREATE INDEX IF NOT EXISTS idx_washing_requests_status ON washing_requests (status, requested_at DESC);
+
+-- Học viên tự đăng ký / hủy máy giặt, gửi xe ở cổng của mình: KHÔNG ghi thẳng vào hồ sơ, BQL duyệt
+-- mới áp, và áp từ KỲ SAU tính theo ngày gửi (effective_date chốt lúc gửi).
+CREATE TABLE IF NOT EXISTS service_requests (
+  id             SERIAL PRIMARY KEY,
+  student_id     INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  facility_id    INTEGER REFERENCES facilities(id) ON DELETE SET NULL,
+  service        TEXT NOT NULL CHECK (service IN ('washing','parking')),
+  action         TEXT NOT NULL CHECK (action IN ('register','cancel')),
+  plate          TEXT NOT NULL DEFAULT '',
+  vehicle_type   TEXT NOT NULL DEFAULT '',
+  vehicle_id     INTEGER REFERENCES vehicles(id) ON DELETE SET NULL,
+  note           TEXT NOT NULL DEFAULT '',
+  effective_date DATE NOT NULL,
+  status         TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
+  requested_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  decided_by     TEXT,
+  decided_at     TIMESTAMPTZ,
+  decision_note  TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_service_requests_status ON service_requests (status, requested_at DESC);
+CREATE INDEX IF NOT EXISTS idx_service_requests_student ON service_requests (student_id, requested_at DESC);
 
 -- ===== BL-121: biên bản bàn giao phòng =====
 -- An ninh LẬP biên bản (nhận hoặc trả phòng) với số điện, hư hao, vệ sinh, chìa khoá, biển số, ghi chú.

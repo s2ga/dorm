@@ -65,8 +65,8 @@ function myInvoiceDetail(id) {
     <div class="mf"><button class="btn" data-act="modalBack">Đóng</button></div>`);
 }
 async function loadStudentPortal() {
-  let profile, invs, damage, coutReqs, myVios = [], mates = [], assets = [], chores = [], myLogs = [];
-  try { [profile, invs, damage, coutReqs, myVios, mates, assets, chores, myLogs] = await Promise.all([API.meProfile(), API.meInvoices(), API.meDamage(), API.meCheckoutReq(), API.meViolations().catch(() => []), API.meRoommates().catch(() => []), API.meAssets().catch(() => []), API.meChores().catch(() => []), API.meLogs().catch(() => [])]); }
+  let profile, invs, damage, coutReqs, myVios = [], mates = [], assets = [], chores = [], myLogs = [], svc = null;
+  try { [profile, invs, damage, coutReqs, myVios, mates, assets, chores, myLogs, svc] = await Promise.all([API.meProfile(), API.meInvoices(), API.meDamage(), API.meCheckoutReq(), API.meViolations().catch(() => []), API.meRoommates().catch(() => []), API.meAssets().catch(() => []), API.meChores().catch(() => []), API.meLogs().catch(() => []), API.meServices().catch(() => null)]); }
   catch (e) {
     el('content').innerHTML = `<div class="bang-tin">${IC.alert} <span>Chưa tải được trang: ${esc(e.message || 'lỗi kết nối')}
       <button class="btn sm" data-act="loadStudentPortal" style="margin-left:8px">${IC.refresh} Thử lại</button></span></div>`;
@@ -98,15 +98,7 @@ async function loadStudentPortal() {
     ${myAssetsPanel(assets, profile)}
     ${myRulesPanel(profile)}
 
-    <div class="panel"><div class="hd"><h2>${IC.washer} Dịch vụ máy giặt</h2></div><div class="pad">
-      ${profile.uses_washing
-        ? `<div class="flex" style="justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center">
-            <div>${IC.checkCircle} Bạn <strong>đang dùng</strong> máy giặt — phí <strong>${money(profile.washing_fee)}/tháng</strong> (tính vào phiếu báo).</div>
-            <button class="btn sm ghost" data-act="toggleMyWashing" data-args='[false]'>Hủy đăng ký</button></div>`
-        : `<div class="flex" style="justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center">
-            <div class="muted">Bạn chưa dùng máy giặt. Đăng ký nếu có nhu cầu — phí <strong>${money(profile.washing_fee)}/tháng</strong>.</div>
-            <button class="btn sm pri" data-act="toggleMyWashing" data-args='[true]'>${IC.plus} Đăng ký máy giặt</button></div>`}
-    </div></div>
+    ${myServicesPanel(svc)}
 
     ${myVios.length ? `<div class="panel" id="pnViPham"><div class="hd"><h2>${IC.alert} Nhắc nhở / Vi phạm (${myVios.length})</h2></div><div class="table-wrap card-tbl">
       <table><thead><tr><th>Ngày</th><th>Nội dung</th><th>Mức độ</th><th class="num">Lần</th></tr></thead><tbody>
@@ -365,16 +357,104 @@ function myAssetsPanel(assets, profile) {
   </div></div>`;
 }
 
-// Phí máy giặt KHÔNG có ngày bắt đầu — chỉ là một ô đúng/sai, tính theo số ngày Ở của tháng
-// (billing.go:598). Phiếu kỳ này chưa đóng tiền mà được lập lại là phí vào luôn kỳ này; phiếu đã
-// đóng thì bị khoá (invoices.go:855) nên phí rơi sang kỳ sau. Câu hỏi phải nói đúng như vậy.
-async function toggleMyWashing(on) {
-  if (!(await xacNhan(on
-    ? 'Đăng ký dùng máy giặt?\n\nNếu phiếu báo kỳ này chưa đóng tiền thì phí có thể được tính luôn vào kỳ này. Phiếu đã đóng rồi thì tính từ kỳ sau.'
-    : 'Hủy đăng ký máy giặt?\n\nNếu phiếu báo kỳ này chưa đóng tiền thì kỳ này cũng thôi tính phí. Phiếu đã đóng rồi thì hết tính từ kỳ sau.',
-  { dongY: on ? 'Đăng ký' : 'Hủy đăng ký', huy: 'Không', nguyHiem: !on }))) return;
-  await guard(() => API.meWashing(on));
-  toast(on ? 'Đã đăng ký máy giặt' : 'Đã hủy máy giặt'); loadStudentPortal();
+/* ---- Dịch vụ máy giặt · gửi xe: học viên GỬI ĐỀ NGHỊ, Ban Quản lý duyệt mới áp, áp từ kỳ sau ---- */
+let _mySvc = null;
+const DV_TEN = { washing: 'máy giặt', parking: 'gửi xe' };
+const dvViec = q => `${q.action === 'register' ? 'Đăng ký' : 'Hủy'} ${DV_TEN[q.service] || ''}${q.plate || q.vehicle_plate ? ' · ' + esc(q.plate || q.vehicle_plate) : ''}`;
+const dvKetQua = q => q.status === 'approved' ? '<span class="badge green">Đã duyệt</span>'
+  : q.status === 'rejected' ? `<span class="badge red">Từ chối</span>${q.decision_note ? `<div class="sub2">${esc(q.decision_note)}</div>` : ''}`
+    : '<span class="badge amber">Chờ duyệt</span>';
+function myServicesPanel(svc) {
+  _mySvc = svc;
+  if (!svc) return `<div class="panel" id="pnDichVu"><div class="hd"><h2>${IC.washer} Máy giặt · Gửi xe</h2></div>
+    <div class="pad muted">Chưa tải được phần dịch vụ — bấm Tải lại.</div></div>`;
+  const hn = today(), cho = (svc.requests || []).filter(q => q.status === 'pending');
+  const choGiat = cho.find(q => q.service === 'washing');
+  const w = svc.washing || {};
+  const tu = w.from && String(w.from).slice(0, 10), toi = w.to && String(w.to).slice(0, 10);
+  const giatTT = w.uses
+    ? (tu && tu > hn ? `${IC.checkCircle} Đã duyệt — tính phí từ <strong>${fmtDate(tu)}</strong>` : `${IC.checkCircle} Đang dùng`)
+    : toi && toi >= hn ? `Đã hủy — vẫn tính phí tới hết <strong>${fmtDate(toi)}</strong>` : '<span class="muted">Chưa đăng ký</span>';
+  const nutGiat = !svc.dang_o || choGiat ? ''
+    : w.uses ? `<button class="btn sm ghost" data-act="dvGiatForm" data-args='["cancel"]'>Hủy đăng ký</button>`
+      : `<button class="btn sm pri" data-act="dvGiatForm" data-args='["register"]'>${IC.plus} Đăng ký</button>`;
+  const xeTT = v => {
+    const bf = v.bill_from && String(v.bill_from).slice(0, 10), td = v.to_date && String(v.to_date).slice(0, 10);
+    return td ? `<span class="muted">thôi gửi từ ${fmtDate(td)}</span>` : bf && bf > hn ? `tính phí từ ${fmtDate(bf)}` : 'đang gửi';
+  };
+  const xe = (svc.vehicles || []).map(v => {
+    const choHuy = cho.some(q => q.service === 'parking' && q.action === 'cancel' && q.vehicle_id === v.id);
+    return `<div class="flex" style="justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;padding:6px 0;border-top:1px dashed var(--line)">
+      <div>${IC.bike} <strong>${esc(v.plate || '—')}</strong>${v.vehicle_type ? ` <span class="muted">· ${esc(v.vehicle_type)}</span>` : ''} — ${xeTT(v)}</div>
+      ${choHuy ? '<span class="badge amber">Đề nghị hủy chờ duyệt</span>'
+        : svc.dang_o && !v.to_date ? `<button class="btn sm ghost" data-act="dvHuyXeForm" data-args='[${v.id}]'>Hủy gửi xe</button>` : ''}
+    </div>`;
+  }).join('');
+  const choXe = cho.filter(q => q.service === 'parking' && q.action === 'register')
+    .map(q => `<div style="padding:6px 0;border-top:1px dashed var(--line)">${IC.bike} <strong>${esc(q.plate)}</strong> — <span class="badge amber">Chờ duyệt</span></div>`).join('');
+  const ganDay = (svc.requests || []).slice(0, 8);
+  return `<div class="panel" id="pnDichVu"><div class="hd"><h2>${IC.washer} Máy giặt · Gửi xe</h2></div><div class="pad">
+    ${svc.dang_o ? `<div class="bang-tin" style="margin-top:0">${IC.info} <span>Đăng ký hoặc hủy sẽ gửi đề nghị tới Ban Quản lý. Được duyệt thì:
+      đăng ký tính phí từ <strong>${fmtDate(svc.ap_dung_dang_ky)}</strong>; hủy thì vẫn tính hết <strong>${fmtDate(svc.ap_dung_huy)}</strong>.</span></div>`
+      : `<div class="bang-tin" style="margin-top:0">${IC.info} Bạn không còn ở ký túc xá nên không gửi đề nghị dịch vụ được.</div>`}
+    <h4 style="margin:14px 0 6px">${IC.washer} Máy giặt <span class="muted" style="font-weight:400">· ${money(svc.washing_fee)}/tháng</span></h4>
+    <div class="flex" style="justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center">
+      <div>${giatTT}${choGiat ? ` &nbsp;<span class="badge amber">Đề nghị ${choGiat.action === 'register' ? 'đăng ký' : 'hủy'} chờ duyệt</span>` : ''}</div>${nutGiat}</div>
+    <h4 style="margin:18px 0 6px">${IC.bike} Gửi xe <span class="muted" style="font-weight:400">· ${money(svc.parking_fee)}/xe/tháng</span></h4>
+    ${xe || choXe ? xe + choXe : '<div class="muted">Bạn chưa gửi xe nào.</div>'}
+    ${svc.dang_o ? `<div style="margin-top:10px"><button class="btn sm pri" data-act="dvXeForm">${IC.plus} Đăng ký gửi xe</button></div>` : ''}
+    ${ganDay.length ? `<h4 style="margin:18px 0 6px">Đề nghị gần đây</h4><div class="table-wrap card-tbl"><table>
+      <thead><tr><th>Ngày gửi</th><th>Đề nghị</th><th>Áp dụng</th><th>Kết quả</th></tr></thead><tbody>
+      ${ganDay.map(q => `<tr><td data-label="Ngày gửi">${fmtDate(String(q.requested_at).slice(0, 10))}</td><td data-label="Đề nghị">${dvViec(q)}</td>
+        <td data-label="Áp dụng">${q.action === 'register' ? 'từ' : 'đến hết'} ${fmtDate(q.effective_date)}</td><td data-label="Kết quả">${dvKetQua(q)}</td></tr>`).join('')}
+      </tbody></table></div>` : ''}
+  </div></div>`;
+}
+function dvGiatForm(action) {
+  const dk = action === 'register', s = _mySvc || {};
+  openModal(`
+    <div class="mh"><h3>${IC.washer} ${dk ? 'Đăng ký' : 'Hủy đăng ký'} máy giặt</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mb">
+      <div class="bang-tin" style="margin-top:0">${IC.info} <span>${dk
+        ? `Ban Quản lý duyệt thì tính phí từ <strong>${fmtDate(s.ap_dung_dang_ky)}</strong> — ${money(s.washing_fee)}/tháng.`
+        : `Ban Quản lý duyệt thì vẫn tính phí hết <strong>${fmtDate(s.ap_dung_huy)}</strong>, từ tháng sau thôi tính.`}</span></div>
+      <div class="field"><label>Ghi chú gửi Ban Quản lý</label><textarea id="dv_note" rows="2" placeholder="Không bắt buộc"></textarea></div>
+    </div>
+    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="dvGui" data-args='["washing","${dk ? 'register' : 'cancel'}",0]'>Gửi đề nghị</button></div>`);
+}
+function dvXeForm() {
+  const s = _mySvc || {};
+  openModal(`
+    <div class="mh"><h3>${IC.bike} Đăng ký gửi xe</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mb">
+      <div class="field"><label>Biển số ${SAO}</label><input id="dv_plate" placeholder="VD: 59-X1 123.45" autocomplete="off" autocapitalize="characters"></div>
+      <div class="field"><label>Loại xe</label><input id="dv_type" placeholder="VD: Xe máy, xe đạp điện"></div>
+      <div class="field"><label>Ghi chú gửi Ban Quản lý</label><textarea id="dv_note" rows="2" placeholder="Không bắt buộc"></textarea></div>
+      <div class="hint" style="font-size:12px">${IC.info}<span>Ban Quản lý duyệt thì xe vào danh sách bãi ngay, phí ${money(s.parking_fee)}/xe/tháng tính từ <strong>${fmtDate(s.ap_dung_dang_ky)}</strong>.</span></div>
+    </div>
+    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="dvGui" data-args='["parking","register",0]'>Gửi đề nghị</button></div>`);
+  setTimeout(() => el('dv_plate') && el('dv_plate').focus(), 50);
+}
+function dvHuyXeForm(vid) {
+  const s = _mySvc || {}, v = (s.vehicles || []).find(x => x.id === vid);
+  if (!v) return;
+  openModal(`
+    <div class="mh"><h3>${IC.bike} Hủy gửi xe ${esc(v.plate || '')}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mb">
+      <div class="bang-tin" style="margin-top:0">${IC.info} <span>Ban Quản lý duyệt thì xe thôi gửi; phí vẫn tính hết <strong>${fmtDate(s.ap_dung_huy)}</strong>, từ tháng sau thôi tính.</span></div>
+      <div class="field"><label>Ghi chú gửi Ban Quản lý</label><textarea id="dv_note" rows="2" placeholder="Không bắt buộc"></textarea></div>
+    </div>
+    <div class="mf"><button class="btn" data-act="closeModal">Hủy</button><button class="btn pri" data-act="dvGui" data-args='["parking","cancel",${vid}]'>Gửi đề nghị</button></div>`);
+}
+async function dvGui(service, action, vid) {
+  const b = { service, action, note: el('dv_note') ? el('dv_note').value.trim() : '' };
+  if (service === 'parking' && action === 'register') {
+    b.plate = el('dv_plate').value.trim(); b.vehicle_type = el('dv_type').value.trim();
+    if (!b.plate) return loiTaiO('dv_plate', 'Nhập biển số xe');
+  }
+  if (vid) b.vehicle_id = vid;
+  await guard(() => API.meServiceRequest(b));
+  closeModal(); toast('Đã gửi đề nghị — chờ Ban Quản lý duyệt'); loadStudentPortal();
 }
 
 /* ================= CHUÔNG THÔNG BÁO (cổng học viên) =================
@@ -393,6 +473,10 @@ const HV_NOTIF = {
   leader:            () => [IC.star, 'Bạn được cử làm phòng trưởng', 'pnPhong'],
   rules:             () => [IC.clipboard, 'Nội quy ký túc xá vừa được cập nhật', 'pnNoiQuy'],
   chore:             () => [IC.calendar, 'Hôm nay đến lượt bạn trực nhật', 'pnTrucNhat'],
+  svc_approved:      n => { const [act, dv, ngay] = String(n.txt).split(':');
+    return [IC.checkCircle, `Đề nghị ${act === 'register' ? 'đăng ký' : 'hủy'} ${DV_TEN[dv] || ''} đã được duyệt — ${act === 'register' ? 'tính phí từ' : 'tính phí đến hết'} ${fmtDate(ngay)}`, 'pnDichVu']; },
+  svc_rejected:      n => { const [act, dv] = String(n.txt).split(':');
+    return [IC.alert, `Đề nghị ${act === 'register' ? 'đăng ký' : 'hủy'} ${DV_TEN[dv] || ''} bị từ chối — xem lý do ở mục Máy giặt · Gửi xe`, 'pnDichVu']; },
 };
 let _hvNotif = [], _hvNotifTimer = null;
 
@@ -2024,7 +2108,7 @@ function chongBam2Lan(fn) {
   'doChangePwd', 'doResetUserPw', 'doKhoaHoSo', 'runGenerate',
   'settleDepositAndClose', 'submitCheckoutReq', 'submitDamage', 'bienBanLuu', 'bienBanTraLai',
   'submitMaintBlock', 'submitMaintDone', 'toggleWashing',
-  'toggleMyWashing', 'uploadRulesDoc', 'removeRulesDoc', 'luuChotGiuaKy', 'xoaChotGiuaKy',
+  'dvGui', 'dvDuyet', 'dvTuChoiLuu', 'uploadRulesDoc', 'removeRulesDoc', 'luuChotGiuaKy', 'xoaChotGiuaKy',
   'luuTatCaChotGiuaKy', 'pkGanXeLuu', 'tamTruXacNhanIn', 'tamTruChuyenXuLy',
   'pkTuChoiBienLuu', 'washReqTuChoiLuu',
   // Phòng · học viên · cọc

@@ -526,9 +526,11 @@ func (h *Handlers) GenerateInvoices(c *gin.Context) {
 			"(COALESCE(check_out_date, planned_check_out) IS NULL OR COALESCE(check_out_date, planned_check_out) >= $2)"}
 		stParams := []interface{}{mEnd, eStart0}
 		invoicesExecFacilityFilter(c, u, "facility_id", &stCond, &stParams)
+		stParams = append(stParams, mStart, mEnd)
+		giat := billing.GiatTrongKySQL("", "$"+itoa(len(stParams)-1), "$"+itoa(len(stParams)))
 		stRows, err := tx.Query(ctx,
 			`SELECT id, name, room_id, rental_type, deposit_status, COALESCE(check_in_date, planned_check_in) AS check_in_date,
-			   COALESCE(check_out_date, planned_check_out) AS check_out_date, uses_washing, uses_parking, room_fee_discount_pct, `+
+			   COALESCE(check_out_date, planned_check_out) AS check_out_date, `+giat+` AS uses_washing, uses_parking, room_fee_discount_pct, `+
 				billing.CotSQL+` FROM students WHERE `+joinAnd(stCond), stParams...)
 		if err != nil {
 			return err
@@ -1087,8 +1089,9 @@ func (h *Handlers) GenerateOneInvoice(c *gin.Context) {
 	)
 	var giam billing.GiamPct
 	err = h.pool().QueryRow(ctx,
-		"SELECT id, facility_id, room_id, rental_type, deposit_status, COALESCE(check_in_date, planned_check_in) AS check_in_date, COALESCE(check_out_date, planned_check_out) AS check_out_date, uses_washing, uses_parking, room_fee_discount_pct, "+
-			billing.CotSQL+" FROM students WHERE id=$1", sid).
+		"SELECT id, facility_id, room_id, rental_type, deposit_status, COALESCE(check_in_date, planned_check_in) AS check_in_date, COALESCE(check_out_date, planned_check_out) AS check_out_date, "+
+			billing.GiatTrongKySQL("", "$2", "$3")+" AS uses_washing, uses_parking, room_fee_discount_pct, "+
+			billing.CotSQL+" FROM students WHERE id=$1", sid, billing.FirstDay(monthStr), billing.LastDay(monthStr)).
 		Scan(append([]interface{}{&sID, &facID, &roomID, &rentalTyp, &depStatus, &ci, &co, &uw, &up, &pct}, giam.Ptr()...)...)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

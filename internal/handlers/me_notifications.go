@@ -51,6 +51,10 @@ WITH ev AS (
   UNION ALL
   SELECT m.updated_at, 'rules', 0, '', NULL::numeric
     FROM media m WHERE m.key='noi-quy' AND m.path IS NOT NULL
+  UNION ALL
+  SELECT r.decided_at, 'svc_' || r.status, r.id,
+         r.action || ':' || r.service || ':' || to_char(r.effective_date,'YYYY-MM-DD'), NULL::numeric
+    FROM service_requests r WHERE r.student_id=$1 AND r.status IN ('approved','rejected')
 )
 SELECT ts, kind, ref, txt, amount FROM ev
  WHERE ts IS NOT NULL AND ts > now() - make_interval(days => $2)

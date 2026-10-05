@@ -9,7 +9,8 @@ import (
 	"ktx/internal/db"
 )
 
-const whereMonth = ` COALESCE(from_date, created_at::date) <= (date_trunc('month',$MONTH::date) + interval '1 month - 1 day')::date
+// bill_from: xe được duyệt từ cổng học viên gửi ngay nhưng tính phí từ kỳ sau.
+const whereMonth = ` COALESCE(bill_from, from_date, created_at::date) <= (date_trunc('month',$MONTH::date) + interval '1 month - 1 day')::date
   AND (to_date IS NULL OR to_date >= $MONTH::date)`
 
 func replaceMonth(s, ph string) string {

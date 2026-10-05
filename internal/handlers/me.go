@@ -269,35 +269,14 @@ func meOccupying(found bool, status string, checkOut pgtype.Date, today string) 
 	return checkOut.Time.Format("2006-01-02") > today
 }
 
-type meWashingBody struct {
-	On *bool `json:"on"`
-}
-
-// MeWashing: POST /api/me/washing — tự đăng ký/hủy dịch vụ máy giặt. server/routes/me.routes.js:95-106
+// MeWashing: POST /api/me/washing — đường TỰ BẬT máy giặt cũ, nay đã đóng: đăng ký/hủy phải gửi đề nghị
+// cho Ban Quản lý duyệt (POST /me/service-requests). Giữ route để tab chưa tải lại nhận câu báo rõ ràng
+// thay vì ghi thẳng vào hồ sơ.
 func (h *Handlers) MeWashing(c *gin.Context) {
-	sid, ok := meStudentID(c)
-	if !ok {
+	if _, ok := meStudentID(c); !ok {
 		return
 	}
-	ctx := c.Request.Context()
-	var status string
-	var checkOut pgtype.Date
-	// BL-117: chưa xác nhận nhận phòng (check_in_date NULL) thì chưa ở, dù status còn 'in'.
-	err := h.pool().QueryRow(ctx, "SELECT CASE WHEN check_in_date IS NULL THEN 'pending' ELSE status END, check_out_date FROM students WHERE id=$1 AND deleted_at IS NULL", sid).Scan(&status, &checkOut)
-	today := timeutil.Today()
-	if !meOccupying(err == nil, status, checkOut, today) {
-		badRequest(c, "Bạn không còn ở ký túc xá nên không thể thay đổi dịch vụ.")
-		return
-	}
-	var b meWashingBody
-	_ = c.ShouldBindJSON(&b)
-	on := b.On == nil || *b.On // mặc định = đăng ký (true); chỉ false khi gửi rõ on=false
-	if _, err := h.pool().Exec(ctx,
-		"UPDATE students SET uses_washing=$1, washing_from="+washingFromSQL("$1")+" WHERE id=$2 AND deleted_at IS NULL", on, sid); err != nil {
-		serverErr(c)
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"ok": true, "uses_washing": on})
+	badRequest(c, "Đăng ký hoặc hủy máy giặt nay gửi đề nghị cho Ban Quản lý duyệt. Tải lại trang rồi gửi đề nghị ở mục Dịch vụ.")
 }
 
 // MeInvoices: GET /api/me/invoices — hóa đơn của HV. server/routes/me.routes.js:109-114

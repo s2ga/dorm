@@ -122,7 +122,7 @@ async function refreshCache() {
   // 7 API phụ: hỏng thì ghi vết vào ST.cacheErrors (báo qua chuông) thay vì nuốt im -> hiện số 0 giả.
   const failed = [];
   const soft = (p, label, dflt) => p.catch(() => { failed.push(label); return dflt; });
-  const [rooms, students, facilities, settings, applications, damage, couts, logs, assets, vtypes, vstats, hoReports, pkAlerts] = await Promise.all([
+  const [rooms, students, facilities, settings, applications, damage, couts, logs, assets, vtypes, vstats, hoReports, pkAlerts, svcReqs] = await Promise.all([
     API.rooms(), API.students(), API.facilities(), API.settings(),
     soft(API.applications(), 'đơn đăng ký', []),
     soft(API.damageAll(), 'hỗ trợ / hư hỏng', []),
@@ -133,9 +133,10 @@ async function refreshCache() {
     soft(API.violationStats(), 'vi phạm', { byStudent: [], needMail: 0, threshold: 3 }),
     soft(API.handoverReports('pending'), 'biên bản bàn giao', []),
     soft(API.parkingAlerts(), 'bãi xe', null),   // BL-120: đề nghị sửa biển, báo cáo an ninh, xe vắng lâu, chốt ngày
+    soft(API.serviceRequests('pending'), 'đề nghị dịch vụ', { rows: [] }),
   ]);
   ST.cacheErrors = failed;
-  Object.assign(ST, { rooms, students, facilities, settings, applications, damage, couts, logs, assets, vtypes, vstats, hoReports, pkAlerts });
+  Object.assign(ST, { rooms, students, facilities, settings, applications, damage, couts, logs, assets, vtypes, vstats, hoReports, pkAlerts, svcReqs });
   // Admin: đếm tài khoản chờ duyệt (SSO tự tạo role='pending') để BÁO qua chuông + badge Cài đặt.
   // Staff không có quyền endpoint này -> bỏ qua.
   if (Auth.user && Auth.user.role === 'admin') { try { ST.pendingCount = ((await API.pendingCount()) || {}).pending || 0; } catch (e) { /* giữ giá trị cũ */ } }
@@ -223,6 +224,12 @@ function notifItems() {
   if (pCout) items.push({ n: pCout, ic: IC.filePen, tx: `${pCout} đơn trả phòng chờ duyệt`, act: actAttr('traPhongGo', 'don') });
   if (needMail) items.push({ n: needMail, ic: IC.alert, tx: `${needMail} học viên vi phạm cần báo nhà trường`, act: actAttr('viPhamGo', 'canbao') });
   if (refund) items.push({ n: refund, ic: IC.handCoins, tx: `${refund} khoản cọc chờ hoàn (đã trả phòng)`, act: actAttr('quyCoc') });
+  // Đề nghị đăng ký / hủy máy giặt, gửi xe do học viên tự gửi — mỗi dịch vụ một dòng, dẫn thẳng tới bảng duyệt.
+  const dvCho = ((ST.svcReqs && ST.svcReqs.rows) || []).filter(q => q.status === 'pending');
+  [['washing', IC.washer, 'máy giặt'], ['parking', IC.bike, 'gửi xe']].forEach(([dv, ic, ten]) => {
+    const n = dvCho.filter(q => q.service === dv).length;
+    if (n) items.push({ n, ic, tx: `${n} đề nghị ${ten} từ học viên chờ duyệt`, act: actAttr('gotoDichVu', dv) });
+  });
   // BL-120 bãi xe: đề nghị sửa biển, báo cáo an ninh, xe vắng lâu, chưa chốt; bản chốt hôm nay chỉ để đọc (n=0).
   const pk = ST.pkAlerts;
   if (pk) {
@@ -230,7 +237,7 @@ function notifItems() {
     if (pk.plate_requests) items.push({ n: pk.plate_requests, ic: IC.pencil, tx: `${pk.plate_requests} đề nghị sửa biển số xe chờ duyệt`, act: actAttr('gotoParkingAdmin', 'bien') });
     if (pk.reports_new) items.push({ n: pk.reports_new, ic: IC.flag, tx: `${pk.reports_new} báo cáo bãi xe từ an ninh chưa xem`, act: actAttr('gotoParkingAdmin', 'baocao') });
     const vl = (pk.vang_lau || []).length;
-    if (vl) items.push({ n: vl, ic: IC.bike, tx: `${vl} xe vắng liên tiếp từ ${pk.alert_days} ngày: ${esc(pk.vang_lau.slice(0, 3).map(x => x.plate).join(', '))}${vl > 3 ? '…' : ''}`, act: den });
+    if (vl) items.push({ n: vl, ic: IC.bike, tx: `${vl} xe vắng liên tiếp từ ${pk.alert_days} ngày: ${esc(pk.vang_lau.slice(0, 3).map(x => x.plate).join(', '))}${vl > 3 ? '…' : ''}`, act: actAttr('gotoParkingAdmin', 'vanglau') });
     if (pk.chua_chot) items.push({ n: 1, ic: IC.alert, tx: `Quá ${esc(pk.alert_time)} mà an ninh chưa chốt bãi xe hôm nay`, act: den });
     (pk.dailies || []).forEach(x => items.push({ n: 0, ic: IC.checkCircle, act: den,
       tx: `Bãi xe hôm nay${x.facility_name ? ' (' + esc(x.facility_name) + ')' : ''}: ${x.co_mat} có · ${x.vang} vắng · ${x.so_bao_cao} báo cáo — ${esc(x.closed_by)} đã chốt${x.mail_sent_at ? ', email đã gửi' : x.mail_error ? ', email chưa gửi được' : ''}` }));
@@ -243,6 +250,10 @@ function gotoParkingAdmin(muc) {
   pkAdminLoc = 'new';
   svcTab = 'parking'; adminGo('services');
   if (muc) setTimeout(() => { const o = el('pk_panel_' + muc); if (o) o.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 700);
+}
+function gotoDichVu(dv) {
+  svcTab = dv === 'parking' ? 'parking' : 'washing'; adminGo('services');
+  setTimeout(() => { const o = el('dv_panel_' + svcTab); if (o) o.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 700);
 }
 function updateNotif() {
   const total = notifItems().reduce((a, i) => a + i.n, 0);
@@ -259,11 +270,11 @@ let _notifTimer = null;
 async function refreshNotifCounts() {
   if (!Auth.user || document.hidden) return;   // không poll khi ẩn tab / đã đăng xuất
   try {
-    const [applications, damage, couts, vstats, pkAlerts] = await Promise.all([
+    const [applications, damage, couts, vstats, pkAlerts, svcReqs] = await Promise.all([
       API.applications(), API.damageAll(), API.checkoutReqs(), API.violationStats().catch(() => ST.vstats),
-      API.parkingAlerts().catch(() => ST.pkAlerts),
+      API.parkingAlerts().catch(() => ST.pkAlerts), API.serviceRequests('pending').catch(() => ST.svcReqs),
     ]);
-    Object.assign(ST, { applications, damage, couts, vstats, pkAlerts });
+    Object.assign(ST, { applications, damage, couts, vstats, pkAlerts, svcReqs });
     if (Auth.user.role === 'admin') { try { ST.pendingCount = ((await API.pendingCount()) || {}).pending || 0; } catch (e) { /* bỏ qua */ } }
     updateNavBadges();                          // cập nhật cả badge nav lẫn chuông
     if (el('notifPanel')) {                      // panel đang mở -> vẽ lại nội dung cho khớp

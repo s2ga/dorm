@@ -556,9 +556,9 @@ func (h *Handlers) parkingChuoiVangTheoXe(ctx context.Context, u *auth.User, c *
 }
 
 type parkingXeDong struct {
-	VehicleID          int
-	Plate, Owner, Room string
-	Days               int
+	VehicleID, StudentID int
+	Plate, Owner, Room   string
+	Days                 int
 }
 
 type parkingTomTat struct {
@@ -573,7 +573,7 @@ func (h *Handlers) parkingTomTat(ctx context.Context, u *auth.User, c *gin.Conte
 	params := []interface{}{ngay}
 	parkingFacCond(u, c, &cond, &params, "s.facility_id")
 	rows, err := h.pool().Query(ctx, `
-		SELECT v.id AS vehicle_id, v.plate, s.name AS student_name, COALESCE(r.name,'') AS room_name,
+		SELECT v.id AS vehicle_id, s.id AS student_id, v.plate, s.name AS student_name, COALESCE(r.name,'') AS room_name,
 		       COALESCE(pc.status,'') AS status
 		FROM vehicles v
 		JOIN students s ON s.id = v.student_id
@@ -595,7 +595,8 @@ func (h *Handlers) parkingTomTat(ctx context.Context, u *auth.User, c *gin.Conte
 	t := &parkingTomTat{AlertDays: h.parkingNguongCanhBao(ctx), XeVang: []parkingXeDong{}, XeVangLau: []parkingXeDong{}}
 	for _, x := range xe {
 		vid, _ := parkingSo(x["vehicle_id"])
-		dong := parkingXeDong{VehicleID: vid, Plate: studentsJSString(x["plate"]), Owner: studentsJSString(x["student_name"]),
+		hv, _ := parkingSo(x["student_id"])
+		dong := parkingXeDong{VehicleID: vid, StudentID: hv, Plate: studentsJSString(x["plate"]), Owner: studentsJSString(x["student_name"]),
 			Room: studentsJSString(x["room_name"]), Days: chuoi[vid]}
 		t.Tong++
 		switch studentsJSString(x["status"]) {
@@ -833,7 +834,8 @@ func (h *Handlers) AdminParkingAlerts(c *gin.Context) {
 	gio := h.parkingGioChot(ctx)
 	vangLau := make([]gin.H, 0, len(t.XeVangLau))
 	for _, x := range t.XeVangLau {
-		vangLau = append(vangLau, gin.H{"vehicle_id": x.VehicleID, "plate": x.Plate, "student_name": x.Owner, "room_name": x.Room, "days": x.Days})
+		vangLau = append(vangLau, gin.H{"vehicle_id": x.VehicleID, "student_id": x.StudentID, "plate": x.Plate,
+			"student_name": x.Owner, "room_name": x.Room, "days": x.Days})
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"today": homNay, "tong": t.Tong, "co_mat": t.CoMat, "vang": t.Vang, "chua_danh": t.ChuaDanh,

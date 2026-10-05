@@ -92,6 +92,11 @@ async function viewServices() {
       ${pill('parking', IC.bike, 'Gửi xe', totalVeh)}
     </div>
     <div id="svcBody"><div class="spinner"></div></div>`;
+  // Đề nghị học viên tự gửi ở cổng của mình — hỏng thì báo trong khối, không chặn phần còn lại.
+  let dnHV = [], loiHV = '';
+  try { dnHV = (await API.serviceRequests('pending', svcTab === 'parking' ? 'parking' : 'washing')).rows || []; }
+  catch (e) { loiHV = (e && e.message) || 'Không tải được đề nghị của học viên'; }
+  const khoiHV = dvAdminPanel(dnHV, loiHV, svcTab === 'parking' ? 'parking' : 'washing');
   if (svcTab === 'parking') {
     window._detailVehicles = allVeh;   // vehicleForm tra lại bản ghi khi bấm sửa
     // BL-120: đề nghị sửa biển của an ninh, báo cáo bãi xe, bản chốt hôm nay — phần này hỏng vẫn vẽ bảng xe.
@@ -105,7 +110,7 @@ async function viewServices() {
     } catch (e) { loiPk = (e && e.message) || 'Không tải được phần bãi xe'; }
     // Vừa chuyển phòng: hiện "cũ → mới" cùng nguồn với màn an ninh.
     const phongXe = v => `${v.prev_room_name ? `<span class="muted" title="Chuyển phòng từ ${fmtDate(v.moved_on)}">${esc(v.prev_room_name)} ${IC.chevronRight} </span>` : ''}${esc(v.room_name || '—')}`;
-    el('svcBody').innerHTML = `${loiPk ? `<div class="bang-tin" style="border-color:var(--red)">${IC.alert} <span>Phần bãi xe (đề nghị sửa biển, báo cáo an ninh) chưa tải được: ${esc(loiPk)}</span>
+    el('svcBody').innerHTML = `${khoiHV}${loiPk ? `<div class="bang-tin" style="border-color:var(--red)">${IC.alert} <span>Phần bãi xe (đề nghị sửa biển, báo cáo an ninh) chưa tải được: ${esc(loiPk)}</span>
       <button class="btn sm" data-act="viewServices" style="margin-left:8px">${IC.refresh} Thử lại</button></div>` : pkAdminPanels(deNghi, baoCao, cb)}
       <div class="panel"><div class="hd"><h2>${IC.bike} Gửi xe — HV đang ở (<span id="vehCount">${totalVeh}</span> xe)</h2>
       <div class="search"><span class="i">${IC.search}</span><input id="vs" placeholder="Tìm biển số, loại, chủ xe, phòng…" value="${esc(vehSearch)}"></div>
@@ -129,7 +134,7 @@ async function viewServices() {
     let dnGiat = [], loiBC = '';
     try { dnGiat = (await API.washingRequests('pending')).rows || []; }
     catch (e) { loiBC = (e && e.message) || 'Không tải được đề nghị của an ninh'; }
-    el('svcBody').innerHTML = `
+    el('svcBody').innerHTML = `${khoiHV}
       ${loiBC ? `<div class="bang-tin" style="border-color:var(--red)">${IC.alert} <span>Phần đề nghị đăng ký máy giặt chưa tải được: ${esc(loiBC)}</span></div>`
         : dnGiat.length ? `<div class="panel" id="wq_panel"><div class="hd"><h2>${IC.washer} Đề nghị đăng ký máy giặt từ an ninh (${dnGiat.length})</h2></div>
           <div class="table-wrap"><table><thead><tr><th>Học viên</th><th>Phòng</th><th>Ngày gửi</th><th>Ghi chú</th><th>Người gửi</th><th></th></tr></thead><tbody>
@@ -171,8 +176,18 @@ function pkAdminPanels(deNghi, baoCao, cb) {
     ${dailies.length ? dailies.map(x => `<div class="bang-tin" style="border-color:var(--green)">${IC.checkCircle} <span>${x.facility_name ? `<strong>${esc(x.facility_name)}</strong> · ` : ''}An ninh <strong>${esc(x.closed_by)}</strong> chốt lúc <strong>${gio(x.closed_at)}</strong> · ${x.co_mat} có · ${x.vang} vắng · ${x.so_bao_cao} báo cáo${x.vang_lau ? ` · <strong>${x.vang_lau}</strong> xe vắng lâu` : ''}<br>${mailChu(x)}</span></div>`).join('')
     : cb && cb.chua_chot ? `<div class="bang-tin" style="border-color:var(--red);color:var(--red-ink)">${IC.alert} <span>Đã quá <strong>${esc(cb.alert_time)}</strong> mà an ninh <strong>chưa chốt bãi xe</strong> hôm nay.</span></div>`
       : `<div class="muted" style="font-size:13px">${IC.hourglass} An ninh chưa chốt lượt kiểm hôm nay${cb ? ` (chuông sẽ nhắc sau ${esc(cb.alert_time)})` : ''}.</div>`}
-    ${vangLau.length ? `<div class="bang-tin" style="border-color:var(--red);margin-top:8px">${IC.alert} <span><strong>${vangLau.length}</strong> xe vắng liên tiếp từ ${cb.alert_days} ngày trở lên — kiểm tra lại đăng ký hoặc hỏi chủ xe:
-      ${vangLau.map(x => `<strong>${esc(x.plate)}</strong> (${esc(x.student_name || '')}${x.room_name ? ' · ' + esc(x.room_name) : ''} · ${x.days} ngày)`).join(' · ')}</span></div>` : ''}
+    ${vangLau.length ? `<div class="bang-tin" style="border-color:var(--red);margin-top:8px">${IC.alert} <span><strong>${vangLau.length}</strong> xe vắng liên tiếp từ ${cb.alert_days} ngày trở lên — hỏi chủ xe, xe không còn gửi thì ngưng để thôi tính phí và an ninh thôi điểm danh.</span></div>
+      <div class="table-wrap card-tbl" id="pk_panel_vanglau"><table><thead><tr><th>Biển số</th><th>Chủ xe</th><th>Phòng</th><th class="num">Vắng liên tiếp</th><th></th></tr></thead><tbody>
+        ${vangLau.map(x => `<tr>
+          <td data-label="Biển số"><strong>${esc(x.plate || '—')}</strong></td>
+          <td data-label="Chủ xe">${esc(x.student_name || '—')}</td>
+          <td data-label="Phòng">${esc(x.room_name || '—')}</td>
+          <td class="num" data-label="Vắng liên tiếp"><span class="badge red">${x.days} ngày</span></td>
+          <td class="num"><div class="rowbtns" style="justify-content:flex-end;gap:4px">
+            ${x.student_id ? `<button class="btn sm" data-act="studentDetail" data-args='[${x.student_id}]' title="Mở hồ sơ để lấy số điện thoại">${IC.user} Xem học viên</button>` : ''}
+            <button class="btn sm" data-act="vehicleForm" data-args='[${x.vehicle_id}, ${x.student_id || 0}]' title="Mở hồ sơ xe, điền ngày ngưng gửi ở ô Đến ngày">${IC.pause} Ngưng gửi xe</button>
+          </div></td></tr>`).join('')}
+      </tbody></table></div>` : ''}
   </div></div>`;
 
   const oDeNghi = `<div class="panel" id="pk_panel_bien"><div class="hd"><h2>${IC.pencil} Đề nghị sửa biển số từ an ninh (${deNghi.length})</h2></div>
@@ -306,6 +321,49 @@ async function washReqTuChoiLuu(id) {
   if (!note) return toast('Nhập lý do từ chối', 'err');
   await guard(() => API.washingRequestReject(id, note));
   closeModal(); toast('Đã từ chối đề nghị'); viewServices();
+}
+/* ---- Đề nghị học viên tự gửi ở cổng của mình: duyệt là áp từ kỳ sau theo ngày gửi ---- */
+function dvAdminPanel(ds, loi, dv) {
+  const ten = dv === 'parking' ? 'gửi xe' : 'máy giặt';
+  if (loi) return `<div class="bang-tin" style="border-color:var(--red)">${IC.alert} <span>Phần đề nghị ${ten} của học viên chưa tải được: ${esc(loi)}</span></div>`;
+  if (!ds.length) return '';
+  return `<div class="panel" id="dv_panel_${dv}"><div class="hd"><h2>${dv === 'parking' ? IC.bike : IC.washer} Đề nghị ${ten} từ học viên (${ds.length})</h2></div>
+    <div class="table-wrap card-tbl"><table><thead><tr><th>Học viên</th><th>Phòng</th><th>Đề nghị</th><th>Áp dụng</th><th>Ghi chú</th><th>Ngày gửi</th><th></th></tr></thead><tbody>
+      ${ds.map(q => `<tr>
+        <td data-label="Học viên"><a href="#" data-act="studentDetail" data-args='[${q.student_id}]'><strong>${esc(q.student_name)}</strong></a>${q.student_code ? `<div class="muted" style="font-size:11px">${esc(q.student_code)}</div>` : ''}</td>
+        <td data-label="Phòng">${esc(q.room_name || '—')}</td>
+        <td data-label="Đề nghị">${q.action === 'register' ? '<span class="badge blue">Đăng ký</span>' : '<span class="badge amber">Hủy</span>'}${q.plate || q.vehicle_plate
+          ? ` <strong>${esc(q.plate || q.vehicle_plate)}</strong>${q.vehicle_type ? ` <span class="muted">· ${esc(q.vehicle_type)}</span>` : ''}` : ''}</td>
+        <td data-label="Áp dụng">${q.action === 'register' ? 'tính phí từ' : 'tính đến hết'} ${fmtDate(q.effective_date)}</td>
+        <td data-label="Ghi chú" class="muted">${esc(q.note || '—')}</td>
+        <td data-label="Ngày gửi" class="muted" style="font-size:12px">${fmtDate(String(q.requested_at).slice(0, 10))}</td>
+        <td class="num"><div class="rowbtns" style="justify-content:flex-end;gap:4px">
+          <button class="btn sm green" data-act="dvDuyet" data-args='[${q.id}]'>${IC.check} Duyệt</button>
+          <button class="btn sm danger" data-act="dvTuChoiForm" data-args='[${q.id}]'>Từ chối</button>
+        </div></td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="pad"><div class="hint">${IC.info}<span>Ngày áp dụng chốt theo ngày học viên gửi: đăng ký tính phí từ ngày 1 tháng sau, hủy vẫn tính hết tháng gửi. Duyệt xong, phiếu chưa thu từ kỳ đó được tính lại.</span></div></div>
+  </div>`;
+}
+async function dvDuyet(id) {
+  if (!(await xacNhan('Duyệt đề nghị này? Áp dụng đúng ngày ghi trên dòng, phiếu chưa thu từ kỳ đó được tính lại.', { dongY: 'Duyệt' }))) return;
+  await guard(() => API.serviceRequestApprove(id, ''));
+  await napLai('students'); refreshNotifCounts();
+  toast('Đã duyệt đề nghị'); viewServices();
+}
+function dvTuChoiForm(id) {
+  openModal(`
+    <div class="mh"><h3>${IC.undo} Từ chối đề nghị của học viên</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mb"><div class="field" style="margin:0"><label>Lý do (học viên sẽ thấy ở cổng học viên) ${SAO}</label>
+      <textarea id="dv_tc_note" rows="3" placeholder="VD: Bãi xe đã đủ chỗ, đăng ký lại tháng sau"></textarea></div></div>
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn danger" data-act="dvTuChoiLuu" data-args='[${id}]'>Từ chối</button></div>`);
+  setTimeout(() => el('dv_tc_note') && el('dv_tc_note').focus(), 50);
+}
+async function dvTuChoiLuu(id) {
+  const note = el('dv_tc_note').value.trim();
+  if (!note) return loiTaiO('dv_tc_note', 'Nhập lý do từ chối');
+  await guard(() => API.serviceRequestReject(id, note));
+  closeModal(); refreshNotifCounts(); toast('Đã từ chối đề nghị'); viewServices();
 }
 
 /* ---------- BÁO CÁO DOANH THU ---------- */

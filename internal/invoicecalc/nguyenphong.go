@@ -43,7 +43,7 @@ func NguyenPhongCuaPhong(ctx context.Context, database *db.DB, roomID int, month
 	fullMin := int(fees.Num("partial_full_min"))
 
 	rows, err := database.Pool.Query(ctx,
-		`SELECT s.id, s.check_in_date, s.check_out_date, s.uses_washing,
+		`SELECT s.id, s.check_in_date, s.check_out_date, `+billing.GiatTrongKySQL("s", "$3", "$2")+` AS uses_washing,
 		        (SELECT COUNT(*)::int FROM vehicles v WHERE v.student_id=s.id AND v.deleted_at IS NULL) AS so_xe
 		   FROM students s
 		  WHERE s.room_id=$1

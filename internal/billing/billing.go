@@ -42,6 +42,19 @@ func splitMonth(month string) (year, mon int, ok bool) {
 
 func FirstDay(month string) string { return month + "-01" }
 
+// GiatTrongKySQL: có tính phí máy giặt trong kỳ [dau, cuoi] không — cùng luật gửi xe: khoảng dùng
+// [washing_from, washing_to] phải giao với kỳ. Đã tắt cờ mà còn washing_to là hủy có hẹn, vẫn tính
+// tới ngày đó. a = bí danh bảng students ("" nếu không có).
+func GiatTrongKySQL(a, dau, cuoi string) string {
+	p := ""
+	if a != "" {
+		p = a + "."
+	}
+	return "((COALESCE(" + p + "uses_washing,false) OR " + p + "washing_to IS NOT NULL)" +
+		" AND (" + p + "washing_from IS NULL OR " + p + "washing_from <= " + cuoi + "::date)" +
+		" AND (" + p + "washing_to IS NULL OR " + p + "washing_to >= " + dau + "::date))"
+}
+
 // LastDay: "YYYY-MM-DD" ngày cuối tháng. server/billing.js:18-22
 func LastDay(month string) string {
 	d := DaysInMonth(month)
