@@ -2,7 +2,7 @@
 // đổi số id không được tải giấy tờ của học viên cơ sở B; học viên chỉ xem giấy tờ của chính mình.
 // Nộp tệp THẬT cho cả hai hồ sơ trước khi thử: không có tệp thì bản lỗi cũng trả 404 và test xanh oan.
 const bcrypt = require('../../node_modules/bcryptjs');
-const { BASE } = require('../lib/harness');
+const { reqRaw } = require('../lib/harness');
 const P = '__test_giayto_cs';
 
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
@@ -56,8 +56,8 @@ module.exports = {
       const hvA = await t.login(P + '_hvA', pw);
       const duong = id => [`/api/students/${id}/cccd/front`, `/api/students/${id}/cccd/back`, `/api/students/${id}/contract-scan`];
       const tai = async (d, tok) => {
-        const r = await fetch(BASE + d, { headers: { Authorization: 'Bearer ' + tok } });
-        return { status: r.status, than: Buffer.from(await r.arrayBuffer()) };
+        const r = await reqRaw(d, tok);
+        return { status: r.status, than: r.body };
       };
       const biChan = (ten, r) => {
         t.ok(`${ten} → 403/404`, r.status === 403 || r.status === 404, `HTTP ${r.status}`);

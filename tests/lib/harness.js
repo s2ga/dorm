@@ -44,6 +44,23 @@ const req = async (method, urlPath, token, body) => {
     return { status: r.status, json };
   }
 };
+// GET trả thân dạng byte (ảnh, PDF) — cùng luật đợi-rồi-gọi-lại khi chạm trần như req().
+const reqRaw = async (urlPath, token) => {
+  for (let lan = 0; ; lan++) {
+    const r = await fetch(BASE + urlPath, { headers: token ? { Authorization: 'Bearer ' + token } : {} });
+    const body = Buffer.from(await r.arrayBuffer());
+    if (r.status === 429 && lan === 0) {
+      let loi = null;
+      try { loi = JSON.parse(body.toString()).error; } catch {}
+      if (loi === TRAN_API) {
+        console.log('  ⏳ chạm trần 600 req/phút của /api — đợi 61s cho cửa sổ reset rồi gọi lại');
+        await new Promise(res => setTimeout(res, 61000));
+        continue;
+      }
+    }
+    return { status: r.status, headers: r.headers, body };
+  }
+};
 
 // Đăng nhập lấy vé. Trả về chuỗi token (server đặt cookie httpOnly; API cũng nhận Bearer).
 // Cùng luật đợi-rồi-gọi-lại với req(): trần 600 req/phút của /api áp cho CẢ /auth/login — bộ test
@@ -96,4 +113,4 @@ function makeCtx() {
 
 const fmt = n => (Number(n) || 0).toLocaleString('vi-VN');
 
-module.exports = { BASE, DB_URL, pool, req, login, serverUp, makeCtx, fmt };
+module.exports = { BASE, DB_URL, pool, req, reqRaw, login, serverUp, makeCtx, fmt };
