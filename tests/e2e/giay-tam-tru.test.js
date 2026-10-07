@@ -1,5 +1,6 @@
 // Giấy tạm trú đính kèm hồ sơ: nhận ẢNH hoặc PDF, lưu KHOÁ S3 thư mục tamtru/, xem qua proxy có kiểm quyền.
-// Chỉ admin/nhân viên cùng cơ sở được nộp/gỡ; thư ký xem được; học viên chỉ xem giấy của chính mình.
+// Nộp giấy là tạm trú "Đã đăng ký"; gỡ giấy không đổi ngược. Chỉ admin/nhân viên cùng cơ sở được nộp/gỡ;
+// thư ký xem được; học viên chỉ xem giấy của chính mình.
 const bcrypt = require('../../node_modules/bcryptjs');
 const { reqRaw } = require('../lib/harness');
 const P = '__test_tamtru';
@@ -50,6 +51,7 @@ module.exports = {
         `HTTP ${gia.status} ${gia.json && gia.json.error || ''}`);
       if (gia.status === 501) { t.ok('S3 chưa cấu hình — bỏ qua phần còn lại', true, '501'); return; }
       t.eq('Chặn rồi thì cột vẫn trống', await cot(sA), null);
+      t.eq('… và tình trạng tạm trú giữ nguyên', await cot(sA, 'residency_status'), 'processing');
 
       // ── Ảnh ──────────────────────────────────────────────────────────────────────────
       const anh = await t.api('POST', `/api/students/${sA}/residency-doc`, admin, { data: PNG });
@@ -60,12 +62,14 @@ module.exports = {
       t.ok('Hồ sơ trả đường proxy (kèm ?v= phiên bản hồ sơ)',
         String(hs.json.residency_doc).split('?')[0] === `/api/students/${sA}/residency-doc`, hs.json.residency_doc);
       t.eq('Kèm đuôi tệp', hs.json.residency_doc_ext, 'png');
-      t.eq('Không tự đổi tình trạng tạm trú', await cot(sA, 'residency_status'), 'processing');
+      t.eq('Nộp giấy → tình trạng tạm trú tự chuyển sang "Đã đăng ký"', await cot(sA, 'residency_status'), 'registered');
+      t.eq('… và báo lại là vừa chuyển', anh.json && anh.json.da_dang_ky, true);
       t.eq('Không đụng bản scan HĐ', await cot(sA, 'contract_scan'), null);
 
       // ── Đổi sang PDF ─────────────────────────────────────────────────────────────────
       const pdf = await t.api('POST', `/api/students/${sA}/residency-doc`, admin, { data: PDF });
       t.eq('Đính kèm PDF → 200', pdf.status, 200, `HTTP ${pdf.status} ${pdf.json && pdf.json.error || ''}`);
+      t.eq('Đã đăng ký sẵn thì không báo chuyển nữa', pdf.json && pdf.json.da_dang_ky, false);
       t.ok('Khoá đổi sang .pdf', String(await cot(sA)).endsWith('.pdf'), String(await cot(sA)));
       t.eq('Đuôi tệp cập nhật theo', (await t.api('GET', `/api/students/${sA}`, admin)).json.residency_doc_ext, 'pdf');
       const xem = await tai(`/api/students/${sA}/residency-doc`, admin);
@@ -97,9 +101,19 @@ module.exports = {
       t.eq('Học viên tự gỡ → 403', (await t.api('DELETE', `/api/students/${sA}/residency-doc`, hvA)).status, 403);
       t.ok('Sau các lần bị chặn, tệp vẫn là PDF', String(await cot(sA)).endsWith('.pdf'), String(await cot(sA)));
 
+      // ── Cờ có giấy ở hai danh sách (bảng Hồ sơ lưu trữ của quản trị và của thư ký) ──────
+      const dsAdmin = await t.api('GET', '/api/students', admin);
+      const dongA = (Array.isArray(dsAdmin.json) ? dsAdmin.json : []).find(s => s.id === sA);
+      t.eq('Danh sách học viên có cờ has_residency_doc = true', dongA && dongA.has_residency_doc, true, JSON.stringify(dongA && { co: dongA.has_residency_doc }));
+      const luuTru = await t.api('GET', '/api/students/archive', tkA);
+      const dongTk = (Array.isArray(luuTru.json) ? luuTru.json : []).find(s => s.id === sA);
+      t.eq('Hồ sơ lưu trữ của thư ký có cờ has_residency_doc = true', dongTk && dongTk.has_residency_doc, true, JSON.stringify(dongTk || null));
+
       // ── Khác cơ sở ───────────────────────────────────────────────────────────────────
       const nopB = await t.api('POST', `/api/students/${sB}/residency-doc`, admin, { data: PNG });
       t.eq('Admin nộp giấy cho HV cơ sở B → 200', nopB.status, 200, `HTTP ${nopB.status}`);
+      t.eq('HV cơ sở B mặc định "Chưa đăng ký" → nộp giấy là "Đã đăng ký"', await cot(sB, 'residency_status'), 'registered');
+      await q(`UPDATE students SET residency_status = 'unregistered' WHERE id=$1`, [sB]);
       const kB = await cot(sB);
       for (const [ten, tok] of [['Nhân viên', nvA], ['Thư ký', tkA], ['Học viên khác', hvA]]) {
         const r = await tai(`/api/students/${sB}/residency-doc`, tok);
@@ -115,13 +129,15 @@ module.exports = {
         t.ok(`Nhân viên cơ sở A xem giấy HV cơ sở B qua id "${bien}" → không lọt byte nào`, r.status !== 200 && !r.than.includes(CHU_KY_PNG), `HTTP ${r.status}`);
       }
       t.eq('Giấy của HV cơ sở B còn nguyên', await cot(sB), kB);
+      t.eq('… tình trạng tạm trú HV cơ sở B không bị đổi', await cot(sB, 'residency_status'), 'unregistered');
 
       // ── Hồ sơ đã khoá ────────────────────────────────────────────────────────────────
-      await q('UPDATE students SET deleted_at = now() WHERE id=$1', [sA]);
+      await q(`UPDATE students SET deleted_at = now(), residency_status = 'processing' WHERE id=$1`, [sA]);
       const khoa = await t.api('POST', `/api/students/${sA}/residency-doc`, admin, { data: PNG });
       t.ok('Hồ sơ đã khoá → không nộp được', khoa.status !== 200, `HTTP ${khoa.status}`);
       t.ok('… tệp vẫn là PDF cũ', String(await cot(sA)).endsWith('.pdf'), String(await cot(sA)));
-      await q('UPDATE students SET deleted_at = NULL WHERE id=$1', [sA]);
+      t.eq('… tình trạng tạm trú không bị đổi', await cot(sA, 'residency_status'), 'processing');
+      await q(`UPDATE students SET deleted_at = NULL, residency_status = 'registered' WHERE id=$1`, [sA]);
 
       // ── Gỡ: chỉ gỡ giấy tạm trú, bản scan HĐ còn nguyên ──────────────────────────────
       const scan = await t.api('POST', `/api/students/${sA}/contract-scan`, admin, { data: PNG });
@@ -129,6 +145,7 @@ module.exports = {
       const go = await t.api('DELETE', `/api/students/${sA}/residency-doc`, admin);
       t.eq('Gỡ giấy tạm trú → 200', go.status, 200, `HTTP ${go.status}`);
       t.eq('Cột về trống', await cot(sA), null);
+      t.eq('Gỡ giấy không tự chuyển ngược tình trạng tạm trú', await cot(sA, 'residency_status'), 'registered');
       t.ok('Bản scan HĐ vẫn còn', !!(await cot(sA, 'contract_scan')), String(await cot(sA, 'contract_scan')));
       t.eq('Gỡ rồi thì xem ra 404', (await tai(`/api/students/${sA}/residency-doc`, admin)).status, 404);
       t.eq('Hồ sơ trả residency_doc = null', (await t.api('GET', `/api/students/${sA}`, admin)).json.residency_doc, null);

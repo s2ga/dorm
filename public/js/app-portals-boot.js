@@ -1970,13 +1970,13 @@ async function loadSecretary() {
   }
   const coHD = s => !!String(s.contract_no || '').trim() && String(s.contract_no).trim().toLowerCase() !== 'x';
   el('content').innerHTML = `
-    <div class="panel"><div class="hd"><h2>${IC.fileText} Hợp đồng & CCCD (<span id="tkCount">${ds.length}</span>)</h2>
+    <div class="panel"><div class="hd"><h2>${IC.fileText} Hợp đồng, CCCD & giấy tạm trú (<span id="tkCount">${ds.length}</span>)</h2>
       <div class="toolbar"><div class="search"><span class="i">${IC.search}</span>
         <input id="tkSearch" placeholder="Tìm họ tên / số HĐ / lớp…"></div></div></div>
       <div class="table-wrap card-tbl">
         ${ds.length ? `<table><thead><tr><th>Họ tên</th><th>Ngày sinh</th><th>Trường / lớp</th><th>Số HĐ</th>
           <th>Ngày nhận phòng</th><th>Ngày trả phòng</th>
-          <th class="num">Bản chụp HĐ</th><th class="num">CCCD trước</th><th class="num">CCCD sau</th></tr></thead><tbody>
+          <th class="num">Bản chụp HĐ</th><th class="num">CCCD trước</th><th class="num">CCCD sau</th><th class="num">Giấy tạm trú</th></tr></thead><tbody>
           ${ds.map(s => `<tr data-s="${esc(((s.name || '') + ' ' + (s.contract_no || '') + ' ' + (s.class_name || '')).toLowerCase())}">
             <td data-label="Họ tên"><strong>${esc(s.name)}</strong></td>
             <td data-label="Ngày sinh">${s.birth_date ? fmtDate(s.birth_date) : '<span class="muted">—</span>'}</td>
@@ -1987,11 +1987,12 @@ async function loadSecretary() {
             <td class="num" data-label="Bản chụp HĐ">${hsCo(s.has_contract_scan, 'Bản chụp hợp đồng', `/api/students/${s.id}/contract-scan`)}</td>
             <td class="num" data-label="CCCD trước">${hsCo(s.has_cccd_front, 'CCCD mặt trước', `/api/students/${s.id}/cccd/front`)}</td>
             <td class="num" data-label="CCCD sau">${hsCo(s.has_cccd_back, 'CCCD mặt sau', `/api/students/${s.id}/cccd/back`)}</td>
+            <td class="num" data-label="Giấy tạm trú">${hsCo(s.has_residency_doc, 'Giấy tạm trú', `/api/students/${s.id}/residency-doc`)}</td>
           </tr>`).join('')}
-          ${hangKhongKhop('hồ sơ', 9)}
+          ${hangKhongKhop('hồ sơ', 10)}
         </tbody></table>` : `<div class="empty">${trongChuaCo('hồ sơ nào')}</div>`}
       </div>
-      <div class="pad"><div class="hint">${IC.info}<span>Bấm <strong>Xem</strong> ở ba cột cuối để mở tệp (ảnh hoặc PDF) trong cửa sổ mới.</span></div></div>
+      <div class="pad"><div class="hint">${IC.info}<span>Bấm <strong>Xem</strong> ở bốn cột cuối để mở tệp (ảnh hoặc PDF) trong cửa sổ mới.</span></div></div>
     </div>`;
   const sb = el('tkSearch'); if (sb) attachRowSearch(sb, 'tkCount');
 }

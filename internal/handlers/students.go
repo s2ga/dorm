@@ -131,6 +131,7 @@ const studentsListSelect = `
     (s.cccd_front IS NOT NULL) AS has_cccd_front,
     (s.cccd_back IS NOT NULL) AS has_cccd_back,
     (s.contract_scan IS NOT NULL) AS has_contract_scan,
+    (s.residency_doc IS NOT NULL) AS has_residency_doc,
     r.name AS room_name, r.floor AS room_floor, r.gender AS room_gender, r.hang AS room_hang,
     u.username AS login_username,
     (u.deleted_at IS NOT NULL) AS login_locked,
@@ -999,7 +1000,7 @@ func (h *Handlers) StudentResidencyDoc(c *gin.Context) {
 }
 
 // UploadResidencyDoc: POST /:id/residency-doc (admin,staff) — nhận ẢNH hoặc PDF dạng data URL.
-// Không tự đổi residency_status: tình trạng tạm trú vẫn chọn tay ở form hồ sơ.
+// Có giấy là đã đăng ký: chuyển residency_status sang 'registered' (gỡ giấy không đổi lại).
 func (h *Handlers) UploadResidencyDoc(c *gin.Context) {
 	if !h.storeOr501(c) {
 		return
@@ -1030,8 +1031,8 @@ func (h *Handlers) UploadResidencyDoc(c *gin.Context) {
 		return
 	}
 	ctx := c.Request.Context()
-	var cu *string
-	if h.pool().QueryRow(ctx, "SELECT residency_doc FROM students WHERE id=$1 AND deleted_at IS NULL", id).Scan(&cu) != nil {
+	var cu, tinhTrang *string
+	if h.pool().QueryRow(ctx, "SELECT residency_doc, residency_status FROM students WHERE id=$1 AND deleted_at IS NULL", id).Scan(&cu, &tinhTrang) != nil {
 		notFound(c, "Không tìm thấy học viên")
 		return
 	}
@@ -1040,14 +1041,14 @@ func (h *Handlers) UploadResidencyDoc(c *gin.Context) {
 		handleStorageErr(c, err)
 		return
 	}
-	if _, err := h.pool().Exec(ctx, "UPDATE students SET residency_doc=$1 WHERE id=$2", key, id); err != nil {
+	if _, err := h.pool().Exec(ctx, "UPDATE students SET residency_doc=$1, residency_status='registered' WHERE id=$2", key, id); err != nil {
 		serverErr(c)
 		return
 	}
 	if cu != nil && *cu != "" && *cu != key {
 		_ = h.Store.DeleteObject(ctx, h.Store.CccdBucket, *cu)
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true, "ext": p.Ext})
+	c.JSON(http.StatusOK, gin.H{"ok": true, "ext": p.Ext, "da_dang_ky": tinhTrang == nil || *tinhTrang != "registered"})
 }
 
 // DeleteResidencyDoc: DELETE /:id/residency-doc (admin,staff).
@@ -1175,7 +1176,8 @@ func (h *Handlers) ListStudentsArchive(c *gin.Context) {
 	    s.check_in_date, s.check_out_date,
 	    (s.contract_scan IS NOT NULL) AS has_contract_scan,
 	    (s.cccd_front IS NOT NULL) AS has_cccd_front,
-	    (s.cccd_back IS NOT NULL) AS has_cccd_back
+	    (s.cccd_back IS NOT NULL) AS has_cccd_back,
+	    (s.residency_doc IS NOT NULL) AS has_residency_doc
 	  FROM students s WHERE `+joinAnd(cond)+` ORDER BY s.name`, params...)
 	if err != nil {
 		serverErr(c)

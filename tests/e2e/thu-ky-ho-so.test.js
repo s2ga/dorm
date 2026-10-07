@@ -48,13 +48,14 @@ module.exports = {
         !!hv1 && hv1.birth_date === '2003-05-20' && hv1.class_name === 'Lớp K25A'
         && hv1.contract_no === '12/2026/HDKTX-TEST' && hv1.check_in_date === '2026-01-10'
         && hv1.check_out_date === '2026-06-30', JSON.stringify(hv1));
-      t.ok('TC-TK4 · có cờ giấy tờ (chưa nộp gì → cả 3 đều false)',
-        !!hv1 && hv1.has_contract_scan === false && hv1.has_cccd_front === false && hv1.has_cccd_back === false,
-        JSON.stringify(hv1 && { scan: hv1.has_contract_scan, truoc: hv1.has_cccd_front, sau: hv1.has_cccd_back }));
+      t.ok('TC-TK4 · có cờ giấy tờ (chưa nộp gì → cả 4 đều false)',
+        !!hv1 && hv1.has_contract_scan === false && hv1.has_cccd_front === false && hv1.has_cccd_back === false
+        && hv1.has_residency_doc === false,
+        JSON.stringify(hv1 && { scan: hv1.has_contract_scan, truoc: hv1.has_cccd_front, sau: hv1.has_cccd_back, tamTru: hv1.has_residency_doc }));
 
       // Trường cấm phải bị cắt từ server — kiểm TỪNG KHOÁ trả về, không chỉ vài khoá đoán trước
       const choPhep = ['id', 'name', 'birth_date', 'class_name', 'contract_no',
-        'check_in_date', 'check_out_date', 'has_contract_scan', 'has_cccd_front', 'has_cccd_back'];
+        'check_in_date', 'check_out_date', 'has_contract_scan', 'has_cccd_front', 'has_cccd_back', 'has_residency_doc'];
       const thua = [...new Set(rows.flatMap(r => Object.keys(r)))].filter(k => !choPhep.includes(k));
       t.eq('TC-TK5 · KHÔNG lộ trường ngoài danh sách cho phép (SĐT, email, tiền cọc, phòng...)',
         thua.length, 0, thua.length ? 'đang lộ: ' + thua.join(', ') : 'chỉ có đúng các trường cho phép ✔');

@@ -505,7 +505,7 @@ const AdminTitles = {
   students: ['Học viên', 'Hồ sơ, hợp đồng, tạm trú'],
   rooms: ['Phòng', 'Danh sách phòng theo tầng / hạng / giới tính'],
   services: ['Dịch vụ', 'Máy giặt · Gửi xe — dịch vụ tùy chọn của học viên'],
-  hoso: ['Hồ sơ lưu trữ', 'Hợp đồng & CCCD của toàn bộ học viên — ai còn thiếu giấy tờ'],
+  hoso: ['Hồ sơ lưu trữ', 'Hợp đồng, CCCD & giấy tạm trú của toàn bộ học viên — ai còn thiếu giấy tờ'],
   checkin: ['Nhận / trả phòng', 'Lịch sử ra / vào ký túc xá'],
   invoices: ['Tiền phòng', 'Phiếu báo hàng tháng, điện nước, cọc'],
   revenue: ['Dự báo doanh thu', 'Dự báo từ phiếu báo tiền phòng · đối chiếu Bravo (thu thật do Bravo quản lý)'],

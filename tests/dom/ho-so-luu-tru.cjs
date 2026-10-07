@@ -1,4 +1,5 @@
-// Bấm menu "Hồ sơ lưu trữ" phải RA MÀN, không im lặng chết; bảng có cột Trạng thái tính như màn Học viên. READ-ONLY.
+// Bấm menu "Hồ sơ lưu trữ" phải RA MÀN, không im lặng chết; bảng có cột Trạng thái tính như màn Học viên,
+// cột Pháp nhân, cột Giấy tạm trú và nút lọc "Thiếu giấy tạm trú". READ-ONLY.
 const { chromium } = require('playwright');
 
 const BASE = process.env.TEST_BASE || 'http://localhost:3000';
@@ -62,6 +63,45 @@ const ok = (ten, dk, them = '') => {
   ok('Bảng có cột "Trạng thái" ngay sau "Phòng", cột hợp đồng ghi "Tình trạng HĐ"',
     tt.i === tt.th.indexOf('Phòng') + 1 && tt.th.includes('Tình trạng HĐ'), JSON.stringify(tt.th));
   ok(`… mọi hàng (${tt.so}) ghi đúng trạng thái như màn Học viên`, tt.so > 0 && !tt.sai.length, tt.sai.join(' | '));
+
+  // Cột Pháp nhân ngay sau Số HĐ (theo giới tính như form hồ sơ) · cột Giấy tạm trú ở cuối, có tệp thì là đường mở tệp
+  const pn = await page.evaluate(() => {
+    const th = [...document.querySelectorAll('#content thead th')].map(h => h.textContent.trim());
+    const iPn = th.indexOf('Pháp nhân'), iTt = th.indexOf('Giấy tạm trú');
+    const sai = [];
+    let so = 0;
+    document.querySelectorAll('#content tbody tr:not(.no-result)').forEach(tr => {
+      const a = tr.querySelector('[data-act="studentDetail"]');
+      if (!a || iPn < 0 || iTt < 0) return;
+      const s = studentById(JSON.parse(a.dataset.args)[0]);
+      const oPn = tr.children[iPn], oTt = tr.children[iTt], link = oTt.querySelector('a');
+      so++;
+      if (oPn.textContent.trim() !== legalEntityCell(s.gender) || oPn.dataset.label !== 'Pháp nhân') sai.push(`${s.name}: pháp nhân "${oPn.textContent.trim()}"`);
+      if (oTt.dataset.label !== 'Giấy tạm trú' || !!link !== !!s.has_residency_doc
+        || (link && link.getAttribute('href') !== `/api/students/${s.id}/residency-doc`)) sai.push(`${s.name}: giấy tạm trú`);
+    });
+    return { th, iPn, iTt, so, sai: sai.slice(0, 3) };
+  });
+  ok('Có cột "Pháp nhân" ngay sau "Số HĐ"', pn.iPn > 0 && pn.iPn === pn.th.indexOf('Số HĐ') + 1, JSON.stringify(pn.th));
+  ok('Có cột "Giấy tạm trú" ở cuối bảng', pn.iTt > 0 && pn.iTt === pn.th.length - 1, JSON.stringify(pn.th));
+  ok(`… mọi hàng (${pn.so}) ghi đúng pháp nhân và đúng ô giấy tạm trú`, pn.so > 0 && !pn.sai.length, pn.sai.join(' | '));
+  const thieuTT = await page.evaluate(() => ST.students.filter(s => !s.deleted_at && !s.has_residency_doc).length);
+  const nutTT = page.locator('[data-act="hsGo"][data-args=\'["thieu_tamtru"]\']');
+  ok('Có nút lọc "Thiếu giấy tạm trú" kèm đúng số hồ sơ thiếu',
+    await nutTT.count() === 1 && (await nutTT.textContent()).replace(/\s+/g, ' ').trim() === `Thiếu giấy tạm trú ${thieuTT}`,
+    await nutTT.count() ? (await nutTT.textContent()).trim() : 'không có nút');
+  if (await nutTT.count()) {
+    await nutTT.click();
+    await page.waitForTimeout(500);
+    const loc = await page.evaluate(() => ({
+      hang: document.querySelectorAll('#content tbody tr:not(.no-result)').length,
+      coGiay: [...document.querySelectorAll('#content tbody tr:not(.no-result)')].filter(tr => tr.lastElementChild.querySelector('a')).length,
+      bam: document.querySelector('[data-act="hsGo"][data-args=\'["thieu_tamtru"]\']').getAttribute('aria-pressed'),
+    }));
+    ok('… bấm vào → bảng còn đúng những hồ sơ chưa có giấy tạm trú', loc.hang === thieuTT && loc.coGiay === 0 && loc.bam === 'true', JSON.stringify(loc));
+    await page.evaluate(() => hsGo('all'));
+    await page.waitForTimeout(400);
+  }
   const dangO = await page.evaluate(() => ST.students.filter(s => !s.deleted_at && liveStatus(s) === 'staying').length);
   await page.fill('#hsSearch', 'đang ở');
   await page.waitForTimeout(400);

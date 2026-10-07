@@ -1061,14 +1061,31 @@ async function veLaiGiayTamTru(id) {
   const o = el('f_tamtru');
   if (o) o.innerHTML = khoiGiayTamTru(moi);
 }
+// Giấy vừa nộp/gỡ: sửa bản ghi đang nhớ rồi vẽ lại màn nền, để bảng phía sau (vd Hồ sơ lưu trữ) thấy ngay.
+function giayTamTruNen(id, co, daDangKy) {
+  const s = studentById(id);
+  if (s) { s.has_residency_doc = co; if (daDangKy) s.residency_status = 'registered'; }
+  veLaiNen();
+}
+// Máy chủ vừa chuyển tạm trú sang "Đã đăng ký": đổi theo ô chọn trong form, không thì bấm Lưu ghi ngược lại.
+// Form chưa sửa dở chỗ nào thì chụp lại mốc, để đóng form không bị hỏi "dữ liệu chưa lưu".
+function chonDaDangKyTamTru() {
+  const o = el('f_residency'); if (!o) return;
+  const sach = !formDangDo();
+  o.value = 'registered';
+  if (sach) _formLucMo = _chupForm();
+}
 function tepGiayTamTru(id) {
   const f = this.files && this.files[0]; if (!f) return;
   if (!tepHopLe(this, f, 'Giấy tạm trú')) return;
   const r = new FileReader();
   r.onload = async () => {
-    await guard(() => API.uploadResidencyDoc(id, r.result));
-    toast('Đã đính kèm giấy tạm trú');
+    const kq = await guard(() => API.uploadResidencyDoc(id, r.result));
+    const daDangKy = !!(kq && kq.da_dang_ky);
+    toast(daDangKy ? 'Đã đính kèm giấy tạm trú — tạm trú chuyển sang "Đã đăng ký"' : 'Đã đính kèm giấy tạm trú');
     await veLaiGiayTamTru(id);
+    if (daDangKy) chonDaDangKyTamTru();
+    giayTamTruNen(id, true, daDangKy);
   };
   r.readAsDataURL(f);
 }
@@ -1077,6 +1094,7 @@ async function goGiayTamTru(id) {
   await guard(() => API.deleteResidencyDoc(id));
   toast('Đã gỡ giấy tạm trú');
   await veLaiGiayTamTru(id);
+  giayTamTruNen(id, false, false);
 }
 // Số kế tiếp của dãy pháp nhân — chỉ để tham khảo, số CHÍNH THỨC cấp lúc bấm Xác nhận nhận phòng.
 // Hỏi hụt, hoặc hồ sơ dùng chung HĐ phòng thuê trọn, thì bỏ nhãn đi — không hiện số sai.
