@@ -427,12 +427,15 @@ func studentsSignCccd(row map[string]interface{}) {
 			row[field] = v
 		}
 	}
-	// Bản scan HĐ cũng là khoá S3 -> đổi thành đường xem có kiểm quyền, kèm đuôi tệp để biết ảnh hay PDF.
-	if v, _ := row["contract_scan"].(string); v != "" {
-		row["contract_scan_ext"] = strings.ToLower(strings.TrimPrefix(filepath.Ext(v), "."))
-		row["contract_scan"] = "/api/students/" + id + "/contract-scan" + phienBan
-	} else {
-		row["contract_scan"] = nil
+	// Bản scan HĐ và giấy tạm trú cũng là khoá S3 -> đổi thành đường xem có kiểm quyền, kèm đuôi tệp để biết ảnh hay PDF.
+	for _, p := range [][2]string{{"contract_scan", "contract-scan"}, {"residency_doc", "residency-doc"}} {
+		cot, duong := p[0], p[1]
+		if v, _ := row[cot].(string); v != "" {
+			row[cot+"_ext"] = strings.ToLower(strings.TrimPrefix(filepath.Ext(v), "."))
+			row[cot] = "/api/students/" + id + "/" + duong + phienBan
+		} else {
+			row[cot] = nil
+		}
 	}
 }
 
@@ -976,6 +979,95 @@ func (h *Handlers) DeleteContractScan(c *gin.Context) {
 		return
 	}
 	if _, err := h.pool().Exec(ctx, "UPDATE students SET contract_scan=NULL WHERE id=$1", id); err != nil {
+		serverErr(c)
+		return
+	}
+	if cu != nil && *cu != "" && h.Store != nil {
+		_ = h.Store.DeleteObject(ctx, h.Store.CccdBucket, *cu)
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// StudentResidencyDoc: GET /:id/residency-doc — proxy giấy tạm trú từ bucket riêng tư.
+func (h *Handlers) StudentResidencyDoc(c *gin.Context) {
+	obj, ok := h.studentsMoGiayTo(c, "residency_doc")
+	if !ok {
+		return
+	}
+	c.Header("Content-Disposition", "inline")
+	studentsTraTep(c, obj, "application/octet-stream")
+}
+
+// UploadResidencyDoc: POST /:id/residency-doc (admin,staff) — nhận ẢNH hoặc PDF dạng data URL.
+// Không tự đổi residency_status: tình trạng tạm trú vẫn chọn tay ở form hồ sơ.
+func (h *Handlers) UploadResidencyDoc(c *gin.Context) {
+	if !h.storeOr501(c) {
+		return
+	}
+	u := auth.CurrentUser(c)
+	if !h.studentsFacilityGuard(c, u, c.Param("id")) {
+		return
+	}
+	id, ok := paramInt(c, "id")
+	if !ok {
+		notFound(c, "Không tìm thấy học viên")
+		return
+	}
+	var body struct {
+		Data string `json:"data"`
+	}
+	_ = c.ShouldBindJSON(&body)
+	if len(body.Data) > 34*1024*1024 {
+		badRequest(c, "Tệp quá lớn (tối đa 25MB)")
+		return
+	}
+	p := storage.ParseDataUrl(body.Data)
+	if p == nil {
+		p = storage.ParsePdfDataUrl(body.Data)
+	}
+	if p == nil {
+		badRequest(c, "Chỉ nhận ảnh (JPG, PNG, WEBP, GIF) hoặc tệp PDF — chọn lại.")
+		return
+	}
+	ctx := c.Request.Context()
+	var cu *string
+	if h.pool().QueryRow(ctx, "SELECT residency_doc FROM students WHERE id=$1 AND deleted_at IS NULL", id).Scan(&cu) != nil {
+		notFound(c, "Không tìm thấy học viên")
+		return
+	}
+	key := "tamtru/" + itoa(id) + "." + p.Ext
+	if _, err := h.Store.PutBuffer(ctx, h.Store.CccdBucket, key, p.Buffer, p.ContentType); err != nil {
+		handleStorageErr(c, err)
+		return
+	}
+	if _, err := h.pool().Exec(ctx, "UPDATE students SET residency_doc=$1 WHERE id=$2", key, id); err != nil {
+		serverErr(c)
+		return
+	}
+	if cu != nil && *cu != "" && *cu != key {
+		_ = h.Store.DeleteObject(ctx, h.Store.CccdBucket, *cu)
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "ext": p.Ext})
+}
+
+// DeleteResidencyDoc: DELETE /:id/residency-doc (admin,staff).
+func (h *Handlers) DeleteResidencyDoc(c *gin.Context) {
+	u := auth.CurrentUser(c)
+	if !h.studentsFacilityGuard(c, u, c.Param("id")) {
+		return
+	}
+	id, ok := paramInt(c, "id")
+	if !ok {
+		notFound(c, "Không tìm thấy học viên")
+		return
+	}
+	ctx := c.Request.Context()
+	var cu *string
+	if h.pool().QueryRow(ctx, "SELECT residency_doc FROM students WHERE id=$1 AND deleted_at IS NULL", id).Scan(&cu) != nil {
+		notFound(c, "Không tìm thấy học viên")
+		return
+	}
+	if _, err := h.pool().Exec(ctx, "UPDATE students SET residency_doc=NULL WHERE id=$1", id); err != nil {
 		serverErr(c)
 		return
 	}

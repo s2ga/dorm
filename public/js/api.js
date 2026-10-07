@@ -123,6 +123,8 @@ const API = {
   restoreStudent: id => api('/students/' + id + '/restore', { method: 'POST' }),
   uploadContractScan: (id, data) => api('/students/' + id + '/contract-scan', { method: 'POST', body: { data } }),
   deleteContractScan: id => api('/students/' + id + '/contract-scan', { method: 'DELETE' }),
+  uploadResidencyDoc: (id, data) => api('/students/' + id + '/residency-doc', { method: 'POST', body: { data } }),
+  deleteResidencyDoc: id => api('/students/' + id + '/residency-doc', { method: 'DELETE' }),
   // studentId: cấp số RIÊNG cho hồ sơ đó (mỗi hồ sơ một số); bỏ trống = số kế tiếp chung của pháp nhân.
   contractNoNext: (gender, date, studentId) => api('/students/contract-no/next?gender=' + encodeURIComponent(gender)
     + '&date=' + encodeURIComponent(date || '') + (studentId ? '&student_id=' + studentId : '')),

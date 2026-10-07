@@ -490,6 +490,8 @@ ALTER TABLE students ADD COLUMN IF NOT EXISTS parking_discount_pct  SMALLINT NOT
 ALTER TABLE students ADD COLUMN IF NOT EXISTS lock_reason TEXT NOT NULL DEFAULT '';
 -- Bản scan hợp đồng: KHOÁ S3 (ảnh hoặc PDF), không phải data URL. Xem qua proxy có kiểm quyền.
 ALTER TABLE students ADD COLUMN IF NOT EXISTS contract_scan TEXT;
+-- Giấy tạm trú: KHOÁ S3 (ảnh hoặc PDF), xem qua proxy có kiểm quyền như bản scan hợp đồng.
+ALTER TABLE students ADD COLUMN IF NOT EXISTS residency_doc TEXT;
 -- Tổng phần giảm của các khoản ngoài tiền phòng, ghi riêng một dòng trên phiếu.
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS fee_discount NUMERIC(12,0) NOT NULL DEFAULT 0;
 -- Tiền cọc thu kèm phiếu KỲ NHẬN PHÒNG, khi hồ sơ còn ghi chưa đóng. Khoản một lần, không chia

@@ -2120,7 +2120,7 @@ function chongBam2Lan(fn) {
   // Tiếp nhận · dịch vụ
   'doConfirmCout', 'rejectApp', 'delApp', 'setDamage', 'assignMaint', 'rejectCout', 'delViolation', 'notifySchool',
   'khongDenForm', 'pkDuyetBien', 'pkBcTrangThai', 'washReqDuyet', 'doSuaNgayTra',
-  'goScanHD', 'thuCaKyForm', 'removeIntroMedia',
+  'goScanHD', 'goGiayTamTru', 'thuCaKyForm', 'removeIntroMedia',
   // Cổng an ninh / bảo trì
   'mgBaoGui', 'maintSuaBienLuu', 'pkLuuBaoCaoXe', 'pkLuuXeLa', 'pkXoaBaoCao', 'maintDo', 'pkBoDanhDau', 'pkChotLuot',
   'pkCamSuaBien', 'pkQuetChon',

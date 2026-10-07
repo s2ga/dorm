@@ -788,8 +788,11 @@ async function studentForm(id) {
             Thuê <strong>dưới ${shortTermMaxDays()} ngày</strong> hoặc <strong>nhân viên công tác</strong> → ký <strong>phiếu đăng ký & bàn giao</strong>.
             Phòng an ninh không cần ký gì.</span></div></div>
         ${/* Tệp scan lưu NGAY khi chọn, khác mọi ô còn lại vốn chờ nút Lưu. */''}
-        <div class="field" style="margin:0"><label>File đính kèm <span class="opt">(bản chụp HĐ — ảnh hoặc PDF)</span></label>
+        <div class="field"><label>File đính kèm <span class="opt">(bản chụp HĐ — ảnh hoặc PDF)</span></label>
           <div id="f_scan">${khoiScanHD(s)}</div>
+        </div>
+        <div class="field" style="margin:0"><label>Giấy tạm trú <span class="opt">(ảnh hoặc PDF)</span></label>
+          <div id="f_tamtru">${khoiGiayTamTru(s)}</div>
         </div>`)}
 
       <div class="hint">${IC.info}<span>Giảm giá theo % chỉnh ở màn <strong>Tiền phòng</strong>: bấm nút sửa ${IC.pencil} trên phiếu của học viên.</span></div>
@@ -921,6 +924,10 @@ async function studentDetail(id) {
               : `<a href="${s.contract_scan}" target="_blank" rel="noopener" title="Bấm để xem cỡ đầy đủ"><img src="${s.contract_scan}" style="max-width:100%;max-height:220px;border-radius:8px;border:1px solid var(--line)"></a>`)
             : `<p class="muted" style="margin:0 0 6px;font-size:12px">Chưa đính kèm.</p>`}
         </div>
+        <div style="margin-top:10px">
+          <div class="muted" style="font-size:12px;margin-bottom:4px">Giấy tạm trú <span class="opt">(ảnh hoặc PDF)</span>:</div>
+          ${xemGiayTamTru(s, 220)}
+        </div>
         ${/* Thẻ này CHỈ ĐỂ XEM. Trước đây ô chọn tệp nằm ngay đây, chọn nhầm là ghi đè luôn, không
               hỏi câu nào — đã có ca dính biên lai chuyển khoản vào ô hợp đồng. */''}
         <div style="margin-top:10px"><div class="muted" style="font-size:12px;margin-bottom:4px">Ảnh CCCD <span class="opt">(2 mặt)</span>:</div>
@@ -1032,6 +1039,44 @@ async function goScanHD(id) {
   toast('Đã gỡ bản chụp');
   if (el('f_scan')) return veLaiScanHD(id);
   studentDetail(id);
+}
+// Giấy tạm trú: ảnh thì hiện thu nhỏ, PDF thì nút mở. Dùng chung cho chi tiết học viên và form Sửa.
+function xemGiayTamTru(s, cao) {
+  if (!s.residency_doc) return '<p class="muted" style="margin:0 0 6px;font-size:12px">Chưa đính kèm.</p>';
+  return s.residency_doc_ext === 'pdf'
+    ? `<a class="btn sm" href="${s.residency_doc}" target="_blank" rel="noopener">${IC.fileText} Mở giấy tạm trú (PDF)</a>`
+    : `<a href="${s.residency_doc}" target="_blank" rel="noopener" title="Bấm để xem cỡ đầy đủ"><img src="${s.residency_doc}" alt="Giấy tạm trú" style="max-width:100%;max-height:${cao}px;border-radius:8px;border:1px solid var(--line)"></a>`;
+}
+// Khối đính kèm giấy tạm trú trong form Sửa — chọn tệp là lưu ngay như bản chụp HĐ.
+function khoiGiayTamTru(s) {
+  return `${xemGiayTamTru(s, 200)}
+    ${s.residency_doc ? ` <button type="button" class="btn sm ghost" data-act="goGiayTamTru" data-args='[${s.id}]' title="Gỡ giấy tạm trú đang có">${IC.trash} Gỡ</button>` : ''}
+    <div style="margin-top:6px"><input type="file" accept="application/pdf,image/png,image/jpeg" id="f_tamtru_tep" aria-label="Chọn tệp giấy tạm trú" data-change="tepGiayTamTru" data-args='[${s.id}]'></div>
+    <div class="hint">${IC.info}<span>Chọn tệp là lưu ngay, không cần bấm Lưu. Nhận PDF · PNG · JPG, tối đa ${TEP_TOI_DA_MB}MB.</span></div>`;
+}
+async function veLaiGiayTamTru(id) {
+  const moi = await guard(() => API.student(id));
+  if (!moi) return;
+  window._svV = moi._v || null;
+  const o = el('f_tamtru');
+  if (o) o.innerHTML = khoiGiayTamTru(moi);
+}
+function tepGiayTamTru(id) {
+  const f = this.files && this.files[0]; if (!f) return;
+  if (!tepHopLe(this, f, 'Giấy tạm trú')) return;
+  const r = new FileReader();
+  r.onload = async () => {
+    await guard(() => API.uploadResidencyDoc(id, r.result));
+    toast('Đã đính kèm giấy tạm trú');
+    await veLaiGiayTamTru(id);
+  };
+  r.readAsDataURL(f);
+}
+async function goGiayTamTru(id) {
+  if (!(await xacNhan('Gỡ giấy tạm trú?\n\nTệp bị xoá khỏi kho, không khôi phục được.', { dongY: 'Gỡ giấy tạm trú', nguyHiem: true }))) return;
+  await guard(() => API.deleteResidencyDoc(id));
+  toast('Đã gỡ giấy tạm trú');
+  await veLaiGiayTamTru(id);
 }
 // Số kế tiếp của dãy pháp nhân — chỉ để tham khảo, số CHÍNH THỨC cấp lúc bấm Xác nhận nhận phòng.
 // Hỏi hụt, hoặc hồ sơ dùng chung HĐ phòng thuê trọn, thì bỏ nhãn đi — không hiện số sai.

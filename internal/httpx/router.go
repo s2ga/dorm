@@ -273,6 +273,7 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	st := api.Group("/students", a.RequireAuth())
 	st.GET("/:id/cccd/:side", h.StudentCccdImage)       // chính chủ hoặc admin/staff/secretary cùng cơ sở (kiểm trong handler)
 	st.GET("/:id/contract-scan", h.StudentContractScan) // học viên xem được bản scan HĐ của chính mình
+	st.GET("/:id/residency-doc", h.StudentResidencyDoc) // giấy tạm trú — cùng luật xem như bản scan HĐ
 	st.GET("/archive", a.RequireRole("admin", "staff", "secretary"), h.ListStudentsArchive)
 	rs := st.Group("", a.RequireRole("admin", "staff"))
 	rs.GET("", h.ListStudents)
@@ -286,6 +287,8 @@ func NewRouter(database *db.DB, cfg *config.Config) *gin.Engine {
 	rs.PUT("/:id/checkout-date", h.UpdateCheckoutDate)
 	rs.POST("/:id/contract-scan", h.UploadContractScan)
 	rs.DELETE("/:id/contract-scan", h.DeleteContractScan)
+	rs.POST("/:id/residency-doc", h.UploadResidencyDoc)
+	rs.DELETE("/:id/residency-doc", h.DeleteResidencyDoc)
 	rs.POST("/:id/washing", h.StudentWashing)
 	rs.POST("/:id/checkin", h.StudentCheckin)
 	rs.POST("/:id/checkout", h.StudentCheckout)
