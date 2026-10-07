@@ -45,21 +45,22 @@ async function viewHoSo() {
         ${pill('thieu_cccd', 'Thiếu CCCD', dem('thieu_cccd'), 'amber')}
       </div>
       <div class="table-wrap card-tbl">
-        ${list.length ? `<table><thead><tr><th>Học viên</th><th>Phòng</th><th>Số HĐ</th><th>Ngày ký</th><th>Tình trạng</th>
+        ${list.length ? `<table><thead><tr><th>Học viên</th><th>Phòng</th><th>Trạng thái</th><th>Số HĐ</th><th>Ngày ký</th><th>Tình trạng HĐ</th>
           <th class="num">Bản chụp HĐ</th><th class="num">CCCD trước</th><th class="num">CCCD sau</th></tr></thead><tbody>
-          ${list.map(s => `<tr data-s="${esc(((s.name || '') + ' ' + (s.code || '') + ' ' + (s.room_name || '') + ' ' + (s.contract_no || '')).toLowerCase())}">
+          ${list.map(s => `<tr data-s="${esc(((s.name || '') + ' ' + (s.code || '') + ' ' + (s.room_name || '') + ' ' + (s.contract_no || '') + ' ' + STATUS_INFO[liveStatus(s)][0]).toLowerCase())}">
             <td><div class="flex stu-name" data-act="studentDetail" data-args='[${s.id}]' role="button" tabindex="0" title="Mở hồ sơ để xem/nộp giấy tờ">
               <div><strong>${esc(s.name)}</strong>${s.code ? `<div class="sub2">${esc(s.code)}</div>` : ''}</div>
               <span class="row-chev">${IC.chevronRight}</span></div></td>
             <td data-label="Phòng">${esc(s.room_name || '—')}</td>
+            <td data-label="Trạng thái">${statusBadge(s)}</td>
             <td data-label="Số HĐ">${coHD(s) ? `<strong>${esc(s.contract_no)}</strong>` : '<span class="badge amber">chưa có</span>'}</td>
             <td data-label="Ngày ký">${s.contract_date ? fmtDate(s.contract_date) : '<span class="muted">—</span>'}</td>
-            <td data-label="Tình trạng"><span class="badge ${CONTRACT_BADGE[s.contract_status] || 'gray'}">${CONTRACT_LABEL[s.contract_status] || '—'}</span></td>
+            <td data-label="Tình trạng HĐ"><span class="badge ${CONTRACT_BADGE[s.contract_status] || 'gray'}">${CONTRACT_LABEL[s.contract_status] || '—'}</span></td>
             <td class="num" data-label="Bản chụp HĐ">${hsCo(s.has_contract_scan, 'Bản chụp hợp đồng', `/api/students/${s.id}/contract-scan`)}</td>
             <td class="num" data-label="CCCD trước">${hsCo(s.has_cccd_front, 'CCCD mặt trước', `/api/students/${s.id}/cccd/front`)}</td>
             <td class="num" data-label="CCCD sau">${hsCo(s.has_cccd_back, 'CCCD mặt sau', `/api/students/${s.id}/cccd/back`)}</td>
           </tr>`).join('')}
-          ${hangKhongKhop('hồ sơ', 8)}
+          ${hangKhongKhop('hồ sơ', 9)}
         </tbody></table>` : `<div class="empty">${ds.length ? `${trongKhongKhop('hồ sơ')} ${nutXoaLoc(`data-act="hsGo" data-args='["all"]'`)}` : trongChuaCo('hồ sơ nào')}</div>`}
       </div>
       <div class="pad"><div class="hint">${IC.info}<span>Bấm <strong>Xem</strong> ở ba cột cuối để mở thẳng tệp

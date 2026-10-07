@@ -1,4 +1,4 @@
-// Bấm menu "Hồ sơ lưu trữ" phải RA MÀN, không im lặng chết. READ-ONLY.
+// Bấm menu "Hồ sơ lưu trữ" phải RA MÀN, không im lặng chết; bảng có cột Trạng thái tính như màn Học viên. READ-ONLY.
 const { chromium } = require('playwright');
 
 const BASE = process.env.TEST_BASE || 'http://localhost:3000';
@@ -42,6 +42,31 @@ const ok = (ten, dk, them = '') => {
   ok('Vùng nội dung có bảng hoặc trạng thái rỗng — KHÔNG trắng trơn', coBang + coRong > 0,
     'html dài ' + ((await page.locator('#content').innerHTML()) || '').length + ' ký tự');
   ok('Có hàng pill lọc thiếu giấy tờ', await page.locator('[data-act="hsGo"]').count() >= 4);
+
+  // Cột Trạng thái (đang ở / sắp vào / đã trả…) cạnh cột Phòng, cùng cách tính với màn Học viên
+  const tt = await page.evaluate(() => {
+    const th = [...document.querySelectorAll('#content thead th')].map(h => h.textContent.trim());
+    const i = th.indexOf('Trạng thái');
+    const sai = [];
+    let so = 0;
+    document.querySelectorAll('#content tbody tr:not(.no-result)').forEach(tr => {
+      const a = tr.querySelector('[data-act="studentDetail"]');
+      if (!a || i < 0) return;
+      const s = studentById(JSON.parse(a.dataset.args)[0]);
+      const mong = STATUS_INFO[liveStatus(s)][0], co = tr.children[i].textContent.trim();
+      so++;
+      if (co !== mong || tr.children[i].dataset.label !== 'Trạng thái') sai.push(`${s.name}: ${co} ≠ ${mong}`);
+    });
+    return { th, i, so, sai: sai.slice(0, 3) };
+  });
+  ok('Bảng có cột "Trạng thái" ngay sau "Phòng", cột hợp đồng ghi "Tình trạng HĐ"',
+    tt.i === tt.th.indexOf('Phòng') + 1 && tt.th.includes('Tình trạng HĐ'), JSON.stringify(tt.th));
+  ok(`… mọi hàng (${tt.so}) ghi đúng trạng thái như màn Học viên`, tt.so > 0 && !tt.sai.length, tt.sai.join(' | '));
+  const dangO = await page.evaluate(() => ST.students.filter(s => !s.deleted_at && liveStatus(s) === 'staying').length);
+  await page.fill('#hsSearch', 'đang ở');
+  await page.waitForTimeout(400);
+  const hien = await page.evaluate(() => [...document.querySelectorAll('#content tbody tr:not(.no-result)')].filter(r => r.style.display !== 'none').length);
+  ok('Gõ "đang ở" vào ô tìm → còn đúng những người đang ở', hien === dangO, `hiện ${hien} · đang ở ${dangO}`);
   ok('Không có lỗi JS', loiJS.length === 0, loiJS.slice(0, 2).join(' | '));
 
   await ctx.close();
