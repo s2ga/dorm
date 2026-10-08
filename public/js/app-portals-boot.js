@@ -73,6 +73,7 @@ async function loadStudentPortal() {
     return;
   }
   window._myInvs = invs; // BL-16: để myInvoiceDetail() tra cứu chi tiết khi bấm hàng
+  window._myProfile = profile; // form trả phòng đọc số ngày báo trước, người liên hệ, tình trạng cọc
   const billNow = invs.filter(i => i.month === curMonth()).reduce((a, i) => a + (+i.total || 0), 0);
   const depTxt = { held: 'Đang giữ', refunded: 'Đã hoàn', forfeited: 'Không hoàn', none: '—' }[profile.deposit_status] || '—';
   const pendingCout = coutReqs.find(c => c.status === 'pending');
@@ -127,7 +128,7 @@ async function loadStudentPortal() {
       </tbody></table>` : `<div class="empty">${trongChuaCo('yêu cầu nào')}</div>`}
     </div></div>
 
-    <div class="panel" id="pnTraPhong"><div class="hd"><h2>${IC.logOut} Đơn trả phòng</h2>${!pendingCout && profile.status === 'in' && !notMovedIn ? '<button class="btn sm pri" data-act="checkoutReqForm">Xintrả phòng</button>' : ''}</div><div class="pad">
+    <div class="panel" id="pnTraPhong"><div class="hd"><h2>${IC.logOut} Đơn trả phòng</h2>${!pendingCout && profile.status === 'in' && !notMovedIn ? '<button class="btn sm pri" data-act="checkoutReqForm">Xin trả phòng</button>' : ''}</div><div class="pad">
       ${pendingCout ? `<div class="bang-tin">${IC.hourglass} Đã gửi đơn trả phòng, ngày muốn trả <strong>${fmtDate(pendingCout.desired_date)}</strong> — đang chờ Ban Quản lý duyệt.</div>` :
       notMovedIn ? '<p class="muted" style="margin:0">Bạn chưa tới ngày nhận phòng nên chưa thể gửi đơn trả phòng.</p>' :
       profile.status !== 'in' ? '<p class="muted" style="margin:0">Bạn đã trả phòng.</p>' :
@@ -178,7 +179,40 @@ async function submitDamage() {
   await guard(() => API.createMeDamage({ category: el('dm_cat').value, title, description: el('dm_desc').value.trim() }));
   closeModal(); toast('Đã gửi yêu cầu hỗ trợ'); loadStudentPortal();
 }
+// Quy trình trả phòng của Ban Quản lý: học viên phải đọc và tick "đã đọc" mới sang được form điền đơn.
+// Số ngày báo trước theo Cài đặt (deposit_notice_min_days). Phí vệ sinh chưa có ô Cài đặt nên đặt ở đây.
+const QT_PHI_VE_SINH = 200000;
+const qtBaoTruoc = n => (n >= 28 && n <= 31 ? '1 tháng' : `${n} ngày`);
 function checkoutReqForm() {
+  const p = window._myProfile || {};
+  const bt = qtBaoTruoc(+p.deposit_notice_min_days || 30);
+  const buoc = (so, ten, noiDung) => `<div style="display:flex;gap:12px;margin:14px 0">
+      <div style="flex:0 0 30px;height:30px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700">${so}</div>
+      <div><strong>${ten}</strong><div class="muted" style="margin-top:2px;line-height:1.55">${noiDung}</div></div></div>`;
+  openModal(`
+    <div class="mh"><h3>${IC.logOut} Quy trình trả phòng &amp; thanh lý hợp đồng</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mb">
+      <div style="background:var(--red);color:#fff;border-radius:12px;padding:14px;text-align:center">
+        <div style="font-size:12px;letter-spacing:.08em;opacity:.85">ĐIỀU KIỆN HOÀN CỌC</div>
+        <div style="font-size:19px;font-weight:800;margin-top:4px">Báo trước tối thiểu ${bt}</div>
+      </div>
+      ${buoc(1, 'Gửi đơn đề nghị trả phòng', `<strong>Bắt buộc</strong> gửi đơn trước ít nhất <strong>${bt}</strong>. Ghi rõ: lý do, ngày dự kiến rời đi, số tài khoản nhận cọc. Chưa có đơn thì chưa xếp lịch.`)}
+      ${buoc(2, 'Dọn dẹp phòng', `Dọn sạch rác, lau sàn, vệ sinh nhà tắm. Gỡ hết vật dụng cá nhân, miếng dán, vết viết trên tường/cửa. Phòng không vệ sinh sẽ bị phạt phí vệ sinh <strong>${money(QT_PHI_VE_SINH)}</strong> (trừ vào cọc).`)}
+      ${buoc(3, 'Bàn giao phòng', 'Vào ngày trả phòng, Ban Quản lý kiểm tra thiết bị cùng bạn. Trả đủ chìa khoá và đồ mượn. Hư hỏng do lỗi chủ quan sẽ bồi thường theo thực tế.')}
+      ${buoc(4, 'Ký biên bản &amp; nhận lại cọc', `Hai bên ký biên bản thanh lý. Thanh toán tiền điện và chi phí hư hỏng phát sinh (nếu có). Cọc được chuyển khoản <strong>trong 24 giờ</strong>, với điều kiện đã báo trước đủ ${bt}.`)}
+      <div style="background:var(--dark);color:#fff;border-radius:12px;padding:12px 14px;line-height:1.55">${IC.alert}
+        <strong style="color:var(--gold)">Báo trước dưới ${bt}</strong>, hoặc tự dọn đi mà chưa ký biên bản = vi phạm hợp đồng, <strong style="color:var(--gold)">không hoàn cọc</strong>.</div>
+      <p class="muted" style="font-size:12.5px;margin:10px 0 0">Ban Quản lý Ký túc xá${p.contact_person ? ' · ' + esc(p.contact_person) : ''}${p.hotline ? ' · ' + esc(p.hotline) : ''}</p>
+      <label class="check" style="margin-top:14px"><input type="checkbox" id="co_doc" data-change="coDocXong"> Tôi đã đọc kỹ và đồng ý với quy trình trả phòng</label>
+    </div>
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" id="co_tiep" data-act="coFormDien" disabled>Tiếp tục điền đơn</button></div>`);
+}
+function coDocXong() { const b = el('co_tiep'); if (b) b.disabled = !(el('co_doc') && el('co_doc').checked); }
+function coFormDien() {
+  if (!(el('co_doc') && el('co_doc').checked)) return;
+  const p = window._myProfile || {};
+  const n = +p.deposit_notice_min_days || 30;
+  const coCoc = p.deposit_status === 'held';   // có cọc đang giữ thì mới cần số tài khoản để hoàn
   openModal(`
     <div class="mh"><h3>${IC.logOut} Gửi đơn trả phòng</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
@@ -186,16 +220,26 @@ function checkoutReqForm() {
       <div class="field"><label>Lý do</label><select id="co_reason">
         ${CHECKOUT_REASONS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}
       </select></div>
+      ${coCoc ? `<div class="grid2">
+        <div class="field"><label>Số tài khoản nhận cọc ${SAO}</label><input id="co_stk" inputmode="numeric" autocomplete="off"></div>
+        <div class="field"><label>Ngân hàng ${SAO}</label><input id="co_nh" placeholder="VD: Vietcombank"></div>
+      </div>` : ''}
       <div class="field"><label>Ghi chú</label><textarea id="co_note" rows="2"></textarea></div>
-      <div class="hint">${IC.info} Đơn sẽ được gửi tới quản lý để duyệt. Cần báo trước 1 tháng để được hoàn cọc.</div>
+      <div class="hint">${IC.info} Đơn gửi tới Ban Quản lý duyệt. Ngày trả cách hôm nay dưới ${n} ngày thì theo quy trình sẽ không được hoàn cọc.</div>
     </div>
-    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="submitCheckoutReq">Gửi đơn</button></div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Quay lại</button><button class="btn pri" data-act="submitCheckoutReq">Gửi đơn</button></div>`);
   attachDate(el('co_date'), today(), { min: today() });   // BL-35[6]: không cho chọn ngày trả trong quá khứ
 }
 async function submitCheckoutReq() {
   const d = el('co_date').dataset.iso;
   if (!d) return loiTaiO('co_date', 'Chọn ngày dự kiến trả phòng');
-  await guard(() => API.createMeCheckoutReq({ desired_date: d, reason: el('co_reason').value, note: el('co_note').value.trim() }));
+  const b = { desired_date: d, reason: el('co_reason').value, note: el('co_note').value.trim(), da_doc_quy_trinh: true };
+  if (el('co_stk')) {
+    b.bank_account = el('co_stk').value.trim(); b.bank_name = el('co_nh').value.trim();
+    if (!b.bank_account) return loiTaiO('co_stk', 'Nhập số tài khoản để nhận lại cọc');
+    if (!b.bank_name) return loiTaiO('co_nh', 'Nhập tên ngân hàng');
+  }
+  await guard(() => API.createMeCheckoutReq(b));
   closeModal(); toast('Đã gửi đơn trả phòng'); loadStudentPortal();
 }
 /* Panel "Phòng của tôi" — thông số phòng + wifi + người ở cùng gộp làm một, vì cùng nói về một chỗ.

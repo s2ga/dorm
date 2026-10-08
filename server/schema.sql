@@ -307,6 +307,7 @@ ALTER TABLE checkout_requests ADD COLUMN IF NOT EXISTS invoice_id     INTEGER RE
 ALTER TABLE checkout_requests ADD COLUMN IF NOT EXISTS billed_at      TIMESTAMPTZ;
 ALTER TABLE checkout_requests ADD COLUMN IF NOT EXISTS deposit_refunded_at TIMESTAMPTZ;         -- dấu mốc "đã hoàn cọc" (chỉ lịch sử)
 ALTER TABLE checkout_requests ADD COLUMN IF NOT EXISTS refunded_by    TEXT;
+ALTER TABLE checkout_requests ADD COLUMN IF NOT EXISTS rules_ack_at   TIMESTAMPTZ;  -- học viên xác nhận đã đọc quy trình trả phòng lúc gửi đơn
 
 -- Danh mục loại vi phạm / nhắc nhở (sửa trong Cài đặt)
 CREATE TABLE IF NOT EXISTS violation_types (

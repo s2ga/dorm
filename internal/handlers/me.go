@@ -122,6 +122,8 @@ func (h *Handlers) MeProfile(c *gin.Context) {
 	}
 	// Số gọi khi cần. Ca đêm là phần còn lại của ca ngày nên không lưu khung giờ riêng.
 	row["hotline"] = s["hotline"]
+	row["contact_person"] = s["contact_person"]
+	row["deposit_notice_min_days"] = s["deposit_notice_min_days"] // quy trình trả phòng: báo trước bao nhiêu ngày
 	row["security_day_phone"] = s["security_day_phone"]
 	row["security_night_phone"] = s["security_night_phone"]
 	row["security_day_from"] = s["security_day_from"]
@@ -445,6 +447,7 @@ type meCheckoutBody struct {
 	Note        string `json:"note"`
 	BankAccount string `json:"bank_account"` // BL-62: STK HV nhận hoàn cọc (in trên phiếu; chuyển cọc làm ngoài app)
 	BankName    string `json:"bank_name"`
+	DaDocQT     bool   `json:"da_doc_quy_trinh"` // đã tick "đã đọc quy trình trả phòng" ở bước trước form
 }
 
 // MeCheckoutRequestCreate: POST /api/me/checkout-request — HV tự xin trả phòng. server/routes/me.routes.js:173-201
@@ -455,6 +458,11 @@ func (h *Handlers) MeCheckoutRequestCreate(c *gin.Context) {
 	}
 	var b meCheckoutBody
 	_ = c.ShouldBindJSON(&b)
+	// Tab chưa tải lại (giao diện cũ, không có bước đọc quy trình) cũng không gửi lọt được.
+	if !b.DaDocQT {
+		badRequest(c, "Bạn cần đọc quy trình trả phòng trước khi gửi đơn — tải lại trang rồi bấm Xin trả phòng.")
+		return
+	}
 	today := timeutil.Today()
 	if b.Note != "" && meRuneLen(b.Note) > 2000 {
 		badRequest(c, "Ghi chú quá dài (tối đa 2000 ký tự)")
@@ -515,8 +523,8 @@ func (h *Handlers) MeCheckoutRequestCreate(c *gin.Context) {
 		desired = b.DesiredDate
 	}
 	rows, err := h.pool().Query(ctx,
-		`INSERT INTO checkout_requests (student_id, desired_date, reason, note, bank_account, bank_name)
-		 VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+		`INSERT INTO checkout_requests (student_id, desired_date, reason, note, bank_account, bank_name, rules_ack_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,now()) RETURNING *`,
 		sid, desired, reason, b.Note, strings.TrimSpace(b.BankAccount), strings.TrimSpace(b.BankName))
 	if err != nil {
 		serverErr(c)
