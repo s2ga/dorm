@@ -97,32 +97,42 @@ const _vaoHieuLuc = s => (s.check_in_date || s.planned_check_in || '').slice(0, 
 const _raHieuLuc = s => (s.check_out_date || s.planned_check_out || '').slice(0, 10);
 const _soNgayTinhTu = ngay => ngay ? Math.floor((Date.parse(today()) - Date.parse(ngay)) / DAY_MS) : 0;
 const _thangTruoc = m => { const [y, mm] = m.split('-').map(Number); return mm === 1 ? `${y - 1}-12` : `${y}-${String(mm - 1).padStart(2, '0')}`; };
-// Người ĐỨNG PHIẾU của phòng: phòng nguyên căn chỉ 1 người ký HĐ chịu tiền cả phòng (khớp nguyenphong.go),
-// thành viên khác KHÔNG có phiếu riêng nên đừng réo; phòng ghép/nhân viên thì ai cũng có phiếu riêng.
-function laNguoiDungPhieuPhong(s) {
+// Có ở trong tháng M: ngày vào hiệu lực <= hết tháng M và chưa rời trước tháng M.
+const _giaoThang = (s, M) => !!_vaoHieuLuc(s) && _vaoHieuLuc(s).slice(0, 7) <= M
+  && (!_raHieuLuc(s) || _raHieuLuc(s).slice(0, 7) >= M);
+// Người ĐỨNG PHIẾU của phòng nguyên căn (khớp nguyenphong.go) chọn trong nhóm ở cùng phòng TRONG KỲ M —
+// không theo nhóm đang ở hôm nay, nên cả phòng đã trả thì vẫn chỉ đúng một người đứng phiếu (BL-134).
+function laNguoiDungPhieuPhong(s, M) {
   if (!thueNguyenPhong(s)) return true;
-  const cung = ST.students.filter(x => !x.deleted_at && x.room_id === s.room_id && _vaoHieuLuc(x) && !x.check_out_date);
+  const cung = ST.students.filter(x => !x.deleted_at && x.room_id === s.room_id && _giaoThang(x, M));
   if (!cung.length) return true;
   const coHD = cung.filter(x => { const h = (x.contract_no || '').trim().toLowerCase(); return h && h !== 'x'; });
   const pool = coHD.length ? coHD : cung;
   const dung = pool.slice().sort((a, b) => (_vaoHieuLuc(a).localeCompare(_vaoHieuLuc(b))) || (a.id - b.id))[0];
   return !!dung && dung.id === s.id;
 }
-// Cần phiếu tháng M? = người đứng phiếu, ngày vào hiệu lực <= hết tháng M, chưa rời trước tháng M.
-const canPhieuThang = (s, M) => !s.deleted_at && laNguoiDungPhieuPhong(s)
-  && _vaoHieuLuc(s) && _vaoHieuLuc(s).slice(0, 7) <= M
-  && (!_raHieuLuc(s) || _raHieuLuc(s).slice(0, 7) >= M);
-// Tách 2 khối: KỲ NÀY (gồm người sắp vào theo lịch) và người rời KỲ TRƯỚC còn thiếu phiếu (mất khỏi
-// radar sau mùng 1 — dễ đi rồi mới nhớ chưa thu). Cần cả 2 tập id-đã-có-phiếu để lọc.
-function dsChuaLapPhieu(coPhieuKyNay, coPhieuKyTruoc) {
+// Phiếu TRỌN PHÒNG (hơn một suất nước/dịch vụ) của người khác cùng phòng trong kỳ đã gồm phần người này —
+// phòng đổi từ nguyên căn sang ghép sau kỳ đó thì loại phòng hôm nay không còn nói đúng.
+function daNamTrongPhieuPhong(s, phieu) {
+  const nuoc = +ST.settings.water_fee || 0, dv = +ST.settings.service_fee || 0;
+  return phieu.some(i => i.room_id === s.room_id && i.student_id !== s.id
+    && ((nuoc > 0 && +i.water_charge > nuoc + 1) || (dv > 0 && +i.service_charge > dv + 1)));
+}
+const canPhieuThang = (s, M, phieu) => !s.deleted_at && _giaoThang(s, M)
+  && laNguoiDungPhieuPhong(s, M) && !daNamTrongPhieuPhong(s, phieu);
+// Ba nhóm: ĐÃ Ở trong kỳ này mà chưa có phiếu (không chừa ai, kể cả mới vào), CHƯA NHẬN PHÒNG nhưng đã
+// có lịch vào kỳ này, và người RỜI KỲ TRƯỚC còn thiếu phiếu. phieuKyNay/phieuKyTruoc: danh sách phiếu.
+function dsChuaLapPhieu(phieuKyNay, phieuKyTruoc) {
   const M = curMonth(), Mt = _thangTruoc(M);
-  const kyNay = ST.students.filter(s => canPhieuThang(s, M) && !coPhieuKyNay.has(s.id)
-    && (['left', 'upcoming', 'cho_vao'].includes(liveStatus(s)) || _soNgayTinhTu(_vaoHieuLuc(s)) > overdueDays()))
-    .sort((a, b) => _soNgayTinhTu(_vaoHieuLuc(b)) - _soNgayTinhTu(_vaoHieuLuc(a)));
-  const kyTruoc = ST.students.filter(s => !s.deleted_at && laNguoiDungPhieuPhong(s)
-    && (s.check_out_date || '').slice(0, 7) === Mt && !coPhieuKyTruoc.has(s.id))
+  const coNay = new Set(phieuKyNay.map(i => i.student_id)), coTruoc = new Set(phieuKyTruoc.map(i => i.student_id));
+  const thieu = ST.students.filter(s => canPhieuThang(s, M, phieuKyNay) && !coNay.has(s.id));
+  const chuaVao = s => ['upcoming', 'cho_vao'].includes(liveStatus(s));
+  const kyNay = thieu.filter(s => !chuaVao(s)).sort((a, b) => _soNgayTinhTu(_vaoHieuLuc(b)) - _soNgayTinhTu(_vaoHieuLuc(a)));
+  const sapVao = thieu.filter(chuaVao).sort((a, b) => _vaoHieuLuc(a).localeCompare(_vaoHieuLuc(b)));
+  const kyTruoc = ST.students.filter(s => !s.deleted_at && (s.check_out_date || '').slice(0, 7) === Mt
+    && laNguoiDungPhieuPhong(s, Mt) && !daNamTrongPhieuPhong(s, phieuKyTruoc) && !coTruoc.has(s.id))
     .sort((a, b) => (a.check_out_date || '').localeCompare(b.check_out_date || ''));
-  return { kyNay, kyTruoc };
+  return { kyNay, sapVao, kyTruoc };
 }
 
 async function billOverdueModal() {
@@ -140,8 +150,8 @@ async function napChuaLapPhieu() {
       <div class="mb"><div class="bang-tin" title="${esc(e.message || '')}">${IC.alert} <span>Không tải được danh sách phiếu báo.</span></div></div>
       <div class="mf"><button class="btn" data-act="modalBack">Đóng</button><button class="btn pri" data-act="napChuaLapPhieu">${IC.refresh} Thử lại</button></div>`);
   }
-  const { kyNay, kyTruoc } = dsChuaLapPhieu(new Set(inv.map(i => i.student_id)), new Set(invT.map(i => i.student_id)));
-  const tong = kyNay.length + kyTruoc.length;
+  const { kyNay, sapVao, kyTruoc } = dsChuaLapPhieu(inv, invT);
+  const tong = kyNay.length + sapVao.length + kyTruoc.length;
   // Cột "Đã ở" tính theo ngày vào hiệu lực; người sắp vào ra số âm nên hiện "—" cho khỏi rối.
   const dong = s => {
     const vao = _vaoHieuLuc(s), n = _soNgayTinhTu(vao), duKien = !s.check_in_date && s.planned_check_in;
@@ -164,9 +174,12 @@ async function napChuaLapPhieu() {
     <div class="mh"><h3>${IC.receipt} Chưa lập phiếu báo (${tong})</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="hint">${IC.info} Đúng dân số đợt lập phiếu: đã bỏ thành viên phòng thuê nguyên căn (nằm trong
-        phiếu người ký HĐ), tính cả người sắp vào theo lịch và người rời kỳ trước còn thiếu phiếu.</div>
-      ${tong ? `<h4 class="asset-h" style="margin:16px 0 0">Kỳ này (${monthLabel(M)}) — ${kyNay.length}</h4>
-        ${kyNay.length ? bang(kyNay) : `<div class="empty" style="margin-top:8px">${IC.checkCircle} Không có học viên thiếu phiếu báo kỳ này.</div>`}
+        phiếu người ký HĐ của kỳ đó), tính cả người mới vào, người sắp vào theo lịch và người rời kỳ trước còn thiếu phiếu.</div>
+      ${tong ? `<h4 class="asset-h" style="margin:16px 0 0">Kỳ này (${monthLabel(M)}) — đã ở mà chưa có phiếu: ${kyNay.length}</h4>
+        ${kyNay.length ? bang(kyNay) : `<div class="empty" style="margin-top:8px">${IC.checkCircle} Ai đã ở trong kỳ này cũng đã có phiếu báo.</div>`}
+        ${sapVao.length ? `<h4 class="asset-h" style="margin:18px 0 0">Kỳ này — chưa nhận phòng, đã có lịch vào: ${sapVao.length}</h4>
+          <p class="muted" style="margin:4px 0 0;font-size:13px">Đợt lập phiếu tính cả người có lịch vào trong kỳ. Họ chưa đến thì chưa cần thu ngay.</p>
+          ${bang(sapVao)}` : ''}
         ${kyTruoc.length ? `<h4 class="asset-h" style="margin:18px 0 0;color:var(--red-ink)">${IC.alert} Rời kỳ trước (${monthLabel(Mt)}) mà chưa có phiếu — ${kyTruoc.length}</h4>
           <p class="muted" style="margin:4px 0 0;font-size:13px">Họ đã đi, đợt lập phiếu hằng tháng không còn quét tới. Vào màn Tiền phòng, chọn kỳ ${monthLabel(Mt)} để lập nốt.</p>
           ${bang(kyTruoc)}` : ''}`
@@ -447,12 +460,11 @@ async function viewDashboard() {
   const [_cy, _cmm] = curMonth().split('-').map(Number);
   const prevMonth = _cmm === 1 ? `${_cy - 1}-12` : `${_cy}-${String(_cmm - 1).padStart(2, '0')}`;
   const billedLastMonth = invAll.filter(i => i.month === prevMonth).reduce((a, i) => a + (+i.total || 0), 0);
-  const billStudents = new Set(invAll.filter(i => i.month === curMonth()).map(i => i.student_id));
   // BL-112/BL-119: đếm khớp modal — cần cả phiếu kỳ trước để bắt người rời kỳ trước còn thiếu phiếu.
   let invPrev = [];
   try { invPrev = await API.invoices(prevMonth); } catch {}
-  const _chuaLap = dsChuaLapPhieu(billStudents, new Set(invPrev.map(i => i.student_id)));
-  const billOverdue = _chuaLap.kyNay.length + _chuaLap.kyTruoc.length;
+  const _chuaLap = dsChuaLapPhieu(invAll.filter(i => i.month === curMonth()), invPrev);
+  const billOverdue = _chuaLap.kyNay.length + _chuaLap.sapVao.length + _chuaLap.kyTruoc.length;
 
   // act = onclick đầy đủ → mọi ô KPI đều drill-through tới đúng danh sách đằng sau con số
   const kpi = (cls, ico, val, label, act, sub) => `<div class="kpi${act ? ' clickable' : ''}" ${act ? act + ' role="button" tabindex="0"' : ''}><span class="ic ${cls}">${ico}</span><div><div class="v">${val}</div><div class="l">${label}${sub ? ` · ${sub}` : ''}</div></div></div>`;

@@ -27,28 +27,32 @@ const ok = (t, d, x = '') => { if (d) console.log('  [OK] ' + t); else { fail++;
   const soTren = (await o.locator('.n').textContent() || '').trim();
   ok('Ô có con số', /^\d+$/.test(soTren), soTren);
 
-  // So với phép tính độc lập dựng lại từ ST — bắt lỗi đếm sai mẫu số
+  // Phép kiểm ĐỘC LẬP với luật người đứng phiếu: ai ở phòng KHÔNG phải nguyên căn, có mặt trong kỳ này theo
+  // đúng ngày đợt lập phiếu dùng (thật, không có thì dự kiến) mà chưa có phiếu thì phải có tên — kể cả mới vào.
   const mong = await page.evaluate(async () => {
     const inv = await API.invoices(curMonth());
     const daCo = new Set(inv.map(i => i.student_id));
-    const ds = ST.students.filter(s => !s.deleted_at
-      && (isOccupying(s) || (liveStatus(s) === 'left' && (s.check_out_date || '').slice(0, 7) === curMonth()))
-      && !daCo.has(s.id) && stayDays(s) > overdueDays());
-    return { n: ds.length, daRoi: ds.filter(s => liveStatus(s) === 'left').length };
+    const M = curMonth(), d = v => (v ? String(v).slice(0, 10) : '');
+    const vao = s => d(s.check_in_date) || d(s.planned_check_in), ra = s => d(s.check_out_date) || d(s.planned_check_out);
+    const ds = ST.students.filter(s => !s.deleted_at && !thueNguyenPhong(s) && vao(s) && vao(s).slice(0, 7) <= M
+      && (!ra(s) || ra(s).slice(0, 7) >= M) && !daCo.has(s.id));
+    return { ten: ds.map(s => s.name), daRoi: ds.filter(s => liveStatus(s) === 'left').length };
   });
-  ok('Con số khớp phép tính độc lập', +soTren === mong.n, `ô=${soTren} · tính lại=${mong.n}`);
 
   await o.click();
   await page.waitForTimeout(2200);
 
   const mh = await page.locator('#modal .mh h3').textContent();
   ok('Bấm vào ra modal "Chưa lập phiếu báo"', /Chưa lập phiếu báo/.test(mh || ''), mh);
+  const hang = await page.locator('#modal tbody tr').count();
+  ok('Con số trên ô bằng đúng số dòng trong hộp', +soTren === hang, `ô=${soTren} · dòng=${hang}`);
+  const chuTrongHop = await page.locator('#modal .mb').textContent() || '';
+  const sot = mong.ten.filter(t => !chuTrongHop.includes(t));
+  ok('Không sót ai đã ở mà chưa có phiếu (kể cả mới vào)', sot.length === 0, 'sót: ' + sot.slice(0, 5).join(', '));
 
-  if (mong.n > 0) {
-    const hang = await page.locator('#modal tbody tr').count();
-    ok('Modal liệt kê đúng số người', hang === mong.n, `hàng=${hang} · mong=${mong.n}`);
+  if (hang > 0) {
     ok('Có cột "Đã ở" để biết quá hạn bao lâu',
-      /Đã ở/.test(await page.locator('#modal thead').textContent() || ''));
+      /Đã ở/.test(await page.locator('#modal thead').first().textContent() || ''));
     ok('Bấm tên mở được hồ sơ', await page.locator('#modal [data-act="studentDetail"]').count() > 0);
     ok('Có nút sang màn Tiền phòng', await page.locator('#modal [data-act="adminGo"]').count() > 0);
     if (mong.daRoi > 0) {
@@ -59,8 +63,7 @@ const ok = (t, d, x = '') => { if (d) console.log('  [OK] ' + t); else { fail++;
       console.log('  [BỎ QUA] CSDL này không có ai đã trả phòng mà thiếu phiếu');
     }
   } else {
-    ok('Không sót ai → modal nói rõ chứ không để bảng trống',
-      /Không có học viên thiếu phiếu báo/.test(await page.locator('#modal .mb').textContent() || ''));
+    ok('Không sót ai → modal nói rõ chứ không để bảng trống', /Không có học viên thiếu phiếu báo/.test(chuTrongHop));
   }
 
   ok('Không có lỗi JS', loi.length === 0, loi.slice(0, 2).join(' | '));
