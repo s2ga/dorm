@@ -190,7 +190,7 @@ function pkAdminPanels(deNghi, baoCao, cb) {
           <td class="num" data-label="Vắng liên tiếp"><span class="badge red">${x.days} ngày</span></td>
           <td class="num"><div class="rowbtns" style="justify-content:flex-end;gap:4px">
             ${x.student_id ? `<button class="btn sm" data-act="studentDetail" data-args='[${x.student_id}]' title="Mở hồ sơ để lấy số điện thoại">${IC.user} Xem học viên</button>` : ''}
-            <button class="btn sm" data-act="vehicleForm" data-args='[${x.vehicle_id}, ${x.student_id || 0}]' title="Mở hồ sơ xe, điền ngày ngưng gửi ở ô Đến ngày">${IC.pause} Ngưng gửi xe</button>
+            <button class="btn sm" data-act="pkNgungXeForm" data-args='[${x.vehicle_id}]'>${IC.pause} Ngưng gửi xe</button>
           </div></td></tr>`).join('')}
       </tbody></table></div>` : ''}
   </div></div>`;
@@ -244,6 +244,28 @@ async function pkTuChoiBienLuu(id) {
   if (!note) return loiTaiO('pk_tc_note', 'Nhập lý do từ chối');
   await guard(() => API.rejectPlateRequest(id, note));
   closeModal(); toast('Đã từ chối đề nghị'); viewServices();
+}
+// Ngưng gửi một xe vắng lâu: chọn ngày thôi gửi, lưu thẳng ngày ngừng (to_date = ngày trước đó) để
+// an ninh thôi điểm danh ngay. Phí gửi xe tính theo tháng có ngày xe còn gửi.
+function pkNgungXeForm(vid) {
+  const v = (window._detailVehicles || []).find(x => x.id === vid);
+  if (!v) return toast('Không tìm thấy xe — bấm Tải lại rồi thử lại', 'err');
+  const tu = v.from_date ? String(v.from_date).slice(0, 10) : '';
+  openModal(`
+    <div class="mh"><h3>${IC.pause} Ngưng gửi xe ${esc(v.plate || '')}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mb">
+      <p style="margin:0 0 10px">Chủ xe: <strong>${esc(v.student_name || '—')}</strong>${v.room_name ? ' · phòng ' + esc(v.room_name) : ''}${tu ? ` · gửi từ ${fmtDate(tu)}` : ''}</p>
+      <div class="field"><label>Thôi gửi từ ngày ${SAO}</label><input id="pk_ngung"></div>
+      <div class="hint" style="font-size:12px">${IC.info}<span>Từ ngày này xe ra khỏi danh sách điểm danh của an ninh và hết báo vắng. Phí gửi xe vẫn tính cho tháng còn ngày xe gửi, sang tháng sau thôi tính.</span></div>
+    </div>
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="pkNgungXeLuu" data-args='[${vid}]'>${IC.pause} Ngưng gửi xe</button></div>`);
+  attachDate(el('pk_ngung'), today(), tu ? { min: addDays(tu, 1) } : {});
+}
+async function pkNgungXeLuu(vid) {
+  const ngay = el('pk_ngung').dataset.iso;
+  if (!ngay) return loiTaiO('pk_ngung', 'Chọn ngày thôi gửi');
+  await guard(() => API.updateVehicle(vid, { to_date: addDays(ngay, -1) }));
+  closeModal(); toast('Đã ngưng gửi xe'); refreshNotifCounts(); viewServices();
 }
 async function pkBcTrangThai(id, st) {
   await guard(() => API.parkingReportStatus(id, st, ''));
