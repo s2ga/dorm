@@ -36,7 +36,7 @@ const soTrong = s => { const m = String(s || '').match(/\((\d+)\)/); return m ? 
     document.querySelectorAll('.todo-grid .todo').forEach(t => { out[t.querySelector('.tx').textContent.trim()] = +t.querySelector('.n').textContent.trim(); });
     const kpi = [...document.querySelectorAll('.kpis .kpi')];
     const k = nhan => { const e = kpi.find(x => x.textContent.includes(nhan)); return e ? +(e.querySelector('.v').textContent.match(/\d+/) || [0])[0] : null; };
-    out.__dangO = k('Học viên đang ở'); out.__giuong = k('Giường còn trống');
+    out.__dangO = k('Học viên đang ở'); out.__giuong = k('Giường trống');
     return out;
   });
   console.log('  số trên Tổng quan:', JSON.stringify(so));
@@ -98,18 +98,26 @@ const soTrong = s => { const m = String(s || '').match(/\((\d+)\)/); return m ? 
     await page.evaluate(() => closeModal());
   } else console.log('  [BỎ QUA] Lập phiếu báo = 0');
 
-  // ── KPI Học viên đang ở → màn Học viên lọc "Đang ở" ──────────────────────────────
+  // ── KPI Học viên đang ở → hộp tab E2/S2/Nhân viên/An ninh, tổng các tab == số ô ─────
+  const tongTab = async () => (await page.locator('#modal .seg-thu .seg').allTextContents())
+    .reduce((a, x) => a + (+(x.match(/(\d+)\s*$/) || [0, 0])[1]), 0);
   await page.locator('.kpis .kpi', { hasText: 'Học viên đang ở' }).click();
-  await page.waitForTimeout(2200);
-  const demIn = +(await page.locator('#stuCount').textContent());
-  ok('KPI Học viên đang ở → danh sách đúng số', demIn === so.__dangO, `${demIn} vs ${so.__dangO}`);
-  await veTongQuan();
+  await page.waitForTimeout(600);
+  const tdIn = await page.locator('#modal .mh h3').textContent();
+  ok('KPI Học viên đang ở → hộp có tiêu đề đúng số', soTrong(tdIn) === so.__dangO, `${tdIn} vs ${so.__dangO}`);
+  const tabIn = await tongTab();
+  ok('…và tổng các tab khớp', tabIn === so.__dangO, `${tabIn} vs ${so.__dangO}`);
+  await page.evaluate(() => closeModal());
 
-  // ── KPI Giường còn trống → màn Phòng lọc "còn trống" ─────────────────────────────
-  await page.locator('.kpis .kpi', { hasText: 'Giường còn trống' }).click();
+  // ── KPI Giường trống → hộp tab E2/S2 → "Sang màn Phòng" lọc "còn trống" ────────────
+  await page.locator('.kpis .kpi', { hasText: 'Giường trống' }).click();
+  await page.waitForTimeout(600);
+  const tabGiuong = await tongTab();
+  ok('KPI Giường trống → tổng tab E2 + S2 khớp', tabGiuong === so.__giuong, `${tabGiuong} vs ${so.__giuong}`);
+  await page.locator('#modal .mf .btn', { hasText: 'Sang màn Phòng' }).click();
   await page.waitForTimeout(2000);
   const dai = await page.locator('.pill-row .badge').first().textContent();
-  ok('KPI Giường còn trống → dải lọc nói đúng số giường', (dai || '').includes(`${so.__giuong} giường`), `${dai} vs ${so.__giuong}`);
+  ok('…bấm "Sang màn Phòng" → dải lọc nói đúng số giường', (dai || '').includes(`${so.__giuong} giường`), `${dai} vs ${so.__giuong}`);
 
   ok('Không có lỗi JS', loi.length === 0, loi.slice(0, 2).join(' | '));
   await ctx.close(); await browser.close();

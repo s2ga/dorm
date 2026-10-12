@@ -135,6 +135,73 @@ function dsChuaLapPhieu(phieuKyNay, phieuKyTruoc) {
   return { kyNay, sapVao, kyTruoc };
 }
 
+/* ---- 4 ô đầu Tổng quan: chỉ con số; bấm vào tách theo pháp nhân (E2/S2) và phòng nhân viên / an ninh ---- */
+const KPI_NHOM = () => [['nu', legalEntity('female')], ['nam', legalEntity('male')], ['nhan_vien', 'Nhân viên'], ['an_ninh', 'An ninh']];
+const KPI_TEN = {
+  dang_o: ['Học viên đang ở', 'userCheck', 'Không có học viên đang ở.'], giuong: ['Giường trống', 'bed', 'Không còn phòng trống giường.'],
+  sap_tra: ['Sắp trả phòng', 'logOut', 'Không có học viên sắp trả phòng.'], sap_vao: ['Sắp vào', 'key', 'Không có học viên sắp vào.'],
+};
+const nhomCuaHV = s => { const k = studentRoomKind(s); return k === 'security' ? 'an_ninh' : k === 'staff' ? 'nhan_vien' : (s.gender === 'female' ? 'nu' : 'nam'); };
+const sapTraMoiPhong = s => isOccupying(s) && !!_d10(s.planned_check_out);
+const sapVaoMoiPhong = s => !_d10(s.check_in_date) && !_d10(s.check_out_date) && !!_d10(s.planned_check_in);
+// Số trên ô = tổng các tab. Giường trống chỉ có E2/S2 (phòng nhân viên, an ninh không vào tổng giường) và
+// cộng thucCon từng phòng như tongChiSo, nên E2 + S2 bằng đúng số trên ô.
+function kpiNhom(loai) {
+  if (loai === 'giuong') {
+    const nhom = { nu: [], nam: [] };
+    (ST.rooms || []).filter(phongTinhGiuong).forEach(r => nhom[r.gender === 'female' ? 'nu' : 'nam'].push({ r, c: chiSoPhong(r) }));
+    const so = { nu: nhom.nu.reduce((a, x) => a + x.c.thucCon, 0), nam: nhom.nam.reduce((a, x) => a + x.c.thucCon, 0) };
+    return { nhom, so, tong: so.nu + so.nam };
+  }
+  const loc = loai === 'sap_tra' ? sapTraMoiPhong : loai === 'sap_vao' ? sapVaoMoiPhong : isOccupying;
+  const nhom = { nu: [], nam: [], nhan_vien: [], an_ninh: [] };
+  ST.students.filter(s => !s.deleted_at && loc(s)).forEach(s => nhom[nhomCuaHV(s)].push(s));
+  const so = {};
+  Object.keys(nhom).forEach(k => { so[k] = nhom[k].length; });
+  return { nhom, so, tong: so.nu + so.nam + so.nhan_vien + so.an_ninh };
+}
+let _kpiTab = { loai: 'dang_o', nhom: 'nu' };
+function kpiTabGo(loai) {
+  const d = kpiNhom(loai), co = Object.keys(d.so);
+  _kpiTab = { loai, nhom: co.find(k => d.so[k] > 0) || co[0] };
+  openModal(kpiTabHtml(), true);
+}
+function kpiTabChon(nhom) { _kpiTab.nhom = nhom; modalThay(kpiTabHtml()); }
+function kpiTabHtml() {
+  const { loai, nhom } = _kpiTab, d = kpiNhom(loai), [ten, ico, rong] = KPI_TEN[loai];
+  const tabs = KPI_NHOM().filter(([k]) => k in d.so).map(([k, nhan]) =>
+    `<button class="seg ${k === nhom ? 'on' : ''}" data-act="kpiTabChon" data-args='["${k}"]' aria-pressed="${k === nhom}">${esc(nhan)}: ${d.so[k]}</button>`).join('');
+  const theoTen = (a, b) => String(a || '').localeCompare(String(b || ''), 'vi', { numeric: true });
+  let bang = '';
+  if (loai === 'giuong') {
+    const ds = d.nhom[nhom].filter(x => x.c.thucCon > 0).sort((a, b) => b.c.thucCon - a.c.thucCon || theoTen(a.r.name, b.r.name));
+    if (ds.length) bang = `<table><thead><tr><th>Phòng</th><th class="num">Giường trống</th><th class="num">Sức chứa</th><th class="num">Đang ở</th><th class="num">Đã đặt chỗ</th></tr></thead><tbody>
+      ${ds.map(x => `<tr><td><a href="#" data-act="roomDetail" data-args='[${x.r.id}]'><strong>${esc(x.r.name)}</strong></a></td>
+        <td class="num" data-label="Giường trống"><strong>${x.c.thucCon}</strong></td><td class="num" data-label="Sức chứa">${x.c.cap}</td>
+        <td class="num" data-label="Đang ở">${x.c.dangO}</td><td class="num" data-label="Đã đặt chỗ">${x.c.datCho || '—'}</td></tr>`).join('')}
+      </tbody></table>`;
+  } else {
+    const ngay = loai === 'sap_tra' ? s => _d10(s.planned_check_out) : loai === 'sap_vao' ? s => _d10(s.planned_check_in) : s => _d10(s.check_in_date);
+    const cot = loai === 'sap_tra' ? 'Hẹn trả' : loai === 'sap_vao' ? 'Hẹn vào' : 'Ngày vào';
+    const ds = d.nhom[nhom].slice().sort((a, b) => (loai === 'dang_o'
+      ? theoTen(a.room_name, b.room_name) || theoTen(a.name, b.name) : ngay(a).localeCompare(ngay(b)) || theoTen(a.name, b.name)));
+    if (ds.length) bang = `<table><thead><tr><th>Học viên</th><th>Phòng</th><th>${cot}</th><th>Tình trạng</th></tr></thead><tbody>
+      ${ds.map(s => `<tr><td><div class="flex stu-name" data-act="studentDetail" data-args='[${s.id}]' role="button" tabindex="0" title="Mở hồ sơ">
+          <div><strong>${esc(s.name)}</strong>${s.code ? `<div class="sub2">${esc(s.code)}</div>` : ''}</div><span class="row-chev">${IC.chevronRight}</span></div></td>
+        <td data-label="Phòng">${esc(s.room_name || '—')}</td><td data-label="${cot}">${fmtDate(ngay(s))}</td>
+        <td data-label="Tình trạng">${statusBadge(s)}</td></tr>`).join('')}
+      </tbody></table>`;
+  }
+  return `
+    <div class="mh"><h3>${IC[ico]} ${ten} (${d.tong})</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+    <div class="mb">
+      <div class="seg-thu tab" role="group" aria-label="Nhóm" style="max-width:100%;overflow-x:auto">${tabs}</div>
+      ${loai === 'giuong' ? `<div class="hint" style="margin-top:10px">${IC.info} Phòng nhân viên và phòng an ninh không tính vào tổng giường.</div>` : ''}
+      ${bang ? `<div class="table-wrap card-tbl" style="margin-top:10px">${bang}</div>` : `<div class="empty" style="margin-top:10px">${rong}</div>`}
+    </div>
+    <div class="mf"><button class="btn" data-act="modalBack">Đóng</button>${loai === 'giuong' ? `<button class="btn" data-close ${actAttr('roomGo', 'trong')}>${IC.bed} Sang màn Phòng</button>` : ''}</div>`;
+}
+
 async function billOverdueModal() {
   openModal(`<div class="mb"><div class="spinner"></div></div>`, true);
   return napChuaLapPhieu();
@@ -427,12 +494,7 @@ function depositModal() {
 async function viewDashboard() {
   el('content').innerHTML = '<div class="spinner"></div>';
   const occ = ST.students.filter(isOccupying);
-  // Ô đếm người đi cùng sổ giường: bỏ người ở phòng an ninh/nhân viên ra, để 4 ô KPI cộng trừ khớp nhau.
-  // Danh sách "Cần xử lý" phía dưới vẫn quét occ (mọi người đang ở) — không giấu việc của ai.
-  const inCount = ST.students.filter(dangOTinhGiuong).length;
-  const ngoaiSoGiuong = ST.students.filter(dangONgoaiSoGiuong).length;
-  const sapTra = ST.students.filter(sapTraPhong).length;
-  const sapVao = ST.students.filter(sapNhanPhong).length;
+  // Danh sách "Cần xử lý" phía dưới quét occ (mọi người đang ở) — không giấu việc của ai.
   // "Hôm nay" = việc PHẢI LÀM hôm nay -> tính theo lịch dự kiến (BL-117), người đã xác nhận rồi không đếm nữa
   const checkinToday = ST.students.filter(s => !s.check_in_date && s.planned_check_in && String(s.planned_check_in).slice(0, 10) === today()).length;
   const checkoutToday = ST.students.filter(s => s.check_in_date && !s.check_out_date && s.planned_check_out && String(s.planned_check_out).slice(0, 10) === today()).length;
@@ -479,10 +541,10 @@ async function viewDashboard() {
 
   el('content').innerHTML = `
     <div class="kpis">
-      ${kpi('ic-green', IC.userCheck, inCount, 'Học viên đang ở', actAttr('stuGoAdmin', 'in_ktx'), ngoaiSoGiuong ? `${ngoaiSoGiuong} người ở phòng an ninh/nhân viên tính riêng` : '')}
-      ${kpi('ic-blue', IC.bed, `${T.thucCon}<span class="muted" style="font-size:15px;font-weight:600"> / ${capacity}</span>`, 'Giường trống', actAttr('roomGo', 'trong'), `${T.soPhong} phòng ở`)}
-      ${kpi('ic-amber', IC.logOut, sapTra, 'Sắp trả phòng', actAttr('stuGoAdmin', 'sap_tra'))}
-      ${kpi('ic-gray', IC.key, sapVao, 'Sắp vào', actAttr('stuGoAdmin', 'sap_vao'))}
+      ${kpi('ic-green', IC.userCheck, kpiNhom('dang_o').tong, 'Học viên đang ở', actAttr('kpiTabGo', 'dang_o'))}
+      ${kpi('ic-blue', IC.bed, `${T.thucCon}<span class="muted" style="font-size:15px;font-weight:600"> / ${capacity}</span>`, 'Giường trống', actAttr('kpiTabGo', 'giuong'))}
+      ${kpi('ic-amber', IC.logOut, kpiNhom('sap_tra').tong, 'Sắp trả phòng', actAttr('kpiTabGo', 'sap_tra'))}
+      ${kpi('ic-gray', IC.key, kpiNhom('sap_vao').tong, 'Sắp vào', actAttr('kpiTabGo', 'sap_vao'))}
       ${kpi('ic-brand', IC.receipt, money(billedThisMonth), 'Phiếu báo tháng này', actAttr('phieuThangNayGo'), billedLastMonth ? 'Tháng trước ' + money(billedLastMonth) : '')}
     </div>
 

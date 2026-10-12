@@ -29,8 +29,10 @@ const ok = (t, d, x = '') => { if (d) console.log('  [OK] ' + t); else { fail++;
     const capAnNinhNhanVien = ST.rooms.filter(r => ['security', 'staff'].includes(r.room_type || 'shared'))
       .reduce((a, r) => a + (+r.capacity || 0), 0);
     const nguoiTinhGiuong = ST.students.filter(dangOTinhGiuong).length;
+    const nguoiDangO = ST.students.filter(isOccupying).length;
+    const soDangO = +(oDangO.match(/\d+/) || [NaN])[0];
     return { trong: T.trong, cap: T.cap, vuot: T.vuot, datCho: T.datCho, thucCon: T.thucCon, tungPhong,
-      kpiText, oDangO, capGhepVaNguyen, capAnNinhNhanVien, nguoiTinhGiuong };
+      kpiText, oDangO, soDangO, capGhepVaNguyen, capAnNinhNhanVien, nguoiTinhGiuong, nguoiDangO };
   });
 
   ok('Σ từng phòng == tổng (không lệch tích luỹ)', s.tungPhong === s.trong, `${s.tungPhong} vs ${s.trong}`);
@@ -45,8 +47,8 @@ const ok = (t, d, x = '') => { if (d) console.log('  [OK] ' + t); else { fail++;
     ok('Giường phòng an ninh/nhân viên KHÔNG vào mẫu số',
       s.cap === s.capGhepVaNguyen, `an ninh+nhân viên=${s.capAnNinhNhanVien}`);
   } else console.log('  [BỎ QUA] CSDL này không có phòng an ninh/nhân viên');
-  ok('Ô "Học viên đang ở" đếm cùng tập người với sổ giường',
-    s.oDangO.includes(`${s.nguoiTinhGiuong}`), s.oDangO.slice(0, 120));
+  ok('Ô "Học viên đang ở" = mọi người đang ở, kể cả phòng an ninh/nhân viên (tách tab E2/S2/Nhân viên/An ninh)',
+    s.soDangO === s.nguoiDangO, `ô=${s.soDangO} · đang ở=${s.nguoiDangO} · trong sổ giường=${s.nguoiTinhGiuong}`);
 
   // Màn Phòng, lọc còn trống: dải "Đang lọc" phải nói đúng con số của tongChiSo
   await page.evaluate(() => roomGo('trong'));
