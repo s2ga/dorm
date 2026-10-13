@@ -256,59 +256,76 @@ async function napChuaLapPhieu() {
       ${tong ? `<button class="btn pri" data-act="adminGo" data-args='["invoices"]'>${IC.receipt} Lập phiếu</button>` : ''}</div>`);
 }
 
-function residencyModal() {
-  const occ = ST.students.filter(isOccupying);
-  const over = occ.filter(s => s.residency_status === 'unregistered' && stayDays(s) > overdueDays()).length;
-  const proc = occ.filter(s => s.residency_status === 'processing').length;
-  const reg = occ.filter(s => s.residency_status === 'registered').length;
-  const row = (ico, label, n, filter, cls) => `<div class="todo ${n ? cls : 'calm'}" ${n ? actAttr('stuGoAdmin', filter) : ''}><span class="ic">${ico}</span><span class="tx">${label}</span><span class="n">${n}</span></div>`;
-  openModal(`
-    <div class="mh"><h3>${IC.flag} Đăng ký tạm trú</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
-    <div class="mb">
-      <div class="hint">${IC.info} Tình trạng đăng ký tạm trú của học viên đang ở. Bấm từng nhóm để xem danh sách.</div>
-      <div class="todo-grid" style="grid-template-columns:1fr;margin-top:10px">
-        ${row(IC.alert, `Chưa đăng ký (đã ở >${overdueDays()} ngày)`, over, 'resi_overdue', 'bad')}
-        ${row(IC.hourglass, 'Đang xử lý', proc, 'resi_processing', 'warn')}
-        ${row(IC.checkCircle, 'Đã có tạm trú', reg, 'resi_registered', 'on')}
-      </div>
-    </div>
-    <div class="mf"><button class="btn" data-act="modalBack">Đóng</button><button class="btn pri" data-act="tamTruMo">${IC.printer} Danh sách gửi công an</button></div>`);
+// Màn Tạm trú (/tam-tru): ba tab theo tình trạng tạm trú của học viên đang ở, tab thứ tư lập danh sách in ảnh
+// CCCD gửi cơ quan chức năng. Tháng lọc theo ngày vào ở ('' = tất cả tháng), áp cho mọi tab.
+// Ảnh lấy qua proxy /api/students/:id/cccd/... (cookie phiên tự gửi -> ảnh hiện khi in).
+const TT_TAB = [
+  ['chua', 'unregistered', 'Chưa đăng ký'], ['dang', 'processing', 'Đang xử lý'],
+  ['xong', 'registered', 'Đã hoàn thành'], ['in', '', 'Tạo danh sách gửi cơ quan chức năng'],
+];
+const TT_TEN = { unregistered: 'Chưa đăng ký', processing: 'Đang xử lý', registered: 'Đã hoàn thành' };
+const TT_TAB_URL = { 'chua-dang-ky': 'chua', 'dang-xu-ly': 'dang', 'hoan-thanh': 'xong', 'danh-sach-gui': 'in' };
+let _tamTruTab = 'chua';
+let _tamTruThang = '';
+// Danh sách in: 'unregistered' = in mới; 'processing' = in lại đợt đã gửi.
+let _tamTruTT = 'unregistered';
+function tamTruGo(tab) { _tamTruTab = TT_TAB.some(t => t[0] === tab) ? tab : 'chua'; _tamTruThang = ''; adminGo('tamtru'); }
+function tamTruTab(tab) { _tamTruTab = tab; viewTamTru(); }
+function tamTruTatCaThang() { _tamTruThang = ''; viewTamTru(); }
+function tamTruChonTT() { _tamTruTT = this.value === 'processing' ? 'processing' : 'unregistered'; viewTamTru(); }
+// Ô chọn tình trạng trong ba tab danh sách: chọn là lưu, hồ sơ chuyển sang tab tương ứng.
+const MAU_TAM_TRU = { processing: 'background:var(--amber-bg);color:var(--amber-ink)', registered: 'background:var(--green-bg);color:var(--green-ink)' };
+function oChonTamTru(s) {
+  const hien = TT_TEN[s.residency_status] ? s.residency_status : 'unregistered';
+  return `<select data-change="doiTamTru" data-args='[${s.id}]' aria-label="Tình trạng tạm trú của ${esc(s.name)}"
+    style="width:auto;padding:6px 10px;border-radius:9px;font-size:13px;font-weight:600;${MAU_TAM_TRU[hien] || ''}">
+    ${Object.keys(TT_TEN).map(k => `<option value="${k}"${k === hien ? ' selected' : ''}>${TT_TEN[k]}</option>`).join('')}</select>`;
 }
-
-// Tự gom CCCD 2 mặt của HV đang ở CHƯA đăng ký tạm trú, lọc theo THÁNG VÀO Ở -> trang ảnh in gửi công an.
-// Ảnh lấy qua proxy /api/students/:id/cccd/... (cookie phiên admin tự gửi -> ảnh hiện khi in).
-// Bản in theo mẫu hồ sơ tạm trú: CHỈ lưới ảnh thẻ, mỗi hàng 2 người (trước–sau · trước–sau), viền đứt.
-let _tamTruThang = null;   // null = chưa chọn -> tháng gần nhất có người; '' = tất cả tháng
-function tamTruMo() { closeModal(); _tamTruThang = null; adminGo('tamtru'); }
-function tamTruChonThang() { _tamTruThang = this.value; viewTamTru(); }
+async function doiTamTru(id) {
+  const o = this, s = studentById(id);
+  if (!s || !o) return;
+  const cu = TT_TEN[s.residency_status] ? s.residency_status : 'unregistered', moi = o.value;
+  if (moi === cu || !TT_TEN[moi]) return;
+  o.disabled = true;
+  try { await guard(() => API.updateStudent(id, { residency_status: moi })); }
+  catch (e) { o.value = cu; o.disabled = false; return; }
+  s.residency_status = moi;
+  toast(`Đã chuyển ${s.name} sang "${TT_TEN[moi]}"`);
+  if (ST.view === 'tamtru') viewTamTru();
+}
 // Màn riêng (/tam-tru): có tiêu đề, nút Quay lại, F5 giữ tháng đang xem; lưu hồ sơ xong vẽ lại đúng màn này.
 function viewTamTru() {
   _ttGoc.clear();   // vẽ lại trang = đọc lại ảnh đang lưu, không xoay tiếp từ bản cũ trong bộ nhớ
-  const all = ST.students.filter(s => isOccupying(s) && s.residency_status === 'unregistered')
-    .sort((a, b) => String(a.room_name || '').localeCompare(String(b.room_name || ''), 'vi') || String(a.name).localeCompare(String(b.name), 'vi'));
   const thangCua = s => String(s.check_in_date || '').slice(0, 7);
-  const thangs = [...new Set(all.map(thangCua).filter(Boolean))].sort().reverse();
-  if (_tamTruThang === null) _tamTruThang = thangs.find(m => m <= curMonth()) || '';
-  const targets = _tamTruThang ? all.filter(s => thangCua(s) === _tamTruThang) : all;
-  const ready = targets.filter(s => s.has_cccd_front && s.has_cccd_back);     // đủ 2 mặt -> đưa vào bản in
-  const missing = targets.filter(s => !(s.has_cccd_front && s.has_cccd_back)); // thiếu ảnh -> chưa in
+  const theoTT = st => ST.students.filter(s => isOccupying(s) && s.residency_status === st && (!_tamTruThang || thangCua(s) === _tamTruThang))
+    .sort((a, b) => String(a.room_name || '').localeCompare(String(b.room_name || ''), 'vi') || String(a.name).localeCompare(String(b.name), 'vi'));
+  const tab = TT_TAB.find(t => t[0] === _tamTruTab) || TT_TAB[0];
+  const laIn = tab[0] === 'in';
+  const tabs = TT_TAB.map(([k, st, nhan]) => `<button class="seg ${k === tab[0] ? 'on' : ''}" data-act="tamTruTab" data-args='["${k}"]' aria-pressed="${k === tab[0]}">${nhan}${st ? ` (${theoTT(st).length})` : ''}</button>`).join('');
+  const all = laIn ? theoTT(_tamTruTT) : theoTT(tab[1]);
+  const ready = laIn ? all.filter(s => s.has_cccd_front && s.has_cccd_back) : [];   // đủ 2 mặt -> đưa vào bản in
+  const missing = laIn ? all.filter(s => !(s.has_cccd_front && s.has_cccd_back)) : [];
   const missSide = s => [!s.has_cccd_front ? 'mặt trước' : null, !s.has_cccd_back ? 'mặt sau' : null].filter(Boolean).join(' + ') || 'chưa có ảnh';
-  const nhanThang = m => m ? `${m.slice(5)}/${m.slice(0, 4)}` : 'Tất cả tháng';
-  const demThang = m => (m ? all.filter(s => thangCua(s) === m) : all).length;
 
   _tamTruDot = ready;
   el('topActions').innerHTML = ready.length
-    ? `<button class="btn pri" data-act="tamTruIn">${IC.printer} In ${ready.length} hồ sơ</button>`
+    ? `<button class="btn pri" data-act="tamTruIn">${IC.printer} In danh sách (${ready.length})</button>`
     : '';
 
   const oTen = s => `<td><div class="flex stu-name" data-act="studentDetail" data-args='[${s.id}]' role="button" tabindex="0" title="Mở hồ sơ">
         <div><strong>${esc(s.name)}</strong>${s.code ? `<div class="sub2">${esc(s.code)}</div>` : ''}</div><span class="row-chev">${IC.chevronRight}</span></div></td>
-      <td data-label="Phòng">${esc(s.room_name || '—')}</td>
-      <td data-label="Ngày vào" style="white-space:nowrap">${fmtDate(s.check_in_date) || '—'}</td>`;
-  const hang = (s, i) => `<tr><td class="num" data-label="STT">${i + 1}</td>${oTen(s)}<td data-label="Ảnh CCCD"><span class="badge green">Đủ 2 mặt</span></td></tr>`;
-  const hangThieu = s => `<tr><td class="num" data-label="STT">—</td>${oTen(s)}<td data-label="Ảnh CCCD"><span class="badge red">Thiếu ${missSide(s)}</span>
+      <td data-label="Phòng">${esc(s.room_name || '—')}</td>`;
+  const ngayVao = s => {
+    const tre = s.residency_status === 'unregistered' && stayDays(s) > overdueDays();
+    return `<td data-label="Ngày vào" style="white-space:nowrap">${fmtDate(s.check_in_date)}${tre ? `<div class="sub2" style="color:var(--red-ink)">đã ở ${stayDays(s)} ngày</div>` : ''}</td>`;
+  };
+  const hangDs = s => `<tr>${oTen(s)}${ngayVao(s)}<td data-label="Mã pháp nhân">${legalEntityCell(s.gender)}</td><td data-label="Tình trạng">${oChonTamTru(s)}</td></tr>`;
+  const hang = (s, i) => `<tr><td class="num" data-label="STT">${i + 1}</td>${oTen(s)}${ngayVao(s)}</tr>`;
+  const hangThieu = s => `<tr>${oTen(s)}${ngayVao(s)}<td data-label="Ảnh CCCD"><span class="badge red">Thiếu ${missSide(s)}</span>
         <button class="btn sm" style="margin-left:6px;white-space:nowrap" data-act="studentForm" data-args='[${s.id}]'>${IC.filePen} Bổ sung ảnh</button></td></tr>`;
-  const bang = rows => `<div class="table-wrap card-tbl"><table><thead><tr><th class="num">STT</th><th>Học viên</th><th>Phòng</th><th>Ngày vào</th><th>Ảnh CCCD</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  const bang = (dau, rows) => `<div class="table-wrap card-tbl"><table><thead><tr>${dau.map(h => `<th${h === 'STT' ? ' class="num"' : ''}>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;
+  const RONG = { chua: 'Không có học viên chưa đăng ký tạm trú.', dang: 'Không có hồ sơ đang xử lý.', xong: trongChuaCo('học viên hoàn thành tạm trú'),
+    in: 'Không có học viên đủ ảnh CCCD để in.' };
   const lanVe = Date.now();   // URL mới mỗi lần vẽ: Firefox dùng lại ảnh cũ cùng URL trong trang dù máy chủ báo no-cache
   const cell = (s, side, nhan) => `<div class="tt-cell"><img src="${ttAnhUrl(s.id, side)}?t=${lanVe}" alt="${nhan}" data-anh="${s.id}-${side}">
         <div class="tt-cong-cu rc-noprint"><span class="tt-doc-nhan">ảnh dọc</span>
@@ -320,8 +337,7 @@ function viewTamTru() {
   el('content').innerHTML = `
   <style>
     .tt-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-    .tt-bar select{padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card);font:inherit}
-    .tt-bar .tt-note{margin-left:auto;font-size:12.5px}
+    .tt-bar select,.tt-bar input{width:auto;padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card);font:inherit;font-size:13.5px}
     #printArea .tt-doc{max-width:210mm;margin:0 auto}
     .tt-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px}
     .tt-pair{display:grid;grid-template-columns:1fr 1fr;gap:8px;break-inside:avoid;page-break-inside:avoid}
@@ -338,20 +354,24 @@ function viewTamTru() {
     @media print{ @page{size:A4;margin:10mm} .tt-cell,.tt-cell.tt-doc{border-color:#8fae91} }
   </style>
   <div class="rc-noprint">
-    <div class="panel"><div class="hd"><h2>${IC.flag} Ảnh CCCD gửi công an đăng ký tạm trú</h2><span class="muted" style="font-size:12px">Học viên đang ở, chưa đăng ký tạm trú · xếp theo phòng rồi theo tên</span></div>
+    <div class="panel">
+      <div class="pad" style="padding-bottom:0"><div class="seg-thu tab" role="group" aria-label="Tình trạng tạm trú" style="max-width:100%;overflow-x:auto">${tabs}</div></div>
       <div class="pad tt-bar">
-        <label class="flex" style="gap:8px;font-size:13.5px">${IC.calendar} Tháng vào ở
-          <select id="ttThang" data-change="tamTruChonThang">${['', ...thangs].map(m => `<option value="${m}"${m === _tamTruThang ? ' selected' : ''}>${nhanThang(m)} (${demThang(m)})</option>`).join('')}</select></label>
-        <span class="badge green">${ready.length} đủ ảnh — sẽ in</span>
-        <span class="badge ${missing.length ? 'red' : 'gray'}">${missing.length} thiếu ảnh</span>
-        <span class="muted tt-note">Bản in chỉ có ảnh theo mẫu tạm trú · ${IC.rotateLeft}${IC.rotateRight} xoay tới khi đúng chiều · ${IC.crop} cắt gọn phần thừa quanh thẻ</span>
-      </div></div>
-    ${ready.length ? `<div class="panel"><div class="hd"><h2>Trong bản in (${ready.length})</h2><span class="muted" style="font-size:12px">STT = thứ tự ảnh trên giấy</span></div>${bang(ready.map(hang).join(''))}</div>` : ''}
-    ${missing.length ? `<details class="panel"><summary style="cursor:pointer;padding:14px 18px;font-weight:700;color:var(--red-ink,#b4432b)">${IC.alert} ${missing.length} học viên thiếu ảnh CCCD — chưa đưa vào bản in</summary>${bang(missing.map(hangThieu).join(''))}</details>` : ''}
+        <label class="flex" style="gap:8px;font-size:13.5px;white-space:nowrap">${IC.calendar} Tháng vào ở <input id="ttThang" aria-label="Tháng vào ở"></label>
+        <button class="btn sm ${!_tamTruThang ? 'pri' : ''}" data-act="tamTruTatCaThang" aria-pressed="${!_tamTruThang}">Tất cả tháng</button>
+        ${laIn ? `<label class="flex" style="gap:8px;font-size:13.5px;white-space:nowrap">${IC.flag} Tình trạng
+          <select id="ttTT" data-change="tamTruChonTT">${['unregistered', 'processing'].map(k => `<option value="${k}"${k === _tamTruTT ? ' selected' : ''}>${TT_TEN[k]} (${theoTT(k).length})</option>`).join('')}</select></label>` : ''}
+      </div>
+      ${laIn ? '' : (all.length ? bang(['Học viên', 'Phòng', 'Ngày vào', 'Mã pháp nhân', 'Tình trạng'], all.map(hangDs).join('')) : `<div class="empty">${RONG[tab[0]]}</div>`)}
+    </div>
+    ${laIn ? `<div class="panel"><div class="hd"><h2>Danh sách in (${ready.length})</h2></div>${ready.length ? bang(['STT', 'Học viên', 'Phòng', 'Ngày vào'], ready.map(hang).join('')) : `<div class="empty">${RONG.in}</div>`}</div>
+    ${missing.length ? `<details class="panel"><summary style="cursor:pointer;padding:14px 18px;font-weight:700;color:var(--red-ink,#b4432b)">${IC.alert} Thiếu ảnh CCCD (${missing.length})</summary>${bang(['Học viên', 'Phòng', 'Ngày vào', 'Ảnh CCCD'], missing.map(hangThieu).join(''))}</details>` : ''}` : ''}
   </div>
-  <div id="printArea"><div class="tt-doc">
-    ${ready.length ? `<div class="tt-grid">${ready.map(pair).join('')}</div>` : `<div class="empty" style="padding:36px;text-align:center;color:#888">${all.length ? `Tháng ${nhanThang(_tamTruThang)} không có ai đủ ảnh CCCD 2 mặt để in — chọn tháng khác hoặc "Tất cả tháng".` : 'Không có học viên nào đang chờ đăng ký tạm trú.'}</div>`}
-  </div></div>`;
+  ${ready.length ? `<div id="printArea"><div class="tt-doc"><div class="tt-grid">${ready.map(pair).join('')}</div></div></div>` : ''}`;
+  const o = el('ttThang');
+  attachMonth(o, _tamTruThang || curMonth());
+  if (!_tamTruThang) { o.value = ''; o.placeholder = 'Chọn tháng'; }
+  o.onchange = () => { _tamTruThang = o.dataset.ym; viewTamTru(); };
   tamTruDanhDauDoc();
   syncFilterUrl();
 }
@@ -411,7 +431,7 @@ function tamTruCatMo(id, side) {
 }
 
 // Đợt đang hiện trên trang in. In xong hỏi lại rồi mới chuyển cả đợt sang "Đang xử lý" — hộp in bị
-// huỷ thì không đổi gì. "Đã đăng ký" nhập tay khi công an trả kết quả.
+// huỷ thì không đổi gì. "Đã hoàn thành" chọn tay khi có kết quả tạm trú.
 let _tamTruDot = [];
 function tamTruIn() {
   window.print();
@@ -419,8 +439,7 @@ function tamTruIn() {
   if (!n) return;
   openModal(`
     <div class="mh"><h3>${IC.printer} Đã in xong?</h3><button class="x" aria-label="Đóng" data-act="closeModal">×</button></div>
-    <div class="mb"><p style="margin:0">Chuyển <strong>${n} hồ sơ</strong> trong bản in sang <strong>Đang xử lý</strong>?</p>
-      <p class="muted" style="margin:8px 0 0">Chưa in được hoặc chưa gửi công an thì bấm Để sau, hồ sơ giữ nguyên "Chưa đăng ký".</p></div>
+    <div class="mb"><p style="margin:0">Chuyển <strong>${n} hồ sơ</strong> sang <strong>Đang xử lý</strong>?</p></div>
     <div class="mf"><button class="btn" data-act="closeModal">Để sau</button><button class="btn pri" data-act="tamTruXacNhanIn">${IC.check} Chuyển ${n} hồ sơ</button></div>`);
 }
 function tamTruXacNhanIn() {
@@ -441,10 +460,13 @@ async function tamTruChuyenXuLy() {
   });
   const xong = ds.length - loi.length;
   if (xong) {
-    el('content').insertAdjacentHTML('afterbegin', `<div class="rc-noprint" style="background:#f1f8f2;border:1px solid #bfd9c4;border-radius:10px;padding:12px 14px;margin-bottom:14px">
-      <strong style="color:var(--brand,#1b5e3b)">${IC.checkCircle} Đã chuyển ${xong} hồ sơ sang "Đang xử lý".</strong>
-      <div style="font-size:13px;margin-top:4px">Khi công an trả kết quả tạm trú, mở từng hồ sơ đổi ô Tạm trú sang <strong>Đã đăng ký</strong>.</div></div>`);
     try { await napLai('students'); } catch (e) { /* trạng thái đã ghi ở máy chủ; số đếm Tổng quan sẽ đúng ở lần nạp sau */ }
+  }
+  // Chuyển hết: đợt vừa in nằm ở "Đang xử lý" của tab in, vẽ lại để in lại được ngay.
+  if (!loi.length && ST.view === 'tamtru') {
+    _tamTruTT = 'processing';
+    toast(`Đã chuyển ${xong} hồ sơ sang Đang xử lý`);
+    return viewTamTru();
   }
   if (loi.length) {
     toast(`Chưa chuyển được ${loi.length} hồ sơ`, 'err');
@@ -555,7 +577,7 @@ async function viewDashboard() {
         ${todo(IC.key, 'Nhận phòng', nguoiCanXuLyPhong('checkin').tong, actAttr('nhanPhongGo'), 'on')}
         ${todo(IC.logOut, 'Trả phòng', nguoiCanXuLyPhong('checkout').tong, actAttr('traPhongGo'), 'on')}
         ${todo(IC.wrench, 'Bảo trì', pDmg, actAttr('baoTriGo'), 'warn')}
-        ${todo(IC.flag, 'Đăng ký Tạm Trú', resiOverdue, actAttr('residencyModal'), 'warn')}
+        ${todo(IC.flag, 'Đăng ký Tạm Trú', resiOverdue, actAttr('tamTruGo', 'chua'), 'warn')}
         ${todo(IC.fileText, 'Hợp đồng', contractIncomplete, actAttr('contractIssuesModal'), 'warn')}
         ${todo(IC.receipt, 'Lập phiếu báo', billOverdue, actAttr('billOverdueModal'), 'bad')}
         ${todo(IC.alert, 'Vi phạm cần báo', needMail, actAttr('viPhamGo', 'canbao'), 'bad')}

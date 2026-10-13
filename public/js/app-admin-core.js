@@ -491,16 +491,20 @@ const FILTERS = {
       return p;
     },
   },
-  // Tạm trú: tháng vào ở đang xem. Không có tham số = tháng gần nhất có người; 'tat-ca' = tất cả tháng.
+  // Tạm trú: tab đang mở + tháng vào ở (không có = tất cả tháng). tt=dang-xu-ly: tab in đang in lại đợt đã gửi.
   tamtru: {
     read: q => {
+      _tamTruTab = TT_TAB_URL[q.get('tab')] || 'chua';
       const t = q.get('thang') || '';
-      _tamTruThang = /^\d{4}-\d{2}$/.test(t) ? t : t === 'tat-ca' ? '' : null;
+      _tamTruThang = /^\d{4}-\d{2}$/.test(t) ? t : '';
+      _tamTruTT = q.get('tt') === 'dang-xu-ly' ? 'processing' : 'unregistered';
     },
     write: () => {
       const p = new URLSearchParams();
+      const slug = Object.keys(TT_TAB_URL).find(k => TT_TAB_URL[k] === _tamTruTab);
+      if (_tamTruTab !== 'chua' && slug) p.set('tab', slug);
       if (_tamTruThang) p.set('thang', _tamTruThang);
-      else if (_tamTruThang === '') p.set('thang', 'tat-ca');
+      if (_tamTruTab === 'in' && _tamTruTT === 'processing') p.set('tt', 'dang-xu-ly');
       return p;
     },
   },

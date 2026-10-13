@@ -47,24 +47,23 @@ const cho = async (page, dk, ms = 15000) => {
 
   // ── 1. Tạm trú là màn riêng ───────────────────────────────────────────────
   await page.goto('/'); await cho(page, t => t.title === 'Tổng quan');
-  await page.evaluate(() => residencyModal());
-  await page.click('#modal [data-act="tamTruMo"]');
-  ok('Danh sách gửi công an → màn "Tạm trú"', await cho(page, t => t.title === 'Tạm trú'), JSON.stringify(await trang(page)));
+  await page.waitForSelector('.todo-grid', { timeout: 15000 });
+  await page.evaluate(() => tamTruGo('chua'));
+  ok('Ô Đăng ký Tạm Trú → màn "Tạm trú"', await cho(page, t => t.title === 'Tạm trú'), JSON.stringify(await trang(page)));
   let t = await trang(page);
   ok('… đường dẫn /tam-tru', t.path === '/tam-tru', t.path);
   ok('… có nút Quay lại', t.back);
   ok('… menu sáng mục Tổng quan', t.menu === 'dashboard', t.menu);
-  ok('… modal đã đóng', !t.modal);
+  ok('… không có hộp nào mở', !t.modal);
 
-  const thangs = await page.evaluate(() => [...document.querySelectorAll('#ttThang option')].map(o => o.value));
-  const chon = thangs.find(v => v) || '';
-  await page.selectOption('#ttThang', chon);
+  const chon = await page.evaluate(() => curMonth());
+  await page.click('#ttThang');
+  await page.locator(`.cal-pop .mo-cell[data-ym="${chon}"]`).click();
   await page.waitForTimeout(400);
   t = await trang(page);
-  const thamSo = chon ? 'thang=' + chon : 'thang=tat-ca';
-  ok('Đổi tháng → tháng ghi lên URL', t.search.includes(thamSo), t.search);
+  ok('Đổi tháng → tháng ghi lên URL', t.search.includes('thang=' + chon), t.search);
   await page.reload(); await cho(page, x => x.title === 'Tạm trú');
-  const sauF5 = await page.evaluate(() => (document.getElementById('ttThang') || {}).value);
+  const sauF5 = await page.evaluate(() => (document.getElementById('ttThang') || {}).dataset.ym);
   ok('F5 → vẫn ở màn Tạm trú, đúng tháng đang xem', (await trang(page)).title === 'Tạm trú' && sauF5 === chon, `tháng=${sauF5} (mong ${chon})`);
 
   const idHv = await page.evaluate(() => (ST.students.find(s => !s.deleted_at) || {}).id);

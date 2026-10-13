@@ -77,12 +77,6 @@ const ok = (name, cond, extra = '') => {
   kiemChan('Học viên thiếu phiếu báo', ds);
   ok('… "Đóng" đứng đầu (trái)', ds.length && ds[0].chu === 'Đóng', ds.map(b => b.chu).join(' | '));
   await dongModal();
-  await page.evaluate(() => residencyModal());
-  await cho(() => !!document.querySelector('#modal .mf .btn'));
-  ds = await chanModal();
-  kiemChan('Tạm trú', ds);
-  ok('… "Đóng" trái, "Danh sách gửi công an" phải', ds.length === 2 && ds[0].chu === 'Đóng' && ds[1].pri, ds.map(b => b.chu).join(' | '));
-  await dongModal();
 
   ok('Không request ghi nào (đều bị chặn, và không có cái nào)', daGhi.length === 0, daGhi.join(', '));
   ok('Không có lỗi JavaScript', loiJs.length === 0, loiJs.join(' | '));

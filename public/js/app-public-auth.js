@@ -501,7 +501,7 @@ function renderForceChangePw() {
 const AdminTitles = {
   exec: ['Điều hành', 'Báo cáo lãnh đạo — KPI & biểu đồ'],
   dashboard: ['Tổng quan', 'Bảng điều khiển ký túc xá'],
-  tamtru: ['Tạm trú', 'Ảnh CCCD gửi công an'],
+  tamtru: ['Tạm trú', 'Theo dõi đăng ký tạm trú'],
   students: ['Học viên', 'Hồ sơ, hợp đồng, tạm trú'],
   rooms: ['Phòng', 'Danh sách phòng theo tầng / hạng / giới tính'],
   services: ['Dịch vụ', 'Máy giặt · Gửi xe — dịch vụ tùy chọn của học viên'],

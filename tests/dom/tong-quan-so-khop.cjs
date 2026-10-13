@@ -69,15 +69,11 @@ const soTrong = s => { const m = String(s || '').match(/\((\d+)\)/); return m ? 
     await veTongQuan();
   } else console.log('  [BỎ QUA] Bảo trì = 0');
 
-  // ── Đăng ký Tạm Trú → modal, hàng "Chưa đăng ký" == số ô ───────────────────────────
+  // ── Đăng ký Tạm Trú → màn Tạm trú tab "Chưa đăng ký": số người quá hạn (dòng "đã ở N ngày") == số ô ──
   if (so['Đăng ký Tạm Trú'] > 0) {
     await bam('Đăng ký Tạm Trú');
-    const hang = await page.locator('#modal .todo', { hasText: 'Chưa đăng ký' }).first();
-    const n = +(await hang.locator('.n').textContent());
-    ok('Tạm trú → modal hàng "Chưa đăng ký" khớp', n === so['Đăng ký Tạm Trú'], `${n} vs ${so['Đăng ký Tạm Trú']}`);
-    await hang.click(); await page.waitForTimeout(2000);
-    const dem = +(await page.locator('#stuCount').textContent());
-    ok('…bấm tiếp → danh sách học viên đúng số', dem === so['Đăng ký Tạm Trú'], `${dem} vs ${so['Đăng ký Tạm Trú']}`);
+    const tre = await page.locator('#content tbody tr', { hasText: /đã ở \d+ ngày/ }).count();
+    ok('Tạm trú → màn Tạm trú, số người quá hạn khớp số ô', /\/tam-tru/.test(page.url()) && tre === so['Đăng ký Tạm Trú'], `${tre} vs ${so['Đăng ký Tạm Trú']}`);
     await veTongQuan();
   } else console.log('  [BỎ QUA] Tạm trú = 0');
 
