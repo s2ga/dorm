@@ -37,8 +37,10 @@ async function api(path, { method = 'GET', body } = {}) {
     // đọc không hiểu. Toàn app tiếng Việt, riêng lúc hỏng nhất lại nói tiếng Anh.
     throw new Error('Mất kết nối — chưa gửi được. Kiểm tra mạng rồi thử lại (dữ liệu bạn vừa nhập vẫn còn).');
   }
-  // Phiên hết hạn khi đang đăng nhập -> xóa hint + lựa chọn cổng + tải lại về màn đăng nhập
-  if (res.status === 401 && Auth.user) {
+  // Phiên hết hạn khi đang đăng nhập -> xóa hint + lựa chọn cổng + tải lại về màn đăng nhập.
+  // Xét cả cổng đang mở ở tab này: hint nằm chung localStorage, tab khác đăng xuất là hint đã mất.
+  const dangMoCong = typeof _congDangMo !== 'undefined' && !!_congDangMo;
+  if (res.status === 401 && (Auth.user || dangMoCong)) {
     Auth.user = null;
     try { localStorage.removeItem('ktx_portal'); } catch {}
     location.reload(); throw new Error('Hết phiên đăng nhập');
