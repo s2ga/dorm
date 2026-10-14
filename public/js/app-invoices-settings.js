@@ -353,7 +353,18 @@ function electricTable(rooms, lichSu) {
       <td class="num" id="em_${r.room_id}">${bad ? '—'
         : `${moneyN(kwh * don)}${en && tr != null ? deltaKwh(kwh * don, tr * don, moneyN) : ''}`}</td>
       <td class="num">${sparkline(ls.get(r.room_id))}</td></tr>`; }).join('')}
-  </tbody></table></div>`;
+  </tbody><tfoot><tr class="tot-row">
+    <td><strong>TỔNG</strong></td>
+    <td class="num"></td>
+    <td class="num"></td>
+    <td class="num" id="etong_kwh"><strong>${eTongKwh(rooms)} kWh</strong></td>
+    <td class="num" id="etong_tien"><strong>${moneyN(eTongKwh(rooms) * don)}</strong></td>
+    <td class="num"></td>
+  </tr></tfoot></table></div>`;
+}
+// Tổng tiêu thụ cả khu: phòng nhập sai (số cuối < số đầu) tính 0, không kéo tổng xuống âm.
+function eTongKwh(rooms) {
+  return rooms.reduce((s, r) => s + Math.max(0, (+r.reading_end || 0) - (+r.reading_start || 0)), 0);
 }
 function ecalc(rid) {
   const enInp = document.querySelector(`[data-room="${rid}"]`);
@@ -363,11 +374,26 @@ function ecalc(rid) {
   enInp.style.borderColor = bad ? 'var(--red)' : '';
   enInp.style.background = bad ? 'var(--red-bg)' : '';
   const ek = el('ek_' + rid), em = el('em_' + rid);
-  if (bad) { ek.innerHTML = '<span class="err-inline" title="Số cuối nhỏ hơn số đầu — sửa lại">Số cuối &lt; số đầu</span>'; em.textContent = '—'; return; }
+  if (bad) { ek.innerHTML = '<span class="err-inline" title="Số cuối nhỏ hơn số đầu — sửa lại">Số cuối &lt; số đầu</span>'; em.textContent = '—'; ecalcTong(); return; }
   const kwh = Math.max(0, en - st), don = +ST.settings.electric_unit || 0;
   const tr = _kwhTruoc[rid];
   ek.innerHTML = `${kwh}${en ? deltaKwh(kwh, tr == null ? null : tr, n => n + ' kWh', true) : ''}`;
   em.innerHTML = `${moneyN(kwh * don)}${en && tr != null ? deltaKwh(kwh * don, tr * don, moneyN) : ''}`;
+  ecalcTong();
+}
+// Cộng lại dòng tổng ngay khi gõ, lấy đúng bảng đang mở.
+function ecalcTong() {
+  const oKwh = el('etong_kwh'); if (!oKwh) return;
+  const bang = oKwh.closest('table'); if (!bang) return;
+  const don = +ST.settings.electric_unit || 0;
+  let tong = 0;
+  bang.querySelectorAll('input[data-room]').forEach(inp => {
+    const st = +(bang.querySelector(`[data-estart="${inp.dataset.room}"]`)?.value) || 0;
+    tong += Math.max(0, (+inp.value || 0) - st);
+  });
+  oKwh.innerHTML = `<strong>${tong} kWh</strong>`;
+  const oTien = el('etong_tien');
+  if (oTien) oTien.innerHTML = `<strong>${moneyN(tong * don)}</strong>`;
 }
 function readElectricInputs() {
   // Ô trống gửi lên rỗng, KHÔNG phải 0 — server hiểu là chưa đọc và xoá bản ghi.
@@ -743,11 +769,11 @@ function invoiceForm(id) {
         <div class="field"><label>Học viên ${SAO}</label><select id="i_stu" ${id ? 'disabled' : ''}>${id ? '' : '<option value="">— Chọn học viên —</option>'}${opts}</select></div>
         <div class="field"><label>Kỳ</label><input id="i_month"></div>
       </div>
-      <div class="grid2">${f('Số ngày ở', 'days_stayed')}${f(tenKhoan('room_charge'), 'room_charge')}</div>
-      <div class="grid2">${f(tenKhoan('electric_charge'), 'electric_charge')}${f(tenKhoan('water_charge'), 'water_charge')}</div>
-      <div class="grid2">${f(tenKhoan('service_charge'), 'service_charge')}${f(tenKhoan('washing_charge'), 'washing_charge')}</div>
-      <div class="grid2">${f(tenKhoan('parking_charge'), 'parking_charge')}${f('Khoản khác', 'other_charge')}</div>
-      <div class="grid2">${f(tenKhoan('deposit_charge'), 'deposit_charge')}<div></div></div>
+      <div class="grid2">${f('Số ngày ở', 'days_stayed', 'data-input="phieuTinhTienPhong"')}${f(tenKhoan('room_charge'), 'room_charge')}</div>
+      <div class="grid2">${f('Số điện (kWh)', 'electric_kwh', 'step="0.01" data-input="phieuTinhTienDien"')}${f(tenKhoan('electric_charge'), 'electric_charge')}</div>
+      <div class="grid2">${f(tenKhoan('water_charge'), 'water_charge')}${f(tenKhoan('service_charge'), 'service_charge')}</div>
+      <div class="grid2">${f(tenKhoan('washing_charge'), 'washing_charge')}${f(tenKhoan('parking_charge'), 'parking_charge')}</div>
+      <div class="grid2">${f('Khoản khác', 'other_charge')}${f(tenKhoan('deposit_charge'), 'deposit_charge')}</div>
       <div class="field"><label>Ghi chú khoản khác</label><input id="i_other_note" value="${esc(i.other_note || '')}"></div>
       ${(() => {
     // BL-101: chỗ chỉnh GIẢM GIÁ % — nguồn của cột GIẢM. Lưu ở HỒ SƠ (tự áp mỗi kỳ), sửa tại phiếu.
@@ -777,10 +803,33 @@ async function luuGiamPct(invoiceId, sid) {
   await luuXongVeLai(veLaiNen);
   toast('Đã lưu giảm giá, tính lại phiếu');
 }
+// Sửa số ngày ở thì tiền phòng theo công thức của máy chủ: (giá phòng tháng ÷ số ngày của tháng) × số ngày ở.
+// Phòng miễn tiền phòng và phòng thuê trọn thu theo hạng, không chia theo ngày — giữ nguyên ô tiền.
+function phieuTinhTienPhong() {
+  const o = el('i_room_charge'), oNgay = el('i_days_stayed'), oThang = el('i_month');
+  if (!o || !oNgay || !oThang) return;
+  const s = studentById(+((el('i_stu') || {}).value || 0));
+  const r = s && roomById(s.room_id);
+  if (!r) return;
+  const loai = r.room_type || 'shared';
+  if (loai === 'security' || loai === 'staff' || loai === 'whole' || s.rental_type === 'phong') return;
+  const ym = oThang.dataset.ym || '';
+  if (!/^\d{4}-\d{2}$/.test(ym)) return;
+  const dim = new Date(+ym.slice(0, 4), +ym.slice(5, 7), 0).getDate();
+  const gia = +r.monthly_fee > 0 ? +r.monthly_fee : (+ST.settings.room_fee || 0);
+  const ngay = Math.max(0, Math.min(dim, +oNgay.value || 0));
+  o.value = Math.round(gia / dim * ngay);
+}
+// Sửa số kWh thì tiền điện = kWh × đơn giá điện đang đặt ở Cài đặt.
+function phieuTinhTienDien() {
+  const o = el('i_electric_charge'), oKwh = el('i_electric_kwh');
+  if (!o || !oKwh) return;
+  o.value = Math.round((+oKwh.value || 0) * (+ST.settings.electric_unit || 0));
+}
 async function saveInvoice(id) {
   const g = k => +el('i_' + k).value || 0;
   const body = { student_id: +el('i_stu').value, month: el('i_month').dataset.ym, days_stayed: g('days_stayed'),
-    room_charge: g('room_charge'), electric_charge: g('electric_charge'), water_charge: g('water_charge'),
+    room_charge: g('room_charge'), electric_kwh: g('electric_kwh'), electric_charge: g('electric_charge'), water_charge: g('water_charge'),
     service_charge: g('service_charge'), washing_charge: g('washing_charge'), parking_charge: g('parking_charge'),
     other_charge: g('other_charge'), deposit_charge: g('deposit_charge'), other_note: el('i_other_note').value.trim() };
   if (!body.student_id) return loiTaiO('i_stu', 'Chọn học viên');

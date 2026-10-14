@@ -281,10 +281,11 @@ function pkGanXeForm(id) {
   openModal(`
     <div class="mh"><h3>${IC.bike} Ghi xe lạ vào danh sách gửi xe</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <div class="field"><label>Chủ xe ${SAO}</label><select id="pg_stu">
-        <option value="">— Chọn học viên đang ở —</option>
-        ${dsHV.map(x => `<option value="${x.id}">${x.room_name ? esc(x.room_name) + ' — ' : ''}${esc(x.name)}${x.code ? ' (' + esc(x.code) + ')' : ''}</option>`).join('')}
-      </select></div>
+      <div class="field"><label>Chủ xe ${SAO}</label>
+        <div class="search"><span class="i">${IC.search}</span><input id="pg_q" placeholder="Tìm tên, mã HV hoặc số phòng…" autocomplete="off" data-input="locHVGanXe"></div>
+        <select id="pg_stu" size="7" style="margin-top:8px"></select>
+        <div class="muted" id="pg_dem" style="font-size:12px;margin-top:6px"></div>
+      </div>
       <div class="grid2">
         <div class="field"><label>Biển số ${SAO}</label><input id="pg_plate" value="${esc(bc.plate || '')}" placeholder="63-B4 508.58" autocapitalize="characters"></div>
         <div class="field"><label>Loại xe</label><input id="pg_type" placeholder="Xe số / Xe ga…"></div>
@@ -297,7 +298,20 @@ function pkGanXeForm(id) {
         Phí gửi xe ${money(ST.settings.parking_fee)}/xe/tháng tính từ đó. Lưu xong báo cáo này chuyển sang <strong>Đã xử lý</strong>.</div>
     </div>
     <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="pkGanXeLuu" data-args='[${id}]'>Lưu</button></div>`);
-  setTimeout(() => el('pg_stu') && el('pg_stu').focus(), 50);
+  _pkGanHV = dsHV;
+  locHVGanXe();
+  setTimeout(() => el('pg_q') && el('pg_q').focus(), 50);
+}
+// Danh sách HV đang ở của form gán xe — lọc theo tên/mã/số phòng, không tự chọn sẵn ai.
+let _pkGanHV = [];
+function locHVGanXe() {
+  const o = el('pg_stu'); if (!o) return;
+  const q = ((el('pg_q') || {}).value || '').trim().toLowerCase();
+  const dangChon = o.value;
+  const ds = _pkGanHV.filter(s => !q || `${s.name} ${s.code || ''} ${s.room_name || ''}`.toLowerCase().includes(q));
+  o.innerHTML = ds.map(s => `<option value="${s.id}"${String(s.id) === dangChon ? ' selected' : ''}>${s.room_name ? esc(s.room_name) + ' — ' : ''}${esc(s.name)}${s.code ? ' (' + esc(s.code) + ')' : ''}</option>`).join('');
+  const dem = el('pg_dem');
+  if (dem) dem.textContent = ds.length ? `${ds.length}/${_pkGanHV.length} học viên${q ? ' khớp' : ''}` : 'Không có học viên nào khớp';
 }
 async function pkGanXeLuu(id) {
   const sid = +((el('pg_stu') || {}).value || 0);
