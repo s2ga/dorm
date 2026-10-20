@@ -212,7 +212,8 @@ function coFormDien() {
   if (!(el('co_doc') && el('co_doc').checked)) return;
   const p = window._myProfile || {};
   const n = +p.deposit_notice_min_days || 30;
-  const coCoc = p.deposit_status === 'held';   // có cọc đang giữ thì mới cần số tài khoản để hoàn
+  // Ô số tài khoản luôn hiện; bắt buộc khi app đang ghi giữ cọc (cọc chưa ghi nhận vẫn điền được).
+  const coCoc = p.deposit_status === 'held';
   openModal(`
     <div class="mh"><h3>${IC.logOut} Gửi đơn trả phòng</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
@@ -220,10 +221,10 @@ function coFormDien() {
       <div class="field"><label>Lý do</label><select id="co_reason">
         ${CHECKOUT_REASONS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}
       </select></div>
-      ${coCoc ? `<div class="grid2">
-        <div class="field"><label>Số tài khoản nhận cọc ${SAO}</label><input id="co_stk" inputmode="numeric" autocomplete="off"></div>
-        <div class="field"><label>Ngân hàng ${SAO}</label><input id="co_nh" placeholder="VD: Vietcombank"></div>
-      </div>` : ''}
+      <div class="grid2">
+        <div class="field"><label>Số tài khoản nhận cọc ${coCoc ? SAO : '<span class="opt">(nếu đã đóng cọc)</span>'}</label><input id="co_stk" inputmode="numeric" autocomplete="off"></div>
+        <div class="field"><label>Ngân hàng ${coCoc ? SAO : ''}</label><input id="co_nh" placeholder="VD: Vietcombank"></div>
+      </div>
       <div class="field"><label>Ghi chú</label><textarea id="co_note" rows="2"></textarea></div>
       <div class="hint">${IC.info} Đơn gửi tới Ban Quản lý duyệt. Ngày trả cách hôm nay dưới ${n} ngày thì theo quy trình sẽ không được hoàn cọc.</div>
     </div>
@@ -234,11 +235,10 @@ async function submitCheckoutReq() {
   const d = el('co_date').dataset.iso;
   if (!d) return loiTaiO('co_date', 'Chọn ngày dự kiến trả phòng');
   const b = { desired_date: d, reason: el('co_reason').value, note: el('co_note').value.trim(), da_doc_quy_trinh: true };
-  if (el('co_stk')) {
-    b.bank_account = el('co_stk').value.trim(); b.bank_name = el('co_nh').value.trim();
-    if (!b.bank_account) return loiTaiO('co_stk', 'Nhập số tài khoản để nhận lại cọc');
-    if (!b.bank_name) return loiTaiO('co_nh', 'Nhập tên ngân hàng');
-  }
+  b.bank_account = el('co_stk').value.trim(); b.bank_name = el('co_nh').value.trim();
+  const coCoc = (window._myProfile || {}).deposit_status === 'held';
+  if (coCoc && !b.bank_account) return loiTaiO('co_stk', 'Nhập số tài khoản để nhận lại cọc');
+  if (b.bank_account && !b.bank_name) return loiTaiO('co_nh', 'Nhập tên ngân hàng');
   await guard(() => API.createMeCheckoutReq(b));
   closeModal(); toast('Đã gửi đơn trả phòng'); loadStudentPortal();
 }
