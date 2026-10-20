@@ -110,6 +110,14 @@ const TEN_TAB = ['Chưa đăng ký', 'Đang xử lý', 'Đã hoàn thành', 'T�
   const bang = await page.locator('#content .rc-noprint').first().textContent() || '';
   ok('Chọn "Đang xử lý" + tháng → ra lại đợt đã gửi', d.tenDang.slice(1).every(t => bang.includes(t)), d.tenDang.slice(1).join(', '));
   ok('Nút in ghi đúng số', /In danh sách \(2\)/.test(await page.locator('#topActions').textContent() || ''));
+  const doMo = () => page.evaluate(() => getComputedStyle(document.querySelector('#printArea .tt-cong-cu')).opacity);
+  await page.mouse.move(5, 5);
+  await page.waitForTimeout(300);
+  ok('Nút sửa ảnh ẩn khi chưa trỏ chuột vào ảnh', await doMo() === '0', await doMo());
+  await page.hover('#printArea .tt-cell');
+  await page.waitForTimeout(400);
+  ok('Trỏ chuột vào ảnh → hiện nút xoay, cắt', await doMo() === '1', await doMo());
+  await page.mouse.move(5, 5);
   ok('Đường dẫn ghi đủ tab + tháng + tình trạng', /tab=danh-sach-gui/.test(page.url()) && /tt=dang-xu-ly/.test(page.url()) && page.url().includes('thang=' + d.thang), page.url());
   await page.evaluate(() => { window.__soLanIn = 0; window.print = () => { window.__soLanIn++; }; });
   await page.click('#topActions [data-act="tamTruIn"]');

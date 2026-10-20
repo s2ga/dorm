@@ -343,7 +343,9 @@ function viewTamTru() {
     .tt-pair{display:grid;grid-template-columns:1fr 1fr;gap:8px;break-inside:avoid;page-break-inside:avoid}
     .tt-cell{position:relative;border:1.5px dashed #8fae91;padding:4px;background:#fff}
     .tt-cell img{width:100%;aspect-ratio:85.6/54;object-fit:contain;display:block}
-    .tt-cong-cu{position:absolute;top:6px;right:6px;display:flex;align-items:center;gap:2px;padding:3px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.94);box-shadow:0 2px 8px rgba(0,0,0,.12)}
+    .tt-cong-cu{position:absolute;top:6px;right:6px;display:flex;align-items:center;gap:2px;padding:3px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.94);box-shadow:0 2px 8px rgba(0,0,0,.12);opacity:0;pointer-events:none;transition:opacity .15s}
+    .tt-cell:hover .tt-cong-cu,.tt-cell:focus-within .tt-cong-cu{opacity:1;pointer-events:auto}
+    @media (hover:none){ .tt-cong-cu{opacity:1;pointer-events:auto} }
     .tt-nut{display:inline-flex;align-items:center;gap:4px;padding:5px 8px;border:0;border-radius:999px;background:transparent;color:var(--ink);font:inherit;font-size:12px;line-height:1;cursor:pointer}
     .tt-nut:hover{background:var(--bg2)}
     .tt-nut[disabled]{opacity:.45;cursor:default}
@@ -375,7 +377,7 @@ function viewTamTru() {
   tamTruDanhDauDoc();
   syncFilterUrl();
 }
-// Ảnh cao hơn rộng = chụp dọc -> viền cam + nút xoay hiện sẵn (bản in chỉ nhận thẻ nằm ngang).
+// Ảnh cao hơn rộng = chụp dọc -> viền cam (bản in chỉ nhận thẻ nằm ngang); nút sửa ảnh chỉ hiện khi trỏ chuột vào ảnh.
 function tamTruDanhDauDoc() {
   document.querySelectorAll('#printArea .tt-cell img').forEach(img => {
     const danhDau = () => img.parentElement.classList.toggle('tt-doc', img.naturalHeight > img.naturalWidth);
