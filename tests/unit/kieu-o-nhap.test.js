@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 const DIR = path.join(__dirname, '..', '..', 'public', 'js');
-const SO = ['set_smtp_port', 'set_parking_close_alert_time', 'set_security_day_from', 'set_security_day_to', 'r_acc'];
+const SO = ['set_smtp_port', 'set_parking_close_alert_time', 'set_security_day_from', 'set_security_day_to', 'co_stk'];
 
 function theInput(src) {
   const ds = [];

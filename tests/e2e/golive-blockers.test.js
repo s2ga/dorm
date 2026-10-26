@@ -102,7 +102,7 @@ module.exports = {
     await t.db.query(`INSERT INTO room_stays (student_id,room_id,from_date) VALUES ($1,$2,'2026-07-01')`, [sD, rmD]);
     await t.api('POST', `/api/students/${sD}/checkout`, T, { date: '2026-07-20', reason: 'departure' });
     // tất toán lần 1 (forfeit — không cần điều kiện) → ok
-    const s1 = await t.api('POST', `/api/students/${sD}/deposit-settle`, T, { action: 'forfeit' });
+    const s1 = await t.api('POST', `/api/students/${sD}/deposit-settle`, T, { action: 'forfeit', deduction_note: 'Báo trước dưới 30 ngày' });
     t.ok('M-1: tất toán cọc lần 1 (đã trả phòng) OK', s1.status === 200, `HTTP ${s1.status}`);
     // tất toán LẠI → 409
     const s2 = await t.api('POST', `/api/students/${sD}/deposit-settle`, T, { action: 'refund', override_reason: 'doi y muon hoan lai coc' });

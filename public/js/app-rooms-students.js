@@ -957,11 +957,12 @@ async function studentDetail(id) {
 
       <div class="panel"><div class="hd"><h2 class="muc-h">${IC.lock} Tiền cọc</h2></div><div class="pad">
         <p style="margin:0 0 10px">Trạng thái: ${depositBadge(s)} ${s.deposit_amount ? `· <strong>${money(s.deposit_amount)}</strong>` : ''} ${s.deposit_date ? `· đóng ${fmtDate(s.deposit_date)}` : ''} ${s.deposit_refund_date ? `· xử lý ${fmtDate(s.deposit_refund_date)}` : ''}</p>
-        ${+s.deposit_deduction ? `<p style="margin:0 0 10px;color:var(--red)">Khấu trừ hư hao: <strong>${money(s.deposit_deduction)}</strong>${s.deposit_deduction_note ? ` (${esc(s.deposit_deduction_note)})` : ''} · Hoàn thực tế: <strong>${money((+s.deposit_amount || 0) - (+s.deposit_deduction || 0))}</strong></p>` : ''}
+        ${+s.deposit_deduction ? `<p style="margin:0 0 10px;color:var(--red)">Khấu trừ hư hao: <strong>${money(s.deposit_deduction)}</strong>${s.deposit_deduction_note ? ` (${esc(s.deposit_deduction_note)})` : ''} · Hoàn thực tế: <strong>${money((+s.deposit_amount || 0) - (+s.deposit_deduction || 0))}</strong></p>`
+    : (s.deposit_deduction_note && ['refunded', 'forfeited'].includes(s.deposit_status) ? `<p style="margin:0 0 10px">Lý do: ${esc(s.deposit_deduction_note)}</p>` : '')}
         ${s.deposit_account ? `<p style="margin:0 0 10px" class="muted">Hoàn về: ${esc(s.deposit_account)} — ${esc(s.deposit_bank)}</p>` : ''}
         <div class="rowbtns">
           ${s.deposit_status === 'none' ? `<button class="btn sm" data-act="depositForm" data-args='[${s.id}]'>Ghi nhận đóng cọc</button>` : ''}
-          ${s.deposit_status === 'held' ? `<button class="btn sm green" data-act="refundForm" data-args='[${s.id}]'>Hoàn cọc</button><button class="btn sm danger" data-act="settleDeposit" data-args='[${s.id},"forfeit"]'>Không hoàn (giữ cọc)</button><button class="btn sm ghost" title="Ghi nhầm là đã đóng — đưa hồ sơ về chưa đóng cọc" data-act="goGhiNhanCoc" data-args='[${s.id}]'>Gỡ ghi nhận</button>` : ''}
+          ${s.deposit_status === 'held' ? `${liveStatus(s) === 'left' ? `<button class="btn sm" data-act="xuLyCocForm" data-args='[${s.id}]'>${IC.handCoins} Xử lý cọc</button>` : ''}<button class="btn sm ghost" title="Ghi nhầm là đã đóng — đưa hồ sơ về chưa đóng cọc" data-act="goGhiNhanCoc" data-args='[${s.id}]'>Gỡ ghi nhận</button>` : ''}
           ${s.deposit_status === 'refunded' || s.deposit_status === 'forfeited' ? `<button class="btn sm" data-act="depositForm" data-args='[${s.id}]'>Điều chỉnh</button>` : ''}
         </div>
       </div></div>
@@ -1287,72 +1288,32 @@ async function doTransfer(id) {
   const n = moved.recalced ? moved.recalced.length : 0;
   toast(n ? `Đã chuyển phòng · tính lại tiền điện cho ${n} phiếu` : 'Đã chuyển phòng');
 }
-/* Hoàn cọc kèm khấu trừ hư hao tài sản + STK */
-async function refundForm(id) {
-  // BL-78: số tài khoản hoàn cọc không còn nằm trong danh sách -> lấy từ hồ sơ chi tiết.
-  const s = (await moModalCho(true, () => guard(() => API.student(id)))) || {};
-  const deposit = +s.deposit_amount || 0;
-  const assetRow = a => `<tr>
-    <td>${esc(a.name)} <span class="muted" style="font-size:11px">(${esc(a.unit)})</span></td>
-    <td class="num"><input type="number" min="0" step="1" data-dqty="${a.id}" value="0" style="width:64px;text-align:right" data-input="dedCalc"></td>
-    <td class="num"><input type="number" data-dfee="${a.id}" data-dname="${esc(a.name)}" value="${+a.fee || 0}" style="width:110px;text-align:right;background:var(--bg2,#f5f5f5)" readonly title="Phí bồi hoàn lấy từ danh mục tài sản — sửa trong mục Cài đặt"></td>
-    <td class="num" id="dl_${a.id}">0</td>
-  </tr>`;
-  const person = ST.assets.filter(a => a.category === 'person');
-  const fixed = ST.assets.filter(a => a.category === 'fixed');
-  modalThay(`
-    <div class="mh"><h3>${IC.handCoins} Hoàn cọc — ${esc(s.name || '')}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
+/* Xử lý cọc của người đã trả phòng: app CHỈ GHI kết quả (Hoàn cọc / Không hoàn cọc + lý do), tiền do Bravo chuyển. */
+const KQ_COC = { refund: 'Hoàn cọc', forfeit: 'Không hoàn cọc' };
+function xuLyCocForm(id, goiY, lyDo) {
+  const s = studentById(id) || {};
+  openModal(`
+    <div class="mh"><h3>${IC.handCoins} Xử lý cọc — ${esc(s.name || '')}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <div class="hint">Tick số lượng tài sản <strong>hư hao / mất / không vệ sinh</strong> để khấu trừ vào cọc. Có thể sửa đơn giá bồi hoàn.</div>
-      <div class="table-wrap" style="max-height:280px;overflow:auto"><table><thead><tr><th>Tài sản</th><th class="num">SL hư/mất</th><th class="num">Đơn giá (đ)</th><th class="num">Thành tiền (đ)</th></tr></thead><tbody>
-        ${person.length ? `<tr><td colspan="4" style="background:#fbeee3;font-weight:700;font-size:12px">Trang thiết bị theo người</td></tr>${person.map(assetRow).join('')}` : ''}
-        ${fixed.length ? `<tr><td colspan="4" style="background:#fbeee3;font-weight:700;font-size:12px">Trang thiết bị cố định</td></tr>${fixed.map(assetRow).join('')}` : ''}
-      </tbody></table></div>
-      <div style="background:var(--bg2);padding:14px;border-radius:10px;margin:14px 0;font-size:14px">
-        <div style="display:flex;justify-content:space-between"><span>Tiền cọc:</span><strong>${money(deposit)}</strong></div>
-        <div style="display:flex;justify-content:space-between;color:var(--red)"><span>Khấu trừ hư hao:</span><strong id="dedTotal">0</strong></div>
-        <div style="display:flex;justify-content:space-between;font-size:16px;margin-top:6px;padding-top:8px;border-top:1px solid var(--line)"><span><strong>Hoàn thực tế:</strong></span><strong id="dedRefund" data-deposit="${deposit}" style="color:var(--green)">${money(deposit)}</strong></div>
-      </div>
-      <div class="grid2">
-        <div class="field"><label>Số tài khoản</label><input id="r_acc" inputmode="numeric" value="${esc(s.deposit_account || '')}"></div>
-        <div class="field"><label>Ngân hàng</label><input id="r_bank" value="${esc(s.deposit_bank || '')}" placeholder="VIETCOMBANK - …"></div>
-      </div>
-      <div class="field"><label>Ngày hoàn</label><input id="r_date"></div>
+      <p style="margin:0 0 12px">Tiền cọc <strong>${money(s.deposit_amount)}</strong>${s.check_out_date ? ` · trả phòng ${fmtDate(s.check_out_date)}` : ''}</p>
+      <div class="field"><label>Kết quả ${SAO}</label><select id="xc_kq" data-change="xuLyCocKQ">
+        <option value="">— Chọn kết quả —</option>
+        ${Object.keys(KQ_COC).map(k => `<option value="${k}"${k === goiY ? ' selected' : ''}>${KQ_COC[k]}</option>`).join('')}</select></div>
+      <div class="field"><label id="xc_ld_nhan"></label><textarea id="xc_ld" rows="2">${esc(lyDo || '')}</textarea></div>
+      <div class="field"><label>Ngày xử lý</label><input id="xc_ngay"></div>
     </div>
-    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn green" data-act="doRefund" data-args='[${id}, ${deposit}]'>Xác nhận hoàn cọc</button></div>`);
-  attachDate(el('r_date'), today());
-  dedCalc();
+    <div class="mf"><button class="btn" data-act="modalBack">Hủy</button><button class="btn pri" data-act="luuXuLyCoc" data-args='[${id}]'>Lưu</button></div>`);
+  attachDate(el('xc_ngay'), today(), { max: today() });
+  xuLyCocKQ();
 }
-function dedCalc() {
-  let total = 0;
-  document.querySelectorAll('#modal input[data-dqty]').forEach(q => {
-    const id = q.dataset.dqty;
-    const fee = +document.querySelector(`[data-dfee="${id}"]`).value || 0;
-    const line = (+q.value || 0) * fee;
-    total += line;
-    el('dl_' + id).textContent = moneyN(line);
-  });
-  const deposit = +(el('dedRefund').dataset.deposit || 0);
-  el('dedTotal').textContent = money(total);
-  el('dedRefund').textContent = money(Math.max(0, deposit - total));
-  el('dedTotal').dataset.total = total;
-}
-async function doRefund(id, deposit) {
-  // Gửi DANH SÁCH { asset_id, quantity } — server tự tra phí bồi hoàn thật từ danh mục và tự tính.
-  // Không gửi con số tự nhân ở máy khách nữa (V2-30).
-  let total = 0; const deductions = [];
-  document.querySelectorAll('#modal input[data-dqty]').forEach(q => {
-    const qty = +q.value || 0; if (!qty) return;
-    const feeEl = document.querySelector(`[data-dfee="${q.dataset.dqty}"]`);
-    total += qty * (+feeEl.value || 0);   // chỉ để hiện toast, không phải con số quyết định
-    deductions.push({ asset_id: +q.dataset.dqty, quantity: qty });
-  });
-  await guard(() => API.settleDeposit(id, {
-    action: 'refund', account: el('r_acc').value.trim(), bank: el('r_bank').value.trim(), date: el('r_date').dataset.iso,
-    deductions,
-  }));
+function xuLyCocKQ() { el('xc_ld_nhan').innerHTML = el('xc_kq').value === 'forfeit' ? `Lý do ${SAO}` : 'Lý do <span class="opt">(nếu có)</span>'; }
+async function luuXuLyCoc(id) {
+  const action = el('xc_kq').value, ly = el('xc_ld').value.trim();
+  if (!KQ_COC[action]) return loiTaiO('xc_kq', 'Chọn kết quả xử lý cọc');
+  if (action === 'forfeit' && !ly) return loiTaiO('xc_ld', 'Ghi lý do không hoàn cọc');
+  await guard(() => API.settleDeposit(id, { action, date: el('xc_ngay').dataset.iso, deduction_note: ly }));
   await refreshCache(); await luuXongVeLai(veLaiNen);
-  toast(total ? `Đã hoàn cọc (trừ ${money(total)} hư hao)` : 'Đã hoàn cọc');
+  toast(`Đã ghi: ${KQ_COC[action].toLowerCase()}`);
 }
 // Phải nói rõ khoá AI. "Khoá học viên này?" thì bấm nhầm dòng cũng không biết mình sắp khoá ai —
 // nhất là trên điện thoại, các nút san sát nhau.
@@ -1517,43 +1478,52 @@ async function goGhiNhanCoc(id) {
   await guard(() => API.setDeposit(id, { undo: true }));
   await refreshCache(); await luuXongVeLai(veLaiNen); toast('Đã gỡ ghi nhận cọc');
 }
-async function settleDeposit(id, action) {
-  if (!(await xacNhan(action === 'refund' ? 'Xác nhận HOÀN cọc cho học viên?' : 'Xác nhận KHÔNG hoàn cọc (giữ lại)?',
-    { dongY: action === 'refund' ? 'Hoàn cọc' : 'Không hoàn', nguyHiem: action !== 'refund' }))) return;
-  await guard(() => API.settleDeposit(id, { action }));
-  await refreshCache(); await luuXongVeLai(veLaiNen); toast(action === 'refund' ? 'Đã hoàn cọc' : 'Đã giữ cọc');
-}
-
 /* ---------- QUỸ CỌC ---------- */
-// Hoàn cọc mở từ Quỹ cọc: lưu xong quay về Quỹ cọc để xử lý người kế tiếp.
-function hoanCocTuQuy(id) { datManChiTiet(quyCoc); return refundForm(id); }
+// Chỉ lưu thông tin: ai đang giữ cọc, ai đã trả phòng cần xử lý cọc, kết quả xử lý. Mở form từ đây thì
+// lưu xong quay về Quỹ cọc để làm người kế tiếp.
+function xuLyCocTuQuy(id) { datManChiTiet(quyCoc); return xuLyCocForm(id); }
+function ghiCocTuQuy(id) { datManChiTiet(quyCoc); return depositForm(id); }
+// Ở phòng thuê ghép, hoặc là người ký HĐ phòng thuê nguyên phòng -> phải có cọc.
+const canCoc = s => { const k = studentRoomKind(s); return k === 'shared' || (k === 'whole' && laNguoiDungPhieuPhong(s, curMonth())); };
 function quyCoc() {
   datManChiTiet(quyCoc);
-  const held = ST.students.filter(s => s.deposit_status === 'held');
-  const pending = held.filter(s => liveStatus(s) === 'left');   // đã trả phòng, cọc chưa xử lý
-  const staying = held.filter(s => liveStatus(s) !== 'left');
-  const total = held.reduce((a, s) => a + (+s.deposit_amount || 0), 0);
-  const pendAmt = pending.reduce((a, s) => a + (+s.deposit_amount || 0), 0);
-  const rowFor = s => `<tr>
-    <td><span class="hd-ref" data-act="studentDetail" data-args='[${s.id}]' role="button" tabindex="0" title="Xem chi tiết học viên"><strong>${esc(s.name)}</strong></span><div class="sub2">${s.room_id ? `<span class="hd-ref" data-act="roomDetail" data-args='[${s.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng">${esc(s.room_name || '')}</span>` : 'Chưa xếp'} · ${esc(s.code || '')}</div></td>
-    <td>${legalEntityCell(s.gender)}</td>
-    <td class="num">${moneyN(s.deposit_amount)}</td>
-    <td>${fmtDate(s.deposit_date)}</td>
-    <td>${statusBadge(s)}</td>
-    <td class="num">${liveStatus(s) === 'left' ? `<button class="btn sm green" data-act="hoanCocTuQuy" data-args='[${s.id}]'>Hoàn cọc</button>` : ''}</td>
-  </tr>`;
+  const theoPhong = (a, b) => String(a.room_name || '').localeCompare(String(b.room_name || ''), 'vi', { numeric: true }) || String(a.name).localeCompare(String(b.name), 'vi');
+  const held = ST.students.filter(s => s.deposit_status === 'held').sort(theoPhong);
+  const canXuLy = held.filter(s => liveStatus(s) === 'left');
+  const dangGiu = held.filter(s => liveStatus(s) !== 'left');
+  const chuaGhi = ST.students.filter(s => isOccupying(s) && s.deposit_status === 'none' && canCoc(s)).sort(theoPhong);
+  const daXuLy = ST.students.filter(s => ['refunded', 'forfeited'].includes(s.deposit_status))
+    .sort((a, b) => String(b.deposit_refund_date || '').localeCompare(String(a.deposit_refund_date || '')));
+  const tong = held.reduce((a, s) => a + (+s.deposit_amount || 0), 0);
+  const tienXuLy = canXuLy.reduce((a, s) => a + (+s.deposit_amount || 0), 0);
+  const ten = s => `<td><span class="hd-ref" data-act="studentDetail" data-args='[${s.id}]' role="button" tabindex="0" title="Xem chi tiết học viên"><strong>${esc(s.name)}</strong></span><div class="sub2">${s.room_id ? `<span class="hd-ref" data-act="roomDetail" data-args='[${s.room_id}]' role="button" tabindex="0" title="Xem chi tiết phòng">${esc(s.room_name || '')}</span>` : 'Chưa xếp'}${s.code ? ' · ' + esc(s.code) : ''}</div></td>`;
+  const bang = (dau, rows) => `<div class="table-wrap card-tbl" style="margin-bottom:18px"><table><thead><tr>${dau.map(h => `<th${/\(đ\)/.test(h) ? ' class="num"' : ''}>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;
+  const hXuLy = s => `<tr>${ten(s)}<td data-label="Mã pháp nhân">${legalEntityCell(s.gender)}</td><td class="num" data-label="Cọc (đ)">${moneyN(s.deposit_amount)}</td>
+    <td data-label="Trả phòng">${fmtDate(s.check_out_date)}</td>
+    <td class="num"><button class="btn sm" data-act="xuLyCocTuQuy" data-args='[${s.id}]'>${IC.handCoins} Xử lý cọc</button></td></tr>`;
+  const hChuaGhi = s => `<tr>${ten(s)}<td data-label="Mã pháp nhân">${legalEntityCell(s.gender)}</td><td data-label="Ngày vào">${fmtDate(s.check_in_date)}</td>
+    <td class="num"><button class="btn sm" data-act="ghiCocTuQuy" data-args='[${s.id}]'>${IC.plus} Ghi nhận cọc</button></td></tr>`;
+  const hGiu = s => `<tr>${ten(s)}<td data-label="Mã pháp nhân">${legalEntityCell(s.gender)}</td><td class="num" data-label="Cọc (đ)">${moneyN(s.deposit_amount)}</td>
+    <td data-label="Ngày đóng">${fmtDate(s.deposit_date)}</td><td data-label="Tình trạng">${statusBadge(s)}</td></tr>`;
+  const hDaXuLy = s => `<tr>${ten(s)}<td class="num" data-label="Cọc (đ)">${moneyN(s.deposit_amount)}</td>
+    <td data-label="Kết quả">${s.deposit_status === 'refunded' ? '<span class="badge green">Hoàn cọc</span>' : '<span class="badge red">Không hoàn cọc</span>'}</td>
+    <td data-label="Lý do">${esc(s.deposit_deduction_note || '—')}</td><td data-label="Ngày xử lý">${fmtDate(s.deposit_refund_date)}</td></tr>`;
   openModal(`
     <div class="mh"><h3>${IC.lock} Quỹ cọc</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="kpis" style="margin-bottom:16px">
-        <div class="kpi"><span class="ic ic-brand">${IC.lock}</span><div><div class="v">${money(total)}</div><div class="l">Tổng quỹ cọc đang giữ</div></div></div>
+        <div class="kpi"><span class="ic ic-brand">${IC.lock}</span><div><div class="v">${money(tong)}</div><div class="l">Tổng quỹ cọc đang giữ</div></div></div>
         <div class="kpi"><span class="ic ic-gray">${IC.users}</span><div><div class="v">${held.length}</div><div class="l">Học viên đang giữ cọc</div></div></div>
-        <div class="kpi"><span class="ic ic-red">${IC.handCoins}</span><div><div class="v">${pending.length}</div><div class="l">Cần hoàn cọc ${pendAmt ? '(' + money(pendAmt) + ')' : ''}</div></div></div>
+        <div class="kpi"><span class="ic ic-red">${IC.handCoins}</span><div><div class="v">${canXuLy.length}</div><div class="l">Cần xử lý cọc${tienXuLy ? ` (${money(tienXuLy)})` : ''}</div></div></div>
       </div>
-      ${pending.length ? `<div class="bang-tin" style="background:var(--red-bg);border-color:#fca5a5;color:#b91c1c">${IC.handCoins} <strong>${pending.length} học viên đã trả phòng</strong> đang chờ hoàn cọc.</div>
-        <div class="table-wrap" style="margin-bottom:18px"><table><thead><tr><th>Học viên</th><th>Mã pháp nhân</th><th class="num">Cọc (đ)</th><th>Ngày đóng</th><th>Trạng thái</th><th></th></tr></thead><tbody>${pending.map(rowFor).join('')}</tbody></table></div>` : `<div class="hint">${IC.checkCircle} Không có khoản cọc nào chờ hoàn.</div>`}
-      <h4 style="margin:6px 0 8px">Đang giữ cọc (${staying.length})</h4>
-      ${staying.length ? `<div class="table-wrap"><table><thead><tr><th>Học viên</th><th>Mã pháp nhân</th><th class="num">Cọc (đ)</th><th>Ngày đóng</th><th>Trạng thái</th><th></th></tr></thead><tbody>${staying.map(rowFor).join('')}</tbody></table></div>` : '<p class="muted">Không có học viên đang giữ cọc.</p>'}
+      <h4 style="margin:6px 0 8px">Cần xử lý cọc (${canXuLy.length})</h4>
+      ${canXuLy.length ? bang(['Học viên', 'Mã pháp nhân', 'Cọc (đ)', 'Trả phòng', ''], canXuLy.map(hXuLy).join('')) : '<p class="muted">Không có học viên đã trả phòng còn giữ cọc.</p>'}
+      ${chuaGhi.length ? `<details><summary style="cursor:pointer;font-weight:700;margin:6px 0 8px;color:var(--red-ink)">${IC.alert} Đang ở mà chưa ghi nhận cọc (${chuaGhi.length})</summary>
+        ${bang(['Học viên', 'Mã pháp nhân', 'Ngày vào', ''], chuaGhi.map(hChuaGhi).join(''))}</details>` : ''}
+      <h4 style="margin:6px 0 8px">Đang giữ cọc (${dangGiu.length})</h4>
+      ${dangGiu.length ? bang(['Học viên', 'Mã pháp nhân', 'Cọc (đ)', 'Ngày đóng', 'Tình trạng'], dangGiu.map(hGiu).join('')) : '<p class="muted">Không có học viên đang giữ cọc.</p>'}
+      ${daXuLy.length ? `<details><summary style="cursor:pointer;font-weight:700;margin:6px 0 8px">Đã xử lý cọc (${daXuLy.length})</summary>
+        ${bang(['Học viên', 'Cọc (đ)', 'Kết quả', 'Lý do', 'Ngày xử lý'], daXuLy.map(hDaXuLy).join(''))}</details>` : ''}
     </div>
     <div class="mf"><button class="btn" data-act="modalBack">Đóng</button></div>`, true);
 }

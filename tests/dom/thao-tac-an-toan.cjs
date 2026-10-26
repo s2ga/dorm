@@ -101,7 +101,7 @@ const cho = async (page, dk, ms = 15000) => {
     await page.evaluate(() => closeModalNgay());
   }
 
-  // ── Hoàn cọc từ Quỹ cọc quay về Quỹ cọc ───────────────────────────────────
+  // ── Xử lý cọc từ Quỹ cọc quay về Quỹ cọc ──────────────────────────────────
   // Hồ sơ giả chỉ nằm trong bộ nhớ trình duyệt (và GET của nó trả giả) — không phụ thuộc dữ liệu thật.
   const GIA = { id: 987654320, name: 'Cọc Kiểm Thử', code: 'KT-COC', gender: 'male', status: 'out', room_id: null,
     deposit_status: 'held', deposit_amount: 1200000, deposit_date: '2026-01-01', check_in_date: '2026-01-01', check_out_date: '2026-02-01' };
@@ -109,15 +109,16 @@ const cho = async (page, dk, ms = 15000) => {
     ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(GIA) }) : route.fallback());
   await page.evaluate(g => { ST.students.push(g); }, GIA);
   await page.evaluate(() => quyCoc());
-  const coNut = await page.$('#modal tbody button:has-text("Hoàn cọc")');
-  if (!coNut) boQua('Hoàn cọc từ Quỹ cọc → quay về Quỹ cọc');
+  const coNut = await page.$(`#modal tbody [data-act="xuLyCocTuQuy"][data-args='[${GIA.id}]']`);
+  if (!coNut) boQua('Xử lý cọc từ Quỹ cọc → quay về Quỹ cọc');
   else {
     await coNut.click();
-    await page.waitForSelector('#modal [data-act="doRefund"]', { timeout: 15000 });
-    await page.click('#modal [data-act="doRefund"]');
+    await page.waitForSelector('#modal #xc_kq', { timeout: 15000 });
+    await page.selectOption('#modal #xc_kq', 'refund');
+    await page.click('#modal [data-act="luuXuLyCoc"]');
     await page.waitForTimeout(1200);
     const t = await trang(page);
-    ok('Hoàn cọc từ Quỹ cọc → quay về Quỹ cọc', t.modal && /Quỹ cọc/.test(t.h3), JSON.stringify(t));
+    ok('Xử lý cọc từ Quỹ cọc → quay về Quỹ cọc', t.modal && /Quỹ cọc/.test(t.h3), JSON.stringify(t));
   }
   await page.evaluate(() => closeModalNgay());
   await page.waitForTimeout(400);   // closeModalNgay trả mục lịch sử sau một tick — đợi xong rồi mới goto

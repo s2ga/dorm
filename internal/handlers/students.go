@@ -122,7 +122,7 @@ const studentsListSelect = `
   SELECT s.id, s.code, s.name, s.gender, s.phone, s.room_id, s.check_in_date, s.check_out_date,
     s.planned_check_in, s.planned_check_out, s.checkin_confirmed_at, s.checkout_confirmed_at,
     s.status, s.uses_washing, s.washing_from, s.deposit_amount, s.deposit_status, s.deposit_date, s.deposit_refund_date,
-    s.checkout_notice_date, s.checkout_reason, s.class_name, s.email, s.rental_type, s.residency_status,
+    s.deposit_deduction_note, s.checkout_notice_date, s.checkout_reason, s.class_name, s.email, s.rental_type, s.residency_status,
     s.contract_no, s.contract_date, s.contract_status,
     s.class_start_date, s.expected_departure, s.room_fee_discount_pct, s.facility_id, s.lock_reason,
     s.water_discount_pct, s.electric_discount_pct, s.service_discount_pct, s.washing_discount_pct, s.parking_discount_pct,
@@ -2814,8 +2814,11 @@ func (h *Handlers) StudentDeposit(c *gin.Context) {
 		badRequest(c, "Ngày đóng cọc không hợp lệ")
 		return
 	}
-	date := timeutil.Today()
-	if studentsJSTruthy(b["date"]) {
+	// Không gửi ngày = hôm nay; gửi "date": null = không rõ ngày đóng (cọc đóng ngoài app từ trước).
+	var date interface{} = timeutil.Today()
+	if dv, co := b["date"]; co && dv == nil {
+		date = nil
+	} else if studentsJSTruthy(b["date"]) {
 		date = studentsJSString(b["date"])
 	}
 	rows, err := h.pool().Query(ctx,
@@ -2837,9 +2840,8 @@ func (h *Handlers) StudentDeposit(c *gin.Context) {
 	c.JSON(http.StatusOK, row)
 }
 
-// StudentDepositSettle: POST /:id/deposit-settle (admin,staff).
-// ⚠️ action='refund' luôn trả 500 — giữ nguyên hành vi bản Node (biến `settings` chưa định nghĩa ở đó
-// nên nhánh xét điều kiện hoàn cọc là code chết). action='forfeited' chạy bình thường.
+// StudentDepositSettle: POST /:id/deposit-settle (admin,staff). Chỉ GHI KẾT QUẢ xử lý cọc của người đã trả
+// phòng (tiền thật do Bravo chuyển): action='refund' -> Đã hoàn, còn lại -> Không hoàn (bắt buộc lý do ở deduction_note).
 func (h *Handlers) StudentDepositSettle(c *gin.Context) {
 	u := auth.CurrentUser(c)
 	if !h.studentsFacilityGuard(c, u, c.Param("id")) {
@@ -2962,9 +2964,8 @@ func (h *Handlers) StudentDepositSettle(c *gin.Context) {
 		badRequest(c, "Khấu trừ "+studentsLocaleVN(deduction)+" vượt quá số cọc đang giữ "+studentsLocaleVN(coc)+". Nếu cần đòi thêm, lập khoản thu riêng.")
 		return
 	}
-	// Hoàn cọc: nguồn Node dùng biến `settings` không định nghĩa -> ReferenceError -> 500 (xem chú thích handler).
-	if action == "refunded" {
-		serverErr(c)
+	if action == "forfeited" && strings.TrimSpace(deductionNote) == "" {
+		badRequest(c, "Ghi lý do không hoàn cọc")
 		return
 	}
 	rows, err := h.pool().Query(ctx,

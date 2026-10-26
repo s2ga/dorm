@@ -633,24 +633,22 @@ async function doCheckOut(id, hoId) {
   if (r.canh_bao) await thongBao(r.canh_bao);   // phiếu kỳ này ĐÃ THU — app không tự sửa, phải nói to
   if (s && s.deposit_status === 'held') depositSettlePrompt(id, r.refund);
 }
+// Gợi ý cho form ghi kết quả cọc: đủ điều kiện -> Hoàn cọc; không đủ -> Không hoàn cọc, lý do lấy từ máy chủ.
+let _goiYCoc = {};
+function ghiKetQuaCocSauTra(id) { const g = _goiYCoc.id === id ? _goiYCoc : {}; return xuLyCocForm(id, g.kq, g.ly); }
 function depositSettlePrompt(id, refund) {
+  _goiYCoc = { id, kq: refund.eligible ? 'refund' : 'forfeit', ly: refund.eligible ? '' : (refund.reason || '') };
   openModal(`
     <div class="mh"><h3>${IC.lock} Xử lý tiền cọc</h3><button class="x" aria-label="Đóng" data-act="reloadView">×</button></div>
     <div class="mb">
       <div class="bang-tin" style="background:${refund.eligible ? 'var(--green-bg)' : 'var(--red-bg)'};border-color:${refund.eligible ? 'var(--green)' : 'var(--red)'};color:${refund.eligible ? 'var(--green-ink)' : 'var(--red-ink)'}">
         ${refund.eligible ? IC.checkCircle+' Đủ điều kiện hoàn cọc' : IC.alert+' Chưa đủ điều kiện hoàn cọc'} — ${esc(refund.reason)}
       </div>
-      <p>Bạn muốn xử lý tiền cọc thế nào?</p>
     </div>
     <div class="mf">
-      <button class="btn danger" data-act="settleDepositAndClose" data-args='[${id},"forfeit"]'>Không hoàn (giữ cọc)</button>
       <button class="btn" data-act="reloadView">Để sau</button>
-      <button class="btn green" data-act="refundForm" data-args='[${id}]'>Hoàn cọc</button>
+      <button class="btn pri" data-act="ghiKetQuaCocSauTra" data-args='[${id}]'>${IC.handCoins} Ghi kết quả xử lý cọc</button>
     </div>`);
-}
-async function settleDepositAndClose(id, action) {
-  await guard(() => API.settleDeposit(id, { action }));
-  await refreshCache(); await luuXongVeLai(veLaiNen); toast(action === 'refund' ? 'Đã hoàn cọc' : 'Đã giữ cọc');
 }
 let logFilter = 'all';
 async function viewCheckin() {

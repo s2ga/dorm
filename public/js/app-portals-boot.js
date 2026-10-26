@@ -2151,13 +2151,13 @@ function chongBam2Lan(fn) {
   'saveHocVienInfo', 'linkTenant', 'unlinkTenant',
   'doApprove', 'doTransfer', 'doCheckOut', 'doCheckIn', 'doSetLeader', 'unsetLeader',
   'doChangePwd', 'doResetUserPw', 'doKhoaHoSo', 'runGenerate',
-  'settleDepositAndClose', 'submitCheckoutReq', 'submitDamage', 'bienBanLuu', 'bienBanTraLai',
+  'luuXuLyCoc', 'submitCheckoutReq', 'submitDamage', 'bienBanLuu', 'bienBanTraLai',
   'submitMaintBlock', 'submitMaintDone', 'toggleWashing',
   'dvGui', 'dvDuyet', 'dvTuChoiLuu', 'uploadRulesDoc', 'removeRulesDoc', 'luuChotGiuaKy', 'xoaChotGiuaKy',
   'luuTatCaChotGiuaKy', 'pkGanXeLuu', 'tamTruXacNhanIn', 'tamTruChuyenXuLy',
   'pkTuChoiBienLuu', 'washReqTuChoiLuu', 'pkNgungXeLuu', 'lapPhieuChoHV',
   // Phòng · học viên · cọc
-  'doRefund', 'settleDeposit', 'goGhiNhanCoc', 'restoreStudentAndReload', 'delRoom', 'restoreRoom', 'delVehicle',
+  'goGhiNhanCoc', 'restoreStudentAndReload', 'delRoom', 'restoreRoom', 'delVehicle',
   // Tiền phòng · cài đặt · tài khoản
   'saveApprove', 'doStuAccPw', 'genChot', 'doThuCaKy', 'doiVeNhanVien', 'khoaStuAcc', 'moKhoaStuAcc',
   'revokeStuSession', 'delUser', 'unlockUser', 'delInvoice', 'recalcInv', 'luuGiamPct', 'saveImgCaptions',
