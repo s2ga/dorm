@@ -54,7 +54,8 @@ const ok = (t, d, x = '') => { if (d) console.log('  [OK] ' + t); else { fail++;
     ok('Có cột "Đã ở" để biết quá hạn bao lâu',
       /Đã ở/.test(await page.locator('#modal thead').first().textContent() || ''));
     ok('Bấm tên mở được hồ sơ', await page.locator('#modal [data-act="studentDetail"]').count() > 0);
-    ok('Có nút sang màn Tiền phòng', await page.locator('#modal [data-act="adminGo"]').count() > 0);
+    ok('Dòng nào cũng có nút Lập phiếu', await page.locator('#modal tbody [data-act="lapPhieuChoHV"]').count() === hang);
+    ok('Chân hộp không còn nút Lập phiếu chung', await page.locator('#modal .mf [data-act="adminGo"], #modal .mf [data-act="lapPhieuChoHV"]').count() === 0);
     if (mong.daRoi > 0) {
       ok('Người ĐÃ TRẢ PHÒNG trong kỳ cũng có mặt (ca dễ mất tiền nhất)',
         await page.locator('#modal .badge.red', { hasText: 'Đã trả' }).count() === mong.daRoi,
@@ -62,6 +63,16 @@ const ok = (t, d, x = '') => { if (d) console.log('  [OK] ' + t); else { fail++;
     } else {
       console.log('  [BỎ QUA] CSDL này không có ai đã trả phòng mà thiếu phiếu');
     }
+    const [idHV, ky] = JSON.parse(await page.locator('#modal tbody [data-act="lapPhieuChoHV"]').first().getAttribute('data-args'));
+    const daGui = [];
+    await page.route('**/api/invoices/generate-one', r => { daGui.push(r.request().postDataJSON());
+      return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ created: true, invoice: { id: 987654, student_id: idHV, month: ky } }) }); });
+    await page.evaluate(() => { window.phieuBao = inv => { window.__moPhieu = inv; }; });
+    await page.locator('#modal tbody [data-act="lapPhieuChoHV"]').first().click();
+    await page.waitForTimeout(1500);
+    ok('Bấm Lập phiếu ở dòng → lập đúng người, đúng kỳ', daGui.length === 1 && daGui[0].student_id === idHV && daGui[0].month === ky, JSON.stringify(daGui));
+    const sau = await page.evaluate(() => ({ view: ST.view, ky: invMonth, phieu: window.__moPhieu && window.__moPhieu.id, modal: el('overlay').classList.contains('show') }));
+    ok('… sang màn Tiền phòng đúng kỳ và mở phiếu của bạn đó', sau.view === 'invoices' && sau.ky === ky && sau.phieu === 987654 && !sau.modal, JSON.stringify(sau));
   } else {
     ok('Không sót ai → modal nói rõ chứ không để bảng trống', /Không có học viên thiếu phiếu báo/.test(chuTrongHop));
   }

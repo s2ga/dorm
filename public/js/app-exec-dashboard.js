@@ -220,7 +220,7 @@ async function napChuaLapPhieu() {
   const { kyNay, sapVao, kyTruoc } = dsChuaLapPhieu(inv, invT);
   const tong = kyNay.length + sapVao.length + kyTruoc.length;
   // Cột "Đã ở" tính theo ngày vào hiệu lực; người sắp vào ra số âm nên hiện "—" cho khỏi rối.
-  const dong = s => {
+  const dong = ky => s => {
     const vao = _vaoHieuLuc(s), n = _soNgayTinhTu(vao), duKien = !s.check_in_date && s.planned_check_in;
     return `<tr>
       <td><div class="flex stu-name" data-act="studentDetail" data-args='[${s.id}]' role="button" tabindex="0" title="Mở hồ sơ">
@@ -232,28 +232,36 @@ async function napChuaLapPhieu() {
       <td data-label="Tình trạng">${liveStatus(s) === 'left'
     ? `<span class="badge red">Đã trả ${fmtDate(s.check_out_date)}</span>`
     : statusBadge(s)}</td>
+      <td class="num"><button class="btn sm" style="white-space:nowrap" data-act="lapPhieuChoHV" data-args='[${s.id},"${ky}"]' title="Lập phiếu báo ${monthLabel(ky)} cho ${esc(s.name)}">${IC.receipt} Lập phiếu</button></td>
     </tr>`;
   };
-  const bang = arr => `<div class="table-wrap card-tbl" style="margin-top:10px"><table>
-    <thead><tr><th>Học viên</th><th>Phòng</th><th>Ngày vào</th><th class="num">Đã ở</th><th>Tình trạng</th></tr></thead>
-    <tbody>${arr.map(dong).join('')}</tbody></table></div>`;
+  const bang = (arr, ky) => `<div class="table-wrap card-tbl" style="margin-top:10px"><table>
+    <thead><tr><th>Học viên</th><th>Phòng</th><th>Ngày vào</th><th class="num">Đã ở</th><th>Tình trạng</th><th></th></tr></thead>
+    <tbody>${arr.map(dong(ky)).join('')}</tbody></table></div>`;
   modalThay(`
     <div class="mh"><h3>${IC.receipt} Chưa lập phiếu báo (${tong})</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
       <div class="hint">${IC.info} Đúng dân số đợt lập phiếu: đã bỏ thành viên phòng thuê nguyên căn (nằm trong
         phiếu người ký HĐ của kỳ đó), tính cả người mới vào, người sắp vào theo lịch và người rời kỳ trước còn thiếu phiếu.</div>
       ${tong ? `<h4 class="asset-h" style="margin:16px 0 0">Kỳ này (${monthLabel(M)}) — đã ở mà chưa có phiếu: ${kyNay.length}</h4>
-        ${kyNay.length ? bang(kyNay) : `<div class="empty" style="margin-top:8px">${IC.checkCircle} Ai đã ở trong kỳ này cũng đã có phiếu báo.</div>`}
+        ${kyNay.length ? bang(kyNay, M) : `<div class="empty" style="margin-top:8px">${IC.checkCircle} Ai đã ở trong kỳ này cũng đã có phiếu báo.</div>`}
         ${sapVao.length ? `<h4 class="asset-h" style="margin:18px 0 0">Kỳ này — chưa nhận phòng, đã có lịch vào: ${sapVao.length}</h4>
           <p class="muted" style="margin:4px 0 0;font-size:13px">Đợt lập phiếu tính cả người có lịch vào trong kỳ. Họ chưa đến thì chưa cần thu ngay.</p>
-          ${bang(sapVao)}` : ''}
+          ${bang(sapVao, M)}` : ''}
         ${kyTruoc.length ? `<h4 class="asset-h" style="margin:18px 0 0;color:var(--red-ink)">${IC.alert} Rời kỳ trước (${monthLabel(Mt)}) mà chưa có phiếu — ${kyTruoc.length}</h4>
-          <p class="muted" style="margin:4px 0 0;font-size:13px">Họ đã đi, đợt lập phiếu hằng tháng không còn quét tới. Vào màn Tiền phòng, chọn kỳ ${monthLabel(Mt)} để lập nốt.</p>
-          ${bang(kyTruoc)}` : ''}`
+          <p class="muted" style="margin:4px 0 0;font-size:13px">Họ đã đi, đợt lập phiếu hằng tháng không còn quét tới.</p>
+          ${bang(kyTruoc, Mt)}` : ''}`
     : `<div class="empty" style="margin-top:10px">${IC.checkCircle} Không có học viên thiếu phiếu báo.</div>`}
     </div>
-    <div class="mf"><button class="btn" data-act="modalBack">Đóng</button>
-      ${tong ? `<button class="btn pri" data-act="adminGo" data-args='["invoices"]'>${IC.receipt} Lập phiếu</button>` : ''}</div>`);
+    <div class="mf"><button class="btn" data-act="modalBack">Đóng</button></div>`);
+}
+// Lập phiếu đúng kỳ cho một người ngay từ hộp "Chưa lập phiếu báo", rồi mở phiếu đó ở màn Tiền phòng.
+async function lapPhieuChoHV(id, ky) {
+  const r = await guard(() => API.generateOneInvoice({ student_id: id, month: ky }));
+  closeModal(); invMonth = ky; invFilter = 'all';
+  toast(r.created ? 'Đã lập phiếu báo' : 'Đã cập nhật phiếu báo');
+  adminGo('invoices');
+  if (r.invoice) { r.invoice.room_name = (roomById(r.invoice.room_id) || {}).name || ''; setTimeout(() => phieuBao(r.invoice), 300); }
 }
 
 // Màn Tạm trú (/tam-tru): ba tab theo tình trạng tạm trú của học viên đang ở, tab thứ tư lập danh sách in ảnh

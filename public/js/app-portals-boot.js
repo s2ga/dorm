@@ -2155,7 +2155,7 @@ function chongBam2Lan(fn) {
   'submitMaintBlock', 'submitMaintDone', 'toggleWashing',
   'dvGui', 'dvDuyet', 'dvTuChoiLuu', 'uploadRulesDoc', 'removeRulesDoc', 'luuChotGiuaKy', 'xoaChotGiuaKy',
   'luuTatCaChotGiuaKy', 'pkGanXeLuu', 'tamTruXacNhanIn', 'tamTruChuyenXuLy',
-  'pkTuChoiBienLuu', 'washReqTuChoiLuu', 'pkNgungXeLuu',
+  'pkTuChoiBienLuu', 'washReqTuChoiLuu', 'pkNgungXeLuu', 'lapPhieuChoHV',
   // Phòng · học viên · cọc
   'doRefund', 'settleDeposit', 'goGhiNhanCoc', 'restoreStudentAndReload', 'delRoom', 'restoreRoom', 'delVehicle',
   // Tiền phòng · cài đặt · tài khoản
