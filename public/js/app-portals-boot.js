@@ -891,8 +891,10 @@ async function loadHandovers(month) {
     <td class="num">${hoNut(x, false)}</td></tr>`;
 
   const tatCa = laNhan ? d.checkins : d.checkouts;
-  // Việc của an ninh = chưa xong VÀ chưa có biên bản đang chờ (biên bản đang chờ là việc của quản trị).
-  const chuaXong = tatCa.filter(x => !hoXong(x, laNhan) && !(x.report && x.report.status === 'pending'));
+  // Việc của an ninh = ĐÃ TỚI NGÀY, chưa xong, chưa có biên bản đang chờ (biên bản đang chờ là việc của quản trị).
+  // Người chưa tới ngày vẫn hiện trong danh sách (trả sớm thì lập được) nhưng không tính là thiếu biên bản.
+  const hn = today();
+  const chuaXong = tatCa.filter(x => String(x.date || '').slice(0, 10) <= hn && !hoXong(x, laNhan) && !(x.report && x.report.status === 'pending'));
   const hien = maintChiChuaXong ? chuaXong : tatCa;
   const tieuDe = laNhan ? 'Nhận phòng' : 'Trả phòng';
   const cotNgay = laNhan ? 'Ngày' : 'Ngày đăng ký trả';

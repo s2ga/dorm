@@ -124,30 +124,33 @@ func (h *Handlers) MaintHandovers(c *gin.Context) {
 }
 
 // MaintHandoversSummary: GET /api/maintenance/handovers/summary (maintenance,admin).
-// Số lượt tháng này an ninh CÒN PHẢI LẬP BIÊN BẢN (chưa xác nhận, chưa có biên bản đang chờ) — cho huy hiệu.
+// Số lượt tháng này an ninh CÒN PHẢI LẬP BIÊN BẢN (đã tới ngày, chưa xác nhận, chưa có biên bản đang chờ) — cho huy hiệu.
 func (h *Handlers) MaintHandoversSummary(c *gin.Context) {
 	u := auth.CurrentUser(c)
 	m := maintCurMonth()
+	homNay := timeutil.Today()
 	ctx := c.Request.Context()
 
-	pCi := []interface{}{m}
+	pCi := []interface{}{m, homNay}
 	fCi := maintFacClause(u, c, &pCi, "s.facility_id")
 	var ci int
 	if err := h.pool().QueryRow(ctx, `
 		SELECT COUNT(*)::int FROM students s
 		 WHERE s.deleted_at IS NULL AND to_char(COALESCE(s.check_in_date, s.planned_check_in),'YYYY-MM')=$1
+		   AND COALESCE(s.check_in_date, s.planned_check_in) <= $2::date
 		   AND s.checkin_confirmed_at IS NULL AND s.check_in_date IS NULL
 		   AND NOT EXISTS (SELECT 1 FROM handover_reports hr WHERE hr.student_id = s.id AND hr.kind = 'checkin' AND hr.status = 'pending')`+fCi, pCi...).Scan(&ci); err != nil {
 		serverErr(c, err)
 		return
 	}
 
-	pCo := []interface{}{m}
+	pCo := []interface{}{m, homNay}
 	fCo := maintFacClause(u, c, &pCo, "s.facility_id")
 	var co int
 	if err := h.pool().QueryRow(ctx, `
 		SELECT COUNT(*)::int FROM students s
 		 WHERE s.deleted_at IS NULL AND to_char(COALESCE(s.check_out_date, s.planned_check_out),'YYYY-MM')=$1
+		   AND COALESCE(s.check_out_date, s.planned_check_out) <= $2::date
 		   AND s.checkout_confirmed_at IS NULL AND s.status <> 'out'
 		   AND NOT EXISTS (SELECT 1 FROM handover_reports hr WHERE hr.student_id = s.id AND hr.kind = 'checkout' AND hr.status = 'pending')`+fCo, pCo...).Scan(&co); err != nil {
 		serverErr(c, err)
