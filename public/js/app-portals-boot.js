@@ -787,8 +787,8 @@ async function loadCaTruc() {
       ${o(IC.wrench, 'Sửa chữa chưa xong', suaChua, 'sua', suaChua ? 'var(--amber-ink)' : 'var(--green)')}
       ${o(IC.bike, 'Bãi xe hôm nay', `<span style="font-size:15px">${esc(xeTom)}</span>`, 'xe', s && +s.chua_danh ? 'var(--amber-ink)' : 'var(--green)')}
     </div>
-    <div class="panel"><div class="hd"><h2>${IC.userCheck} Nhận phòng hôm nay và quá hạn (${canNhan.length})</h2></div>${bang(canNhan, true)}</div>
-    <div class="panel"><div class="hd"><h2>${IC.doorOpen} Trả phòng hôm nay và quá hạn (${canTra.length})</h2></div>${bang(canTra, false)}</div>`;
+    <div class="panel"><div class="hd"><h2>${IC.userCheck} Nhận phòng (${canNhan.length})</h2></div>${bang(canNhan, true)}</div>
+    <div class="panel"><div class="hd"><h2>${IC.doorOpen} Trả phòng (${canTra.length})</h2></div>${bang(canTra, false)}</div>`;
 }
 // Ô cảnh báo: bấm được, bật/tắt bộ lọc "chỉ việc chưa xong". Còn việc thì màu hổ phách, hết thì xanh.
 function maintCanhBao(soViec, chuCoViec, chuXong) {
