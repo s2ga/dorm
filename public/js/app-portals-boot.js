@@ -28,14 +28,6 @@ async function renderStudent() {
 // BL-16: cổng HV — bấm hàng phiếu báo để xem TÁCH các khoản (nước/dịch vụ/giặt/xe/khác + ghi chú
 // "other_note"), số kWh và số ngày ở. Dữ liệu đã có sẵn trong /me/invoices (SELECT *); bảng ngoài chỉ
 // gộp lại nên HV thấy cục "Khác" không giải thích được. _myInvs được lưu khi vẽ danh sách.
-// Trạng thái thu tiền của phiếu. /me/invoices vốn đã trả về `status` + `paid_date` (SELECT *) nhưng
-// trang không hiện, nên học viên không có đường nào tự biết mình đã đóng kỳ nào — phải đi hỏi quản lý.
-// Chỉ hai trạng thái: 'sent' (đã gửi) với 'pending' đối với người đóng tiền là một, đều là CHƯA thu.
-function invPaidBadge(i) {
-  return i.status === 'paid'
-    ? `<span class="badge green">${IC.check} Đã thu${i.paid_date ? ' ' + fmtDate(i.paid_date) : ''}</span>`
-    : '<span class="badge amber">Chưa thu</span>';
-}
 function myInvoiceDetail(id) {
   const i = (window._myInvs || []).find(x => x.id === id);
   if (!i) return;
@@ -45,7 +37,7 @@ function myInvoiceDetail(id) {
   openModal(`
     <div class="mh"><h3>${IC.receipt} Chi tiết phiếu ${monthLabel(i.month)}</h3><button class="x" aria-label="Đóng" data-act="modalBack">×</button></div>
     <div class="mb">
-      <p class="muted" style="margin:0 0 12px">Số ngày ở trong kỳ: <strong>${i.days_stayed || 0}</strong> ngày &nbsp;•&nbsp; ${invPaidBadge(i)}</p>
+      <p class="muted" style="margin:0 0 12px">Số ngày ở trong kỳ: <strong>${i.days_stayed || 0}</strong> ngày</p>
       <div class="table-wrap"><table><tbody>
         ${line(tenKhoan('room_charge'), i.room_charge)}
         ${line(tenKhoan('electric_charge'), i.electric_charge, `${kwh(i.electric_kwh)} kWh · kỳ ${monthLabel(prevKy(i.month))}`)}
@@ -113,7 +105,7 @@ async function loadStudentPortal() {
         ${invs.map(i => {
           // Cột "Giảm" phải hiện, nếu không thì 4 cột đầu cộng lại KHÔNG ra Tổng — học viên tưởng app tính sai
           const giam = (+i.leader_discount || 0) + (+i.room_discount || 0) + (+i.fee_discount || 0);
-          return `<tr style="cursor:pointer" data-act="myInvoiceDetail" data-args='[${i.id}]' title="Bấm để xem chi tiết khoản thu"><td>${monthLabel(i.month)}<div style="margin-top:4px">${invPaidBadge(i)}</div></td><td class="num" data-label="Tiền phòng">${moneyN(i.room_charge)}</td><td class="num" data-label="Điện">${moneyN(i.electric_charge)}</td>
+          return `<tr style="cursor:pointer" data-act="myInvoiceDetail" data-args='[${i.id}]' title="Bấm để xem chi tiết khoản thu"><td>${monthLabel(i.month)}</td><td class="num" data-label="Tiền phòng">${moneyN(i.room_charge)}</td><td class="num" data-label="Điện">${moneyN(i.electric_charge)}</td>
           <td class="num" data-label="Khác">${moneyN((+i.water_charge) + (+i.service_charge) + (+i.washing_charge) + (+i.parking_charge) + (+i.other_charge || 0) + (+i.deposit_charge || 0))}</td>
           <td class="num" data-label="Giảm">${giam ? `<span class="badge green">−${moneyN(giam)}</span>` : '—'}</td>
           <td class="num" data-label="Tổng"><strong>${moneyN(i.total)}</strong></td></tr>`;
