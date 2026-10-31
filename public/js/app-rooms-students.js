@@ -875,6 +875,24 @@ async function suggestContractNo(studentId) {
   if (r && r.dung_chung) return toast('Phòng thuê trọn dùng chung HĐ của người ký — hồ sơ này không có số riêng', 'err');
   if (r && r.contract_no) { el('f_cno').value = r.contract_no; toast('Số HĐ: ' + r.contract_no); }
 }
+// Wifi dùng chung toàn KTX, lấy từ Cài đặt — để đọc ngay cho học viên khi đang mở hồ sơ.
+function wifiKtxBlock() {
+  const ss = ST.settings || {};
+  const ten = ss.wifi_ssid || '';
+  if (!ten) return '';
+  const mk = ss.wifi_password || '';
+  return `<div class="bang-tin" style="margin:0 0 14px;align-items:flex-start">${IC.wifi}<span>
+    <strong>Wifi:</strong> ${esc(ten)}${mk
+      ? ` &nbsp;•&nbsp; <strong>Mật khẩu:</strong> <code style="font-size:14px;letter-spacing:.02em">${esc(mk)}</code>
+        <button class="btn sm ghost" style="margin-left:8px;vertical-align:middle" data-act="chepWifiKtx">${IC.clipboard} Chép</button>`
+      : ' &nbsp;•&nbsp; <span class="muted">Chưa đặt mật khẩu — điền ở màn Cài đặt.</span>'}
+  </span></div>`;
+}
+async function chepWifiKtx() {
+  const mk = (ST.settings || {}).wifi_password || '';
+  try { await navigator.clipboard.writeText(mk); toast('Đã chép mật khẩu wifi'); }
+  catch (e) { toast('Không chép được — chép tay mật khẩu bên trên', 'err'); }
+}
 async function studentDetail(id) {
   datManChiTiet(studentDetail, id);   // form con lưu xong quay về đúng hồ sơ này (luuXongVeLai)
   const s = await moModalCho(true, () => guard(() => API.student(id)));
@@ -898,6 +916,7 @@ async function studentDetail(id) {
         <div class="stat"><div class="l">Hình thức</div><div class="v sm">${rentalLabelOf(s)}</div></div>
         <div class="stat"><div class="l">Tạm trú</div><div class="v sm">${resiBadge(s.residency_status)}</div></div>
       </div>
+      ${wifiKtxBlock()}
       <p><strong>Mã HV:</strong> ${esc(s.code || '—')} &nbsp;•&nbsp; <strong>Lớp:</strong> ${esc(s.class_name || '—')} &nbsp;•&nbsp; <strong>Ngày sinh:</strong> ${fmtDate(s.birth_date)}</p>
       <p><strong>SĐT:</strong> ${esc(s.phone || '—')} &nbsp;•&nbsp; <strong>SĐT phụ huynh:</strong> ${esc(s.parent_phone || '—')}</p>
       <p><strong>Khai giảng:</strong> ${fmtDate(s.class_start_date)} &nbsp;•&nbsp; <strong>Dự kiến xuất cảnh:</strong> ${fmtDate(s.expected_departure)}</p>
